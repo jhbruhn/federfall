@@ -1,7 +1,7 @@
 {
     "@@locale": "en",
-    "counterAppBarTitle": "Counter",
-    "@counterAppBarTitle": {
-        "description": "Text shown in the AppBar of the Counter Page"
+    "appName": "Federfall",
+    "@appName": {
+        "description": "The application name shown in the app bar and window title"
     }
 }

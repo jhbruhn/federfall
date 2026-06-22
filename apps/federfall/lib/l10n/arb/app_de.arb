@@ -1,0 +1,7 @@
+{
+    "@@locale": "de",
+    "appName": "Federfall",
+    "@appName": {
+        "description": "Der App-Name in der AppBar und im Fenstertitel"
+    }
+}
