@@ -51,7 +51,9 @@ doc/api/
 **/web/flutter_service_worker.js
 
 # ─── PocketBase backend (containerized) ─────────────────────────────────────
-backend/pocketbase/pb_data/        # runtime DB, uploaded files, logs (Docker volume) — never commit
+# Runtime DB, uploaded files, logs (Docker volume) — never commit.
+# NOTE: gitignore has no inline comments — keep the pattern on its own line.
+backend/pocketbase/pb_data/
 
 # ─── IDE / editor / OS ──────────────────────────────────────────────────────
 .idea/
