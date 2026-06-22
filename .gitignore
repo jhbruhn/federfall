@@ -3,10 +3,11 @@
 *.db
 .beads-credential-key
 
-# ─── Secrets & environment ──────────────────────────────────────────────────
+# ─── Secrets ────────────────────────────────────────────────────────────────
+# This project does NOT use .env files (config is literal in compose / JSON
+# dart-defines). These lines are purely defensive in case a tool drops one.
 .env
 .env.*
-!.env.example
 *.pem
 **/android/key.properties
 **/android/app/*.jks
