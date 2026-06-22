@@ -20,18 +20,25 @@ This project contains 3 flavors:
 
 To run the desired flavor either use the launch configuration in VSCode/Android Studio or use the following commands:
 
+Each flavor pairs a target entrypoint with its build-time config in
+[`dart_defines/`](dart_defines) (injected via `--dart-define-from-file` and read
+through `lib/config/app_environment.dart`):
+
 ```sh
-# Development
-$ flutter run --flavor development --target lib/main_development.dart
+# Development (points at the local containerized PocketBase on :8090)
+$ flutter run --flavor development --target lib/main_development.dart \
+    --dart-define-from-file=dart_defines/development.json
 
 # Staging
-$ flutter run --flavor staging --target lib/main_staging.dart
+$ flutter run --flavor staging --target lib/main_staging.dart \
+    --dart-define-from-file=dart_defines/staging.json
 
 # Production
-$ flutter run --flavor production --target lib/main_production.dart
+$ flutter run --flavor production --target lib/main_production.dart \
+    --dart-define-from-file=dart_defines/production.json
 ```
 
-_\*Federfall works on iOS, Android, Web, and Windows._
+_\*Federfall targets iOS, Android, and Web._
 
 ---
 

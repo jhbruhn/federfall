@@ -1,3 +1,4 @@
+import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
@@ -7,7 +8,8 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      onGenerateTitle: (context) => context.l10n.appName,
+      // Flavored name (e.g. "[DEV] Federfall") for the window/tab title.
+      title: AppEnvironment.appName,
       theme: ThemeData(
         appBarTheme: AppBarTheme(
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,

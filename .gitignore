@@ -57,9 +57,18 @@ backend/pocketbase/pb_data/
 
 # ─── IDE / editor / OS ──────────────────────────────────────────────────────
 .idea/
-.vscode/
+# Ignore .vscode contents but keep shareable run/debug + recommendations.
+# Use `.vscode/*` (not `.vscode/`) so the negations below can re-include files;
+# a file under a fully-ignored directory cannot be re-included. The `**` globs
+# cover nested packages (e.g. apps/federfall/.vscode/).
+.vscode/*
 !.vscode/launch.json
 !.vscode/settings.json
+!.vscode/extensions.json
+**/.vscode/*
+!**/.vscode/launch.json
+!**/.vscode/settings.json
+!**/.vscode/extensions.json
 *.iml
 .DS_Store
 Thumbs.db

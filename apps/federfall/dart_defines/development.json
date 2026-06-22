@@ -1,0 +1,5 @@
+{
+  "FLAVOR": "development",
+  "APP_NAME": "[DEV] Federfall",
+  "POCKETBASE_URL": "http://localhost:8090"
+}
