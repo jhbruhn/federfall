@@ -1,0 +1,14 @@
+# Federfall — Dart pub workspace root.
+# This is not a publishable package; it only ties the monorepo members together
+# so they share a single dependency resolution and lockfile.
+# See https://dart.dev/tools/pub/workspaces
+name: federfall_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+workspace:
+  - apps/federfall
+  # packages/federfall_models   # added in FED-2.2
+  # packages/federfall_data     # added in FED-2.3
