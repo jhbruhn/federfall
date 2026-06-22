@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "federfall",
+  "project_id": "d37215d7-b8aa-43ae-979e-2ef7de8318c0"
+}
