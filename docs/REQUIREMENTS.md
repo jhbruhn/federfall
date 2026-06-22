@@ -99,6 +99,7 @@ PocketBase **superusers** (admin UI) ≠ in-app "Supervisor." Keep them separate
 - As a supervisor, I can **view dashboards and export reports** (intakes per period, outcome rates, breakdown by species/condition) for the annual report.
 
 ### Cross-cutting
+- As a **mobile user (Android/iOS)**, on first start I **enter my Federfall server's URL** (like adding a Nextcloud server); the app checks it's reachable, remembers it, and I can later **switch server**. *(On web this is automatic — the app uses the domain it's served from.)*
 - As any user, I can **sign in** with email+password (and later via Nextcloud OIDC).
 - As any user, I can **view recently-opened cases offline** (read-only) when I have no connection.
 - As any user, the UI is **in German**.
@@ -248,6 +249,9 @@ A user may **edit** a case (and add weights/meds/journal/placements) if:
 - Routing: **go_router** with typed routes; `usePathUrlStrategy()` + server rewrites for clean web URLs.
 - Models/serialization: **freezed + json_serializable + build_runner** (Dart macros are cancelled; codegen is the path).
 - PocketBase integration: official **`pocketbase` Dart SDK**, wrapped in repositories that map `RecordModel` → typed freezed models. Never let raw `RecordModel` leak into the UI.
+- **Server connection (instance URL):** the PocketBase base URL is **platform-resolved**, never hardcoded:
+  - **Android/iOS:** a **first-run setup screen** (Nextcloud-style) where the user enters their Federfall server URL. The app normalizes it, validates by probing `GET /api/health`, persists it, and uses it as the base URL. Re-configurable later via "switch server" (which clears the stored URL and returns to setup); logout keeps it.
+  - **Web:** **no setup screen** — backend and frontend are served from the **same domain**, so the base URL is the app's own serving origin (`Uri.base.origin`).
 - **Auth token storage:** `AsyncAuthStore` over `flutter_secure_storage` (Keychain/Keystore on native; LocalStorage+WebCrypto on web — weaker, requires HTTPS/HSTS).
 - **Light offline:** cache recently-viewed cases (local store / `pocketbase_drift` or a simple cache repository); reads work offline, edits require connection.
 - **Maps & geocoding:** **`flutter_map` with OpenStreetMap tiles** (not google_maps_flutter), and **Nominatim** for address ⇄ coordinate geocoding — self-hosted where practical. No Google Maps / Big Tech dependency. Used for find-location and release/aviary locations.
@@ -302,7 +306,7 @@ A user may **edit** a case (and add weights/meds/journal/placements) if:
 
 ## 12. MVP scope
 
-**In:** auth (email+password, invite-only), cases with light intake + optional structured exam, conditions (code list + free text), weights + trend, medications, journal + photos, placements/handoff, dispositions, private-by-default + opt-in sharing, supervisor user/code-list management, basic dashboard + CSV export, German UI (i18n-ready), light offline reads, self-hosted deploy with backups.
+**In:** native (Android/iOS) server-URL setup screen (web auto-uses its serving origin), auth (email+password, invite-only), cases with light intake + optional structured exam, conditions (code list + free text), weights + trend, medications, journal + photos, placements/handoff, dispositions, private-by-default + opt-in sharing, supervisor user/code-list management, basic dashboard + CSV export, German UI (i18n-ready), light offline reads, self-hosted deploy with backups.
 
 **Out (later):** Nextcloud OIDC, MFA enforcement, public finder portal, reminders/notifications, rich PDF reports, multi-org, vet login, formal importer, full offline-with-sync.
 

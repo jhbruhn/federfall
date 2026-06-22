@@ -66,15 +66,15 @@ federfall/
 
 | ID | Task | Deps |
 |---|---|---|
-| FED-2.1 | PocketBase client provider + `AsyncAuthStore` over `flutter_secure_storage` (native) with web fallback; env-driven base URL | FED-0.4, FED-1.1 |
+| FED-2.1 | PocketBase client provider + `AsyncAuthStore` over `flutter_secure_storage` (native) with web fallback. **Base URL is platform-resolved:** on **web** = the app's own serving origin (`Uri.base.origin`); on **native** = the user-configured server URL (persisted, see FED-3.0). Not hardcoded/env; client rebuilds when the URL changes; unconfigured state (native-only) exposed for routing to gate on | FED-0.4, FED-1.1 |
 | FED-2.2 | freezed models + `RecordModel`→model mappers for all collections (in `federfall_models`) | FED-0.4, FED-1.* |
 | FED-2.3 | Repository interfaces + PocketBase implementations (auth, cases, animals, weights, meds, journal, conditions, placements, dispositions, markings, aviaries, shares, finders) | FED-2.1, FED-2.2 |
-| FED-2.4 | go_router setup: auth-guarded shell, web `usePathUrlStrategy`, error/404 routes | FED-0.4 |
+| FED-2.4 | go_router setup: web `usePathUrlStrategy`, error/404 routes, and a **two-stage redirect gate** — (native only) no server configured → `/setup` (FED-3.0); unauthenticated → `/login`; else app shell. On web the server is always "configured" (serving origin), so `/setup` never triggers | FED-0.4 |
 | FED-2.5 | Theming + German l10n scaffolding + base widgets (forms, buttons, async/error states) | FED-0.2 |
 | FED-2.6 | Light offline read cache (recently-viewed cases) behind the repository | FED-2.3 |
 | FED-2.7 | App-wide error handling, Result/failure types, logging | FED-2.3 |
 
-**DoD:** app boots to a login gate; a repository call round-trips to local PocketBase with a typed model.
+**DoD:** app boots to the server-setup gate (then login once a server is configured); a repository call round-trips to local PocketBase with a typed model.
 
 ---
 
@@ -82,7 +82,8 @@ federfall/
 
 | ID | Task | Deps |
 |---|---|---|
-| FED-3.1 | Login (email+password), session restore on launch, logout | FED-2.1, FED-2.4 |
+| FED-3.0 | **Server configuration (instance URL, first-run)** — **native (Android/iOS) only**, Nextcloud-style: before login, user enters their Federfall server URL; validate (normalize + probe `GET /api/health`, clear errors), persist, feed PB client base URL; re-configurable via "switch server". **On web this screen is skipped** — base URL is the page's own serving origin (backend + frontend share the domain) | FED-2.1, FED-2.4 |
+| FED-3.1 | Login (email+password) against the configured server, session restore on launch, logout (keeps server URL; "switch server" clears it → `/setup`) | FED-3.0 |
 | FED-3.2 | Invite/approval flow: supervisor invites → accept-invite sets password → role assigned | FED-3.1, FED-1.1 |
 | FED-3.3 | Role-gated navigation + minimal profile | FED-3.1 |
 | FED-3.4 | Minimal create-case (name + species + reason) → list of my cases → case detail stub | FED-2.3, FED-3.1 |
@@ -185,7 +186,7 @@ graph TD
   P7 --> P8
 ```
 
-**Critical path:** FED-0.* → FED-1.{1,2,3,11} → FED-2.{1,2,3} → FED-3.{1,4,5} (M1) → FED-4.{1,3,11} (M2) → FED-7.* (M3) → FED-8.{4,5} (M4).
+**Critical path:** FED-0.* → FED-1.{1,2,3,11} → FED-2.{1,2,3} → FED-3.{0,1,4,5} (M1) → FED-4.{1,3,11} (M2) → FED-7.* (M3) → FED-8.{4,5} (M4).
 Everything in Phase 4 beyond intake/detail/disposition is parallelisable across slices once M1 lands; Phases 5/6/7 are largely independent and can run in parallel after Phase 4's core.
 
 ---
