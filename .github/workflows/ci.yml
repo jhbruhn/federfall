@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.44.3"
+
+jobs:
+  build:
+    name: format · analyze · test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # Resolves the whole pub workspace from the repo root.
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate localizations
+        run: flutter gen-l10n
+        working-directory: apps/federfall
+
+      # Format the hand-written source before any generated files exist, so the
+      # check never trips over generator output (l10n gen carries a format-off
+      # header; *.g.dart / *.freezed.dart are produced in the next step).
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Generate code (freezed / json / riverpod)
+        run: dart run build_runner build --delete-conflicting-outputs
+        working-directory: apps/federfall
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests with coverage
+        run: flutter test --coverage
+        working-directory: apps/federfall
+
+      # ~80% gate. As the domain/repository packages land (Phase 2) the bar
+      # stays at 80% across hand-written code; generated files are excluded.
+      - name: Check coverage
+        uses: VeryGoodOpenSource/very_good_coverage@v3
+        with:
+          path: apps/federfall/coverage/lcov.info
+          min_coverage: 80
+          exclude: "**/*.g.dart **/*.freezed.dart **/l10n/gen/**"
