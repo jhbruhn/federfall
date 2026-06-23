@@ -85,3 +85,7 @@ Future<PbDispositionsRepository> dispositionsRepository(Ref ref) async =>
 @Riverpod(keepAlive: true)
 Future<PbCaseSharesRepository> caseSharesRepository(Ref ref) async =>
     PbCaseSharesRepository(await _client(ref), cache: _cache(ref));
+
+@Riverpod(keepAlive: true)
+Future<PbUsersRepository> usersRepository(Ref ref) async =>
+    PbUsersRepository(await _client(ref), cache: _cache(ref));

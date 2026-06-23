@@ -12,6 +12,9 @@ import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
+import 'package:federfall/features/cases/placements/placement_sheet.dart';
+import 'package:federfall/features/cases/placements/placement_tile.dart';
+import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_entry_tile.dart';
@@ -50,18 +53,21 @@ class CaseTimeline extends ConsumerWidget {
     final meds = ref.watch(medicationsForCaseProvider(caseId));
     final doses = ref.watch(administrationsForCaseProvider(caseId));
     final markings = ref.watch(markingsForAnimalProvider(medicalCase.animal));
+    final placements = ref.watch(placementsForCaseProvider(caseId));
     final isLoading = journal.isLoading ||
         weights.isLoading ||
         conditions.isLoading ||
         meds.isLoading ||
         doses.isLoading ||
-        markings.isLoading;
+        markings.isLoading ||
+        placements.isLoading;
     final error = journal.error ??
         weights.error ??
         conditions.error ??
         meds.error ??
         doses.error ??
-        markings.error;
+        markings.error ??
+        placements.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -85,6 +91,8 @@ class CaseTimeline extends ConsumerWidget {
         _AdministrationEvent(dose),
       for (final marking in markings.value ?? const <Marking>[])
         _MarkingEvent(marking),
+      for (final placement in placements.value ?? const <Placement>[])
+        _PlacementEvent(placement),
     ]..sort((a, b) => b.at.compareTo(a.at));
 
     return Column(
@@ -132,6 +140,11 @@ class CaseTimeline extends ConsumerWidget {
                     caseId: caseId,
                   ),
                   child: Text(l10n.timelineAddMarking),
+                ),
+                PopupMenuItem(
+                  onTap: () =>
+                      showPlacementSheet(context, medicalCase: medicalCase),
+                  child: Text(l10n.timelineAddPlacement),
                 ),
               ],
             ),
@@ -181,6 +194,11 @@ class CaseTimeline extends ConsumerWidget {
               _MarkingEvent(:final marking) => MarkingTile(
                 marking: marking,
                 caseId: caseId,
+                isLast: i == events.length - 1,
+              ),
+              _PlacementEvent(:final placement) => PlacementTile(
+                placement: placement,
+                medicalCase: medicalCase,
                 isLast: i == events.length - 1,
               ),
               _MilestoneEvent(:final icon, :final label, :final at) =>
@@ -288,5 +306,18 @@ class _MarkingEvent extends _Event {
   DateTime get at =>
       marking.appliedAt ??
       marking.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A placement / handoff placed on the timeline by when the move happened.
+class _PlacementEvent extends _Event {
+  const _PlacementEvent(this.placement);
+
+  final Placement placement;
+
+  @override
+  DateTime get at =>
+      placement.movedInAt ??
+      placement.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }
