@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/new_case_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -10,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart' hide Finder;
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
@@ -20,19 +24,27 @@ class MockFindersRepo extends Mock implements PbFindersRepository {}
 
 class MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
 
+class MockImagePicker extends Mock implements ImagePicker {}
+
 void main() {
-  setUpAll(() => registerFallbackValue(<String, dynamic>{}));
+  setUpAll(() {
+    registerFallbackValue(<String, dynamic>{});
+    registerFallbackValue(<http.MultipartFile>[]);
+  });
 
   late MockAnimalsRepo animals;
   late MockCasesRepo cases;
   late MockFindersRepo finders;
   late MockMarkingsRepo markings;
+  late MockImagePicker picker;
 
   setUp(() {
     animals = MockAnimalsRepo();
     cases = MockCasesRepo();
     finders = MockFindersRepo();
     markings = MockMarkingsRepo();
+    picker = MockImagePicker();
+    when(picker.pickMultiImage).thenAnswer((_) async => []);
     when(() => animals.create(any()))
         .thenAnswer((_) async => const Animal(id: 'a1', species: 'Stadttaube'));
     when(() => animals.searchByName(any())).thenAnswer((_) async => []);
@@ -69,6 +81,7 @@ void main() {
         casesRepositoryProvider.overrideWith((ref) async => cases),
         findersRepositoryProvider.overrideWith((ref) async => finders),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
+        imagePickerProvider.overrideWithValue(picker),
       ],
     );
     addTearDown(container.dispose);
@@ -237,5 +250,44 @@ void main() {
     final caseBody = verify(() => cases.create(captureAny())).captured.single
         as Map<String, dynamic>;
     expect(caseBody['animal'], 'a9');
+  });
+
+  testWidgets('staged intake photos upload via createWithFiles',
+      (tester) async {
+    when(picker.pickMultiImage).thenAnswer(
+      (_) async => [
+        XFile.fromData(
+          Uint8List.fromList([1, 2, 3]),
+          name: 'intake.jpg',
+          mimeType: 'image/jpeg',
+        ),
+      ],
+    );
+    when(() => cases.createWithFiles(any(), any()))
+        .thenAnswer((_) async => const Case(id: 'c1', animal: 'a1'));
+
+    await pump(tester);
+
+    final addPhotos = find.widgetWithText(OutlinedButton, 'Add photos');
+    await tester.ensureVisible(addPhotos);
+    await tester.tap(addPhotos);
+    await tester.pumpAndSettle();
+
+    final injury = find.widgetWithText(FilterChip, 'Injury');
+    await tester.ensureVisible(injury);
+    await tester.tap(injury);
+    await tester.pumpAndSettle();
+
+    final submit = find.widgetWithText(FilledButton, 'Create case');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    verifyNever(() => cases.create(any()));
+    final files = verify(
+      () => cases.createWithFiles(any(), captureAny()),
+    ).captured.single as List<http.MultipartFile>;
+    expect(files.length, 1);
+    expect(files.single.field, 'intake_photos');
   });
 }

@@ -96,6 +96,8 @@
     "journalFieldText": "Notiz",
     "journalFieldDate": "Datum",
     "journalAddPhotos": "Fotos hinzufügen",
+    "photoAddAction": "Fotos hinzufügen",
+    "photoCaptureAction": "Foto aufnehmen",
     "journalTakePhoto": "Foto aufnehmen",
     "journalEditTitle": "Journaleintrag bearbeiten",
     "journalEditAction": "Bearbeiten",

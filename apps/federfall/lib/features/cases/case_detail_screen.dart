@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -210,8 +213,69 @@ class _IntakeSection extends ConsumerWidget {
               for (final row in rows) row,
             if (medicalCase.finder case final finderId?)
               _FinderRow(finderId),
+            if (medicalCase.intakePhotos.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _IntakePhotos(
+                caseId: medicalCase.id,
+                filenames: medicalCase.intakePhotos,
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Thumbnails of a case's intake photos; tapping one opens it full-size.
+class _IntakePhotos extends ConsumerWidget {
+  const _IntakePhotos({required this.caseId, required this.filenames});
+
+  final String caseId;
+  final List<String> filenames;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final repo = ref.watch(casesRepositoryProvider).value;
+    if (repo == null) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 96,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: filenames.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, i) {
+          final thumb = repo.fileUrl(caseId, filenames[i], thumb: '200x200');
+          final full = repo.fileUrl(caseId, filenames[i]);
+          return GestureDetector(
+            onTap: () => unawaited(
+              showDialog<void>(
+                context: context,
+                builder: (_) => Dialog(
+                  child: InteractiveViewer(
+                    child: Image.network(full.toString(), fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                thumb.toString(),
+                width: 96,
+                height: 96,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  width: 96,
+                  height: 96,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: const Icon(Icons.broken_image_outlined),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

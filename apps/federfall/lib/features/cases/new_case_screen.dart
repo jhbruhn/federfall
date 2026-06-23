@@ -3,6 +3,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -12,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 /// Full intake form (FED-4.1). Captures the persistent **animal** identity
 /// (species, name, sex), the **case** intake details (reasons, dates, find
@@ -51,6 +54,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   final _findLocationController = TextEditingController();
   final _intakeWeightController = TextEditingController();
   final _intakeNotesController = TextEditingController();
+  final _intakePhotos = <XFile>[];
   final Set<AdmissionReason> _reasons = {};
   AgeClass? _ageClass;
   DateTime? _foundAt;
@@ -90,6 +94,33 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   String? _trimmedOrNull(TextEditingController c) {
     final v = c.text.trim();
     return v.isEmpty ? null : v;
+  }
+
+  Future<void> _addPhotos() async {
+    final picked = await ref.read(imagePickerProvider).pickMultiImage();
+    if (picked.isNotEmpty) setState(() => _intakePhotos.addAll(picked));
+  }
+
+  Future<void> _capturePhoto() async {
+    final shot = await ref
+        .read(imagePickerProvider)
+        .pickImage(source: ImageSource.camera);
+    if (shot != null) setState(() => _intakePhotos.add(shot));
+  }
+
+  /// The staged intake photos as multipart files on the `intake_photos` field.
+  Future<List<http.MultipartFile>> _intakePhotoFiles() async {
+    final files = <http.MultipartFile>[];
+    for (final photo in _intakePhotos) {
+      files.add(
+        http.MultipartFile.fromBytes(
+          'intake_photos',
+          await photo.readAsBytes(),
+          filename: photo.name,
+        ),
+      );
+    }
+    return files;
   }
 
   /// Builds the finder body from the contact fields, or `null` when the carer
@@ -165,7 +196,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       }
 
       final weight = int.tryParse(_intakeWeightController.text.trim());
-      await casesRepo.create({
+      final body = <String, dynamic>{
         'animal': animalId,
         'org': org,
         'active_carer': user.id,
@@ -178,7 +209,14 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
         'intake_weight_g': ?weight,
         'intake_notes': ?_trimmedOrNull(_intakeNotesController),
         'finder': ?finderId,
-      });
+      };
+
+      final photos = await _intakePhotoFiles();
+      if (photos.isEmpty) {
+        await casesRepo.create(body);
+      } else {
+        await casesRepo.createWithFiles(body, photos);
+      }
 
       ref.invalidate(myCasesProvider);
       if (mounted) context.pop();
@@ -349,6 +387,15 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
                       label: l10n.caseFieldIntakeNotes,
                       prefixIcon: Icons.notes_outlined,
                       enabled: !_busy,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    StagedPhotos(
+                      photos: _intakePhotos,
+                      enabled: !_busy,
+                      onAdd: _addPhotos,
+                      onCapture: _capturePhoto,
+                      onRemove: (i) =>
+                          setState(() => _intakePhotos.removeAt(i)),
                     ),
                     const SizedBox(height: AppSpacing.lg),
 

@@ -27,7 +27,7 @@ Future<AuthRepository> authRepository(Ref ref) async =>
     PbAuthRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
-Future<CasesRepository> casesRepository(Ref ref) async =>
+Future<PbCasesRepository> casesRepository(Ref ref) async =>
     PbCasesRepository(await _client(ref), cache: _cache(ref));
 
 @Riverpod(keepAlive: true)
