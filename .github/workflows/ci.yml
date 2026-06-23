@@ -62,3 +62,15 @@ jobs:
           path: apps/federfall/coverage/lcov.info
           min_coverage: 80
           exclude: "**/*.g.dart **/*.freezed.dart **/l10n/gen/**"
+
+  backend-rules:
+    name: backend · rule & hook tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Builds the pinned PocketBase image, runs migrations + hooks on a
+      # throwaway instance, and asserts the access-rule matrix + hook behaviour.
+      - name: Run PocketBase rule/hook suite
+        run: backend/pocketbase/tests/run.sh
