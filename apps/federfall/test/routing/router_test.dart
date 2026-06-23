@@ -5,7 +5,7 @@ import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
-import 'package:federfall/features/home/home_screen.dart';
+import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
@@ -86,13 +86,13 @@ void main() {
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 
-  testWidgets('configured + authenticated → home', (tester) async {
+  testWidgets('configured + authenticated → cases tab', (tester) async {
     await _pumpAt(
       tester,
       config: const ServerConfig.configured('https://x.example'),
       authed: true,
     );
-    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(CasesScreen), findsOneWidget);
   });
 
   testWidgets('confirm-reset is reachable without a session', (tester) async {

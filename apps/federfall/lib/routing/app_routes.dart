@@ -10,8 +10,17 @@ abstract final class AppRoutes {
   /// Sign-in screen (FED-3.1).
   static const login = '/login';
 
-  /// Authenticated app shell / home — the carer's case list (FED-3.4).
-  static const home = '/';
+  /// Dashboard tab of the navigation shell (FED-7.0 / FED-7.1).
+  static const dashboard = '/dashboard';
+
+  /// Cases tab — the carer's case list (FED-3.4).
+  static const cases = '/cases';
+
+  /// Animals tab — the animals registry (FED-7.0 / FED-7.5).
+  static const animals = '/animals';
+
+  /// Default authenticated landing destination.
+  static const String home = cases;
 
   /// Create-case form (FED-3.4).
   static const newCase = '/cases/new';

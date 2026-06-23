@@ -2,11 +2,14 @@ import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/admin/admin_screen.dart';
+import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
+import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/cases/new_case_screen.dart';
-import 'package:federfall/features/home/home_screen.dart';
+import 'package:federfall/features/dashboard/dashboard_screen.dart';
+import 'package:federfall/features/home/nav_shell.dart';
 import 'package:federfall/features/profile/profile_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/features/startup/splash_screen.dart';
@@ -54,9 +57,37 @@ GoRouter router(Ref ref) {
         path: AppRoutes.login,
         builder: (_, _) => const LoginScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.home,
-        builder: (_, _) => const HomeScreen(),
+      // Adaptive top-level navigation shell (FED-7.0): Dashboard, Cases,
+      // Animals. Each destination is a branch so its state survives switching.
+      StatefulShellRoute.indexedStack(
+        builder: (_, _, navigationShell) =>
+            NavShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.dashboard,
+                builder: (_, _) => const DashboardScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.cases,
+                builder: (_, _) => const CasesScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.animals,
+                builder: (_, _) => const AnimalsScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.newCase,
@@ -116,7 +147,8 @@ String? _gate(Ref ref, String location) {
     return location == AppRoutes.login ? null : AppRoutes.login;
   }
 
-  // Authenticated: bounce away from the gate-only routes.
-  const gateRoutes = {AppRoutes.splash, AppRoutes.login, AppRoutes.setup};
+  // Authenticated: bounce away from the gate-only routes and the bare root
+  // (the old home path, now unmatched) onto the default landing destination.
+  const gateRoutes = {AppRoutes.splash, AppRoutes.login, AppRoutes.setup, '/'};
   return gateRoutes.contains(location) ? AppRoutes.home : null;
 }

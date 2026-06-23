@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
-import 'package:federfall/features/home/home_screen.dart';
+import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -63,7 +63,7 @@ Future<void> _pump(
         locale: Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: HomeScreen(),
+        home: CasesScreen(),
       ),
     ),
   );
