@@ -53,18 +53,88 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
+Pub workspace: app in `apps/federfall`, packages in `packages/federfall_{models,data}`.
 
 ```bash
-# Example:
-# npm install
-# npm test
+# From apps/federfall:
+flutter run --flavor development --target lib/main_development.dart \
+  --dart-define-from-file=dart_defines/development.json
+flutter analyze            # MUST be clean — CI uses very_good_analysis (strict)
+flutter test               # widget/unit tests
+flutter gen-l10n           # regenerate l10n after editing lib/l10n/arb/*.arb
+dart run build_runner build  # regenerate riverpod (.g.dart) + freezed (.freezed.dart)
+
+# Packages (pure Dart):
+cd packages/federfall_data && dart test && dart analyze
+cd packages/federfall_models && dart run build_runner build && dart test
 ```
+
+**Codegen is required, not optional.** After editing:
+- an `.arb` file → run `flutter gen-l10n` (config is `l10n.yaml`; CLI args are ignored).
+- a `@riverpod` provider or a `@freezed` model → run `dart run build_runner build`
+  (note: the `--delete-conflicting-outputs` flag was removed; just `build`).
+Generated `*.g.dart` / `*.freezed.dart` / `lib/l10n/gen/*` are gitignored and rebuilt.
+
+**Quality gates before committing:** `flutter analyze` clean + `flutter test` green for
+the app, and `dart analyze`/`dart test` for any touched package.
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Three layers (see `federfall-implementation-is-planned-in-beads-9-phase` memory for the plan):
+
+- **`packages/federfall_models`** — immutable `freezed` domain models + `fromRecord`
+  mappers from PocketBase `RecordModel`. Enums carry a `wire` value (the exact string PB
+  stores) so Dart renames never break mapping. `GeoPoint.fromPb` treats `{lon:0,lat:0}` as null.
+- **`packages/federfall_data`** — `PbRepository<T>` base over one collection: CRUD +
+  read-through offline cache + `ClientException`→`RepositoryException`. File fields use
+  `createWithFiles` / `updateWithFiles` (multipart) + `fileUrl(id, name, {thumb})`.
+  Geocoding goes through `GeocodingRepository` (backend proxy), not a direct API call.
+- **`apps/federfall`** — Riverpod codegen providers (`@riverpod`), `go_router`, feature
+  folders under `lib/features/`. Repo providers in `lib/data/repository_providers.dart`
+  bind each repo to the resolved `PocketBase` client + shared cache.
+
+**Backend** is fully container-based (see `federfall-backend-is-fully-container-based...`
+memory): PocketBase with JS migrations (`backend/pocketbase/pb_migrations/*.js`, numbered,
+committed) and hooks (`pb_hooks/*.pb.js`). Schema changes = new migration, never hand-edit.
+Hooks own case-number/quarantine defaults, share-on-handoff, and disposition side-effects
+(case `status`, animal `lifetime_status`). Access rules in `1700000010_access_rules.js` are
+the real security boundary (org-scoped, private-by-default + opt-in sharing). Rule tests are
+Python (`backend/pocketbase/tests/test_rules.py`, run via `run.sh`) and **need a live PB** —
+they can't run in the Flutter test suite, so verify migrations/hooks against a running stack.
+
+**Case timeline pattern:** every clinical record (weight, condition, medication +
+administration, journal, marking, placement, disposition) is one unified chronology. Each
+kind = a provider + a `showXSheet()` bottom sheet (create/edit) + a tile built on the shared
+`TimelineItem` + a sealed `_Event` subclass in `case_timeline.dart`. The case detail is a
+name-first header over Overview / History tabs. See
+`federfall-ui-prefers-unified-consistent-views` memory — favor one consistent view over
+fragmented sections.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- **Git:** commit directly on `main` (no feature branches); push only when asked — do NOT
+  treat the beads "Session Completion" push step as automatic here (see
+  `federfall-commit-directly-on-main` memory). End commit messages with the `Co-Authored-By` trailer.
+- **Lint (very_good_analysis, strict — these bite):** 80-char lines; imports sorted
+  alphabetically (`directives_ordering`); use Dart 3 null-aware elements — `'key': ?nullable`
+  in maps, `?nullable` in lists — instead of `if (x != null)`; no redundant default args; no
+  positional `bool` params; type non-obvious `static const`s; no unnecessary raw strings.
+- **l10n:** every user-facing string lives in `app_en.arb` + `app_de.arb` (German is the
+  primary UI language). Enum→label helpers in `features/cases/cases_labels.dart` (e.g.
+  `admissionReasonLabel`), resolving `l10n` like `Validators` does.
+- **PocketBase JSVM gotcha:** each hook route handler / `onRecord*` callback runs in an
+  isolated context — **file-level helpers/consts are NOT in scope inside a handler**. Define
+  everything a handler needs inside it (expect `ReferenceError` otherwise).
+- **Build-time config** (`AppEnvironment`): `POCKETBASE_URL`, `MAP_TILE_URL`,
+  `MAP_ATTRIBUTION` come from `dart_defines/<flavor>.json` as compile-time constants — they
+  need a rebuild, not hot reload (a stale build silently falls back to defaults).
+- **Geocoding** is proxied through PB hooks (`pb_hooks/geocode.pb.js`) for CORS + server-side
+  rate-limiting; configurable via `FEDERFALL_NOMINATIM_URL` / `FEDERFALL_GEOCODER_KEY` /
+  `FEDERFALL_USER_AGENT`. Public OSM Nominatim blocks server traffic and placeholder UA
+  domains (e.g. `example.org`) — use a real contact or none, or self-host.
+- **Tests:** widget tests override repo providers with `mocktail` mocks via
+  `ProviderContainer(overrides: ...)`; inject the image picker via `imagePickerProvider`.
+  Hide flutter_test's `Finder` when importing models (`import '...flutter_test.dart' hide
+  Finder;`). `registerFallbackValue` for `<String,dynamic>{}` and `<MultipartFile>[]`. Fake
+  image bytes throw "Invalid image data" — give `Image.memory` an `errorBuilder`; `XFile`
+  `.name` can be empty in tests.
