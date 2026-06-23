@@ -41,5 +41,19 @@ abstract final class AppEnvironment {
   /// Whether a build-time PocketBase URL override was provided.
   static bool get hasPocketbaseUrlOverride => pocketbaseUrlOverride.isNotEmpty;
 
+  /// Map tile URL template for the find-location map (FED-4.2). Configurable at
+  /// build time; defaults to the public OSM tile server. Point at a self-hosted
+  /// tile server in production to respect OSM's usage policy.
+  static const String mapTileUrl = String.fromEnvironment(
+    'MAP_TILE_URL',
+    defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  );
+
+  /// Attribution shown on the map, matching [mapTileUrl].
+  static const String mapAttribution = String.fromEnvironment(
+    'MAP_ATTRIBUTION',
+    defaultValue: '© OpenStreetMap contributors',
+  );
+
   static bool get isProduction => flavor == AppFlavor.production;
 }

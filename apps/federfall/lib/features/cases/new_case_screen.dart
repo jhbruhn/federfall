@@ -4,6 +4,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
+import 'package:federfall/features/cases/location/location_picker_screen.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -60,6 +61,12 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   DateTime? _foundAt;
   DateTime? _admittedAt;
 
+  // Find location (FED-4.2): a geocoded pin + resolved city/region alongside
+  // the free-text address.
+  GeoPoint? _findGeo;
+  String? _findCity;
+  String? _findRegion;
+
   // Finder PII (optional).
   final _finderFirstName = TextEditingController();
   final _finderLastName = TextEditingController();
@@ -94,6 +101,23 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   String? _trimmedOrNull(TextEditingController c) {
     final v = c.text.trim();
     return v.isEmpty ? null : v;
+  }
+
+  Future<void> _pickLocation() async {
+    final picked = await showLocationPicker(
+      context,
+      initial: _findGeo,
+      initialAddress: _trimmedOrNull(_findLocationController),
+    );
+    if (picked == null) return;
+    setState(() {
+      _findGeo = picked.geo;
+      _findCity = picked.city.isEmpty ? null : picked.city;
+      _findRegion = picked.region.isEmpty ? null : picked.region;
+      if (picked.address.isNotEmpty) {
+        _findLocationController.text = picked.address;
+      }
+    });
   }
 
   Future<void> _addPhotos() async {
@@ -206,6 +230,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
         if (_admittedAt != null)
           'admitted_at': _admittedAt!.toUtc().toIso8601String(),
         'find_location': ?_trimmedOrNull(_findLocationController),
+        if (_findGeo case final geo?)
+          'find_geo': {'lon': geo.lon, 'lat': geo.lat},
+        'city': ?_findCity,
+        'region': ?_findRegion,
         'intake_weight_g': ?weight,
         'intake_notes': ?_trimmedOrNull(_intakeNotesController),
         'finder': ?finderId,
@@ -362,12 +390,29 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
                       onClear: () => setState(() => _admittedAt = null),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    AppTextField(
-                      controller: _findLocationController,
-                      label: l10n.caseFieldFindLocation,
-                      prefixIcon: Icons.place_outlined,
-                      textInputAction: TextInputAction.next,
-                      enabled: !_busy,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: AppTextField(
+                            controller: _findLocationController,
+                            label: l10n.caseFieldFindLocation,
+                            prefixIcon: Icons.place_outlined,
+                            textInputAction: TextInputAction.next,
+                            enabled: !_busy,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        IconButton.filledTonal(
+                          icon: Icon(
+                            _findGeo == null
+                                ? Icons.add_location_alt_outlined
+                                : Icons.edit_location_alt,
+                          ),
+                          tooltip: l10n.locationPickAction,
+                          onPressed: _busy ? null : _pickLocation,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: AppSpacing.md),
                     AppTextField(

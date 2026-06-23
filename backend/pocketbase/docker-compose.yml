@@ -20,6 +20,14 @@ services:
       - "8090:8090"
     environment:
       TZ: "Europe/Berlin"
+      # Geocoding proxy (FED-4.2). The public OSM Nominatim blocks most server
+      # traffic; point this at a self-hosted instance or a permitted mirror.
+      # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"
+      # FEDERFALL_GEOCODER_KEY: ""        # optional API key (keyed mirrors)
+      # User-Agent sent upstream. Default "Federfall/1.0" (no address). You may
+      # add a REAL contact, e.g. "Federfall/1.0 (admin@yourdomain.tld)" — note
+      # Nominatim blocks placeholder domains like example.org.
+      # FEDERFALL_USER_AGENT: "Federfall/1.0"
     volumes:
       # SQLite DB, uploaded files, logs — gitignored, persisted on host.
       - ./pb_data:/pb/pb_data

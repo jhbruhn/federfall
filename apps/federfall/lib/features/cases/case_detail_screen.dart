@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
@@ -10,7 +11,9 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Case detail (FED-4.3): a persistent name-first identity header over two
 /// tabs — **Overview** (intake summary + weight trend) and **History** (the
@@ -220,6 +223,57 @@ class _IntakeSection extends ConsumerWidget {
                 filenames: medicalCase.intakePhotos,
               ),
             ],
+            if (medicalCase.findGeo case final geo?) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _FindMap(geo: geo),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A small, non-interactive map preview of the case's find location (FED-4.2).
+class _FindMap extends StatelessWidget {
+  const _FindMap({required this.geo});
+
+  final GeoPoint geo;
+
+  @override
+  Widget build(BuildContext context) {
+    final point = LatLng(geo.lat, geo.lon);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        height: 160,
+        child: FlutterMap(
+          options: MapOptions(
+            initialCenter: point,
+            initialZoom: 14,
+            interactionOptions:
+                const InteractionOptions(flags: InteractiveFlag.none),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: AppEnvironment.mapTileUrl,
+              userAgentPackageName: 'de.jhbruhn.federfall',
+            ),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: point,
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.topCenter,
+                  child: Icon(
+                    Icons.location_on,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

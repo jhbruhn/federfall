@@ -1,5 +1,7 @@
 {
   "FLAVOR": "staging",
   "APP_NAME": "[STG] Federfall",
-  "POCKETBASE_URL": ""
+  "POCKETBASE_URL": "",
+  "MAP_TILE_URL": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "MAP_ATTRIBUTION": "© OpenStreetMap contributors"
 }
