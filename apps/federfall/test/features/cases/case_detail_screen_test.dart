@@ -110,10 +110,13 @@ void main() {
     expect(find.text('Klein · 0151'), findsOneWidget);
   });
 
-  testWidgets('lists intake milestones in the timeline', (tester) async {
+  testWidgets('lists intake milestones in the History tab', (tester) async {
     await pump(tester);
 
-    expect(find.text('Timeline'), findsOneWidget);
+    // The chronology lives behind the History tab.
+    await tester.tap(find.text('History'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Admitted'), findsOneWidget);
     expect(find.text('Case opened'), findsOneWidget);
   });

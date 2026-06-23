@@ -17,9 +17,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Phase 4 records (weights, medications, conditions, dispositions) become
 /// additional event kinds here rather than separate sections.
 class CaseTimeline extends ConsumerWidget {
-  const CaseTimeline({required this.medicalCase, super.key});
+  const CaseTimeline({
+    required this.medicalCase,
+    this.showTitle = true,
+    super.key,
+  });
 
   final Case medicalCase;
+
+  /// Whether to show the "timeline" heading. Hidden when the timeline already
+  /// sits under a "History" tab that names it.
+  final bool showTitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,8 +60,10 @@ class CaseTimeline extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text(l10n.caseTimelineTitle,
-                  style: theme.textTheme.titleMedium),
+              child: showTitle
+                  ? Text(l10n.caseTimelineTitle,
+                      style: theme.textTheme.titleMedium)
+                  : const SizedBox.shrink(),
             ),
             PopupMenuButton<void>(
               icon: const Icon(Icons.add),

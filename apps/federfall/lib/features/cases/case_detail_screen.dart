@@ -9,10 +9,9 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Case detail overview (FED-4.3): a name-first header, the intake summary and
-/// a chronological timeline. The clinical sub-records — weights, conditions,
-/// medications, journal, dispositions — plug into the timeline as they land in
-/// the rest of Phase 4.
+/// Case detail (FED-4.3): a persistent name-first identity header over two
+/// tabs — **Overview** (intake summary + weight trend) and **History** (the
+/// unified chronology where journal, weights and other records live).
 class CaseDetailScreen extends ConsumerWidget {
   const CaseDetailScreen({required this.caseId, super.key});
 
@@ -42,17 +41,61 @@ class _CaseDetail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final animal = ref.watch(animalByIdProvider(medicalCase.animal)).value;
 
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.sm,
+            ),
+            child: _Header(medicalCase: medicalCase, animal: animal),
+          ),
+          TabBar(
+            tabs: [
+              Tab(text: l10n.caseTabOverview),
+              Tab(text: l10n.caseTabHistory),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _OverviewTab(medicalCase: medicalCase, animal: animal),
+                ListView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  children: [
+                    CaseTimeline(medicalCase: medicalCase, showTitle: false),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The Overview tab: structured intake summary and the weight trend.
+class _OverviewTab extends StatelessWidget {
+  const _OverviewTab({required this.medicalCase, required this.animal});
+
+  final Case medicalCase;
+  final Animal? animal;
+
+  @override
+  Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        _Header(medicalCase: medicalCase, animal: animal),
-        const SizedBox(height: AppSpacing.lg),
-        _IntakeSection(medicalCase: medicalCase, animal: animal),
-        const SizedBox(height: AppSpacing.lg),
         WeightTrendChart(caseId: medicalCase.id),
-        CaseTimeline(medicalCase: medicalCase),
+        _IntakeSection(medicalCase: medicalCase, animal: animal),
       ],
     );
   }

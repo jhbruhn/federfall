@@ -87,6 +87,8 @@
     "caseTimelineEmpty": "Noch keine Einträge",
     "caseEventAdmitted": "Aufgenommen",
     "caseEventCreated": "Fall angelegt",
+    "caseTabOverview": "Übersicht",
+    "caseTabHistory": "Verlauf",
     "caseJournalTitle": "Journal",
     "journalEmpty": "Noch keine Journaleinträge",
     "journalAddAction": "Eintrag hinzufügen",
