@@ -50,6 +50,13 @@ void main() {
       find.text('No quarantines ending in the next week.'),
       findsOneWidget,
     );
+
+    // Statuses that have no cases are hidden (several stages are unreachable
+    // today — see federfall-blp.1), so only non-zero rows show.
+    expect(find.text('In care'), findsOneWidget);
+    expect(find.text('Rehab'), findsOneWidget);
+    expect(find.text('In treatment'), findsNothing);
+    expect(find.text('Ready for release'), findsNothing);
   });
 
   testWidgets('lists quarantines ending soon', (tester) async {

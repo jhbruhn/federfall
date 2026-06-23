@@ -109,6 +109,11 @@ class _StatusBreakdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    // Only surface statuses that actually occur: several lifecycle stages have
+    // no transition into them yet, so showing them stuck at 0 just confuses.
+    // See federfall-blp.1 for the lifecycle decision.
+    final present =
+        summary.byStatus.entries.where((e) => e.value > 0).toList();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -117,7 +122,7 @@ class _StatusBreakdown extends StatelessWidget {
           children: [
             Text(l10n.dashboardByStatus, style: theme.textTheme.titleMedium),
             const SizedBox(height: AppSpacing.sm),
-            if (summary.activeCount == 0)
+            if (present.isEmpty)
               Text(
                 l10n.dashboardByStatusEmpty,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -125,7 +130,7 @@ class _StatusBreakdown extends StatelessWidget {
                 ),
               )
             else
-              for (final entry in summary.byStatus.entries)
+              for (final entry in present)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
                   child: Row(
