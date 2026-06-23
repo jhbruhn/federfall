@@ -15,17 +15,28 @@ class MockWeightsRepo extends Mock implements PbWeightsRepository {}
 class MockCaseConditionsRepo extends Mock
     implements PbCaseConditionsRepository {}
 
+class MockMedicationsRepo extends Mock implements PbMedicationsRepository {}
+
+class MockAdministrationsRepo extends Mock
+    implements PbMedicationAdministrationsRepository {}
+
 void main() {
   late MockJournalRepo journal;
   late MockWeightsRepo weights;
   late MockCaseConditionsRepo caseConditions;
+  late MockMedicationsRepo medications;
+  late MockAdministrationsRepo administrations;
 
   setUp(() {
     journal = MockJournalRepo();
     weights = MockWeightsRepo();
     caseConditions = MockCaseConditionsRepo();
+    medications = MockMedicationsRepo();
+    administrations = MockAdministrationsRepo();
     when(() => weights.forCase(any())).thenAnswer((_) async => []);
     when(() => caseConditions.forCase(any())).thenAnswer((_) async => []);
+    when(() => medications.forCase(any())).thenAnswer((_) async => []);
+    when(() => administrations.forCase(any())).thenAnswer((_) async => []);
   });
 
   Future<void> pump(WidgetTester tester, Case medicalCase) async {
@@ -35,6 +46,10 @@ void main() {
         weightsRepositoryProvider.overrideWith((ref) async => weights),
         caseConditionsRepositoryProvider
             .overrideWith((ref) async => caseConditions),
+        medicationsRepositoryProvider
+            .overrideWith((ref) async => medications),
+        medicationAdministrationsRepositoryProvider
+            .overrideWith((ref) async => administrations),
       ],
     );
     addTearDown(container.dispose);

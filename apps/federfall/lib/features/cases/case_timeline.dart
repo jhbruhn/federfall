@@ -5,6 +5,10 @@ import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
+import 'package:federfall/features/cases/medications/administration_sheet.dart';
+import 'package:federfall/features/cases/medications/medication_tiles.dart';
+import 'package:federfall/features/cases/medications/medications_providers.dart';
+import 'package:federfall/features/cases/medications/prescription_sheet.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_entry_tile.dart';
@@ -40,9 +44,18 @@ class CaseTimeline extends ConsumerWidget {
     final journal = ref.watch(journalForCaseProvider(caseId));
     final weights = ref.watch(weightsForCaseProvider(caseId));
     final conditions = ref.watch(caseConditionsForCaseProvider(caseId));
-    final isLoading =
-        journal.isLoading || weights.isLoading || conditions.isLoading;
-    final error = journal.error ?? weights.error ?? conditions.error;
+    final meds = ref.watch(medicationsForCaseProvider(caseId));
+    final doses = ref.watch(administrationsForCaseProvider(caseId));
+    final isLoading = journal.isLoading ||
+        weights.isLoading ||
+        conditions.isLoading ||
+        meds.isLoading ||
+        doses.isLoading;
+    final error = journal.error ??
+        weights.error ??
+        conditions.error ??
+        meds.error ??
+        doses.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -59,6 +72,11 @@ class CaseTimeline extends ConsumerWidget {
         _WeightEvent(weight),
       for (final condition in conditions.value ?? const <CaseCondition>[])
         _ConditionEvent(condition),
+      for (final plan in meds.value ?? const <Medication>[])
+        _PrescriptionEvent(plan),
+      for (final dose
+          in doses.value ?? const <MedicationAdministration>[])
+        _AdministrationEvent(dose),
     ]..sort((a, b) => b.at.compareTo(a.at));
 
     return Column(
@@ -88,6 +106,16 @@ class CaseTimeline extends ConsumerWidget {
                   onTap: () =>
                       showConditionEntrySheet(context, caseId: caseId),
                   child: Text(l10n.timelineAddCondition),
+                ),
+                PopupMenuItem(
+                  onTap: () =>
+                      showPrescriptionSheet(context, caseId: caseId),
+                  child: Text(l10n.timelineAddPrescription),
+                ),
+                PopupMenuItem(
+                  onTap: () =>
+                      showAdministrationSheet(context, caseId: caseId),
+                  child: Text(l10n.timelineAddDose),
                 ),
               ],
             ),
@@ -121,6 +149,16 @@ class CaseTimeline extends ConsumerWidget {
               ),
               _ConditionEvent(:final condition) => ConditionEntryTile(
                 entry: condition,
+                caseId: caseId,
+                isLast: i == events.length - 1,
+              ),
+              _PrescriptionEvent(:final plan) => PrescriptionTile(
+                plan: plan,
+                caseId: caseId,
+                isLast: i == events.length - 1,
+              ),
+              _AdministrationEvent(:final dose) => AdministrationTile(
+                administration: dose,
                 caseId: caseId,
                 isLast: i == events.length - 1,
               ),
@@ -190,5 +228,31 @@ class _ConditionEvent extends _Event {
   DateTime get at =>
       condition.onsetDate ??
       condition.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A prescription placed on the timeline by its start date (or created time).
+class _PrescriptionEvent extends _Event {
+  const _PrescriptionEvent(this.plan);
+
+  final Medication plan;
+
+  @override
+  DateTime get at =>
+      plan.startedAt ??
+      plan.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// An administered dose placed on the timeline by when it was given.
+class _AdministrationEvent extends _Event {
+  const _AdministrationEvent(this.dose);
+
+  final MedicationAdministration dose;
+
+  @override
+  DateTime get at =>
+      dose.administeredAt ??
+      dose.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }

@@ -152,3 +152,44 @@ abstract class Placement with _$Placement {
     );
   }
 }
+
+/// A single dose actually given (FED-4.6). May reference the [Medication]
+/// prescription it follows, or stand alone for an ad-hoc dose; drug/dose/route
+/// are denormalized so the record is meaningful without a plan.
+@freezed
+abstract class MedicationAdministration with _$MedicationAdministration {
+  const factory MedicationAdministration({
+    required String id,
+    required String caseId,
+    required String drug,
+    String? medication,
+    double? dose,
+    String? doseUnit,
+    MedicationRoute? route,
+    DateTime? administeredAt,
+    String? administeredBy,
+    String? notes,
+    String? org,
+    DateTime? created,
+    DateTime? updated,
+  }) = _MedicationAdministration;
+
+  factory MedicationAdministration.fromRecord(RecordModel r) {
+    final d = r.data;
+    return MedicationAdministration(
+      id: r.id,
+      caseId: pbString(d['case']) ?? '',
+      drug: pbString(d['drug']) ?? '',
+      medication: pbString(d['medication']),
+      dose: pbDouble(d['dose']),
+      doseUnit: pbString(d['dose_unit']),
+      route: MedicationRoute.fromWire(d['route']),
+      administeredAt: pbDate(d['administered_at']),
+      administeredBy: pbString(d['administered_by']),
+      notes: pbString(d['notes']),
+      org: pbString(d['org']),
+      created: pbDate(d['created']),
+      updated: pbDate(d['updated']),
+    );
+  }
+}

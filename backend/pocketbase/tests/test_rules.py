@@ -175,6 +175,11 @@ def main():
         s, _ = req("POST", "/api/collections/weights/records", tok, {"case": case, "weight_g": 310, "org": ORG})
         return s == 200
 
+    def can_create_admin(tok):
+        s, _ = req("POST", "/api/collections/medication_administrations/records", tok,
+                   {"case": case, "drug": "Baytril", "administered_at": "2026-06-09 08:00:00.000Z", "org": ORG})
+        return s == 200
+
     # owner
     check("owner can view case", can_view(toks["a"]))
     check("owner can edit case", can_edit(toks["a"]))
@@ -183,6 +188,7 @@ def main():
     check("outsider CANNOT edit case", not can_edit(toks["d"]))
     check("outsider CANNOT view finder PII", not can_view_finder(toks["d"]))
     check("outsider CANNOT add weight", not can_create_weight(toks["d"]))
+    check("outsider CANNOT log administration", not can_create_admin(toks["d"]))
     # read share
     check("read-share can view case", can_view(toks["b"]))
     check("read-share CANNOT edit case (no escalation)", not can_edit(toks["b"]))
@@ -192,6 +198,7 @@ def main():
     check("edit-share can view case", can_view(toks["c"]))
     check("edit-share can edit case", can_edit(toks["c"]))
     check("edit-share can add weight", can_create_weight(toks["c"]))
+    check("edit-share can log administration", can_create_admin(toks["c"]))
     # coordinator: all-read, no edit
     check("coordinator can view any case", can_view(toks["coord"]))
     check("coordinator CANNOT edit", not can_edit(toks["coord"]))

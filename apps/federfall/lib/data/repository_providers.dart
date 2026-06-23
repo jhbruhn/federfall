@@ -59,6 +59,14 @@ Future<PbMedicationsRepository> medicationsRepository(Ref ref) async =>
     PbMedicationsRepository(await _client(ref), cache: _cache(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbMedicationAdministrationsRepository>
+    medicationAdministrationsRepository(Ref ref) async =>
+        PbMedicationAdministrationsRepository(
+          await _client(ref),
+          cache: _cache(ref),
+        );
+
+@Riverpod(keepAlive: true)
 Future<PbJournalRepository> journalRepository(Ref ref) async =>
     PbJournalRepository(await _client(ref), cache: _cache(ref));
 

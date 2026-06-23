@@ -34,6 +34,23 @@ class PbMedicationsRepository extends PbRepository<Medication> {
   );
 }
 
+/// Repository over the `medication_administrations` collection (doses given).
+class PbMedicationAdministrationsRepository
+    extends PbRepository<MedicationAdministration> {
+  PbMedicationAdministrationsRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'medication_administrations',
+        fromRecord: MedicationAdministration.fromRecord,
+      );
+
+  /// Administrations for a case, most recent first.
+  Future<List<MedicationAdministration>> forCase(String caseId) => list(
+    filter: filterExpr('case = {:c}', {'c': caseId}),
+    sort: '-administered_at',
+  );
+}
+
 /// Repository over the `journal_entries` collection (dated log + photos).
 class PbJournalRepository extends PbRepository<JournalEntry> {
   PbJournalRepository(PocketBase pb, {super.cache})
