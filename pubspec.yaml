@@ -11,4 +11,4 @@ environment:
 workspace:
   - apps/federfall
   - packages/federfall_models
-  # packages/federfall_data     # added in FED-2.3
+  - packages/federfall_data

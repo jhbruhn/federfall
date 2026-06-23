@@ -11,6 +11,10 @@ environment:
 resolution: workspace
 
 dependencies:
+  federfall_data:
+    path: ../../packages/federfall_data
+  federfall_models:
+    path: ../../packages/federfall_models
   flutter:
     sdk: flutter
   flutter_localizations:

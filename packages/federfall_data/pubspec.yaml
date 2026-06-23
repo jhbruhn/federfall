@@ -1,0 +1,22 @@
+name: federfall_data
+description: >-
+  Repository layer for Federfall: typed interfaces over PocketBase collections
+  with model mapping and error translation. Pure Dart; no Flutter dependency.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+# Part of the Federfall pub workspace (see ../../pubspec.yaml).
+resolution: workspace
+
+dependencies:
+  federfall_models:
+    path: ../federfall_models
+  pocketbase: ^0.24.0
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.25.0
+  very_good_analysis: ^10.3.0
