@@ -48,7 +48,9 @@ class AnimalDetailScreen extends ConsumerWidget {
   }
 }
 
-/// Name-first identity card: name, species + sex, lifetime-status chip.
+/// Name-first identity header: name, species + sex, lifetime-status chip. Built
+/// on the shared [DetailHeader] in the same plain, prominent style as the case
+/// detail header (no card).
 class _Identity extends StatelessWidget {
   const _Identity(this.animal);
 
@@ -57,7 +59,6 @@ class _Identity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
     final name = animal.name;
     final hasName = name != null && name.isNotEmpty;
     final sub = [
@@ -66,35 +67,10 @@ class _Identity extends StatelessWidget {
     ].join(' · ');
     final status = animal.lifetimeStatus;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              hasName ? name : animal.species,
-              style: theme.textTheme.headlineSmall,
-            ),
-            if (sub.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                sub,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-            if (status != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Chip(
-                label: Text(lifetimeStatusLabel(l10n, status)),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          ],
-        ),
-      ),
+    return DetailHeader(
+      title: hasName ? name : animal.species,
+      subtitle: sub,
+      chipLabel: status == null ? null : lifetimeStatusLabel(l10n, status),
     );
   }
 }

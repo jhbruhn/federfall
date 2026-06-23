@@ -107,8 +107,9 @@ class _OverviewTab extends StatelessWidget {
   }
 }
 
-/// Name-first identity header: the animal's name dominates, with species and
-/// case number beneath and the current status as a chip.
+/// Name-first case header: the animal's name dominates, with species and case
+/// number beneath and the case status as a chip. Built on the shared
+/// [DetailHeader] (also used by the animal lifetime screen).
 class _Header extends StatelessWidget {
   const _Header({required this.medicalCase, required this.animal});
 
@@ -118,38 +119,21 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
 
     final name = animal?.name;
     final hasName = name != null && name.isNotEmpty;
     final title = hasName ? name : (animal?.species ?? l10n.caseAnimalLabel);
 
-    final subtitleParts = <String>[
+    final subtitle = [
       if (hasName && animal != null) animal!.species,
       if (medicalCase.caseNumber != null) medicalCase.caseNumber!,
-    ];
+    ].join(' · ');
     final status = medicalCase.status;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: theme.textTheme.headlineSmall),
-        if (subtitleParts.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            subtitleParts.join(' · '),
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-        ],
-        if (status != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Chip(
-            label: Text(caseStatusLabel(l10n, status)),
-            visualDensity: VisualDensity.compact,
-          ),
-        ],
-      ],
+    return DetailHeader(
+      title: title,
+      subtitle: subtitle,
+      chipLabel: status == null ? null : caseStatusLabel(l10n, status),
     );
   }
 }
