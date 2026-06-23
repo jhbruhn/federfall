@@ -1,7 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
-import 'package:federfall/features/cases/journal/journal_section.dart';
+import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -54,30 +54,15 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  group('JournalSection', () {
-    testWidgets('shows the empty state when there are no entries',
-        (tester) async {
-      when(() => journal.forCase('c1')).thenAnswer((_) async => []);
-
-      await pump(tester, const JournalSection(caseId: 'c1'));
-
-      expect(find.text('No journal entries yet'), findsOneWidget);
-    });
-
-    testWidgets('renders entries newest-first with their date and text',
-        (tester) async {
-      when(() => journal.forCase('c1')).thenAnswer(
-        (_) async => [
-          JournalEntry(
-            id: 'j1',
-            caseId: 'c1',
-            text: 'Ate well today',
-            entryAt: DateTime.utc(2026, 6, 22),
-          ),
-        ],
+  group('JournalEntryTile', () {
+    testWidgets('renders the entry text', (tester) async {
+      await pump(
+        tester,
+        const JournalEntryTile(
+          entry: JournalEntry(id: 'j1', caseId: 'c1', text: 'Ate well today'),
+          caseId: 'c1',
+        ),
       );
-
-      await pump(tester, const JournalSection(caseId: 'c1'));
 
       expect(find.text('Ate well today'), findsOneWidget);
     });
@@ -150,14 +135,15 @@ void main() {
 
   group('journal entry actions', () {
     testWidgets('deletes an entry after confirmation', (tester) async {
-      when(() => journal.forCase('c1')).thenAnswer(
-        (_) async => [
-          const JournalEntry(id: 'j1', caseId: 'c1', text: 'Ate well today'),
-        ],
-      );
       when(() => journal.delete('j1')).thenAnswer((_) async {});
 
-      await pump(tester, const JournalSection(caseId: 'c1'));
+      await pump(
+        tester,
+        const JournalEntryTile(
+          entry: JournalEntry(id: 'j1', caseId: 'c1', text: 'Ate well today'),
+          caseId: 'c1',
+        ),
+      );
 
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();

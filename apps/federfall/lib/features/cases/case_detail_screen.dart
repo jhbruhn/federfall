@@ -1,7 +1,7 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
-import 'package:federfall/features/cases/journal/journal_section.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -50,9 +50,7 @@ class _CaseDetail extends ConsumerWidget {
         const SizedBox(height: AppSpacing.lg),
         _IntakeSection(medicalCase: medicalCase, animal: animal),
         const SizedBox(height: AppSpacing.lg),
-        JournalSection(caseId: medicalCase.id),
-        const SizedBox(height: AppSpacing.lg),
-        _TimelineSection(medicalCase),
+        CaseTimeline(medicalCase: medicalCase),
       ],
     );
   }
@@ -237,44 +235,6 @@ class _FinderRow extends ConsumerWidget {
       Icons.person_pin_circle_outlined,
       l10n.caseFinderLabel,
       value,
-    );
-  }
-}
-
-/// Chronological case timeline. Seeded from the intake milestones; later
-/// Phase 4 slices (journal, weights, dispositions) add their own events here.
-class _TimelineSection extends StatelessWidget {
-  const _TimelineSection(this.medicalCase);
-
-  final Case medicalCase;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final materialL10n = MaterialLocalizations.of(context);
-
-    final events = <(DateTime, String)>[
-      if (medicalCase.admittedAt case final d?) (d, l10n.caseEventAdmitted),
-      if (medicalCase.created case final d?) (d, l10n.caseEventCreated),
-    ]..sort((a, b) => b.$1.compareTo(a.$1));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(l10n.caseTimelineTitle, style: theme.textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.sm),
-        if (events.isEmpty)
-          Text(l10n.caseTimelineEmpty, style: theme.textTheme.bodyMedium)
-        else
-          for (final (date, label) in events)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.circle, size: 12),
-              title: Text(label),
-              subtitle: Text(materialL10n.formatMediumDate(date)),
-            ),
-      ],
     );
   }
 }

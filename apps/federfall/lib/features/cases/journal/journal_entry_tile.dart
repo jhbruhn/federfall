@@ -1,74 +1,28 @@
 import 'dart:async';
 
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
+import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Case-detail journal: a dated free-text log with photo attachments (FED-4.7).
-/// Entries are newest-first; the add button opens the entry sheet.
-class JournalSection extends ConsumerWidget {
-  const JournalSection({required this.caseId, super.key});
-
-  final String caseId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final entries = ref.watch(journalForCaseProvider(caseId));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(l10n.caseJournalTitle,
-                  style: theme.textTheme.titleMedium),
-            ),
-            TextButton.icon(
-              onPressed: () => showJournalEntrySheet(context, caseId: caseId),
-              icon: const Icon(Icons.add),
-              label: Text(l10n.journalAddAction),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        entries.when(
-          loading: () => const Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          error: (e, _) => Text(
-            errorMessage(l10n, e),
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.error),
-          ),
-          data: (list) => list.isEmpty
-              ? Text(l10n.journalEmpty, style: theme.textTheme.bodyMedium)
-              : Column(
-                  children: [
-                    for (final entry in list)
-                      _JournalTile(entry: entry, caseId: caseId),
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _JournalTile extends ConsumerWidget {
-  const _JournalTile({required this.entry, required this.caseId});
+/// One journal entry as a chronology event (FED-4.7): a [TimelineItem] showing
+/// the entry's date, free-text note, photo thumbnails and an edit/delete menu.
+class JournalEntryTile extends ConsumerWidget {
+  const JournalEntryTile({
+    required this.entry,
+    required this.caseId,
+    this.isLast = false,
+    super.key,
+  });
 
   final JournalEntry entry;
   final String caseId;
+  final bool isLast;
 
   Future<void> _edit(BuildContext context) =>
       showJournalEntrySheet(context, caseId: caseId, entry: entry);
@@ -105,45 +59,29 @@ class _JournalTile extends ConsumerWidget {
     final materialL10n = MaterialLocalizations.of(context);
     final date = entry.entryAt ?? entry.created;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: date == null
-                      ? const SizedBox.shrink()
-                      : Text(
-                          materialL10n.formatMediumDate(date),
-                          style: theme.textTheme.labelMedium
-                              ?.copyWith(color: theme.colorScheme.primary),
-                        ),
-                ),
-                _EntryMenu(
-                  onEdit: () => _edit(context),
-                  onDelete: () => _delete(context, ref),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(entry.text, style: theme.textTheme.bodyLarge),
-            if (entry.attachments.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
-              _AttachmentStrip(entry: entry),
-            ],
+    return TimelineItem(
+      icon: Icons.sticky_note_2_outlined,
+      date: date == null ? '' : materialL10n.formatMediumDate(date),
+      isLast: isLast,
+      trailing: _EntryMenu(
+        onEdit: () => _edit(context),
+        onDelete: () => _delete(context, ref),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(entry.text, style: theme.textTheme.bodyLarge),
+          if (entry.attachments.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _AttachmentStrip(entry: entry),
           ],
-        ),
+        ],
       ),
     );
   }
 }
 
-/// Overflow menu on a journal entry: edit or delete.
+/// Compact overflow menu on a journal entry: edit or delete.
 class _EntryMenu extends StatelessWidget {
   const _EntryMenu({required this.onEdit, required this.onDelete});
 
@@ -155,15 +93,12 @@ class _EntryMenu extends StatelessWidget {
     final l10n = context.l10n;
     return PopupMenuButton<void>(
       icon: const Icon(Icons.more_vert),
+      iconSize: 20,
+      padding: EdgeInsets.zero,
+      tooltip: l10n.journalEditAction,
       itemBuilder: (context) => [
-        PopupMenuItem(
-          onTap: onEdit,
-          child: Text(l10n.journalEditAction),
-        ),
-        PopupMenuItem(
-          onTap: onDelete,
-          child: Text(l10n.journalDeleteAction),
-        ),
+        PopupMenuItem(onTap: onEdit, child: Text(l10n.journalEditAction)),
+        PopupMenuItem(onTap: onDelete, child: Text(l10n.journalDeleteAction)),
       ],
     );
   }
