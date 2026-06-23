@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/admin/admin_screen.dart';
+import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/features/cases/new_case_screen.dart';
@@ -74,6 +75,11 @@ GoRouter router(Ref ref) {
         path: AppRoutes.admin,
         builder: (_, _) => const AdminScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.confirmReset,
+        builder: (_, state) =>
+            ConfirmResetScreen(token: state.uri.queryParameters['token']),
+      ),
     ],
     errorBuilder: (_, state) => NotFoundScreen(uri: state.uri),
   );
@@ -93,6 +99,11 @@ String? _gate(Ref ref, String location) {
   if (config is ServerUnconfigured) {
     return location == AppRoutes.setup ? null : AppRoutes.setup;
   }
+
+  // Public, no-session route: an invited member setting their password from
+  // the email link. Allowed once the server is known (native needs setup
+  // first; on web the origin is always resolved).
+  if (location == AppRoutes.confirmReset) return null;
 
   // Configured → gate on auth.
   final authAsync = ref.read(authStatusProvider);

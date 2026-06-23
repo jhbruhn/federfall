@@ -1,14 +1,18 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
+import 'package:federfall_data/federfall_data.dart';
+import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Supervisor-only admin area (FED-3.3 stub). Team management and invites
-/// (FED-3.2) land here. Reached only via the supervisor-gated entry on home,
-/// but it re-checks the role so a typed-in URL degrades gracefully — the real
-/// boundary remains the server API rules (FED-1.11).
+/// Supervisor-only admin area (FED-3.3 / FED-3.2). Hosts the invite flow:
+/// the supervisor creates a member's account and PocketBase emails them a
+/// password-reset link to activate it. Re-checks the role so a typed-in URL
+/// degrades gracefully — the real boundary remains the server API rules.
 class AdminScreen extends ConsumerWidget {
   const AdminScreen({super.key});
 
@@ -20,14 +24,159 @@ class AdminScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.adminTitle)),
       body: canManageTeam(role)
-          ? EmptyView(
-              icon: Icons.groups_outlined,
-              message: l10n.adminPlaceholder,
-            )
+          ? const _InviteForm()
           : EmptyView(
               icon: Icons.lock_outline,
               message: l10n.errorUnauthorized,
             ),
+    );
+  }
+}
+
+class _InviteForm extends ConsumerStatefulWidget {
+  const _InviteForm();
+
+  @override
+  ConsumerState<_InviteForm> createState() => _InviteFormState();
+}
+
+class _InviteFormState extends ConsumerState<_InviteForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _nameController = TextEditingController();
+
+  UserRole _role = UserRole.carer;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _invite() async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    final email = _emailController.text.trim();
+    try {
+      final repo = await ref.read(authRepositoryProvider.future);
+      await repo.inviteUser(
+        email: email,
+        role: _role,
+        name: _nameController.text,
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.inviteSent(email))),
+      );
+      _emailController.clear();
+      _nameController.clear();
+      setState(() => _busy = false);
+    } on RepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = errorMessage(l10n, e);
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = l10n.errorGenericTitle;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    l10n.inviteSectionTitle,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _emailController,
+                    label: l10n.authEmailLabel,
+                    prefixIcon: Icons.alternate_email,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    enabled: !_busy,
+                    validator: Validators.compose([
+                      Validators.required(l10n),
+                      Validators.email(l10n),
+                    ]),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _nameController,
+                    label: l10n.inviteNameLabel,
+                    prefixIcon: Icons.badge_outlined,
+                    textInputAction: TextInputAction.next,
+                    enabled: !_busy,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  DropdownButtonFormField<UserRole>(
+                    initialValue: _role,
+                    decoration: InputDecoration(
+                      labelText: l10n.profileRoleLabel,
+                      prefixIcon: const Icon(Icons.security_outlined),
+                    ),
+                    items: [
+                      for (final r in UserRole.values)
+                        DropdownMenuItem(
+                          value: r,
+                          child: Text(userRoleLabel(l10n, r)),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (r) => setState(() => _role = r ?? _role),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      _error!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.error),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  PrimaryButton(
+                    label: l10n.inviteAction,
+                    icon: Icons.send,
+                    isLoading: _busy,
+                    onPressed: _invite,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -183,5 +183,28 @@
     "userRoleCoordinator": "Coordinator",
     "@userRoleCoordinator": { "description": "Staff role" },
     "userRoleSupervisor": "Supervisor",
-    "@userRoleSupervisor": { "description": "Staff role" }
+    "@userRoleSupervisor": { "description": "Staff role" },
+    "inviteSectionTitle": "Invite a member",
+    "@inviteSectionTitle": { "description": "Heading of the invite form" },
+    "inviteNameLabel": "Name (optional)",
+    "@inviteNameLabel": { "description": "Label for the invitee name field" },
+    "inviteAction": "Send invite",
+    "@inviteAction": { "description": "Button that sends an invite" },
+    "inviteSent": "Invite sent to {email}.",
+    "@inviteSent": {
+        "description": "Confirmation after an invite is sent",
+        "placeholders": { "email": { "type": "String" } }
+    },
+    "resetTitle": "Set your password",
+    "@resetTitle": { "description": "Title of the password-reset screen" },
+    "resetIntro": "Choose a password to activate your account.",
+    "@resetIntro": { "description": "Intro text on the password-reset screen" },
+    "resetConfirmLabel": "Confirm password",
+    "@resetConfirmLabel": { "description": "Label for the confirm-password field" },
+    "resetMismatch": "Passwords do not match.",
+    "@resetMismatch": { "description": "Error when the two passwords differ" },
+    "resetMissingToken": "This link is invalid or has expired.",
+    "@resetMissingToken": { "description": "Error when the reset token is absent" },
+    "resetSuccess": "Password set. You can sign in now.",
+    "@resetSuccess": { "description": "Confirmation after the password is set" }
 }

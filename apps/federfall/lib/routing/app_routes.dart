@@ -26,6 +26,10 @@ abstract final class AppRoutes {
   /// Signed-in user's profile (FED-3.3).
   static const profile = '/profile';
 
-  /// Supervisor-only admin area (FED-3.3 stub).
+  /// Supervisor-only admin area (FED-3.3 / FED-3.2 invites).
   static const admin = '/admin';
+
+  /// Password-reset confirmation, reached from the invite email (FED-3.2).
+  /// Public: usable without a session.
+  static const confirmReset = '/auth/confirm-reset';
 }

@@ -30,6 +30,19 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   void signOut() {}
+
+  @override
+  Future<AppUser> inviteUser({
+    required String email,
+    required UserRole role,
+    String? name,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<void> requestPasswordReset(String email) async {}
+
+  @override
+  Future<void> confirmPasswordReset(String token, String password) async {}
 }
 
 Future<void> _pump(

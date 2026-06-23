@@ -2,11 +2,13 @@ import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
+import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/home/home_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/router.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +31,7 @@ class _FakeAuthStatus extends AuthStatus {
   Future<bool> build() async => authed;
 }
 
-Future<void> _pumpAt(
+Future<ProviderContainer> _pumpAt(
   WidgetTester tester, {
   required ServerConfig config,
   required bool authed,
@@ -62,6 +64,7 @@ Future<void> _pumpAt(
     ),
   );
   await tester.pumpAndSettle();
+  return container;
 }
 
 void main() {
@@ -90,5 +93,18 @@ void main() {
       authed: true,
     );
     expect(find.byType(HomeScreen), findsOneWidget);
+  });
+
+  testWidgets('confirm-reset is reachable without a session', (tester) async {
+    final container = await _pumpAt(
+      tester,
+      config: const ServerConfig.configured('https://x.example'),
+      authed: false,
+    );
+
+    container.read(routerProvider).go('${AppRoutes.confirmReset}?token=abc');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ConfirmResetScreen), findsOneWidget);
   });
 }

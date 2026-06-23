@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -22,6 +24,23 @@ abstract interface class AuthRepository {
 
   /// Clears the session.
   void signOut();
+
+  /// Invites a new member (supervisor action): creates their `users` record
+  /// (active, with a throwaway password) and triggers a password-reset email
+  /// so the invitee sets their own password. Org and inviter are taken from
+  /// the current session.
+  Future<AppUser> inviteUser({
+    required String email,
+    required UserRole role,
+    String? name,
+  });
+
+  /// Requests a password-reset email for [email] (used by the invite flow and
+  /// "forgot password").
+  Future<void> requestPasswordReset(String email);
+
+  /// Completes a password reset with the emailed [token].
+  Future<void> confirmPasswordReset(String token, String password);
 }
 
 /// PocketBase-backed [AuthRepository].
@@ -74,4 +93,64 @@ class PbAuthRepository implements AuthRepository {
 
   @override
   void signOut() => pb.authStore.clear();
+
+  @override
+  Future<AppUser> inviteUser({
+    required String email,
+    required UserRole role,
+    String? name,
+  }) async {
+    final inviter = pb.authStore.record;
+    final org = inviter?.get<String>('org');
+    if (org == null || org.isEmpty) {
+      throw const RepositoryException('the inviting user has no organisation');
+    }
+
+    // Throwaway password: required by PocketBase on create, never used — the
+    // invitee sets their own via the reset email below.
+    final tempPassword = _randomPassword();
+    try {
+      final record = await _users.create(
+        body: {
+          'email': email,
+          if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+          'role': role.wire,
+          'org': org,
+          'is_active': true,
+          'password': tempPassword,
+          'passwordConfirm': tempPassword,
+          if (inviter != null) 'invited_by': inviter.id,
+        },
+      );
+      await _users.requestPasswordReset(email);
+      return AppUser.fromRecord(record);
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<void> requestPasswordReset(String email) async {
+    try {
+      await _users.requestPasswordReset(email);
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<void> confirmPasswordReset(String token, String password) async {
+    try {
+      await _users.confirmPasswordReset(token, password, password);
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  String _randomPassword() {
+    const chars =
+        'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    final rnd = Random.secure();
+    return List.generate(24, (_) => chars[rnd.nextInt(chars.length)]).join();
+  }
 }
