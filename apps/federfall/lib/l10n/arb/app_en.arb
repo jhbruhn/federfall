@@ -55,5 +55,29 @@
     "fieldInvalidEmail": "Please enter a valid email address",
     "@fieldInvalidEmail": {
         "description": "Validation message for a malformed email address"
+    },
+    "serverSetupTitle": "Connect to server",
+    "@serverSetupTitle": {
+        "description": "Title of the first-run server configuration screen"
+    },
+    "serverSetupDescription": "Enter the address of your Federfall server to get started.",
+    "@serverSetupDescription": {
+        "description": "Explanatory text on the server configuration screen"
+    },
+    "serverUrlLabel": "Server address",
+    "@serverUrlLabel": {
+        "description": "Label for the server URL input field"
+    },
+    "serverConnectAction": "Connect",
+    "@serverConnectAction": {
+        "description": "Button that validates and saves the server address"
+    },
+    "serverUnreachable": "Could not reach the server. Check the address and your connection.",
+    "@serverUnreachable": {
+        "description": "Error shown when the server address cannot be reached"
+    },
+    "serverNotFederfall": "This does not look like a Federfall server.",
+    "@serverNotFederfall": {
+        "description": "Error shown when the address responds but is not a Federfall backend"
     }
 }

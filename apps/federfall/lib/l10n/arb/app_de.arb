@@ -16,5 +16,11 @@
     "emptyGeneric": "Hier ist noch nichts",
     "fieldRequired": "Dieses Feld ist erforderlich",
     "fieldInvalidUrl": "Bitte eine gültige URL eingeben",
-    "fieldInvalidEmail": "Bitte eine gültige E-Mail-Adresse eingeben"
+    "fieldInvalidEmail": "Bitte eine gültige E-Mail-Adresse eingeben",
+    "serverSetupTitle": "Server verbinden",
+    "serverSetupDescription": "Gib die Adresse deines Federfall-Servers ein, um zu starten.",
+    "serverUrlLabel": "Server-Adresse",
+    "serverConnectAction": "Verbinden",
+    "serverUnreachable": "Server nicht erreichbar. Prüfe die Adresse und deine Verbindung.",
+    "serverNotFederfall": "Das sieht nicht nach einem Federfall-Server aus."
 }
