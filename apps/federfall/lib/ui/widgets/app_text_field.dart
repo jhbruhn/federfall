@@ -7,6 +7,7 @@ class AppTextField extends StatelessWidget {
   const AppTextField({
     required this.label,
     this.controller,
+    this.focusNode,
     this.initialValue,
     this.validator,
     this.onChanged,
@@ -24,6 +25,7 @@ class AppTextField extends StatelessWidget {
   final String label;
   final String? hintText;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final String? initialValue;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
@@ -39,6 +41,7 @@ class AppTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       initialValue: initialValue,
       validator: validator,
       onChanged: onChanged,

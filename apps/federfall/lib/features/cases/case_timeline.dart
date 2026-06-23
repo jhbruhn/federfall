@@ -1,4 +1,7 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/features/cases/conditions/condition_entry_sheet.dart';
+import 'package:federfall/features/cases/conditions/condition_entry_tile.dart';
+import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
@@ -36,8 +39,10 @@ class CaseTimeline extends ConsumerWidget {
     final caseId = medicalCase.id;
     final journal = ref.watch(journalForCaseProvider(caseId));
     final weights = ref.watch(weightsForCaseProvider(caseId));
-    final isLoading = journal.isLoading || weights.isLoading;
-    final error = journal.error ?? weights.error;
+    final conditions = ref.watch(caseConditionsForCaseProvider(caseId));
+    final isLoading =
+        journal.isLoading || weights.isLoading || conditions.isLoading;
+    final error = journal.error ?? weights.error ?? conditions.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -52,6 +57,8 @@ class CaseTimeline extends ConsumerWidget {
         _JournalEvent(entry),
       for (final weight in weights.value ?? const <Weight>[])
         _WeightEvent(weight),
+      for (final condition in conditions.value ?? const <CaseCondition>[])
+        _ConditionEvent(condition),
     ]..sort((a, b) => b.at.compareTo(a.at));
 
     return Column(
@@ -76,6 +83,11 @@ class CaseTimeline extends ConsumerWidget {
                 PopupMenuItem(
                   onTap: () => showWeightEntrySheet(context, caseId: caseId),
                   child: Text(l10n.timelineAddWeight),
+                ),
+                PopupMenuItem(
+                  onTap: () =>
+                      showConditionEntrySheet(context, caseId: caseId),
+                  child: Text(l10n.timelineAddCondition),
                 ),
               ],
             ),
@@ -104,6 +116,11 @@ class CaseTimeline extends ConsumerWidget {
               ),
               _WeightEvent(:final weight) => WeightEntryTile(
                 weight: weight,
+                caseId: caseId,
+                isLast: i == events.length - 1,
+              ),
+              _ConditionEvent(:final condition) => ConditionEntryTile(
+                entry: condition,
                 caseId: caseId,
                 isLast: i == events.length - 1,
               ),
@@ -160,5 +177,18 @@ class _WeightEvent extends _Event {
   DateTime get at =>
       weight.measuredAt ??
       weight.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A diagnosis placed on the timeline by its onset date (or created time).
+class _ConditionEvent extends _Event {
+  const _ConditionEvent(this.condition);
+
+  final CaseCondition condition;
+
+  @override
+  DateTime get at =>
+      condition.onsetDate ??
+      condition.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }

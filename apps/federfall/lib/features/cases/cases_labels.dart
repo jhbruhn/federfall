@@ -40,3 +40,8 @@ String ageClassLabel(AppLocalizations l10n, AgeClass a) => switch (a) {
   AgeClass.immature => l10n.ageClassImmature,
   AgeClass.adult => l10n.ageClassAdult,
 };
+
+String certaintyLabel(AppLocalizations l10n, Certainty c) => switch (c) {
+  Certainty.suspected => l10n.certaintySuspected,
+  Certainty.confirmed => l10n.certaintyConfirmed,
+};

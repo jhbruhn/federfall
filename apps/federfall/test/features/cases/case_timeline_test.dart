@@ -12,14 +12,20 @@ class MockJournalRepo extends Mock implements PbJournalRepository {}
 
 class MockWeightsRepo extends Mock implements PbWeightsRepository {}
 
+class MockCaseConditionsRepo extends Mock
+    implements PbCaseConditionsRepository {}
+
 void main() {
   late MockJournalRepo journal;
   late MockWeightsRepo weights;
+  late MockCaseConditionsRepo caseConditions;
 
   setUp(() {
     journal = MockJournalRepo();
     weights = MockWeightsRepo();
+    caseConditions = MockCaseConditionsRepo();
     when(() => weights.forCase(any())).thenAnswer((_) async => []);
+    when(() => caseConditions.forCase(any())).thenAnswer((_) async => []);
   });
 
   Future<void> pump(WidgetTester tester, Case medicalCase) async {
@@ -27,6 +33,8 @@ void main() {
       overrides: [
         journalRepositoryProvider.overrideWith((ref) async => journal),
         weightsRepositoryProvider.overrideWith((ref) async => weights),
+        caseConditionsRepositoryProvider
+            .overrideWith((ref) async => caseConditions),
       ],
     );
     addTearDown(container.dispose);
