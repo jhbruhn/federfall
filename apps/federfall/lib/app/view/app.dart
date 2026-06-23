@@ -1,5 +1,6 @@
 import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 class App extends StatelessWidget {
@@ -10,12 +11,10 @@ class App extends StatelessWidget {
     return MaterialApp(
       // Flavored name (e.g. "[DEV] Federfall") for the window/tab title.
       title: AppEnvironment.appName,
-      theme: ThemeData(
-        appBarTheme: AppBarTheme(
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      // German is the design language; English stays available for development.
+      locale: const Locale('de'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const HomePlaceholder(),

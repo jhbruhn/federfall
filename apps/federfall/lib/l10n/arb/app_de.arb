@@ -3,5 +3,15 @@
     "appName": "Federfall",
     "@appName": {
         "description": "Der App-Name in der AppBar und im Fenstertitel"
-    }
+    },
+    "loadingLabel": "Wird geladen…",
+    "errorGenericTitle": "Etwas ist schiefgelaufen",
+    "errorOffline": "Keine Verbindung zum Server",
+    "actionRetry": "Erneut versuchen",
+    "actionSave": "Speichern",
+    "actionCancel": "Abbrechen",
+    "emptyGeneric": "Hier ist noch nichts",
+    "fieldRequired": "Dieses Feld ist erforderlich",
+    "fieldInvalidUrl": "Bitte eine gültige URL eingeben",
+    "fieldInvalidEmail": "Bitte eine gültige E-Mail-Adresse eingeben"
 }

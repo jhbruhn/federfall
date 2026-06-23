@@ -3,5 +3,45 @@
     "appName": "Federfall",
     "@appName": {
         "description": "The application name shown in the app bar and window title"
+    },
+    "loadingLabel": "Loading…",
+    "@loadingLabel": {
+        "description": "Generic label shown while data is loading"
+    },
+    "errorGenericTitle": "Something went wrong",
+    "@errorGenericTitle": {
+        "description": "Title of the generic error state"
+    },
+    "errorOffline": "No connection to the server",
+    "@errorOffline": {
+        "description": "Shown when the device cannot reach the backend"
+    },
+    "actionRetry": "Retry",
+    "@actionRetry": {
+        "description": "Button that retries a failed action"
+    },
+    "actionSave": "Save",
+    "@actionSave": {
+        "description": "Button that saves a form"
+    },
+    "actionCancel": "Cancel",
+    "@actionCancel": {
+        "description": "Button that cancels an action"
+    },
+    "emptyGeneric": "Nothing here yet",
+    "@emptyGeneric": {
+        "description": "Generic empty-state message"
+    },
+    "fieldRequired": "This field is required",
+    "@fieldRequired": {
+        "description": "Validation message for an empty required field"
+    },
+    "fieldInvalidUrl": "Please enter a valid URL",
+    "@fieldInvalidUrl": {
+        "description": "Validation message for a malformed URL"
+    },
+    "fieldInvalidEmail": "Please enter a valid email address",
+    "@fieldInvalidEmail": {
+        "description": "Validation message for a malformed email address"
     }
 }
