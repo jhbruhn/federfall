@@ -79,5 +79,33 @@
     "serverNotFederfall": "This does not look like a Federfall server.",
     "@serverNotFederfall": {
         "description": "Error shown when the address responds but is not a Federfall backend"
+    },
+    "serverSwitchAction": "Use a different server",
+    "@serverSwitchAction": {
+        "description": "Action on the login screen that clears the server URL and returns to setup"
+    },
+    "authLoginTitle": "Sign in",
+    "@authLoginTitle": {
+        "description": "Title of the login screen"
+    },
+    "authEmailLabel": "Email",
+    "@authEmailLabel": {
+        "description": "Label for the email field on the login form"
+    },
+    "authPasswordLabel": "Password",
+    "@authPasswordLabel": {
+        "description": "Label for the password field on the login form"
+    },
+    "authSignInAction": "Sign in",
+    "@authSignInAction": {
+        "description": "Button that submits the login form"
+    },
+    "authSignOutAction": "Sign out",
+    "@authSignOutAction": {
+        "description": "Action that ends the session"
+    },
+    "authInvalidCredentials": "Email or password is incorrect.",
+    "@authInvalidCredentials": {
+        "description": "Error shown when sign-in is rejected by the server"
     }
 }

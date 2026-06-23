@@ -22,5 +22,12 @@
     "serverUrlLabel": "Server-Adresse",
     "serverConnectAction": "Verbinden",
     "serverUnreachable": "Server nicht erreichbar. Prüfe die Adresse und deine Verbindung.",
-    "serverNotFederfall": "Das sieht nicht nach einem Federfall-Server aus."
+    "serverNotFederfall": "Das sieht nicht nach einem Federfall-Server aus.",
+    "serverSwitchAction": "Anderen Server verwenden",
+    "authLoginTitle": "Anmelden",
+    "authEmailLabel": "E-Mail",
+    "authPasswordLabel": "Passwort",
+    "authSignInAction": "Anmelden",
+    "authSignOutAction": "Abmelden",
+    "authInvalidCredentials": "E-Mail oder Passwort ist falsch."
 }
