@@ -171,8 +171,9 @@ Designed for PocketBase collections. Field names in English (code), labels in Ge
 - case (→ cases), `condition` (→ conditions code list) OR `free_text`
 - `certainty`: `suspected | confirmed`, onset_date, resolved_date, notes
 
-**`conditions`** *(editable code list, German labels)*
-- label_de (e.g. Trichomonadose, Paramyxovirose, Salmonellose, Fadenfuß, Spreizbein, Fraktur, MBD), label_en, `is_notifiable` (e.g. PMV), description, active
+**`conditions`** *(editable code list)*
+- `label` — single free-text name in the user's own language (e.g. Trichomonadose, Paramyxovirose, Salmonellose, Fadenfuß, Spreizbein, Fraktur, MBD); these are user-authored data, not translated app-UI strings, so there is no per-language label field
+- `is_notifiable` (e.g. PMV), description, active
 
 **`weights`** *(time series — drives the trend chart)*
 - case (→ cases), `measured_at`, `weight_g`, author, notes
