@@ -7,44 +7,65 @@ import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
+import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-/// Opens the new-journal-entry form as a modal bottom sheet. Resolves to `true`
-/// when an entry was saved, so the caller can refresh.
-Future<bool?> showNewJournalEntrySheet(
+/// Opens the journal-entry form as a modal bottom sheet. Pass [entry] to edit
+/// an existing entry; omit it to create a new one. Resolves to `true` when the
+/// entry was saved, so the caller can refresh.
+Future<bool?> showJournalEntrySheet(
   BuildContext context, {
   required String caseId,
+  JournalEntry? entry,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => NewJournalEntrySheet(caseId: caseId),
+    builder: (_) => JournalEntrySheet(caseId: caseId, entry: entry),
   );
 }
 
-/// Form for adding a dated journal entry with optional photo attachments
-/// (FED-4.7). Uploads the photos as multipart files on the new record.
-class NewJournalEntrySheet extends ConsumerStatefulWidget {
-  const NewJournalEntrySheet({required this.caseId, super.key});
+/// Form for creating or editing a dated journal entry with photo attachments
+/// (FED-4.7 / journal CRUD). On edit it shows the existing attachments — each
+/// removable — and appends any newly picked photos via a multipart update.
+class JournalEntrySheet extends ConsumerStatefulWidget {
+  const JournalEntrySheet({required this.caseId, this.entry, super.key});
 
   final String caseId;
+  final JournalEntry? entry;
 
   @override
-  ConsumerState<NewJournalEntrySheet> createState() =>
-      _NewJournalEntrySheetState();
+  ConsumerState<JournalEntrySheet> createState() => _JournalEntrySheetState();
 }
 
-class _NewJournalEntrySheetState extends ConsumerState<NewJournalEntrySheet> {
+class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet> {
   final _formKey = GlobalKey<FormState>();
-  final _textController = TextEditingController();
-  final _photos = <XFile>[];
-  DateTime _entryAt = DateTime.now();
+  late final TextEditingController _textController;
+  late DateTime _entryAt;
+
+  /// Server-side attachments kept on save (edit only); removing one drops it.
+  late final List<String> _existingPhotos;
+
+  /// Freshly picked photos to upload.
+  final _newPhotos = <XFile>[];
+
   bool _busy = false;
   String? _error;
+
+  bool get _isEditing => widget.entry != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final entry = widget.entry;
+    _textController = TextEditingController(text: entry?.text ?? '');
+    _entryAt = entry?.entryAt ?? entry?.created ?? DateTime.now();
+    _existingPhotos = [...?entry?.attachments];
+  }
 
   @override
   void dispose() {
@@ -55,13 +76,13 @@ class _NewJournalEntrySheetState extends ConsumerState<NewJournalEntrySheet> {
   Future<void> _pickPhotos() async {
     final picker = ref.read(imagePickerProvider);
     final picked = await picker.pickMultiImage();
-    if (picked.isNotEmpty) setState(() => _photos.addAll(picked));
+    if (picked.isNotEmpty) setState(() => _newPhotos.addAll(picked));
   }
 
   Future<void> _takePhoto() async {
     final picker = ref.read(imagePickerProvider);
     final shot = await picker.pickImage(source: ImageSource.camera);
-    if (shot != null) setState(() => _photos.add(shot));
+    if (shot != null) setState(() => _newPhotos.add(shot));
   }
 
   Future<void> _pickDate() async {
@@ -76,7 +97,7 @@ class _NewJournalEntrySheetState extends ConsumerState<NewJournalEntrySheet> {
 
   Future<List<http.MultipartFile>> _multipartPhotos() async {
     final files = <http.MultipartFile>[];
-    for (final photo in _photos) {
+    for (final photo in _newPhotos) {
       files.add(
         http.MultipartFile.fromBytes(
           'attachments',
@@ -105,16 +126,26 @@ class _NewJournalEntrySheetState extends ConsumerState<NewJournalEntrySheet> {
       }
 
       final repo = await ref.read(journalRepositoryProvider.future);
-      await repo.createWithFiles(
-        {
+      final files = await _multipartPhotos();
+      final entry = widget.entry;
+
+      if (entry == null) {
+        await repo.createWithFiles({
           'case': widget.caseId,
           'text': _textController.text.trim(),
           'entry_at': _entryAt.toUtc().toIso8601String(),
           'author': user.id,
           'org': org,
-        },
-        await _multipartPhotos(),
-      );
+        }, files);
+      } else {
+        await repo.updateWithFiles(entry.id, {
+          'text': _textController.text.trim(),
+          'entry_at': _entryAt.toUtc().toIso8601String(),
+          // Setting the field to the survivors drops any removed attachments;
+          // the new uploads are appended on top.
+          'attachments': _existingPhotos,
+        }, files);
+      }
 
       ref.invalidate(journalForCaseProvider(widget.caseId));
       if (mounted) Navigator.of(context).pop(true);
@@ -154,7 +185,10 @@ class _NewJournalEntrySheetState extends ConsumerState<NewJournalEntrySheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(l10n.journalNewTitle, style: theme.textTheme.titleLarge),
+              Text(
+                _isEditing ? l10n.journalEditTitle : l10n.journalNewTitle,
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: _textController,
@@ -175,12 +209,17 @@ class _NewJournalEntrySheetState extends ConsumerState<NewJournalEntrySheet> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              if (_photos.isNotEmpty)
+              if (_existingPhotos.isNotEmpty || _newPhotos.isNotEmpty)
                 _PhotoStrip(
-                  photos: _photos,
-                  onRemove: _busy
+                  entryId: widget.entry?.id,
+                  existing: _existingPhotos,
+                  newPhotos: _newPhotos,
+                  onRemoveExisting: _busy
                       ? null
-                      : (i) => setState(() => _photos.removeAt(i)),
+                      : (i) => setState(() => _existingPhotos.removeAt(i)),
+                  onRemoveNew: _busy
+                      ? null
+                      : (i) => setState(() => _newPhotos.removeAt(i)),
                 ),
               const SizedBox(height: AppSpacing.sm),
               Wrap(
@@ -221,28 +260,60 @@ class _NewJournalEntrySheetState extends ConsumerState<NewJournalEntrySheet> {
   }
 }
 
-/// Horizontal preview of the photos staged for upload, each removable.
-class _PhotoStrip extends StatelessWidget {
-  const _PhotoStrip({required this.photos, required this.onRemove});
+/// Preview of the photos staged for the entry: existing server attachments
+/// first (network thumbnails), then newly picked local photos. Each is
+/// removable.
+class _PhotoStrip extends ConsumerWidget {
+  const _PhotoStrip({
+    required this.entryId,
+    required this.existing,
+    required this.newPhotos,
+    required this.onRemoveExisting,
+    required this.onRemoveNew,
+  });
 
-  final List<XFile> photos;
-  final ValueChanged<int>? onRemove;
+  final String? entryId;
+  final List<String> existing;
+  final List<XFile> newPhotos;
+  final ValueChanged<int>? onRemoveExisting;
+  final ValueChanged<int>? onRemoveNew;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final repo = ref.watch(journalRepositoryProvider).value;
+
     return SizedBox(
       height: 88,
-      child: ListView.separated(
+      child: ListView(
         scrollDirection: Axis.horizontal,
-        itemCount: photos.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) {
-          return Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+        children: [
+          for (var i = 0; i < existing.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: _Thumb(
+                onRemove: onRemoveExisting == null
+                    ? null
+                    : () => onRemoveExisting!(i),
+                child: (repo == null || entryId == null)
+                    ? const SizedBox(width: 88, height: 88)
+                    : Image.network(
+                        repo
+                            .fileUrl(entryId!, existing[i], thumb: '200x200')
+                            .toString(),
+                        width: 88,
+                        height: 88,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const _ThumbFallback(),
+                      ),
+              ),
+            ),
+          for (var i = 0; i < newPhotos.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: _Thumb(
+                onRemove: onRemoveNew == null ? null : () => onRemoveNew!(i),
                 child: FutureBuilder<Uint8List>(
-                  future: photos[i].readAsBytes(),
+                  future: newPhotos[i].readAsBytes(),
                   builder: (context, snap) {
                     final bytes = snap.data;
                     if (bytes == null) {
@@ -257,20 +328,50 @@ class _PhotoStrip extends StatelessWidget {
                   },
                 ),
               ),
-              if (onRemove != null)
-                Positioned(
-                  top: -8,
-                  right: -8,
-                  child: IconButton(
-                    icon: const Icon(Icons.cancel),
-                    iconSize: 20,
-                    onPressed: () => onRemove!(i),
-                  ),
-                ),
-            ],
-          );
-        },
+            ),
+        ],
       ),
+    );
+  }
+}
+
+/// A rounded thumbnail with an optional remove badge.
+class _Thumb extends StatelessWidget {
+  const _Thumb({required this.child, this.onRemove});
+
+  final Widget child;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        ClipRRect(borderRadius: BorderRadius.circular(8), child: child),
+        if (onRemove != null)
+          Positioned(
+            top: -8,
+            right: -8,
+            child: IconButton(
+              icon: const Icon(Icons.cancel),
+              iconSize: 20,
+              onPressed: onRemove,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ThumbFallback extends StatelessWidget {
+  const _ThumbFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 88,
+      height: 88,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: const Icon(Icons.broken_image_outlined),
     );
   }
 }

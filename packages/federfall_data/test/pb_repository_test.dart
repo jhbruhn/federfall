@@ -90,6 +90,37 @@ void main() {
     expect(captured.single.filename, 'photo.jpg');
   });
 
+  test('updateWithFiles forwards body and files to the service', () async {
+    when(
+      () => service.update(
+        any(),
+        body: any(named: 'body'),
+        files: any(named: 'files'),
+      ),
+    ).thenAnswer((_) async => rec('a5', 'Edited'));
+
+    final file = http.MultipartFile.fromBytes(
+      'attachments',
+      [9, 8, 7],
+      filename: 'new.jpg',
+    );
+    final a = await repo.updateWithFiles(
+      'a5',
+      {'attachments': ['kept.jpg']},
+      [file],
+    );
+
+    expect(a.id, 'a5');
+    final captured = verify(
+      () => service.update(
+        'a5',
+        body: any(named: 'body'),
+        files: captureAny(named: 'files'),
+      ),
+    ).captured.single as List<http.MultipartFile>;
+    expect(captured.single.filename, 'new.jpg');
+  });
+
   test('fileUrl builds an /api/files URL with an optional thumb', () {
     final realRepo = _AnimalsRepo(PocketBase('http://localhost:8090'));
 

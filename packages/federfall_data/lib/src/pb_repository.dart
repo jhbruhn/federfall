@@ -144,6 +144,23 @@ abstract class PbRepository<T> implements Repository<T> {
     });
   }
 
+  /// Updates record [id] from [body] with new multipart [files] appended to its
+  /// file field(s). To keep only some of the existing files, set the field to
+  /// the surviving filenames in [body] (e.g. `{'attachments': ['a.jpg']}`);
+  /// PocketBase then appends the uploads on top of that list.
+  Future<T> updateWithFiles(
+    String id,
+    Map<String, dynamic> body,
+    List<http.MultipartFile> files,
+  ) {
+    return _guard(() async {
+      final record = await service.update(id, body: body, files: files);
+      await cache.putRecord(collection, id, record.toJson());
+      await cache.evictLists(collection);
+      return fromRecord(record);
+    });
+  }
+
   /// Absolute URL for a [filename] stored on record [recordId]'s file field.
   /// Pass [thumb] (e.g. `100x100`) for a server-generated thumbnail. The file
   /// field is unprotected, so the URL is usable without an auth token.
