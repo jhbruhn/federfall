@@ -46,6 +46,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Federfall uses the camera to attach photos to a case's journal entries.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Federfall accesses your photo library to attach photos to a case's journal entries.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

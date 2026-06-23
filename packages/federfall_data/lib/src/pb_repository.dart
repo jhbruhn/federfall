@@ -1,5 +1,6 @@
 import 'package:federfall_data/src/record_cache.dart';
 import 'package:federfall_data/src/repository_exception.dart';
+import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
 
 /// Read/write contract every collection repository exposes. Generic over the
@@ -125,6 +126,32 @@ abstract class PbRepository<T> implements Repository<T> {
       return fromRecord(record);
     });
   }
+
+  /// Creates a record from [body] with multipart [files] attached to its file
+  /// field(s). Each [http.MultipartFile.field] names the target file field
+  /// (e.g. `attachments`); repeat the field name to upload several files to a
+  /// multi-file field. Like [create], the new record is cached and the
+  /// collection's cached lists are evicted.
+  Future<T> createWithFiles(
+    Map<String, dynamic> body,
+    List<http.MultipartFile> files,
+  ) {
+    return _guard(() async {
+      final record = await service.create(body: body, files: files);
+      await cache.putRecord(collection, record.id, record.toJson());
+      await cache.evictLists(collection);
+      return fromRecord(record);
+    });
+  }
+
+  /// Absolute URL for a [filename] stored on record [recordId]'s file field.
+  /// Pass [thumb] (e.g. `100x100`) for a server-generated thumbnail. The file
+  /// field is unprotected, so the URL is usable without an auth token.
+  Uri fileUrl(String recordId, String filename, {String? thumb}) =>
+      pb.buildURL(
+        '/api/files/$collection/$recordId/$filename',
+        thumb == null ? const {} : {'thumb': thumb},
+      );
 
   @override
   Future<T> update(String id, Map<String, dynamic> body) {

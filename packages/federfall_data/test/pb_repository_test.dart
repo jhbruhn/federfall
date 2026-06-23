@@ -1,5 +1,6 @@
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:test/test.dart';
@@ -60,6 +61,46 @@ void main() {
     final a = await repo.create({'name': 'Pip', 'species': 'Stadttaube'});
 
     expect(a.id, 'a3');
+  });
+
+  test('createWithFiles forwards the multipart files to the service',
+      () async {
+    when(
+      () => service.create(
+        body: any(named: 'body'),
+        files: any(named: 'files'),
+      ),
+    ).thenAnswer((_) async => rec('a4', 'Snap'));
+
+    final file = http.MultipartFile.fromBytes(
+      'attachments',
+      [1, 2, 3],
+      filename: 'photo.jpg',
+    );
+    final a = await repo.createWithFiles({'name': 'Snap'}, [file]);
+
+    expect(a.id, 'a4');
+    final captured = verify(
+      () => service.create(
+        body: any(named: 'body'),
+        files: captureAny(named: 'files'),
+      ),
+    ).captured.single as List<http.MultipartFile>;
+    expect(captured.single.field, 'attachments');
+    expect(captured.single.filename, 'photo.jpg');
+  });
+
+  test('fileUrl builds an /api/files URL with an optional thumb', () {
+    final realRepo = _AnimalsRepo(PocketBase('http://localhost:8090'));
+
+    expect(
+      realRepo.fileUrl('r1', 'pic.jpg').toString(),
+      'http://localhost:8090/api/files/animals/r1/pic.jpg',
+    );
+    expect(
+      realRepo.fileUrl('r1', 'pic.jpg', thumb: '100x100').toString(),
+      contains('thumb=100x100'),
+    );
   });
 
   test('translates ClientException into RepositoryException', () async {
