@@ -2,6 +2,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -50,6 +51,7 @@ class _CaseDetail extends ConsumerWidget {
         const SizedBox(height: AppSpacing.lg),
         _IntakeSection(medicalCase: medicalCase, animal: animal),
         const SizedBox(height: AppSpacing.lg),
+        WeightTrendChart(caseId: medicalCase.id),
         CaseTimeline(medicalCase: medicalCase),
       ],
     );

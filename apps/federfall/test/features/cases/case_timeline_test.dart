@@ -10,17 +10,23 @@ import 'package:mocktail/mocktail.dart';
 
 class MockJournalRepo extends Mock implements PbJournalRepository {}
 
+class MockWeightsRepo extends Mock implements PbWeightsRepository {}
+
 void main() {
   late MockJournalRepo journal;
+  late MockWeightsRepo weights;
 
   setUp(() {
     journal = MockJournalRepo();
+    weights = MockWeightsRepo();
+    when(() => weights.forCase(any())).thenAnswer((_) async => []);
   });
 
   Future<void> pump(WidgetTester tester, Case medicalCase) async {
     final container = ProviderContainer(
       overrides: [
         journalRepositoryProvider.overrideWith((ref) async => journal),
+        weightsRepositoryProvider.overrideWith((ref) async => weights),
       ],
     );
     addTearDown(container.dispose);
@@ -75,6 +81,24 @@ void main() {
     final admitted = tester.getTopLeft(find.text('Admitted')).dy;
     expect(opened, lessThan(entry));
     expect(entry, lessThan(admitted));
+  });
+
+  testWidgets('places weight measurements on the timeline', (tester) async {
+    when(() => journal.forCase('c1')).thenAnswer((_) async => []);
+    when(() => weights.forCase('c1')).thenAnswer(
+      (_) async => [
+        Weight(
+          id: 'w1',
+          caseId: 'c1',
+          weightG: 248,
+          measuredAt: DateTime.utc(2026, 6, 21),
+        ),
+      ],
+    );
+
+    await pump(tester, const Case(id: 'c1', animal: 'a1'));
+
+    expect(find.text('248 g'), findsOneWidget);
   });
 
   testWidgets('shows the empty state when nothing is on the timeline',

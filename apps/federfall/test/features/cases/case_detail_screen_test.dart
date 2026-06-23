@@ -16,11 +16,14 @@ class MockFindersRepo extends Mock implements PbFindersRepository {}
 
 class MockJournalRepo extends Mock implements PbJournalRepository {}
 
+class MockWeightsRepo extends Mock implements PbWeightsRepository {}
+
 void main() {
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
   late MockFindersRepo finders;
   late MockJournalRepo journal;
+  late MockWeightsRepo weights;
 
   final medicalCase = Case(
     id: 'c1',
@@ -43,7 +46,9 @@ void main() {
     animals = MockAnimalsRepo();
     finders = MockFindersRepo();
     journal = MockJournalRepo();
+    weights = MockWeightsRepo();
     when(() => journal.forCase(any())).thenAnswer((_) async => []);
+    when(() => weights.forCase(any())).thenAnswer((_) async => []);
     when(() => cases.getOne(any())).thenAnswer((_) async => medicalCase);
     when(() => animals.getOne(any())).thenAnswer(
       (_) async =>
@@ -67,6 +72,7 @@ void main() {
         animalsRepositoryProvider.overrideWith((ref) async => animals),
         findersRepositoryProvider.overrideWith((ref) async => finders),
         journalRepositoryProvider.overrideWith((ref) async => journal),
+        weightsRepositoryProvider.overrideWith((ref) async => weights),
       ],
     );
     addTearDown(container.dispose);

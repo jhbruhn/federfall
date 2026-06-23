@@ -3,6 +3,9 @@ import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
+import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
+import 'package:federfall/features/cases/weights/weight_entry_tile.dart';
+import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -24,7 +27,9 @@ class CaseTimeline extends ConsumerWidget {
     final theme = Theme.of(context);
     final caseId = medicalCase.id;
     final journal = ref.watch(journalForCaseProvider(caseId));
-    final entries = journal.value ?? const <JournalEntry>[];
+    final weights = ref.watch(weightsForCaseProvider(caseId));
+    final isLoading = journal.isLoading || weights.isLoading;
+    final error = journal.error ?? weights.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -35,7 +40,10 @@ class CaseTimeline extends ConsumerWidget {
         ),
       if (medicalCase.created case final d?)
         _MilestoneEvent(d, Icons.flag_outlined, l10n.caseEventCreated),
-      for (final entry in entries) _JournalEvent(entry),
+      for (final entry in journal.value ?? const <JournalEntry>[])
+        _JournalEvent(entry),
+      for (final weight in weights.value ?? const <Weight>[])
+        _WeightEvent(weight),
     ]..sort((a, b) => b.at.compareTo(a.at));
 
     return Column(
@@ -47,31 +55,45 @@ class CaseTimeline extends ConsumerWidget {
               child: Text(l10n.caseTimelineTitle,
                   style: theme.textTheme.titleMedium),
             ),
-            TextButton.icon(
-              onPressed: () => showJournalEntrySheet(context, caseId: caseId),
+            PopupMenuButton<void>(
               icon: const Icon(Icons.add),
-              label: Text(l10n.journalAddAction),
+              tooltip: l10n.timelineAddTooltip,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: () => showJournalEntrySheet(context, caseId: caseId),
+                  child: Text(l10n.timelineAddNote),
+                ),
+                PopupMenuItem(
+                  onTap: () => showWeightEntrySheet(context, caseId: caseId),
+                  child: Text(l10n.timelineAddWeight),
+                ),
+              ],
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        if (journal.isLoading) const LinearProgressIndicator(),
-        if (journal.hasError)
+        if (isLoading) const LinearProgressIndicator(),
+        if (error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: Text(
-              errorMessage(l10n, journal.error!),
+              errorMessage(l10n, error),
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: theme.colorScheme.error),
             ),
           ),
-        if (events.isEmpty && !journal.isLoading)
+        if (events.isEmpty && !isLoading)
           Text(l10n.caseTimelineEmpty, style: theme.textTheme.bodyMedium)
         else
           for (var i = 0; i < events.length; i++)
             switch (events[i]) {
               _JournalEvent(:final entry) => JournalEntryTile(
                 entry: entry,
+                caseId: caseId,
+                isLast: i == events.length - 1,
+              ),
+              _WeightEvent(:final weight) => WeightEntryTile(
+                weight: weight,
                 caseId: caseId,
                 isLast: i == events.length - 1,
               ),
@@ -115,5 +137,18 @@ class _JournalEvent extends _Event {
   DateTime get at =>
       entry.entryAt ??
       entry.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A weight measurement placed on the timeline by its measurement date.
+class _WeightEvent extends _Event {
+  const _WeightEvent(this.weight);
+
+  final Weight weight;
+
+  @override
+  DateTime get at =>
+      weight.measuredAt ??
+      weight.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }
