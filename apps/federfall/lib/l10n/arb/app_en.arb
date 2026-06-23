@@ -16,6 +16,18 @@
     "@errorOffline": {
         "description": "Shown when the device cannot reach the backend"
     },
+    "errorUnauthorized": "You are not authorized to do that",
+    "@errorUnauthorized": {
+        "description": "Shown on a 401/403 response"
+    },
+    "errorNotFound": "Not found",
+    "@errorNotFound": {
+        "description": "Shown on a 404 response"
+    },
+    "errorValidation": "The data could not be saved",
+    "@errorValidation": {
+        "description": "Shown on a 400/422 validation response"
+    },
     "actionRetry": "Retry",
     "@actionRetry": {
         "description": "Button that retries a failed action"
