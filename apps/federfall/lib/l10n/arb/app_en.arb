@@ -225,6 +225,8 @@
     "@caseStatusFieldLabel": { "description": "Label for the case status on detail" },
     "caseAnimalLabel": "Animal",
     "@caseAnimalLabel": { "description": "Label for the animal on case detail" },
+    "casePriorCasesTitle": "Other cases",
+    "@casePriorCasesTitle": { "description": "Heading for the animal's other cases on the case overview" },
     "caseReasonsFieldLabel": "Reasons for admission",
     "@caseReasonsFieldLabel": { "description": "Label for the reasons list on detail" },
     "caseReasonInjury": "Injury",

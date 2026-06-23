@@ -1,14 +1,13 @@
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
-import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 /// Animal lifetime detail (FED-7.6): one animal's full record — identity,
 /// markings (active + historic) and every case newest-first. Cases the user
@@ -167,44 +166,13 @@ class _CasesSection extends StatelessWidget {
               )
             else
               for (final c in cases)
-                _CaseRow(summary: c, accessible: accessibleIds.contains(c.id)),
+                CaseSummaryTile(
+                  summary: c,
+                  accessible: accessibleIds.contains(c.id),
+                ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _CaseRow extends StatelessWidget {
-  const _CaseRow({required this.summary, required this.accessible});
-
-  final CaseSummary summary;
-  final bool accessible;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final materialL10n = MaterialLocalizations.of(context);
-    final status = summary.status;
-    final date = summary.admittedAt ?? summary.foundAt;
-    final subtitle = [
-      if (status != null) caseStatusLabel(l10n, status),
-      if (date != null) materialL10n.formatMediumDate(date),
-      if (!accessible) l10n.animalCaseNoAccess,
-    ].join(' · ');
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        accessible ? Icons.medical_information_outlined : Icons.lock_outline,
-      ),
-      title: Text(summary.caseNumber ?? l10n.caseNewTitle),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle),
-      trailing: accessible ? const Icon(Icons.chevron_right) : null,
-      enabled: accessible,
-      onTap: accessible
-          ? () => context.go(AppRoutes.caseDetail(summary.id))
-          : null,
     );
   }
 }

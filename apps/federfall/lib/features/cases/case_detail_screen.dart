@@ -4,6 +4,8 @@ import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
+import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -106,7 +108,55 @@ class _OverviewTab extends StatelessWidget {
       children: [
         WeightTrendChart(caseId: medicalCase.id),
         _IntakeSection(medicalCase: medicalCase, animal: animal),
+        _PriorCasesSection(medicalCase: medicalCase),
       ],
+    );
+  }
+}
+
+/// The animal's OTHER cases (current one excluded), newest-first (blp.3).
+/// Reuses the org-wide lifetime view (FED-7.6) so cases the user can't open
+/// still appear as non-tappable stubs. Renders nothing until loaded and when
+/// there are no other cases.
+class _PriorCasesSection extends ConsumerWidget {
+  const _PriorCasesSection({required this.medicalCase});
+
+  final Case medicalCase;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final lifetime =
+        ref.watch(animalLifetimeProvider(medicalCase.animal)).value;
+    if (lifetime == null) return const SizedBox.shrink();
+
+    final others =
+        lifetime.cases.where((c) => c.id != medicalCase.id).toList();
+    if (others.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.casePriorCasesTitle,
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              for (final c in others)
+                CaseSummaryTile(
+                  summary: c,
+                  accessible: lifetime.accessibleCaseIds.contains(c.id),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

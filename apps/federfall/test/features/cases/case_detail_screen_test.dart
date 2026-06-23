@@ -1,4 +1,5 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -91,7 +92,7 @@ void main() {
     );
   });
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester, {AnimalLifetime? lifetime}) async {
     // A tall surface so the whole scroll view (incl. the timeline) is built.
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -116,6 +117,8 @@ void main() {
             .overrideWith((ref) async => placements),
         dispositionsRepositoryProvider
             .overrideWith((ref) async => dispositions),
+        if (lifetime != null)
+          animalLifetimeProvider('a1').overrideWith((ref) async => lifetime),
       ],
     );
     addTearDown(container.dispose);
@@ -162,5 +165,45 @@ void main() {
 
     expect(find.text('Admitted'), findsOneWidget);
     expect(find.text('Case opened'), findsOneWidget);
+  });
+
+  testWidgets("Overview lists the animal's other cases", (tester) async {
+    await pump(
+      tester,
+      lifetime: const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Stadttaube', name: 'Pauli'),
+        markings: [],
+        cases: [
+          // The current case plus an older, accessible one.
+          CaseSummary(id: 'c1', animal: 'a1', caseNumber: '2026-001'),
+          CaseSummary(
+            id: 'c0',
+            animal: 'a1',
+            caseNumber: '2025-009',
+            status: CaseStatus.disposed,
+          ),
+        ],
+        accessibleCaseIds: {'c1', 'c0'},
+      ),
+    );
+
+    expect(find.text('Other cases'), findsOneWidget);
+    // The other case shows; the current case (c1) is excluded from the list.
+    expect(find.text('2025-009'), findsOneWidget);
+  });
+
+  testWidgets('Overview hides prior cases when there are none',
+      (tester) async {
+    await pump(
+      tester,
+      lifetime: const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Stadttaube', name: 'Pauli'),
+        markings: [],
+        cases: [CaseSummary(id: 'c1', animal: 'a1', caseNumber: '2026-001')],
+        accessibleCaseIds: {'c1'},
+      ),
+    );
+
+    expect(find.text('Other cases'), findsNothing);
   });
 }

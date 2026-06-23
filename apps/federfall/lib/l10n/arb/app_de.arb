@@ -87,6 +87,7 @@
     "caseNumberLabel": "Fallnummer",
     "caseStatusFieldLabel": "Status",
     "caseAnimalLabel": "Tier",
+    "casePriorCasesTitle": "Andere Fälle",
     "caseReasonsFieldLabel": "Aufnahmegründe",
     "caseReasonInjury": "Verletzung",
     "caseReasonIllness": "Krankheit",

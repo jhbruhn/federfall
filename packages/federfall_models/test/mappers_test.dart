@@ -58,6 +58,7 @@ void main() {
         'status': 'disposed',
         'admitted_at': '2026-03-10 09:00:00.000Z',
         'found_at': '',
+        'ended_at': '2026-04-01 12:00:00.000Z',
         'org': 'org00000000001',
       });
 
@@ -69,6 +70,7 @@ void main() {
       expect(s.status, CaseStatus.disposed);
       expect(s.admittedAt?.hour, 9);
       expect(s.foundAt, isNull, reason: 'empty date → null');
+      expect(s.endedAt?.month, 4);
       expect(s.org, 'org00000000001');
     });
   });

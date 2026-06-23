@@ -19,6 +19,7 @@ abstract class CaseSummary with _$CaseSummary {
     CaseStatus? status,
     DateTime? admittedAt,
     DateTime? foundAt,
+    DateTime? endedAt,
     String? org,
     DateTime? created,
   }) = _CaseSummary;
@@ -32,6 +33,7 @@ abstract class CaseSummary with _$CaseSummary {
       status: CaseStatus.fromWire(d['status']),
       admittedAt: pbDate(d['admitted_at']),
       foundAt: pbDate(d['found_at']),
+      endedAt: pbDate(d['ended_at']),
       org: pbString(d['org']),
       created: pbDate(d['created']),
     );
