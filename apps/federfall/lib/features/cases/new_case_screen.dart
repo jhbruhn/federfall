@@ -58,8 +58,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   final _intakePhotos = <XFile>[];
   final Set<AdmissionReason> _reasons = {};
   AgeClass? _ageClass;
-  DateTime? _foundAt;
-  DateTime? _admittedAt;
+  // Default both intake dates to today (the common case); still editable and
+  // clearable for a bird found earlier or an unknown find date.
+  DateTime? _foundAt = DateTime.now();
+  DateTime? _admittedAt = DateTime.now();
 
   // Find location (FED-4.2): a geocoded pin + resolved city/region alongside
   // the free-text address.

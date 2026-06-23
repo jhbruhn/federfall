@@ -2,6 +2,9 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/cases/conditions/condition_entry_sheet.dart';
 import 'package:federfall/features/cases/conditions/condition_entry_tile.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
+import 'package:federfall/features/cases/disposition/disposition_providers.dart';
+import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
+import 'package:federfall/features/cases/disposition/disposition_tile.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
@@ -54,20 +57,23 @@ class CaseTimeline extends ConsumerWidget {
     final doses = ref.watch(administrationsForCaseProvider(caseId));
     final markings = ref.watch(markingsForAnimalProvider(medicalCase.animal));
     final placements = ref.watch(placementsForCaseProvider(caseId));
+    final dispositions = ref.watch(dispositionsForCaseProvider(caseId));
     final isLoading = journal.isLoading ||
         weights.isLoading ||
         conditions.isLoading ||
         meds.isLoading ||
         doses.isLoading ||
         markings.isLoading ||
-        placements.isLoading;
+        placements.isLoading ||
+        dispositions.isLoading;
     final error = journal.error ??
         weights.error ??
         conditions.error ??
         meds.error ??
         doses.error ??
         markings.error ??
-        placements.error;
+        placements.error ??
+        dispositions.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -93,7 +99,11 @@ class CaseTimeline extends ConsumerWidget {
         _MarkingEvent(marking),
       for (final placement in placements.value ?? const <Placement>[])
         _PlacementEvent(placement),
+      for (final disposition in dispositions.value ?? const <Disposition>[])
+        _DispositionEvent(disposition),
     ]..sort((a, b) => b.at.compareTo(a.at));
+
+    final isDisposed = (dispositions.value ?? const []).isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,6 +156,12 @@ class CaseTimeline extends ConsumerWidget {
                       showPlacementSheet(context, medicalCase: medicalCase),
                   child: Text(l10n.timelineAddPlacement),
                 ),
+                if (!isDisposed)
+                  PopupMenuItem(
+                    onTap: () =>
+                        showDispositionSheet(context, caseId: caseId),
+                    child: Text(l10n.timelineRecordOutcome),
+                  ),
               ],
             ),
           ],
@@ -199,6 +215,10 @@ class CaseTimeline extends ConsumerWidget {
               _PlacementEvent(:final placement) => PlacementTile(
                 placement: placement,
                 medicalCase: medicalCase,
+                isLast: i == events.length - 1,
+              ),
+              _DispositionEvent(:final disposition) => DispositionTile(
+                disposition: disposition,
                 isLast: i == events.length - 1,
               ),
               _MilestoneEvent(:final icon, :final label, :final at) =>
@@ -319,5 +339,18 @@ class _PlacementEvent extends _Event {
   DateTime get at =>
       placement.movedInAt ??
       placement.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A case outcome placed on the timeline by when the case was disposed.
+class _DispositionEvent extends _Event {
+  const _DispositionEvent(this.disposition);
+
+  final Disposition disposition;
+
+  @override
+  DateTime get at =>
+      disposition.disposedAt ??
+      disposition.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }

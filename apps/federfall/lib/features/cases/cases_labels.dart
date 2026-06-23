@@ -74,6 +74,16 @@ String medicationFrequencyLabel(
   }
 }
 
+String dispositionTypeLabel(AppLocalizations l10n, DispositionType t) =>
+    switch (t) {
+      DispositionType.released => l10n.dispositionReleased,
+      DispositionType.placedInAviary => l10n.dispositionPlacedInAviary,
+      DispositionType.died => l10n.dispositionDied,
+      DispositionType.euthanized => l10n.dispositionEuthanized,
+      DispositionType.transferred => l10n.dispositionTransferred,
+      DispositionType.returnedToOwner => l10n.dispositionReturnedToOwner,
+    };
+
 String medicationRouteLabel(AppLocalizations l10n, MedicationRoute r) =>
     switch (r) {
       MedicationRoute.oral => l10n.routeOral,

@@ -30,6 +30,8 @@ class MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
 
 class MockPlacementsRepo extends Mock implements PbPlacementsRepository {}
 
+class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
+
 void main() {
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
@@ -41,6 +43,7 @@ void main() {
   late MockAdministrationsRepo administrations;
   late MockMarkingsRepo markings;
   late MockPlacementsRepo placements;
+  late MockDispositionsRepo dispositions;
 
   final medicalCase = Case(
     id: 'c1',
@@ -69,7 +72,9 @@ void main() {
     administrations = MockAdministrationsRepo();
     markings = MockMarkingsRepo();
     placements = MockPlacementsRepo();
+    dispositions = MockDispositionsRepo();
     when(() => placements.forCase(any())).thenAnswer((_) async => []);
+    when(() => dispositions.forCase(any())).thenAnswer((_) async => []);
     when(() => journal.forCase(any())).thenAnswer((_) async => []);
     when(() => weights.forCase(any())).thenAnswer((_) async => []);
     when(() => caseConditions.forCase(any())).thenAnswer((_) async => []);
@@ -109,6 +114,8 @@ void main() {
         markingsRepositoryProvider.overrideWith((ref) async => markings),
         placementsRepositoryProvider
             .overrideWith((ref) async => placements),
+        dispositionsRepositoryProvider
+            .overrideWith((ref) async => dispositions),
       ],
     );
     addTearDown(container.dispose);
