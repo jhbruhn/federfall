@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/home/home_screen.dart';
@@ -11,8 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeAuthRepository implements AuthRepository {
-  bool signedOut = false;
-
   @override
   Stream<AppUser?> get changes => const Stream.empty();
 
@@ -30,19 +29,22 @@ class FakeAuthRepository implements AuthRepository {
   Future<AppUser?> refresh() async => currentUser;
 
   @override
-  void signOut() => signedOut = true;
+  void signOut() {}
 }
 
 Future<void> _pump(
   WidgetTester tester, {
-  required FakeAuthRepository repo,
-  required List<Case> cases,
+  List<Case> cases = const [],
+  AppUser? user,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        authRepositoryProvider.overrideWith((ref) async => repo),
+        authRepositoryProvider
+            .overrideWith((ref) async => FakeAuthRepository()),
         myCasesProvider.overrideWith((ref) async => cases),
+        if (user != null)
+          currentUserProvider.overrideWith((ref) async => user),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -57,31 +59,39 @@ Future<void> _pump(
 
 void main() {
   testWidgets('shows the empty state when there are no cases', (tester) async {
-    await _pump(tester, repo: FakeAuthRepository(), cases: const []);
-
+    await _pump(tester);
     expect(find.text('No cases yet'), findsOneWidget);
   });
 
   testWidgets('lists my cases by case number', (tester) async {
     await _pump(
       tester,
-      repo: FakeAuthRepository(),
-      cases: const [
-        Case(id: 'c1', animal: 'a1', caseNumber: '2026-001'),
-      ],
+      cases: const [Case(id: 'c1', animal: 'a1', caseNumber: '2026-001')],
     );
-
     expect(find.text('2026-001'), findsOneWidget);
   });
 
-  testWidgets('signs out from the app bar action', (tester) async {
-    final repo = FakeAuthRepository();
-    await _pump(tester, repo: repo, cases: const []);
+  testWidgets('always offers the profile action, hides admin for a carer',
+      (tester) async {
+    await _pump(
+      tester,
+      user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+    );
 
-    await tester.tap(find.byTooltip('Sign out'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byTooltip('Profile'), findsOneWidget);
+    expect(find.byTooltip('Administration'), findsNothing);
+  });
 
-    expect(repo.signedOut, isTrue);
+  testWidgets('shows the admin action for a supervisor', (tester) async {
+    await _pump(
+      tester,
+      user: const AppUser(
+        id: 'u1',
+        email: 's@x.org',
+        role: UserRole.supervisor,
+      ),
+    );
+
+    expect(find.byTooltip('Administration'), findsOneWidget);
   });
 }

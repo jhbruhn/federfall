@@ -58,5 +58,14 @@
     "caseStatusInTreatment": "In Behandlung",
     "caseStatusRehab": "Reha",
     "caseStatusReadyForRelease": "Auswilderungsbereit",
-    "caseStatusDisposed": "Abgeschlossen"
+    "caseStatusDisposed": "Abgeschlossen",
+    "profileTitle": "Profil",
+    "profileNameLabel": "Name",
+    "profileEmailLabel": "E-Mail",
+    "profileRoleLabel": "Rolle",
+    "adminTitle": "Verwaltung",
+    "adminPlaceholder": "Teamverwaltung und Einladungen folgen in Kürze.",
+    "userRoleCarer": "Pflegestelle",
+    "userRoleCoordinator": "Koordination",
+    "userRoleSupervisor": "Supervisor"
 }

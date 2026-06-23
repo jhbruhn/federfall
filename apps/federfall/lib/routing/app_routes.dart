@@ -22,4 +22,10 @@ abstract final class AppRoutes {
 
   /// Builds the concrete case-detail path for [id].
   static String caseDetail(String id) => '/cases/$id';
+
+  /// Signed-in user's profile (FED-3.3).
+  static const profile = '/profile';
+
+  /// Supervisor-only admin area (FED-3.3 stub).
+  static const admin = '/admin';
 }
