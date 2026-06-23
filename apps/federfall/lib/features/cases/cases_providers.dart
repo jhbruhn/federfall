@@ -29,3 +29,10 @@ Future<Animal> animalById(Ref ref, String id) async {
   final repo = await ref.watch(animalsRepositoryProvider.future);
   return repo.getOne(id);
 }
+
+/// The external finder linked to a case, by id (case detail).
+@riverpod
+Future<Finder> finderById(Ref ref, String id) async {
+  final repo = await ref.watch(findersRepositoryProvider.future);
+  return repo.getOne(id);
+}

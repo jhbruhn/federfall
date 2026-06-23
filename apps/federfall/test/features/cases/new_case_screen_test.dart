@@ -8,7 +8,7 @@ import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart' hide Finder;
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -16,20 +16,39 @@ class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
 class MockCasesRepo extends Mock implements PbCasesRepository {}
 
+class MockFindersRepo extends Mock implements PbFindersRepository {}
+
 void main() {
   setUpAll(() => registerFallbackValue(<String, dynamic>{}));
 
   late MockAnimalsRepo animals;
   late MockCasesRepo cases;
+  late MockFindersRepo finders;
 
   setUp(() {
     animals = MockAnimalsRepo();
     cases = MockCasesRepo();
+    finders = MockFindersRepo();
     when(() => animals.create(any()))
         .thenAnswer((_) async => const Animal(id: 'a1', species: 'Stadttaube'));
     when(() => cases.create(any()))
         .thenAnswer((_) async => const Case(id: 'c1', animal: 'a1'));
+    when(() => finders.create(any()))
+        .thenAnswer((_) async => const Finder(id: 'f1'));
   });
+
+  // Enters [value] into the field carrying [label], located via its label text.
+  Future<void> enterByLabel(
+    WidgetTester tester,
+    String label,
+    String value,
+  ) async {
+    final field = find.ancestor(
+      of: find.text(label),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(field, value);
+  }
 
   Future<void> pump(WidgetTester tester) async {
     final container = ProviderContainer(
@@ -40,6 +59,7 @@ void main() {
         ),
         animalsRepositoryProvider.overrideWith((ref) async => animals),
         casesRepositoryProvider.overrideWith((ref) async => cases),
+        findersRepositoryProvider.overrideWith((ref) async => finders),
       ],
     );
     addTearDown(container.dispose);
@@ -77,12 +97,12 @@ void main() {
     await pump(tester);
 
     // Pick a reason (species is pre-filled with the default).
-    await tester.tap(find.byType(DropdownButtonFormField<AdmissionReason>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Injury').last);
+    await tester.tap(find.widgetWithText(FilterChip, 'Injury'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    final submit = find.widgetWithText(FilledButton, 'Create case');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
     await tester.pumpAndSettle();
 
     final animalBody =
@@ -105,10 +125,73 @@ void main() {
   testWidgets('requires a reason before submitting', (tester) async {
     await pump(tester);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    final submit = find.widgetWithText(FilledButton, 'Create case');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
     await tester.pumpAndSettle();
 
     verifyNever(() => animals.create(any()));
     expect(find.text('This field is required'), findsOneWidget);
+  });
+
+  testWidgets('captures intake details and creates a linked finder',
+      (tester) async {
+    await pump(tester);
+
+    await enterByLabel(tester, 'Intake weight (g)', '250');
+    await enterByLabel(tester, 'Intake notes', 'thin but alert');
+    await enterByLabel(tester, 'Find location', 'Domplatz');
+
+    // Open the optional finder section and fill some contact details.
+    final finderHeader = find.text('Finder (optional)');
+    await tester.ensureVisible(finderHeader);
+    await tester.tap(finderHeader);
+    await tester.pumpAndSettle();
+    await enterByLabel(tester, 'Last name', 'Klein');
+    await enterByLabel(tester, 'Phone', '0151 234');
+
+    final injury = find.widgetWithText(FilterChip, 'Injury');
+    await tester.ensureVisible(injury);
+    await tester.tap(injury);
+    await tester.pumpAndSettle();
+
+    final submit = find.widgetWithText(FilledButton, 'Create case');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    final caseBody = verify(() => cases.create(captureAny())).captured.single
+        as Map<String, dynamic>;
+    expect(caseBody['intake_weight_g'], 250);
+    expect(caseBody['intake_notes'], 'thin but alert');
+    expect(caseBody['find_location'], 'Domplatz');
+    expect(caseBody['finder'], 'f1');
+
+    final finderBody = verify(() => finders.create(captureAny()))
+        .captured
+        .single as Map<String, dynamic>;
+    expect(finderBody['last_name'], 'Klein');
+    expect(finderBody['phone'], '0151 234');
+    expect(finderBody['org'], 'org1');
+  });
+
+  testWidgets('does not create a finder when the section is left blank',
+      (tester) async {
+    await pump(tester);
+
+    final injury = find.widgetWithText(FilterChip, 'Injury');
+    await tester.ensureVisible(injury);
+    await tester.tap(injury);
+    await tester.pumpAndSettle();
+
+    final submit = find.widgetWithText(FilledButton, 'Create case');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    verifyNever(() => finders.create(any()));
+    final caseBody = verify(() => cases.create(captureAny())).captured.single
+        as Map<String, dynamic>;
+    expect(caseBody.containsKey('finder'), isFalse);
   });
 }

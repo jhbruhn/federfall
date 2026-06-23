@@ -27,3 +27,16 @@ String caseStatusLabel(AppLocalizations l10n, CaseStatus s) => switch (s) {
   CaseStatus.readyForRelease => l10n.caseStatusReadyForRelease,
   CaseStatus.disposed => l10n.caseStatusDisposed,
 };
+
+String sexLabel(AppLocalizations l10n, Sex s) => switch (s) {
+  Sex.male => l10n.sexMale,
+  Sex.female => l10n.sexFemale,
+  Sex.unknown => l10n.sexUnknown,
+};
+
+String ageClassLabel(AppLocalizations l10n, AgeClass a) => switch (a) {
+  AgeClass.squab => l10n.ageClassSquab,
+  AgeClass.fledgling => l10n.ageClassFledgling,
+  AgeClass.immature => l10n.ageClassImmature,
+  AgeClass.adult => l10n.ageClassAdult,
+};
