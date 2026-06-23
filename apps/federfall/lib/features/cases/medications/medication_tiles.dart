@@ -57,10 +57,16 @@ class PrescriptionTile extends ConsumerWidget {
     final materialL10n = MaterialLocalizations.of(context);
     final date = plan.startedAt ?? plan.created;
 
+    final frequency = medicationFrequencyLabel(
+      l10n,
+      plan.frequencyKind,
+      plan.intervalHours,
+    );
     final detail = [
       if (formatDose(plan.dose, plan.doseUnit) case final d when d.isNotEmpty)
         d,
       if (plan.route case final r?) medicationRouteLabel(l10n, r),
+      if (frequency.isNotEmpty) frequency,
       if (plan.frequency case final f? when f.isNotEmpty) f,
     ].join(' · ');
 

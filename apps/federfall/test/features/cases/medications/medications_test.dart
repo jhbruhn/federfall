@@ -83,6 +83,30 @@ void main() {
       expect(body['is_controlled'], true);
       expect(body['case'], 'c1');
       expect(body['org'], 'org1');
+      // Default frequency preset is once-daily → structured q24h.
+      expect(body['frequency_kind'], 'scheduled');
+      expect(body['interval_hours'], 24);
+    });
+
+    testWidgets('a chosen preset stores its interval', (tester) async {
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.enterText(find.byType(TextField).first, 'Baytril');
+      // Open the frequency dropdown (showing the default) and pick twice-daily.
+      await tester.tap(find.text('Once daily'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Twice daily').last);
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      final body = verify(() => medications.create(captureAny()))
+          .captured
+          .single as Map<String, dynamic>;
+      expect(body['frequency_kind'], 'scheduled');
+      expect(body['interval_hours'], 12);
     });
   });
 
@@ -134,6 +158,8 @@ void main() {
             dose: 0.3,
             doseUnit: 'ml',
             route: MedicationRoute.subcutaneous,
+            frequencyKind: MedicationFrequencyKind.scheduled,
+            intervalHours: 12,
             isControlled: true,
           ),
           caseId: 'c1',
@@ -141,7 +167,7 @@ void main() {
       );
 
       expect(find.text('Prescribed Baytril'), findsOneWidget);
-      expect(find.text('0.3 ml · Subcutaneous'), findsOneWidget);
+      expect(find.text('0.3 ml · Subcutaneous · Twice daily'), findsOneWidget);
       expect(find.text('Controlled'), findsOneWidget);
     });
 

@@ -128,6 +128,22 @@ enum Certainty {
   static Certainty? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
 }
 
+/// How often a medication is given (`medications.frequency_kind`). When
+/// [scheduled], `interval_hours` carries the gap between doses, so a reminder
+/// can compute the next due time.
+enum MedicationFrequencyKind {
+  once('once'),
+  scheduled('scheduled'),
+  asNeeded('as_needed');
+
+  const MedicationFrequencyKind(this.wire);
+
+  final String wire;
+
+  static MedicationFrequencyKind? fromWire(Object? v) =>
+      pbEnum(values, (e) => e.wire, v);
+}
+
 /// Route of administration for a medication (`medications.route`).
 enum MedicationRoute {
   oral('oral'),

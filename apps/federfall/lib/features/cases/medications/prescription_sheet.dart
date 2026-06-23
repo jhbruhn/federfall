@@ -43,9 +43,11 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet> {
   late final TextEditingController _dose;
   late final TextEditingController _unit;
   late final TextEditingController _frequency;
+  late final TextEditingController _customHours;
   late final TextEditingController _instructions;
   late final TextEditingController _prescribedBy;
   MedicationRoute? _route;
+  late _FreqPreset _preset;
   late DateTime _startedAt;
   DateTime? _endedAt;
   bool _controlled = false;
@@ -67,6 +69,10 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet> {
     _instructions = TextEditingController(text: p?.instructions ?? '');
     _prescribedBy = TextEditingController(text: p?.prescribedBy ?? '');
     _route = p?.route;
+    _preset = _FreqPreset.from(p?.frequencyKind, p?.intervalHours);
+    _customHours = TextEditingController(
+      text: _preset == _FreqPreset.custom ? '${p?.intervalHours ?? ''}' : '',
+    );
     _startedAt = p?.startedAt ?? p?.created ?? DateTime.now();
     _endedAt = p?.endedAt;
     _controlled = p?.isControlled ?? false;
@@ -79,6 +85,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet> {
       _dose,
       _unit,
       _frequency,
+      _customHours,
       _instructions,
       _prescribedBy,
     ]) {
@@ -108,12 +115,17 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet> {
       }
       final repo = await ref.read(medicationsRepositoryProvider.future);
       final dose = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
+      final intervalHours = _preset == _FreqPreset.custom
+          ? int.tryParse(_customHours.text.trim())
+          : _preset.interval;
 
       final body = <String, dynamic>{
         'drug': _drug.text.trim(),
         'dose': dose,
         'dose_unit': _trim(_unit) ?? '',
         'frequency': _trim(_frequency) ?? '',
+        'frequency_kind': _preset.kind.wire,
+        'interval_hours': intervalHours,
         'route': _route?.wire ?? '',
         'started_at': _startedAt.toUtc().toIso8601String(),
         'ended_at': _endedAt?.toUtc().toIso8601String() ?? '',
@@ -234,11 +246,43 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet> {
                 onChanged: (r) => setState(() => _route = r),
               ),
               const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<_FreqPreset>(
+                initialValue: _preset,
+                decoration: InputDecoration(
+                  labelText: l10n.medFrequency,
+                  prefixIcon: const Icon(Icons.repeat),
+                ),
+                items: [
+                  for (final p in _FreqPreset.values)
+                    DropdownMenuItem(
+                      value: p,
+                      child: Text(p.label(l10n)),
+                    ),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (p) => setState(() => _preset = p ?? _preset),
+              ),
+              if (_preset == _FreqPreset.custom) ...[
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _customHours,
+                  label: l10n.medIntervalHours,
+                  prefixIcon: Icons.timelapse_outlined,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  enabled: !_busy,
+                  validator: (v) {
+                    final n = int.tryParse((v ?? '').trim());
+                    return (n == null || n <= 0) ? l10n.fieldRequired : null;
+                  },
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: _frequency,
-                label: l10n.medFrequency,
-                hintText: l10n.medFrequencyHint,
-                prefixIcon: Icons.repeat,
+                label: l10n.medFrequencyNote,
+                prefixIcon: Icons.schedule_outlined,
                 enabled: !_busy,
               ),
               const SizedBox(height: AppSpacing.md),
@@ -299,6 +343,55 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet> {
       ),
     );
   }
+}
+
+/// The frequency presets offered in the prescription form, each mapping to the
+/// structured (kind, interval-hours) stored on the plan.
+enum _FreqPreset {
+  once(MedicationFrequencyKind.once, null),
+  daily(MedicationFrequencyKind.scheduled, 24),
+  bid(MedicationFrequencyKind.scheduled, 12),
+  tid(MedicationFrequencyKind.scheduled, 8),
+  qid(MedicationFrequencyKind.scheduled, 6),
+  eod(MedicationFrequencyKind.scheduled, 48),
+  custom(MedicationFrequencyKind.scheduled, null),
+  asNeeded(MedicationFrequencyKind.asNeeded, null);
+
+  const _FreqPreset(this.kind, this.interval);
+
+  final MedicationFrequencyKind kind;
+  final int? interval;
+
+  /// The preset matching a stored (kind, interval); defaults to [daily] when
+  /// nothing is set, and to [custom] for an unrecognised interval.
+  static _FreqPreset from(MedicationFrequencyKind? kind, int? interval) {
+    switch (kind) {
+      case null:
+        return _FreqPreset.daily;
+      case MedicationFrequencyKind.once:
+        return _FreqPreset.once;
+      case MedicationFrequencyKind.asNeeded:
+        return _FreqPreset.asNeeded;
+      case MedicationFrequencyKind.scheduled:
+        return values.firstWhere(
+          (p) => p.kind == MedicationFrequencyKind.scheduled &&
+              p.interval == interval &&
+              p != _FreqPreset.custom,
+          orElse: () => _FreqPreset.custom,
+        );
+    }
+  }
+
+  String label(AppLocalizations l10n) => switch (this) {
+    _FreqPreset.once => l10n.freqOnce,
+    _FreqPreset.daily => l10n.freqOnceDaily,
+    _FreqPreset.bid => l10n.freqTwiceDaily,
+    _FreqPreset.tid => l10n.freq3xDaily,
+    _FreqPreset.qid => l10n.freq4xDaily,
+    _FreqPreset.eod => l10n.freqEveryOtherDay,
+    _FreqPreset.custom => l10n.freqCustom,
+    _FreqPreset.asNeeded => l10n.freqAsNeeded,
+  };
 }
 
 /// Optional route picker shared by the prescription and dose forms.

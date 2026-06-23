@@ -46,6 +46,34 @@ String certaintyLabel(AppLocalizations l10n, Certainty c) => switch (c) {
   Certainty.confirmed => l10n.certaintyConfirmed,
 };
 
+/// A friendly label for a medication's dosing frequency, derived from the
+/// structured [kind] + [intervalHours] (named presets for common intervals,
+/// "every N h" otherwise). Empty when no frequency is recorded.
+String medicationFrequencyLabel(
+  AppLocalizations l10n,
+  MedicationFrequencyKind? kind,
+  int? intervalHours,
+) {
+  switch (kind) {
+    case null:
+      return '';
+    case MedicationFrequencyKind.once:
+      return l10n.freqOnce;
+    case MedicationFrequencyKind.asNeeded:
+      return l10n.freqAsNeeded;
+    case MedicationFrequencyKind.scheduled:
+      return switch (intervalHours) {
+        24 => l10n.freqOnceDaily,
+        12 => l10n.freqTwiceDaily,
+        8 => l10n.freq3xDaily,
+        6 => l10n.freq4xDaily,
+        48 => l10n.freqEveryOtherDay,
+        final h? => l10n.freqEveryNHours(h),
+        null => '',
+      };
+  }
+}
+
 String medicationRouteLabel(AppLocalizations l10n, MedicationRoute r) =>
     switch (r) {
       MedicationRoute.oral => l10n.routeOral,
