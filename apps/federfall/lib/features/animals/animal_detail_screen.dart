@@ -67,10 +67,13 @@ class _Identity extends StatelessWidget {
     ].join(' · ');
     final status = animal.lifetimeStatus;
 
-    return DetailHeader(
-      title: hasName ? name : animal.species,
-      subtitle: sub,
-      chipLabel: status == null ? null : lifetimeStatusLabel(l10n, status),
+    // Same header as the case screen, centred as a block on the animal page.
+    return Center(
+      child: DetailHeader(
+        title: hasName ? name : animal.species,
+        subtitle: sub,
+        chipLabel: status == null ? null : lifetimeStatusLabel(l10n, status),
+      ),
     );
   }
 }
