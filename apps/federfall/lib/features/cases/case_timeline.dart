@@ -5,6 +5,9 @@ import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
+import 'package:federfall/features/cases/markings/marking_sheet.dart';
+import 'package:federfall/features/cases/markings/marking_tile.dart';
+import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
@@ -46,16 +49,19 @@ class CaseTimeline extends ConsumerWidget {
     final conditions = ref.watch(caseConditionsForCaseProvider(caseId));
     final meds = ref.watch(medicationsForCaseProvider(caseId));
     final doses = ref.watch(administrationsForCaseProvider(caseId));
+    final markings = ref.watch(markingsForAnimalProvider(medicalCase.animal));
     final isLoading = journal.isLoading ||
         weights.isLoading ||
         conditions.isLoading ||
         meds.isLoading ||
-        doses.isLoading;
+        doses.isLoading ||
+        markings.isLoading;
     final error = journal.error ??
         weights.error ??
         conditions.error ??
         meds.error ??
-        doses.error;
+        doses.error ??
+        markings.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -77,6 +83,8 @@ class CaseTimeline extends ConsumerWidget {
       for (final dose
           in doses.value ?? const <MedicationAdministration>[])
         _AdministrationEvent(dose),
+      for (final marking in markings.value ?? const <Marking>[])
+        _MarkingEvent(marking),
     ]..sort((a, b) => b.at.compareTo(a.at));
 
     return Column(
@@ -116,6 +124,14 @@ class CaseTimeline extends ConsumerWidget {
                   onTap: () =>
                       showAdministrationSheet(context, caseId: caseId),
                   child: Text(l10n.timelineAddDose),
+                ),
+                PopupMenuItem(
+                  onTap: () => showMarkingSheet(
+                    context,
+                    animalId: medicalCase.animal,
+                    caseId: caseId,
+                  ),
+                  child: Text(l10n.timelineAddMarking),
                 ),
               ],
             ),
@@ -159,6 +175,11 @@ class CaseTimeline extends ConsumerWidget {
               ),
               _AdministrationEvent(:final dose) => AdministrationTile(
                 administration: dose,
+                caseId: caseId,
+                isLast: i == events.length - 1,
+              ),
+              _MarkingEvent(:final marking) => MarkingTile(
+                marking: marking,
                 caseId: caseId,
                 isLast: i == events.length - 1,
               ),
@@ -254,5 +275,18 @@ class _AdministrationEvent extends _Event {
   DateTime get at =>
       dose.administeredAt ??
       dose.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A marking placed on the timeline by when it was applied.
+class _MarkingEvent extends _Event {
+  const _MarkingEvent(this.marking);
+
+  final Marking marking;
+
+  @override
+  DateTime get at =>
+      marking.appliedAt ??
+      marking.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }

@@ -3,6 +3,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -40,6 +41,12 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       TextEditingController(text: NewCaseScreen.defaultSpecies);
   Sex? _sex;
 
+  // Re-identification (FED-4.10): when set, the case links to this existing
+  // animal instead of creating a fresh one.
+  final _reidController = TextEditingController();
+  String _reidQuery = '';
+  Animal? _linkedAnimal;
+
   // Case intake.
   final _findLocationController = TextEditingController();
   final _intakeWeightController = TextEditingController();
@@ -65,6 +72,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
     for (final c in [
       _nameController,
       _speciesController,
+      _reidController,
       _findLocationController,
       _intakeWeightController,
       _intakeNotesController,
@@ -130,16 +138,23 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
         throw const RepositoryException('no org for current user');
       }
 
-      final animalsRepo = await ref.read(animalsRepositoryProvider.future);
       final casesRepo = await ref.read(casesRepositoryProvider.future);
 
-      final name = _trimmedOrNull(_nameController);
-      final animal = await animalsRepo.create({
-        'species': _speciesController.text.trim(),
-        'name': ?name,
-        if (_sex != null) 'sex': _sex!.wire,
-        'org': org,
-      });
+      // Re-identified return: reuse the existing animal; otherwise create one.
+      final String animalId;
+      final linked = _linkedAnimal;
+      if (linked != null) {
+        animalId = linked.id;
+      } else {
+        final animalsRepo = await ref.read(animalsRepositoryProvider.future);
+        final name = _trimmedOrNull(_nameController);
+        animalId = (await animalsRepo.create({
+          'species': _speciesController.text.trim(),
+          'name': ?name,
+          if (_sex != null) 'sex': _sex!.wire,
+          'org': org,
+        })).id;
+      }
 
       // Only touch the finders collection when contact details were entered.
       final finderBody = _finderBody(org);
@@ -151,7 +166,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
 
       final weight = int.tryParse(_intakeWeightController.text.trim());
       await casesRepo.create({
-        'animal': animal.id,
+        'animal': animalId,
         'org': org,
         'active_carer': user.id,
         'reasons_for_admission': [for (final r in _reasons) r.wire],
@@ -202,39 +217,59 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _SectionHeading(l10n.caseSectionAnimal),
-                    AppTextField(
-                      controller: _nameController,
-                      label: l10n.caseFieldName,
-                      prefixIcon: Icons.badge_outlined,
-                      textInputAction: TextInputAction.next,
-                      enabled: !_busy,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppTextField(
-                      controller: _speciesController,
-                      label: l10n.caseFieldSpecies,
-                      prefixIcon: Icons.pets_outlined,
-                      textInputAction: TextInputAction.next,
-                      enabled: !_busy,
-                      validator: Validators.required(l10n),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    DropdownButtonFormField<Sex>(
-                      initialValue: _sex,
-                      decoration: InputDecoration(
-                        labelText: l10n.caseFieldSex,
-                        prefixIcon: const Icon(Icons.transgender_outlined),
+                    if (_linkedAnimal case final linked?)
+                      _LinkedAnimalCard(
+                        animal: linked,
+                        enabled: !_busy,
+                        onUnlink: () => setState(() => _linkedAnimal = null),
+                      )
+                    else ...[
+                      _ReidSearchField(
+                        controller: _reidController,
+                        enabled: !_busy,
+                        query: _reidQuery,
+                        onSearch: (q) => setState(() => _reidQuery = q),
+                        onLink: (a) => setState(() {
+                          _linkedAnimal = a;
+                          _reidQuery = '';
+                          _reidController.clear();
+                        }),
                       ),
-                      items: [
-                        for (final s in Sex.values)
-                          DropdownMenuItem(
-                            value: s,
-                            child: Text(sexLabel(l10n, s)),
-                          ),
-                      ],
-                      onChanged:
-                          _busy ? null : (s) => setState(() => _sex = s),
-                    ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppTextField(
+                        controller: _nameController,
+                        label: l10n.caseFieldName,
+                        prefixIcon: Icons.badge_outlined,
+                        textInputAction: TextInputAction.next,
+                        enabled: !_busy,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppTextField(
+                        controller: _speciesController,
+                        label: l10n.caseFieldSpecies,
+                        prefixIcon: Icons.pets_outlined,
+                        textInputAction: TextInputAction.next,
+                        enabled: !_busy,
+                        validator: Validators.required(l10n),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<Sex>(
+                        initialValue: _sex,
+                        decoration: InputDecoration(
+                          labelText: l10n.caseFieldSex,
+                          prefixIcon: const Icon(Icons.transgender_outlined),
+                        ),
+                        items: [
+                          for (final s in Sex.values)
+                            DropdownMenuItem(
+                              value: s,
+                              child: Text(sexLabel(l10n, s)),
+                            ),
+                        ],
+                        onChanged:
+                            _busy ? null : (s) => setState(() => _sex = s),
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.lg),
 
                     _SectionHeading(l10n.caseSectionIntake),
@@ -537,6 +572,141 @@ class _FinderSection extends StatelessWidget {
             enabled: enabled,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Re-identification search at intake (FED-4.10): look up an existing animal by
+/// an active ring code or by name, so a returning bird's case links to it.
+class _ReidSearchField extends ConsumerWidget {
+  const _ReidSearchField({
+    required this.controller,
+    required this.enabled,
+    required this.query,
+    required this.onSearch,
+    required this.onLink,
+  });
+
+  final TextEditingController controller;
+  final bool enabled;
+  final String query;
+  final ValueChanged<String> onSearch;
+  final ValueChanged<Animal> onLink;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: AppTextField(
+                controller: controller,
+                label: l10n.reidSearchLabel,
+                hintText: l10n.reidSearchHint,
+                prefixIcon: Icons.search,
+                enabled: enabled,
+                onChanged: (_) {},
+              ),
+            ),
+            IconButton.filledTonal(
+              icon: const Icon(Icons.search),
+              onPressed:
+                  enabled ? () => onSearch(controller.text.trim()) : null,
+            ),
+          ],
+        ),
+        if (query.isNotEmpty)
+          ref.watch(reidSearchProvider(query)).when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(AppSpacing.md),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (_, _) => const SizedBox.shrink(),
+                data: (matches) => matches.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.sm),
+                        child: Text(
+                          l10n.reidNoMatches,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      )
+                    : Card(
+                        margin: const EdgeInsets.only(top: AppSpacing.sm),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final m in matches)
+                              ListTile(
+                                leading: const Icon(Icons.pets_outlined),
+                                title: Text(_animalTitle(m.animal)),
+                                subtitle: Text(_markingsLine(l10n, m)),
+                                onTap:
+                                    enabled ? () => onLink(m.animal) : null,
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+      ],
+    );
+  }
+
+  String _animalTitle(Animal a) {
+    final name = a.name;
+    return name == null || name.isEmpty ? a.species : '$name · ${a.species}';
+  }
+
+  String _markingsLine(AppLocalizations l10n, ReidMatch m) {
+    if (m.markings.isEmpty) return l10n.reidNoMarkings;
+    return m.markings
+        .map((mk) {
+          final code = mk.code;
+          final type = markingTypeLabel(l10n, mk.type);
+          return code == null || code.isEmpty ? type : '$type $code';
+        })
+        .join(' · ');
+  }
+}
+
+/// Summary shown once a case is linked to an existing animal, with its prior
+/// case count and an unlink action.
+class _LinkedAnimalCard extends ConsumerWidget {
+  const _LinkedAnimalCard({
+    required this.animal,
+    required this.enabled,
+    required this.onUnlink,
+  });
+
+  final Animal animal;
+  final bool enabled;
+  final VoidCallback onUnlink;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final priorCount =
+        ref.watch(casesForAnimalProvider(animal.id)).value?.length ?? 0;
+    final name = animal.name;
+    final title = name == null || name.isEmpty
+        ? animal.species
+        : '$name · ${animal.species}';
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.link),
+        title: Text(title),
+        subtitle: Text(l10n.reidPriorCases(priorCount)),
+        trailing: TextButton(
+          onPressed: enabled ? onUnlink : null,
+          child: Text(l10n.reidUnlink),
+        ),
       ),
     );
   }

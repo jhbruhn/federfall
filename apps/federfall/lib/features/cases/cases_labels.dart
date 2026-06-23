@@ -84,3 +84,11 @@ String medicationRouteLabel(AppLocalizations l10n, MedicationRoute r) =>
       MedicationRoute.nebulized => l10n.routeNebulized,
       MedicationRoute.other => l10n.routeOther,
     };
+
+String markingTypeLabel(AppLocalizations l10n, MarkingType t) => switch (t) {
+  MarkingType.finderRing => l10n.markingFinderRing,
+  MarkingType.temporaryMarker => l10n.markingTemporaryMarker,
+  MarkingType.releaseRing => l10n.markingReleaseRing,
+  MarkingType.associationRing => l10n.markingAssociationRing,
+  MarkingType.microchip => l10n.markingMicrochip,
+};

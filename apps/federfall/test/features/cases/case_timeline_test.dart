@@ -20,12 +20,15 @@ class MockMedicationsRepo extends Mock implements PbMedicationsRepository {}
 class MockAdministrationsRepo extends Mock
     implements PbMedicationAdministrationsRepository {}
 
+class MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
+
 void main() {
   late MockJournalRepo journal;
   late MockWeightsRepo weights;
   late MockCaseConditionsRepo caseConditions;
   late MockMedicationsRepo medications;
   late MockAdministrationsRepo administrations;
+  late MockMarkingsRepo markings;
 
   setUp(() {
     journal = MockJournalRepo();
@@ -33,10 +36,12 @@ void main() {
     caseConditions = MockCaseConditionsRepo();
     medications = MockMedicationsRepo();
     administrations = MockAdministrationsRepo();
+    markings = MockMarkingsRepo();
     when(() => weights.forCase(any())).thenAnswer((_) async => []);
     when(() => caseConditions.forCase(any())).thenAnswer((_) async => []);
     when(() => medications.forCase(any())).thenAnswer((_) async => []);
     when(() => administrations.forCase(any())).thenAnswer((_) async => []);
+    when(() => markings.forAnimal(any())).thenAnswer((_) async => []);
   });
 
   Future<void> pump(WidgetTester tester, Case medicalCase) async {
@@ -50,6 +55,7 @@ void main() {
             .overrideWith((ref) async => medications),
         medicationAdministrationsRepositoryProvider
             .overrideWith((ref) async => administrations),
+        markingsRepositoryProvider.overrideWith((ref) async => markings),
       ],
     );
     addTearDown(container.dispose);

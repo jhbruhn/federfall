@@ -18,23 +18,31 @@ class MockCasesRepo extends Mock implements PbCasesRepository {}
 
 class MockFindersRepo extends Mock implements PbFindersRepository {}
 
+class MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
+
 void main() {
   setUpAll(() => registerFallbackValue(<String, dynamic>{}));
 
   late MockAnimalsRepo animals;
   late MockCasesRepo cases;
   late MockFindersRepo finders;
+  late MockMarkingsRepo markings;
 
   setUp(() {
     animals = MockAnimalsRepo();
     cases = MockCasesRepo();
     finders = MockFindersRepo();
+    markings = MockMarkingsRepo();
     when(() => animals.create(any()))
         .thenAnswer((_) async => const Animal(id: 'a1', species: 'Stadttaube'));
+    when(() => animals.searchByName(any())).thenAnswer((_) async => []);
     when(() => cases.create(any()))
         .thenAnswer((_) async => const Case(id: 'c1', animal: 'a1'));
+    when(() => cases.forAnimal(any())).thenAnswer((_) async => []);
     when(() => finders.create(any()))
         .thenAnswer((_) async => const Finder(id: 'f1'));
+    when(() => markings.activeByCode(any())).thenAnswer((_) async => []);
+    when(() => markings.forAnimal(any())).thenAnswer((_) async => []);
   });
 
   // Enters [value] into the field carrying [label], located via its label text.
@@ -60,6 +68,7 @@ void main() {
         animalsRepositoryProvider.overrideWith((ref) async => animals),
         casesRepositoryProvider.overrideWith((ref) async => cases),
         findersRepositoryProvider.overrideWith((ref) async => finders),
+        markingsRepositoryProvider.overrideWith((ref) async => markings),
       ],
     );
     addTearDown(container.dispose);
@@ -193,5 +202,40 @@ void main() {
     final caseBody = verify(() => cases.create(captureAny())).captured.single
         as Map<String, dynamic>;
     expect(caseBody.containsKey('finder'), isFalse);
+  });
+
+  testWidgets('re-identifying links the case to the existing animal',
+      (tester) async {
+    when(() => animals.searchByName('Pauli')).thenAnswer(
+      (_) async =>
+          const [Animal(id: 'a9', species: 'Stadttaube', name: 'Pauli')],
+    );
+
+    await pump(tester);
+
+    // Search for a returning bird and link the match.
+    await enterByLabel(tester, 'Returning bird? Search', 'Pauli');
+    await tester.tap(find.byIcon(Icons.search).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pauli · Stadttaube'));
+    await tester.pumpAndSettle();
+
+    // Linked summary is shown; the create-animal fields are gone.
+    expect(find.byIcon(Icons.link), findsOneWidget);
+
+    final injury = find.widgetWithText(FilterChip, 'Injury');
+    await tester.ensureVisible(injury);
+    await tester.tap(injury);
+    await tester.pumpAndSettle();
+
+    final submit = find.widgetWithText(FilledButton, 'Create case');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    verifyNever(() => animals.create(any()));
+    final caseBody = verify(() => cases.create(captureAny())).captured.single
+        as Map<String, dynamic>;
+    expect(caseBody['animal'], 'a9');
   });
 }

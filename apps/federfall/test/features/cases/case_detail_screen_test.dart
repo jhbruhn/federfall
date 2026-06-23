@@ -26,6 +26,8 @@ class MockMedicationsRepo extends Mock implements PbMedicationsRepository {}
 class MockAdministrationsRepo extends Mock
     implements PbMedicationAdministrationsRepository {}
 
+class MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
+
 void main() {
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
@@ -35,6 +37,7 @@ void main() {
   late MockCaseConditionsRepo caseConditions;
   late MockMedicationsRepo medications;
   late MockAdministrationsRepo administrations;
+  late MockMarkingsRepo markings;
 
   final medicalCase = Case(
     id: 'c1',
@@ -61,11 +64,13 @@ void main() {
     caseConditions = MockCaseConditionsRepo();
     medications = MockMedicationsRepo();
     administrations = MockAdministrationsRepo();
+    markings = MockMarkingsRepo();
     when(() => journal.forCase(any())).thenAnswer((_) async => []);
     when(() => weights.forCase(any())).thenAnswer((_) async => []);
     when(() => caseConditions.forCase(any())).thenAnswer((_) async => []);
     when(() => medications.forCase(any())).thenAnswer((_) async => []);
     when(() => administrations.forCase(any())).thenAnswer((_) async => []);
+    when(() => markings.forAnimal(any())).thenAnswer((_) async => []);
     when(() => cases.getOne(any())).thenAnswer((_) async => medicalCase);
     when(() => animals.getOne(any())).thenAnswer(
       (_) async =>
@@ -96,6 +101,7 @@ void main() {
             .overrideWith((ref) async => medications),
         medicationAdministrationsRepositoryProvider
             .overrideWith((ref) async => administrations),
+        markingsRepositoryProvider.overrideWith((ref) async => markings),
       ],
     );
     addTearDown(container.dispose);

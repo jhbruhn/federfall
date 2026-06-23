@@ -30,6 +30,14 @@ Future<Animal> animalById(Ref ref, String id) async {
   return repo.getOne(id);
 }
 
+/// Every case for one animal (its admission history), newest first — used to
+/// show prior-case history when re-identifying a returning bird (FED-4.10).
+@riverpod
+Future<List<Case>> casesForAnimal(Ref ref, String animalId) async {
+  final repo = await ref.watch(casesRepositoryProvider.future);
+  return repo.forAnimal(animalId);
+}
+
 /// The external finder linked to a case, by id (case detail).
 @riverpod
 Future<Finder> finderById(Ref ref, String id) async {
