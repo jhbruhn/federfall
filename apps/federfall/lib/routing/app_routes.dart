@@ -10,6 +10,16 @@ abstract final class AppRoutes {
   /// Sign-in screen (FED-3.1).
   static const login = '/login';
 
-  /// Authenticated app shell / home (FED-3.3).
+  /// Authenticated app shell / home — the carer's case list (FED-3.4).
   static const home = '/';
+
+  /// Create-case form (FED-3.4).
+  static const newCase = '/cases/new';
+
+  /// Case detail, parameterised by id (FED-3.4). Registered after [newCase] so
+  /// the literal `/cases/new` wins over this pattern.
+  static const caseDetailPattern = '/cases/:id';
+
+  /// Builds the concrete case-detail path for [id].
+  static String caseDetail(String id) => '/cases/$id';
 }

@@ -57,4 +57,19 @@ void main() {
 
     verify(() => pb.filter('animal = {:a}', {'a': 'anml1'})).called(1);
   });
+
+  test('forCarer() filters by the active_carer relation, newest first',
+      () async {
+    when(
+      () => service.getFullList(
+        filter: any(named: 'filter'),
+        sort: any(named: 'sort'),
+        expand: any(named: 'expand'),
+      ),
+    ).thenAnswer((_) async => []);
+
+    await repo.forCarer('user1');
+
+    verify(() => pb.filter('active_carer = {:c}', {'c': 'user1'})).called(1);
+  });
 }

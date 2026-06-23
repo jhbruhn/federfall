@@ -13,6 +13,9 @@ abstract interface class CasesRepository implements Repository<Case> {
   /// Every case for one animal (its admission history), newest first.
   Future<List<Case>> forAnimal(String animalId);
 
+  /// Cases where [carerId] is the active carer ("my cases"), newest first.
+  Future<List<Case>> forCarer(String carerId);
+
   /// The case with the given per-year number, or `null`.
   Future<Case?> byCaseNumber(String caseNumber);
 }
@@ -34,6 +37,12 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   @override
   Future<List<Case>> forAnimal(String animalId) => list(
     filter: filterExpr('animal = {:a}', {'a': animalId}),
+    sort: '-created',
+  );
+
+  @override
+  Future<List<Case>> forCarer(String carerId) => list(
+    filter: filterExpr('active_carer = {:c}', {'c': carerId}),
     sort: '-created',
   );
 

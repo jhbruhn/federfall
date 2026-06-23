@@ -2,6 +2,8 @@ import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/auth/login_screen.dart';
+import 'package:federfall/features/cases/case_detail_screen.dart';
+import 'package:federfall/features/cases/new_case_screen.dart';
 import 'package:federfall/features/home/home_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/features/startup/splash_screen.dart';
@@ -52,6 +54,15 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: AppRoutes.home,
         builder: (_, _) => const HomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.newCase,
+        builder: (_, _) => const NewCaseScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.caseDetailPattern,
+        builder: (_, state) =>
+            CaseDetailScreen(caseId: state.pathParameters['id']!),
       ),
     ],
     errorBuilder: (_, state) => NotFoundScreen(uri: state.uri),

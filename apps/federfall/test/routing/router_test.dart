@@ -2,8 +2,10 @@ import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/auth/login_screen.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/home/home_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
+import 'package:federfall_models/federfall_models.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
 import 'package:flutter/material.dart';
@@ -37,6 +39,9 @@ Future<void> _pumpAt(
         () => _FakeServerConfig(config),
       ),
       authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: authed)),
+      // HomeScreen reads this; stub it so the routing test never touches the
+      // real PocketBase client.
+      myCasesProvider.overrideWith((ref) async => const <Case>[]),
     ],
   );
   addTearDown(container.dispose);
