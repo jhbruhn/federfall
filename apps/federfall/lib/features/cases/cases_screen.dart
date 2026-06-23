@@ -65,7 +65,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
         actions: const [AccountActions()],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push(AppRoutes.newCase),
+        onPressed: () => context.go(AppRoutes.newCase),
         tooltip: l10n.caseNewTitle,
         child: const Icon(Icons.add),
       ),
@@ -343,7 +343,7 @@ class _CaseTile extends StatelessWidget {
       title: Text(medicalCase.caseNumber ?? l10n.caseNewTitle),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => context.push(AppRoutes.caseDetail(medicalCase.id)),
+      onTap: () => context.go(AppRoutes.caseDetail(medicalCase.id)),
     );
   }
 

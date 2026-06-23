@@ -4,12 +4,15 @@ import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
+import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/router.dart';
+import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,15 +37,13 @@ Future<ProviderContainer> _pumpAt(
   WidgetTester tester, {
   required ServerConfig config,
   required bool authed,
-}) async {
+}) {
   final container = ProviderContainer(
     overrides: [
       serverConfigControllerProvider.overrideWith(
         () => _FakeServerConfig(config),
       ),
       authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: authed)),
-      // The cases tab reads this; stub it so the routing test never touches
-      // the real PocketBase client.
       casesBrowserDataProvider.overrideWith(
         (ref) async => const CasesBrowserData(
           cases: [],
@@ -53,6 +54,13 @@ Future<ProviderContainer> _pumpAt(
       currentUserProvider.overrideWith((ref) async => null),
     ],
   );
+  return _pumpContainer(tester, container);
+}
+
+Future<ProviderContainer> _pumpContainer(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
   addTearDown(container.dispose);
 
   await tester.pumpWidget(
@@ -98,6 +106,43 @@ void main() {
       authed: true,
     );
     expect(find.byType(CasesScreen), findsOneWidget);
+  });
+
+  testWidgets('case detail is reachable at /cases/:id', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigControllerProvider.overrideWith(
+          () => _FakeServerConfig(
+            const ServerConfig.configured('https://x.example'),
+          ),
+        ),
+        authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => const CasesBrowserData(
+            cases: [],
+            animalsById: {},
+            myUserId: 'u1',
+          ),
+        ),
+        currentUserProvider.overrideWith((ref) async => null),
+        caseByIdProvider(
+          'c1',
+        ).overrideWith((ref) async => const Case(id: 'c1', animal: 'a1')),
+      ],
+    );
+    await _pumpContainer(tester, container);
+
+    final router = container.read(routerProvider)
+      ..go(AppRoutes.caseDetail('c1'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CaseDetailScreen), findsOneWidget);
+    // The address bar must track the detail page (nested under the cases
+    // branch + go, so the shell no longer owns the URL).
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/cases/c1',
+    );
   });
 
   testWidgets('confirm-reset is reachable without a session', (tester) async {

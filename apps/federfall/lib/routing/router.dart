@@ -16,7 +16,7 @@ import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/features/startup/splash_screen.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/not_found_screen.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -41,7 +41,12 @@ GoRouter router(Ref ref) {
     ..listen(authStatusProvider, (_, _) => refresh.value++)
     ..onDispose(refresh.dispose);
 
+  // Detail/create routes nest under their shell branch but render full-screen
+  // over the shell by living on the root navigator.
+  final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.home,
     refreshListenable: refresh,
     redirect: (context, state) => _gate(ref, state.matchedLocation),
@@ -77,6 +82,20 @@ GoRouter router(Ref ref) {
               GoRoute(
                 path: AppRoutes.cases,
                 builder: (_, _) => const CasesScreen(),
+                routes: [
+                  // `/cases/new` — declared before `:id` so the literal wins.
+                  GoRoute(
+                    path: AppRoutes.newCaseSegment,
+                    parentNavigatorKey: rootNavigatorKey,
+                    builder: (_, _) => const NewCaseScreen(),
+                  ),
+                  GoRoute(
+                    path: AppRoutes.detailSegment,
+                    parentNavigatorKey: rootNavigatorKey,
+                    builder: (_, state) =>
+                        CaseDetailScreen(caseId: state.pathParameters['id']!),
+                  ),
+                ],
               ),
             ],
           ),
@@ -85,24 +104,19 @@ GoRouter router(Ref ref) {
               GoRoute(
                 path: AppRoutes.animals,
                 builder: (_, _) => const AnimalsScreen(),
+                routes: [
+                  GoRoute(
+                    path: AppRoutes.detailSegment,
+                    parentNavigatorKey: rootNavigatorKey,
+                    builder: (_, state) => AnimalDetailScreen(
+                      animalId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ],
-      ),
-      GoRoute(
-        path: AppRoutes.newCase,
-        builder: (_, _) => const NewCaseScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.caseDetailPattern,
-        builder: (_, state) =>
-            CaseDetailScreen(caseId: state.pathParameters['id']!),
-      ),
-      GoRoute(
-        path: AppRoutes.animalDetailPattern,
-        builder: (_, state) =>
-            AnimalDetailScreen(animalId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: AppRoutes.profile,

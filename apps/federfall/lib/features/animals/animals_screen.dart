@@ -102,7 +102,7 @@ class _AnimalTile extends StatelessWidget {
       title: Text(hasName ? animal.name! : animal.species),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => context.push(AppRoutes.animalDetail(animal.id)),
+      onTap: () => context.go(AppRoutes.animalDetail(animal.id)),
     );
   }
 }

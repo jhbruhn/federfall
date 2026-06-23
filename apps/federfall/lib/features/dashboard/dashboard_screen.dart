@@ -185,7 +185,7 @@ class _QuarantineSoon extends StatelessWidget {
                   leading: const Icon(Icons.shield_outlined),
                   title: Text(c.caseNumber ?? c.id),
                   trailing: Text(_quarantineBadge(l10n, c.quarantineUntil!)),
-                  onTap: () => context.push(AppRoutes.caseDetail(c.id)),
+                  onTap: () => context.go(AppRoutes.caseDetail(c.id)),
                 ),
           ],
         ),

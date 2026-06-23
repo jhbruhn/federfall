@@ -19,10 +19,7 @@ abstract final class AppRoutes {
   /// Animals tab — the animals registry (FED-7.0 / FED-7.5).
   static const animals = '/animals';
 
-  /// Animal lifetime detail, parameterised by id (FED-7.6).
-  static const animalDetailPattern = '/animals/:id';
-
-  /// Builds the concrete animal-detail path for [id].
+  /// Builds the concrete animal-detail path for [id] (FED-7.6).
   static String animalDetail(String id) => '/animals/$id';
 
   /// Default authenticated landing destination.
@@ -31,12 +28,19 @@ abstract final class AppRoutes {
   /// Create-case form (FED-3.4).
   static const newCase = '/cases/new';
 
-  /// Case detail, parameterised by id (FED-3.4). Registered after [newCase] so
-  /// the literal `/cases/new` wins over this pattern.
-  static const caseDetailPattern = '/cases/:id';
-
-  /// Builds the concrete case-detail path for [id].
+  /// Builds the concrete case-detail path for [id] (FED-3.4).
   static String caseDetail(String id) => '/cases/$id';
+
+  // Relative sub-path segments, used when declaring the case/animal detail
+  // routes as children of their navigation-shell branch (so the address bar
+  // and back button track the pushed detail page — go_router does not update
+  // the URL for routes pushed as siblings of a StatefulShellRoute).
+
+  /// `new` — create-case form, child of the cases branch.
+  static const newCaseSegment = 'new';
+
+  /// `:id` — detail page, child of the cases / animals branch.
+  static const detailSegment = ':id';
 
   /// Signed-in user's profile (FED-3.3).
   static const profile = '/profile';
