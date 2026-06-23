@@ -30,6 +30,18 @@
     "authSignInAction": "Anmelden",
     "authSignOutAction": "Abmelden",
     "authInvalidCredentials": "E-Mail oder Passwort ist falsch.",
+    "statsTitle": "Statistik",
+    "statsTotalCases": "Fälle gesamt",
+    "statsOpenCases": "Offene Fälle",
+    "statsAvgTimeInCare": "Ø Verweildauer",
+    "statsDaysValue": "{days} T",
+    "@statsDaysValue": {
+        "placeholders": { "days": { "type": "String" } }
+    },
+    "statsSectionOutcomes": "Ausgänge",
+    "statsSectionSpecies": "Nach Art",
+    "statsSectionConditions": "Diagnosen",
+    "statsEmpty": "Noch nicht genug Daten",
     "navDashboard": "Übersicht",
     "navCases": "Fälle",
     "navAnimals": "Tiere",

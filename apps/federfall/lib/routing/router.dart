@@ -14,6 +14,7 @@ import 'package:federfall/features/home/nav_shell.dart';
 import 'package:federfall/features/profile/profile_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/features/startup/splash_screen.dart';
+import 'package:federfall/features/statistics/statistics_screen.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/not_found_screen.dart';
 import 'package:flutter/widgets.dart';
@@ -125,6 +126,10 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: AppRoutes.admin,
         builder: (_, _) => const AdminScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.statistics,
+        builder: (_, _) => const StatisticsScreen(),
       ),
       GoRoute(
         path: AppRoutes.confirmReset,

@@ -48,6 +48,9 @@ abstract final class AppRoutes {
   /// Supervisor-only admin area (FED-3.3 / FED-3.2 invites).
   static const admin = '/admin';
 
+  /// Reporting statistics, for coordinators/supervisors (FED-7.2).
+  static const statistics = '/statistics';
+
   /// Password-reset confirmation, reached from the invite email (FED-3.2).
   /// Public: usable without a session.
   static const confirmReset = '/auth/confirm-reset';

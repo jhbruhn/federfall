@@ -108,6 +108,27 @@
     "@authInvalidCredentials": {
         "description": "Error shown when sign-in is rejected by the server"
     },
+    "statsTitle": "Statistics",
+    "@statsTitle": { "description": "Title of the statistics/reporting screen" },
+    "statsTotalCases": "Total cases",
+    "@statsTotalCases": { "description": "KPI: total cases in scope" },
+    "statsOpenCases": "Open cases",
+    "@statsOpenCases": { "description": "KPI: cases without a terminal disposition" },
+    "statsAvgTimeInCare": "Avg. time in care",
+    "@statsAvgTimeInCare": { "description": "KPI: mean days from admission to disposition" },
+    "statsDaysValue": "{days} d",
+    "@statsDaysValue": {
+        "description": "A duration in days",
+        "placeholders": { "days": { "type": "String" } }
+    },
+    "statsSectionOutcomes": "Outcomes",
+    "@statsSectionOutcomes": { "description": "Heading: terminal disposition breakdown" },
+    "statsSectionSpecies": "By species",
+    "@statsSectionSpecies": { "description": "Heading: intakes by species" },
+    "statsSectionConditions": "Conditions",
+    "@statsSectionConditions": { "description": "Heading: conditions recorded" },
+    "statsEmpty": "Not enough data yet",
+    "@statsEmpty": { "description": "Shown for a breakdown with no entries" },
     "navDashboard": "Dashboard",
     "@navDashboard": { "description": "Bottom/rail navigation label for the dashboard" },
     "navCases": "Cases",
