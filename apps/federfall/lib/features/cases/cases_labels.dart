@@ -28,6 +28,14 @@ String caseStatusLabel(AppLocalizations l10n, CaseStatus s) => switch (s) {
   CaseStatus.disposed => l10n.caseStatusDisposed,
 };
 
+String lifetimeStatusLabel(AppLocalizations l10n, LifetimeStatus s) =>
+    switch (s) {
+      LifetimeStatus.inCare => l10n.lifetimeStatusInCare,
+      LifetimeStatus.atLargeReleased => l10n.lifetimeStatusAtLargeReleased,
+      LifetimeStatus.inAviary => l10n.lifetimeStatusInAviary,
+      LifetimeStatus.deceased => l10n.lifetimeStatusDeceased,
+    };
+
 String sexLabel(AppLocalizations l10n, Sex s) => switch (s) {
   Sex.male => l10n.sexMale,
   Sex.female => l10n.sexFemale,

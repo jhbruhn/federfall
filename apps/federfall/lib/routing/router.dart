@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/admin/admin_screen.dart';
+import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
@@ -97,6 +98,11 @@ GoRouter router(Ref ref) {
         path: AppRoutes.caseDetailPattern,
         builder: (_, state) =>
             CaseDetailScreen(caseId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: AppRoutes.animalDetailPattern,
+        builder: (_, state) =>
+            AnimalDetailScreen(animalId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: AppRoutes.profile,

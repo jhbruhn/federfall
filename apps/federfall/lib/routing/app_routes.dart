@@ -19,6 +19,12 @@ abstract final class AppRoutes {
   /// Animals tab — the animals registry (FED-7.0 / FED-7.5).
   static const animals = '/animals';
 
+  /// Animal lifetime detail, parameterised by id (FED-7.6).
+  static const animalDetailPattern = '/animals/:id';
+
+  /// Builds the concrete animal-detail path for [id].
+  static String animalDetail(String id) => '/animals/$id';
+
   /// Default authenticated landing destination.
   static const String home = cases;
 

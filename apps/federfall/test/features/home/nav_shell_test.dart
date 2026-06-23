@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
+import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
@@ -42,6 +43,9 @@ Future<void> _pump(WidgetTester tester, {required Size size}) async {
           animalsById: {},
           myUserId: 'u1',
         ),
+      ),
+      animalsRegistryProvider.overrideWith(
+        (ref) async => const <AnimalListItem>[],
       ),
       currentUserProvider.overrideWith((ref) async => null),
       dashboardSummaryProvider.overrideWith(
