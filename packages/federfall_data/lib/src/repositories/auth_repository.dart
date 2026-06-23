@@ -43,8 +43,8 @@ class PbAuthRepository implements AuthRepository {
 
   @override
   Stream<AppUser?> get changes => pb.authStore.onChange.map(
-        (e) => e.record == null ? null : AppUser.fromRecord(e.record!),
-      );
+    (e) => e.record == null ? null : AppUser.fromRecord(e.record!),
+  );
 
   @override
   Future<AppUser> signIn(String email, String password) async {

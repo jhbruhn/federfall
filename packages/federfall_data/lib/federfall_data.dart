@@ -3,6 +3,7 @@
 library;
 
 export 'src/pb_repository.dart';
+export 'src/record_cache.dart';
 export 'src/repositories/animals_repository.dart';
 export 'src/repositories/auth_repository.dart';
 export 'src/repositories/aviaries_repository.dart';

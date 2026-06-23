@@ -4,16 +4,16 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `case_shares` collection (opt-in access grants).
 class PbCaseSharesRepository extends PbRepository<CaseShare> {
-  PbCaseSharesRepository(PocketBase pb)
-      : super(
-          pb: pb,
-          collection: 'case_shares',
-          fromRecord: CaseShare.fromRecord,
-        );
+  PbCaseSharesRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'case_shares',
+        fromRecord: CaseShare.fromRecord,
+      );
 
   /// Shares granted on a case, expanding the target user for display.
   Future<List<CaseShare>> forCase(String caseId) => list(
-        filter: filterExpr('case = {:c}', {'c': caseId}),
-        expand: 'shared_with',
-      );
+    filter: filterExpr('case = {:c}', {'c': caseId}),
+    expand: 'shared_with',
+  );
 }

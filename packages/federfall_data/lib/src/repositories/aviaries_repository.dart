@@ -4,12 +4,16 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `aviaries` collection (permanent-care enclosures).
 class PbAviariesRepository extends PbRepository<Aviary> {
-  PbAviariesRepository(PocketBase pb)
-      : super(pb: pb, collection: 'aviaries', fromRecord: Aviary.fromRecord);
+  PbAviariesRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'aviaries',
+        fromRecord: Aviary.fromRecord,
+      );
 
   /// Active aviaries, name-sorted, for pickers and the aviary list.
   Future<List<Aviary>> active() => list(
-        filter: filterExpr('active = true'),
-        sort: 'name',
-      );
+    filter: filterExpr('active = true'),
+    sort: 'name',
+  );
 }

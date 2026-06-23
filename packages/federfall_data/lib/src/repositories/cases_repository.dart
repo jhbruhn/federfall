@@ -4,8 +4,8 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `cases` collection (admission episodes).
 ///
-/// Carries a dedicated interface (beyond the generic [Repository]) so the
-/// recently-viewed offline cache (FED-2.6) can decorate it.
+/// Carries a dedicated interface (beyond the generic [Repository]) so callers
+/// can depend on the case-specific queries below.
 abstract interface class CasesRepository implements Repository<Case> {
   /// Open cases (not yet disposed), newest first.
   Future<List<Case>> active();
@@ -18,23 +18,27 @@ abstract interface class CasesRepository implements Repository<Case> {
 }
 
 class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
-  PbCasesRepository(PocketBase pb)
-      : super(pb: pb, collection: 'cases', fromRecord: Case.fromRecord);
+  PbCasesRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'cases',
+        fromRecord: Case.fromRecord,
+      );
 
   @override
   Future<List<Case>> active() => list(
-        filter: filterExpr('status != {:s}', {'s': 'disposed'}),
-        sort: '-created',
-      );
+    filter: filterExpr('status != {:s}', {'s': 'disposed'}),
+    sort: '-created',
+  );
 
   @override
   Future<List<Case>> forAnimal(String animalId) => list(
-        filter: filterExpr('animal = {:a}', {'a': animalId}),
-        sort: '-created',
-      );
+    filter: filterExpr('animal = {:a}', {'a': animalId}),
+    sort: '-created',
+  );
 
   @override
   Future<Case?> byCaseNumber(String caseNumber) => firstWhere(
-        filterExpr('case_number = {:n}', {'n': caseNumber}),
-      );
+    filterExpr('case_number = {:n}', {'n': caseNumber}),
+  );
 }

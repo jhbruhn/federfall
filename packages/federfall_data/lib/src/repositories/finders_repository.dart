@@ -4,16 +4,20 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `finders` collection (external rescuer PII).
 class PbFindersRepository extends PbRepository<Finder> {
-  PbFindersRepository(PocketBase pb)
-      : super(pb: pb, collection: 'finders', fromRecord: Finder.fromRecord);
+  PbFindersRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'finders',
+        fromRecord: Finder.fromRecord,
+      );
 
   /// Finders matching [query] across name/phone/email, for intake lookup.
   Future<List<Finder>> search(String query) => list(
-        filter: filterExpr(
-          'last_name ~ {:q} || first_name ~ {:q} || phone ~ {:q} '
-          '|| email ~ {:q}',
-          {'q': query},
-        ),
-        sort: 'last_name',
-      );
+    filter: filterExpr(
+      'last_name ~ {:q} || first_name ~ {:q} || phone ~ {:q} '
+      '|| email ~ {:q}',
+      {'q': query},
+    ),
+    sort: 'last_name',
+  );
 }
