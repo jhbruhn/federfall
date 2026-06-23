@@ -5,6 +5,7 @@ import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
+import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
@@ -38,6 +39,14 @@ Future<void> _pump(WidgetTester tester, {required Size size}) async {
       authStatusProvider.overrideWith(_FakeAuthStatus.new),
       myCasesProvider.overrideWith((ref) async => const <Case>[]),
       currentUserProvider.overrideWith((ref) async => null),
+      dashboardSummaryProvider.overrideWith(
+        (ref) async => const DashboardSummary(
+          activeCount: 0,
+          intakesThisYear: 0,
+          byStatus: {},
+          quarantineEndingSoon: [],
+        ),
+      ),
     ],
   );
   addTearDown(container.dispose);
