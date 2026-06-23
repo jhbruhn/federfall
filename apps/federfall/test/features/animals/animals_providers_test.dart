@@ -38,4 +38,37 @@ void main() {
   test('returns nothing when neither name nor code matches', () {
     expect(filterAnimals(registry, 'zzz'), isEmpty);
   });
+
+  group('pickAvatarSource', () {
+    const animal = Animal(id: 'a1', species: 'Columba livia', name: 'Pip');
+
+    Case caseWith(String id, List<String> photos) =>
+        Case(id: id, animal: 'a1', intakePhotos: photos);
+
+    test('prefers the animal photo when set', () {
+      final src = pickAvatarSource(
+        animal.copyWith(photo: 'face.jpg'),
+        [caseWith('c1', ['intake.jpg'])],
+      );
+      expect(src!.collection, AvatarCollection.animals);
+      expect(src.recordId, 'a1');
+      expect(src.filename, 'face.jpg');
+    });
+
+    test('falls back to the newest case with an intake photo', () {
+      // Cases are newest-first; the newest has no photo, so the next wins.
+      final src = pickAvatarSource(animal, [
+        caseWith('c2', const []),
+        caseWith('c1', ['first.jpg', 'second.jpg']),
+      ]);
+      expect(src!.collection, AvatarCollection.cases);
+      expect(src.recordId, 'c1');
+      expect(src.filename, 'first.jpg');
+    });
+
+    test('returns null when nothing has a photo', () {
+      expect(pickAvatarSource(animal, [caseWith('c1', const [])]), isNull);
+      expect(pickAvatarSource(animal, const []), isNull);
+    });
+  });
 }

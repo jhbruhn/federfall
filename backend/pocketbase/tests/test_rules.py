@@ -10,12 +10,19 @@ matrix (private-by-default, read/edit shares, role & org scope, finder-PII
 gating, handoff visibility, deactivated-auth, field-guard). Exits non-zero on
 any failure.
 """
+import base64
 import json
 import os
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+# Smallest valid 1x1 PNG, for exercising file-field uploads.
+_PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+    "+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+)
 
 BASE = os.environ.get("FED_TEST_URL", "http://localhost:8090")
 ADMIN_EMAIL = os.environ.get("FED_ADMIN_EMAIL", "admin@federfall.local")
@@ -43,6 +50,31 @@ def req(method, path, token=None, body=None):
         headers["Authorization"] = token
     data = json.dumps(body).encode() if body is not None else None
     r = urllib.request.Request(BASE + path, data=data, headers=headers, method=method)
+    try:
+        resp = urllib.request.urlopen(r)
+        raw = resp.read().decode()
+        return resp.status, (json.loads(raw) if raw else None)
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode()
+        try:
+            return e.code, json.loads(raw)
+        except Exception:
+            return e.code, None
+
+
+def upload_file(method, path, token, field, filename, content_type, blob):
+    """Multipart upload of a single [blob] to [field]. Returns (status, json)."""
+    boundary = "----fedtestboundary"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
+        f"Content-Type: {content_type}\r\n\r\n"
+    ).encode() + blob + f"\r\n--{boundary}--\r\n".encode()
+    headers = {
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+        "Authorization": token,
+    }
+    r = urllib.request.Request(BASE + path, data=body, headers=headers, method=method)
     try:
         resp = urllib.request.urlopen(r)
         raw = resp.read().decode()
@@ -269,6 +301,18 @@ def main():
     check("summary exposes no clinical fields", not leaked, leaked)
     # Org isolation: another org's member sees no summary.
     check("other-org member CANNOT view case summary", not summary(te, sumcase))
+
+    # ── animal photo upload (ctw.7) ─────────────────────────────────────────
+    # The animals.photo file field accepts an image upload from an org member
+    # and stores a filename; it's then readable (org-wide identity layer).
+    print("\n[animal photo upload]")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/animals/records/{animal}",
+        toks["a"], "photo", "p.png", "image/png", _PNG_1X1,
+    )
+    check("org member can upload an animal photo", s == 200 and bool(d.get("photo")), f"{s} {d}")
+    _, dd = req("GET", f"/api/collections/animals/records/{animal}", toks["d"])
+    check("uploaded animal photo is stored & readable", bool(dd.get("photo")), dd)
 
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")

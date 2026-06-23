@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -34,6 +35,9 @@ class CaseDetailScreen extends ConsumerWidget {
         value: caseAsync,
         onRetry: () => ref.invalidate(caseByIdProvider(caseId)),
         errorMessage: (e) => errorMessage(l10n, e),
+        // Top progress bar rather than a centred spinner, so the header doesn't
+        // appear to jump from centre to its final top-left position on load.
+        loading: const LinearProgressIndicator(),
         data: _CaseDetail.new,
       ),
     );
@@ -134,6 +138,10 @@ class _Header extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       chipLabel: status == null ? null : caseStatusLabel(l10n, status),
+      // The avatar only needs the animal id, which the case always carries —
+      // rendering it unconditionally keeps the header left-aligned instead of
+      // briefly centring while the Animal record loads.
+      leading: AnimalAvatar(animalId: medicalCase.animal, editable: true),
     );
   }
 }

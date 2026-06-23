@@ -66,6 +66,69 @@ List<AnimalListItem> filterAnimals(List<AnimalListItem> items, String query) {
   }).toList();
 }
 
+/// Which stored file backs an animal's header avatar (ctw.7): either the
+/// animal's own photo or a fallback case intake photo.
+enum AvatarCollection { animals, cases }
+
+/// A resolved avatar source: the [collection], owning [recordId] and [filename]
+/// to build a file URL from.
+@immutable
+class AvatarSource {
+  const AvatarSource({
+    required this.collection,
+    required this.recordId,
+    required this.filename,
+  });
+
+  final AvatarCollection collection;
+  final String recordId;
+  final String filename;
+}
+
+/// Picks the header avatar source (ctw.7): the animal's own photo when set,
+/// else the first intake photo of the most recent case that has one.
+/// [casesNewestFirst] must be ordered newest-first. Returns null → placeholder.
+/// Pure, so the fallback order is unit-tested without PocketBase.
+AvatarSource? pickAvatarSource(Animal animal, List<Case> casesNewestFirst) {
+  final photo = animal.photo;
+  if (photo != null && photo.isNotEmpty) {
+    return AvatarSource(
+      collection: AvatarCollection.animals,
+      recordId: animal.id,
+      filename: photo,
+    );
+  }
+  for (final c in casesNewestFirst) {
+    if (c.intakePhotos.isNotEmpty) {
+      return AvatarSource(
+        collection: AvatarCollection.cases,
+        recordId: c.id,
+        filename: c.intakePhotos.first,
+      );
+    }
+  }
+  return null;
+}
+
+/// Thumbnail URL for an animal's header avatar, or null for the placeholder.
+/// Resolves [pickAvatarSource] over the animal and its accessible cases.
+@riverpod
+Future<Uri?> animalAvatarUrl(Ref ref, String animalId) async {
+  final animal = await ref.watch(animalByIdProvider(animalId).future);
+  final cases = await ref.watch(casesForAnimalProvider(animalId).future);
+  final source = pickAvatarSource(animal, cases);
+  if (source == null) return null;
+
+  switch (source.collection) {
+    case AvatarCollection.animals:
+      final repo = await ref.watch(animalsRepositoryProvider.future);
+      return repo.fileUrl(source.recordId, source.filename, thumb: '200x200');
+    case AvatarCollection.cases:
+      final repo = await ref.watch(casesRepositoryProvider.future);
+      return repo.fileUrl(source.recordId, source.filename, thumb: '200x200');
+  }
+}
+
 /// Every case summary for one animal, newest first, read from the org-wide
 /// `case_summaries` view (FED-7.6).
 @riverpod

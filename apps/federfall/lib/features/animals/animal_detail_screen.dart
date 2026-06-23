@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -23,13 +24,14 @@ class AnimalDetailScreen extends ConsumerWidget {
     final lifetime = ref.watch(animalLifetimeProvider(animalId));
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(lifetime.value?.animal.name ?? l10n.animalsTitle),
-      ),
+      appBar: AppBar(title: Text(l10n.animalDetailTitle)),
       body: AsyncValueView<AnimalLifetime>(
         value: lifetime,
         onRetry: () => ref.invalidate(animalLifetimeProvider(animalId)),
         errorMessage: (e) => errorMessage(l10n, e),
+        // Top progress bar rather than a centred spinner, so the header doesn't
+        // appear to jump from centre to its final top-left position on load.
+        loading: const LinearProgressIndicator(),
         data: (data) => ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
@@ -48,9 +50,9 @@ class AnimalDetailScreen extends ConsumerWidget {
   }
 }
 
-/// Name-first identity header: name, species + sex, lifetime-status chip. Built
-/// on the shared [DetailHeader] in the same plain, prominent style as the case
-/// detail header (no card).
+/// Name-first identity header — the exact same shared [DetailHeader] (avatar +
+/// name + species/sex + lifetime-status chip) the case detail screen uses, so
+/// the two headers look identical.
 class _Identity extends StatelessWidget {
   const _Identity(this.animal);
 
@@ -67,13 +69,11 @@ class _Identity extends StatelessWidget {
     ].join(' · ');
     final status = animal.lifetimeStatus;
 
-    // Same header as the case screen, centred as a block on the animal page.
-    return Center(
-      child: DetailHeader(
-        title: hasName ? name : animal.species,
-        subtitle: sub,
-        chipLabel: status == null ? null : lifetimeStatusLabel(l10n, status),
-      ),
+    return DetailHeader(
+      title: hasName ? name : animal.species,
+      subtitle: sub,
+      chipLabel: status == null ? null : lifetimeStatusLabel(l10n, status),
+      leading: AnimalAvatar(animalId: animal.id, editable: true),
     );
   }
 }

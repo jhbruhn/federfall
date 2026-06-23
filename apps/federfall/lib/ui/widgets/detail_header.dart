@@ -59,7 +59,11 @@ class DetailHeader extends StatelessWidget {
       ],
     );
 
-    if (leading == null) return text;
+    // Fill the width and align left so a shrink-wrapped header is never
+    // centred by a parent Column's default cross-axis alignment.
+    if (leading == null) {
+      return Align(alignment: AlignmentDirectional.centerStart, child: text);
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
