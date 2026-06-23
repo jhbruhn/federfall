@@ -1,8 +1,10 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
+import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -148,7 +150,8 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet> {
         await casesRepo.update(caseId, {'active_carer': _carerId});
         ref
           ..invalidate(caseByIdProvider(caseId))
-          ..invalidate(myCasesProvider);
+          ..invalidate(casesBrowserDataProvider)
+          ..invalidate(dashboardSummaryProvider);
       }
 
       ref.invalidate(placementsForCaseProvider(caseId));

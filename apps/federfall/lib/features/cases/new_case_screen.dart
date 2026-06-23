@@ -1,11 +1,13 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/location/location_picker_screen.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
+import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -248,7 +250,9 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
         await casesRepo.createWithFiles(body, photos);
       }
 
-      ref.invalidate(myCasesProvider);
+      ref
+        ..invalidate(casesBrowserDataProvider)
+        ..invalidate(dashboardSummaryProvider);
       if (mounted) context.pop();
     } on RepositoryException catch (e) {
       if (!mounted) return;

@@ -3,13 +3,12 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
-import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
-import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,7 +36,13 @@ Future<void> _pump(WidgetTester tester, {required Size size}) async {
     overrides: [
       serverConfigControllerProvider.overrideWith(_FakeServerConfig.new),
       authStatusProvider.overrideWith(_FakeAuthStatus.new),
-      myCasesProvider.overrideWith((ref) async => const <Case>[]),
+      casesBrowserDataProvider.overrideWith(
+        (ref) async => const CasesBrowserData(
+          cases: [],
+          animalsById: {},
+          myUserId: 'u1',
+        ),
+      ),
       currentUserProvider.overrideWith((ref) async => null),
       dashboardSummaryProvider.overrideWith(
         (ref) async => const DashboardSummary(
