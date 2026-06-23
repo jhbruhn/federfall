@@ -49,6 +49,30 @@ void main() {
     });
   });
 
+  group('CaseSummary.fromRecord', () {
+    test('maps the clinical-detail-free summary fields', () {
+      final r = RecordModel({
+        'id': 'case0000000001',
+        'animal': 'anml0000000001',
+        'case_number': '2026-014',
+        'status': 'disposed',
+        'admitted_at': '2026-03-10 09:00:00.000Z',
+        'found_at': '',
+        'org': 'org00000000001',
+      });
+
+      final s = CaseSummary.fromRecord(r);
+
+      expect(s.id, 'case0000000001');
+      expect(s.animal, 'anml0000000001');
+      expect(s.caseNumber, '2026-014');
+      expect(s.status, CaseStatus.disposed);
+      expect(s.admittedAt?.hour, 9);
+      expect(s.foundAt, isNull, reason: 'empty date → null');
+      expect(s.org, 'org00000000001');
+    });
+  });
+
   group('Animal.fromRecord', () {
     test('maps name, sex, lifetime status, tags', () {
       final r = RecordModel({

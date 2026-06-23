@@ -1,4 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -62,4 +64,58 @@ List<AnimalListItem> filterAnimals(List<AnimalListItem> items, String query) {
     if (name.contains(q)) return true;
     return item.codes.any((c) => c.toLowerCase().contains(q));
   }).toList();
+}
+
+/// Every case summary for one animal, newest first, read from the org-wide
+/// `case_summaries` view (FED-7.6).
+@riverpod
+Future<List<CaseSummary>> caseSummariesForAnimal(
+  Ref ref,
+  String animalId,
+) async {
+  final repo = await ref.watch(caseSummariesRepositoryProvider.future);
+  return repo.forAnimal(animalId);
+}
+
+/// One animal's full lifetime record (FED-7.6): identity, every marking, and
+/// every case (newest-first) with the set of cases the user may open in full.
+@immutable
+class AnimalLifetime {
+  const AnimalLifetime({
+    required this.animal,
+    required this.markings,
+    required this.cases,
+    required this.accessibleCaseIds,
+  });
+
+  final Animal animal;
+
+  /// All markings (active + historic), newest first.
+  final List<Marking> markings;
+
+  /// Every case for the animal (summaries), newest first.
+  final List<CaseSummary> cases;
+
+  /// Ids of the cases the signed-in user can open in full; the rest render as
+  /// non-tappable stubs.
+  final Set<String> accessibleCaseIds;
+}
+
+/// Assembles an [AnimalLifetime]: the org-wide identity, markings and case
+/// summaries, plus the access-scoped full cases used to decide which summaries
+/// are tappable.
+@riverpod
+Future<AnimalLifetime> animalLifetime(Ref ref, String animalId) async {
+  final animal = await ref.watch(animalByIdProvider(animalId).future);
+  final markings = await ref.watch(markingsForAnimalProvider(animalId).future);
+  final summaries = await ref.watch(
+    caseSummariesForAnimalProvider(animalId).future,
+  );
+  final accessible = await ref.watch(casesForAnimalProvider(animalId).future);
+  return AnimalLifetime(
+    animal: animal,
+    markings: markings,
+    cases: summaries,
+    accessibleCaseIds: {for (final c in accessible) c.id},
+  );
 }

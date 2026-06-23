@@ -242,6 +242,34 @@ def main():
     s, _ = req("GET", f"/api/collections/cases/records/{case}", te)
     check("supervisor of another org CANNOT view this org's case", s != 200, f"status {s}")
 
+    # ── case_summaries view (FED-7.6) ───────────────────────────────────────
+    # Org-wide, clinical-detail-free projection: an outsider in the same org may
+    # read a case's SUMMARY (for the animal lifetime record) but never the full
+    # case; another org sees nothing.
+    print("\n[case summaries view]")
+    sumcase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    td = login("d@f.local")[1]
+
+    def full_case(tok, cid):
+        s, _ = req("GET", f"/api/collections/cases/records/{cid}", tok)
+        return s == 200
+
+    def summary(tok, cid):
+        s, _ = req("GET", f"/api/collections/case_summaries/records/{cid}", tok)
+        return s == 200
+
+    # D is not the carer of sumcase and holds no share on it.
+    check("same-org outsider CANNOT view full case", not full_case(td, sumcase))
+    check("same-org outsider CAN view case summary", summary(td, sumcase))
+    check("owner can view case summary", summary(toks["a"], sumcase))
+    # Summary carries no clinical fields (notes/exam/weight/photos/reasons).
+    _, srec = req("GET", f"/api/collections/case_summaries/records/{sumcase}", td)
+    leaked = [k for k in ("intake_notes", "intake_weight_g", "exam_bcs",
+                          "intake_photos", "reasons_for_admission") if k in srec]
+    check("summary exposes no clinical fields", not leaked, leaked)
+    # Org isolation: another org's member sees no summary.
+    check("other-org member CANNOT view case summary", not summary(te, sumcase))
+
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)

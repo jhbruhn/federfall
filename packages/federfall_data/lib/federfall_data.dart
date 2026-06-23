@@ -8,6 +8,7 @@ export 'src/repositories/animals_repository.dart';
 export 'src/repositories/auth_repository.dart';
 export 'src/repositories/aviaries_repository.dart';
 export 'src/repositories/case_shares_repository.dart';
+export 'src/repositories/case_summaries_repository.dart';
 export 'src/repositories/cases_repository.dart';
 export 'src/repositories/clinical_repositories.dart';
 export 'src/repositories/conditions_repository.dart';
