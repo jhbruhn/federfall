@@ -15,23 +15,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// save.
 Future<bool?> showWeightEntrySheet(
   BuildContext context, {
-  required String caseId,
+  required String animalId,
+  String? caseId,
   Weight? weight,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => WeightEntrySheet(caseId: caseId, weight: weight),
+    builder: (_) =>
+        WeightEntrySheet(animalId: animalId, caseId: caseId, weight: weight),
   );
 }
 
 /// Form for recording or editing a weight measurement (FED-4.4): the weight in
-/// grams, the measurement date and an optional note.
+/// grams, the measurement date and an optional note. Weights belong to the
+/// animal; [caseId] records the treatment episode when taken during one.
 class WeightEntrySheet extends ConsumerStatefulWidget {
-  const WeightEntrySheet({required this.caseId, this.weight, super.key});
+  const WeightEntrySheet({
+    required this.animalId,
+    this.caseId,
+    this.weight,
+    super.key,
+  });
 
-  final String caseId;
+  final String animalId;
+  final String? caseId;
   final Weight? weight;
 
   @override
@@ -112,7 +121,8 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet> {
 
       if (weight == null) {
         await repo.create({
-          'case': widget.caseId,
+          'animal': widget.animalId,
+          'case': ?widget.caseId,
           'weight_g': grams,
           'measured_at': _measuredAt.toUtc().toIso8601String(),
           'notes': ?notesOrNull,
@@ -127,7 +137,10 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet> {
         });
       }
 
-      ref.invalidate(weightsForCaseProvider(widget.caseId));
+      ref.invalidate(weightsForAnimalProvider(widget.animalId));
+      if (widget.caseId != null) {
+        ref.invalidate(weightsForCaseProvider(widget.caseId!));
+      }
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {
       if (!mounted) return;

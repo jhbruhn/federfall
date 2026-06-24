@@ -22,8 +22,12 @@ class WeightEntryTile extends ConsumerWidget {
   final String caseId;
   final bool isLast;
 
-  Future<void> _edit(BuildContext context) =>
-      showWeightEntrySheet(context, caseId: caseId, weight: weight);
+  Future<void> _edit(BuildContext context) => showWeightEntrySheet(
+    context,
+    animalId: weight.animal,
+    caseId: caseId,
+    weight: weight,
+  );
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;

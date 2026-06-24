@@ -10,8 +10,9 @@ part 'clinical.freezed.dart';
 abstract class Weight with _$Weight {
   const factory Weight({
     required String id,
-    required String caseId,
+    required String animal,
     required double weightG,
+    String? caseId,
     DateTime? measuredAt,
     String? notes,
     String? author,
@@ -24,7 +25,8 @@ abstract class Weight with _$Weight {
     final d = r.data;
     return Weight(
       id: r.id,
-      caseId: pbString(d['case']) ?? '',
+      animal: pbString(d['animal']) ?? '',
+      caseId: pbString(d['case']),
       weightG: pbDouble(d['weight_g']) ?? 0,
       measuredAt: pbDate(d['measured_at']),
       notes: pbString(d['notes']),

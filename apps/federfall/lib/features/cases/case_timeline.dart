@@ -125,7 +125,11 @@ class CaseTimeline extends ConsumerWidget {
                   child: Text(l10n.timelineAddNote),
                 ),
                 PopupMenuItem(
-                  onTap: () => showWeightEntrySheet(context, caseId: caseId),
+                  onTap: () => showWeightEntrySheet(
+                    context,
+                    animalId: medicalCase.animal,
+                    caseId: caseId,
+                  ),
                   child: Text(l10n.timelineAddWeight),
                 ),
                 PopupMenuItem(

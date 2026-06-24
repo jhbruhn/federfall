@@ -132,6 +132,7 @@ void main() {
       (_) async => [
         Weight(
           id: 'w1',
+          animal: 'a1',
           caseId: 'c1',
           weightG: 248,
           measuredAt: DateTime.utc(2026, 6, 21),

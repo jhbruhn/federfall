@@ -16,6 +16,13 @@ class PbWeightsRepository extends PbRepository<Weight> {
     filter: filterExpr('case = {:c}', {'c': caseId}),
     sort: 'measured_at',
   );
+
+  /// Every weight recorded for an animal across its life (FED-5yg), oldest
+  /// first — the longitudinal trend independent of any single case.
+  Future<List<Weight>> forAnimal(String animalId) => list(
+    filter: filterExpr('animal = {:a}', {'a': animalId}),
+    sort: 'measured_at',
+  );
 }
 
 /// Repository over the `medications` collection (prescriptions).

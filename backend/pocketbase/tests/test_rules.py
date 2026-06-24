@@ -187,7 +187,7 @@ def main():
     req("PATCH", f"/api/collections/cases/records/{case}", T, {"finder": finder})
     mk(T, "case_shares", {"case": case, "shared_with": B, "access": "read", "org": ORG})
     mk(T, "case_shares", {"case": case, "shared_with": C, "access": "edit", "org": ORG})
-    weight = mk(T, "weights", {"case": case, "weight_g": 300, "org": ORG})["id"]
+    weight = mk(T, "weights", {"animal": animal, "case": case, "weight_g": 300, "org": ORG})["id"]
 
     toks = {who: login(f"{who}@f.local")[1] for who in ["a", "b", "c", "d", "sup", "coord"]}
 
@@ -204,7 +204,7 @@ def main():
         return s == 200
 
     def can_create_weight(tok):
-        s, _ = req("POST", "/api/collections/weights/records", tok, {"case": case, "weight_g": 310, "org": ORG})
+        s, _ = req("POST", "/api/collections/weights/records", tok, {"animal": animal, "case": case, "weight_g": 310, "org": ORG})
         return s == 200
 
     def can_create_admin(tok):
@@ -219,18 +219,21 @@ def main():
     check("outsider CANNOT view case", not can_view(toks["d"]))
     check("outsider CANNOT edit case", not can_edit(toks["d"]))
     check("outsider CANNOT view finder PII", not can_view_finder(toks["d"]))
-    check("outsider CANNOT add weight", not can_create_weight(toks["d"]))
     check("outsider CANNOT log administration", not can_create_admin(toks["d"]))
     # read share
     check("read-share can view case", can_view(toks["b"]))
     check("read-share CANNOT edit case (no escalation)", not can_edit(toks["b"]))
-    check("read-share CANNOT add weight", not can_create_weight(toks["b"]))
     check("read-share can view finder PII", can_view_finder(toks["b"]))
     # edit share
     check("edit-share can view case", can_view(toks["c"]))
     check("edit-share can edit case", can_edit(toks["c"]))
-    check("edit-share can add weight", can_create_weight(toks["c"]))
     check("edit-share can log administration", can_create_admin(toks["c"]))
+    # weights are an animal-level layer (5yg.4): org-wide, not case-private —
+    # so any active org member may add one, with or without a case.
+    check("any org member can add a weight", can_create_weight(toks["d"]))
+    s, _ = req("POST", "/api/collections/weights/records", toks["d"],
+               {"animal": animal, "weight_g": 305, "org": ORG})
+    check("a weight can be recorded with no case", s == 200, f"status {s}")
     # coordinator: all-read, no edit
     check("coordinator can view any case", can_view(toks["coord"]))
     check("coordinator CANNOT edit", not can_edit(toks["coord"]))

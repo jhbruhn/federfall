@@ -51,10 +51,11 @@ void main() {
     testWidgets('saves a measurement, parsing a comma decimal',
         (tester) async {
       when(() => weights.create(any())).thenAnswer(
-        (_) async => const Weight(id: 'w1', caseId: 'c1', weightG: 248.5),
+        (_) async =>
+            const Weight(id: 'w1', animal: 'a1', caseId: 'c1', weightG: 248.5),
       );
 
-      await pump(tester, const WeightEntrySheet(caseId: 'c1'));
+      await pump(tester, const WeightEntrySheet(animalId: 'a1', caseId: 'c1'));
 
       await tester.enterText(find.byType(TextField).first, '248,5');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
@@ -62,6 +63,7 @@ void main() {
 
       final body = verify(() => weights.create(captureAny())).captured.single
           as Map<String, dynamic>;
+      expect(body['animal'], 'a1');
       expect(body['case'], 'c1');
       expect(body['weight_g'], 248.5);
       expect(body['author'], 'u1');
@@ -69,7 +71,7 @@ void main() {
     });
 
     testWidgets('rejects a non-positive weight', (tester) async {
-      await pump(tester, const WeightEntrySheet(caseId: 'c1'));
+      await pump(tester, const WeightEntrySheet(animalId: 'a1', caseId: 'c1'));
 
       await tester.enterText(find.byType(TextField).first, '0');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
@@ -85,7 +87,7 @@ void main() {
       await pump(
         tester,
         const WeightEntryTile(
-          weight: Weight(id: 'w1', caseId: 'c1', weightG: 248),
+          weight: Weight(id: 'w1', animal: 'a1', caseId: 'c1', weightG: 248),
           caseId: 'c1',
         ),
       );
@@ -99,7 +101,7 @@ void main() {
       await pump(
         tester,
         const WeightEntryTile(
-          weight: Weight(id: 'w1', caseId: 'c1', weightG: 248),
+          weight: Weight(id: 'w1', animal: 'a1', caseId: 'c1', weightG: 248),
           caseId: 'c1',
         ),
       );

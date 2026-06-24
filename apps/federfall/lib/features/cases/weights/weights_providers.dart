@@ -13,6 +13,14 @@ Future<List<Weight>> weightsForCase(Ref ref, String caseId) async {
   return repo.forCase(caseId);
 }
 
+/// Every weight for an animal across its whole life (5yg.5), oldest first —
+/// the life-long trend, independent of any single case.
+@riverpod
+Future<List<Weight>> weightsForAnimal(Ref ref, String animalId) async {
+  final repo = await ref.watch(weightsRepositoryProvider.future);
+  return repo.forAnimal(animalId);
+}
+
 /// Formats a weight in grams without trailing noise: `248 g`, or `248.5 g`
 /// when the measurement carries a fractional part.
 String formatWeightG(double grams) {
