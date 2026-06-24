@@ -139,7 +139,7 @@ class _OverviewTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        WeightTrendChart(caseId: medicalCase.id),
+        WeightTrendChart.forCase(medicalCase.id),
         _IntakeSection(medicalCase: medicalCase, animal: animal),
         _PriorCasesSection(medicalCase: medicalCase),
       ],

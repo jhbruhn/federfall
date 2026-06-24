@@ -6,6 +6,9 @@ import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
+import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
+import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
+import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
@@ -51,6 +54,8 @@ class AnimalDetailScreen extends ConsumerWidget {
           children: [
             _Identity(data.animal),
             const SizedBox(height: AppSpacing.md),
+            _WeightSection(animalId: data.animal.id),
+            const SizedBox(height: AppSpacing.md),
             _MarkingsSection(animalId: data.animal.id, markings: data.markings),
             const SizedBox(height: AppSpacing.md),
             _CasesSection(
@@ -88,6 +93,72 @@ class _Identity extends StatelessWidget {
       subtitle: sub,
       chipLabel: status == null ? null : lifetimeStatusLabel(l10n, status),
       leading: AnimalAvatar(animalId: animal.id, editable: true),
+    );
+  }
+}
+
+/// Life-long weight: the latest reading, a record action (no case needed), and
+/// the whole-life trend (5yg.5).
+class _WeightSection extends ConsumerWidget {
+  const _WeightSection({required this.animalId});
+
+  final String animalId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final materialL10n = MaterialLocalizations.of(context);
+    final weights =
+        ref.watch(weightsForAnimalProvider(animalId)).value ?? const <Weight>[];
+    // weightsForAnimal is sorted oldest-first, so the last is the latest.
+    final latest = weights.isEmpty ? null : weights.last;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.animalSectionWeight,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: l10n.timelineAddWeight,
+                  onPressed: () =>
+                      showWeightEntrySheet(context, animalId: animalId),
+                ),
+              ],
+            ),
+            if (latest == null)
+              Text(
+                l10n.animalNoWeight,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+            else ...[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.monitor_weight_outlined),
+                title: Text(formatWeightG(latest.weightG)),
+                subtitle: switch (latest.measuredAt ?? latest.created) {
+                  final at? => Text(materialL10n.formatMediumDate(at)),
+                  _ => null,
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              WeightTrendChart.forAnimal(animalId),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,18 +1,24 @@
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<void> _pump(WidgetTester tester, AnimalLifetime lifetime) async {
+Future<void> _pump(
+  WidgetTester tester,
+  AnimalLifetime lifetime, {
+  List<Weight> weights = const [],
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         animalLifetimeProvider(
           'a1',
         ).overrideWith((ref) async => lifetime),
+        weightsForAnimalProvider('a1').overrideWith((ref) async => weights),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -69,6 +75,26 @@ void main() {
     expect(find.textContaining('DE-1234'), findsOneWidget);
     expect(find.text('2026-001'), findsOneWidget);
     expect(find.text('2026-009'), findsOneWidget);
+  });
+
+  testWidgets('shows the latest weight and a record action', (tester) async {
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      weights: const [
+        Weight(id: 'w1', animal: 'a1', weightG: 240),
+        Weight(id: 'w2', animal: 'a1', weightG: 255),
+      ],
+    );
+
+    // Latest reading (last in the oldest-first list) shown; record action.
+    expect(find.text('255 g'), findsOneWidget);
+    expect(find.byTooltip('Add weight'), findsOneWidget);
   });
 
   testWidgets('can apply a marking from the animal detail (no case)',

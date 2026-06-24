@@ -5,17 +5,26 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Weight trend over time (FED-4.4): a line chart of a case's measurements.
-/// Renders nothing until there are at least two points — a single weight is
-/// not yet a trend, and it already shows on the timeline.
+/// Weight trend over time (FED-4.4 / 5yg.5): a line chart of weight
+/// measurements — a single case's window ([WeightTrendChart.forCase]) or an
+/// animal's whole life ([WeightTrendChart.forAnimal]). Renders nothing until
+/// there are at least two points — a single weight is not yet a trend.
 class WeightTrendChart extends ConsumerWidget {
-  const WeightTrendChart({required this.caseId, super.key});
+  const WeightTrendChart.forCase(this.caseId, {super.key}) : animalId = null;
 
-  final String caseId;
+  const WeightTrendChart.forAnimal(this.animalId, {super.key}) : caseId = null;
+
+  /// Case whose weights to plot, or null when plotting an animal's life.
+  final String? caseId;
+
+  /// Animal whose lifetime weights to plot, or null when plotting a case.
+  final String? animalId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final weights = ref.watch(weightsForCaseProvider(caseId)).value ?? const [];
+    final weights = caseId != null
+        ? ref.watch(weightsForCaseProvider(caseId!)).value ?? const []
+        : ref.watch(weightsForAnimalProvider(animalId!)).value ?? const [];
     final points = [
       for (final w in weights)
         if (w.measuredAt ?? w.created case final at?) (at, w.weightG),

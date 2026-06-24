@@ -104,6 +104,8 @@
     "animalsSearchHint": "Name oder Ring-/Chipnummer suchen",
     "animalsEmpty": "Noch keine Tiere",
     "animalsNoMatches": "Keine passenden Tiere",
+    "animalSectionWeight": "Gewicht",
+    "animalNoWeight": "Kein Gewicht erfasst",
     "animalSectionMarkings": "Kennzeichnung",
     "animalSectionCases": "Fälle",
     "animalNoMarkings": "Keine Kennzeichnung erfasst",
