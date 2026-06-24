@@ -12,6 +12,7 @@ import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/edit_case_intake_sheet.dart';
+import 'package:federfall/features/cases/placements/placement_sheet.dart';
 import 'package:federfall/features/cases/sharing/case_share_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
@@ -219,6 +220,17 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
                   label: Text(statusLabel),
                 ),
               const SizedBox(height: AppSpacing.sm),
+              if (showStatusToggle)
+                OutlinedButton.icon(
+                  onPressed: () => showPlacementSheet(
+                    context,
+                    medicalCase: medicalCase,
+                    mode: PlacementMode.handoff,
+                  ),
+                  icon: const Icon(Icons.swap_horiz_outlined),
+                  label: Text(l10n.placementHandoffTitle),
+                ),
+              if (showStatusToggle) const SizedBox(height: AppSpacing.sm),
               OutlinedButton.icon(
                 onPressed: () => showEditCaseIntakeSheet(context, medicalCase),
                 icon: const Icon(Icons.edit_outlined),

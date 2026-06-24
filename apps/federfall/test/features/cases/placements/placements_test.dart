@@ -78,7 +78,13 @@ void main() {
   }
 
   testWidgets('choosing a different carer hands the case off', (tester) async {
-    await pump(tester, const PlacementSheet(medicalCase: medicalCase));
+    await pump(
+      tester,
+      const PlacementSheet(
+        medicalCase: medicalCase,
+        mode: PlacementMode.handoff,
+      ),
+    );
 
     // Switch carer from Alice (current) to Bob.
     await tester.tap(find.text('Alice'));
@@ -97,6 +103,32 @@ void main() {
         as Map<String, dynamic>;
     expect(body['from_user'], 'u1');
     expect(body['to_user'], 'u2');
+  });
+
+  testWidgets('handoff to the same carer is blocked', (tester) async {
+    await pump(
+      tester,
+      const PlacementSheet(
+        medicalCase: medicalCase,
+        mode: PlacementMode.handoff,
+      ),
+    );
+
+    // Leave the carer as the current one (Alice) and try to save.
+    await save(tester);
+
+    expect(
+      find.text('Choose a different carer to hand the case off.'),
+      findsOneWidget,
+    );
+    verifyNever(() => cases.update(any(), any()));
+    verifyNever(() => placements.create(any()));
+  });
+
+  testWidgets('move mode hides the carer picker', (tester) async {
+    await pump(tester, const PlacementSheet(medicalCase: medicalCase));
+    // No carer dropdown in a plain move; the current carer is kept.
+    expect(find.text('Carer'), findsNothing);
   });
 
   testWidgets('keeping the same carer records a move, no handoff',

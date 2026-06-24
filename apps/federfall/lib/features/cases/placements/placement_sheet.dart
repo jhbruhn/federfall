@@ -12,11 +12,23 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Opens the placement / handoff form. Pass [placement] to edit an existing
-/// move (editing never re-triggers a handoff). Resolves to `true` on save.
+/// What the placement sheet is for. Both write a `placements` (chain-of-
+/// custody) record; [handoff] additionally reassigns the case's active carer.
+enum PlacementMode {
+  /// Give the case to a different carer (reassigns `active_carer`).
+  handoff,
+
+  /// Log where the bird is held / a move within the same carer's care.
+  move,
+}
+
+/// Opens the placement form. [mode] picks the framing (hand off vs log a
+/// move). Pass [placement] to edit an existing record (editing never
+/// re-triggers a handoff). Resolves to `true` on save.
 Future<bool?> showPlacementSheet(
   BuildContext context, {
   required Case medicalCase,
+  PlacementMode mode = PlacementMode.move,
   Placement? placement,
 }) {
   return showModalBottomSheet<bool>(
@@ -25,6 +37,7 @@ Future<bool?> showPlacementSheet(
     showDragHandle: true,
     builder: (_) => PlacementSheet(
       medicalCase: medicalCase,
+      mode: mode,
       placement: placement,
     ),
   );
@@ -35,9 +48,15 @@ Future<bool?> showPlacementSheet(
 /// handoff — it updates `active_carer` (the backend then leaves the previous
 /// carer a read share) and records the from→to transfer.
 class PlacementSheet extends ConsumerStatefulWidget {
-  const PlacementSheet({required this.medicalCase, this.placement, super.key});
+  const PlacementSheet({
+    required this.medicalCase,
+    this.mode = PlacementMode.move,
+    this.placement,
+    super.key,
+  });
 
   final Case medicalCase;
+  final PlacementMode mode;
   final Placement? placement;
 
   @override
@@ -58,10 +77,17 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet> {
 
   bool get _isEditing => widget.placement != null;
 
-  /// Whether the chosen carer differs from the case's current active carer
-  /// (and we're creating) — i.e. this save hands the case off.
+  /// Whether the carer dropdown is shown: when editing (correcting the record)
+  /// or in handoff mode (the whole point). A plain move keeps the current
+  /// carer, so there's nothing to pick.
+  bool get _showCarerPicker =>
+      _isEditing || widget.mode == PlacementMode.handoff;
+
+  /// Whether this save hands the case off: handoff mode, creating, with a
+  /// carer different from the case's current active carer.
   bool get _isHandoff =>
       !_isEditing &&
+      widget.mode == PlacementMode.handoff &&
       _carerId != null &&
       _carerId != widget.medicalCase.activeCarer;
 
@@ -104,6 +130,14 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet> {
   Future<void> _save() async {
     final l10n = context.l10n;
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    // A handoff must name a carer other than the current one — otherwise it's
+    // a no-op disguised as a transfer.
+    if (!_isEditing &&
+        widget.mode == PlacementMode.handoff &&
+        (_carerId == null || _carerId == widget.medicalCase.activeCarer)) {
+      setState(() => _error = l10n.placementHandoffSameCarer);
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -195,33 +229,40 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet> {
               Text(
                 _isEditing
                     ? l10n.placementEditTitle
-                    : l10n.placementNewTitle,
+                    : widget.mode == PlacementMode.handoff
+                    ? l10n.placementHandoffTitle
+                    : l10n.placementMoveTitle,
                 style: theme.textTheme.titleLarge,
               ),
               const SizedBox(height: AppSpacing.md),
-              DropdownButtonFormField<String>(
-                initialValue: _carerId,
-                decoration: InputDecoration(
-                  labelText: l10n.placementFieldCarer,
-                  prefixIcon: const Icon(Icons.person_outline),
+              if (_showCarerPicker) ...[
+                DropdownButtonFormField<String>(
+                  initialValue: _carerId,
+                  decoration: InputDecoration(
+                    labelText: l10n.placementFieldCarer,
+                    prefixIcon: const Icon(Icons.person_outline),
+                  ),
+                  items: [
+                    for (final m in members)
+                      DropdownMenuItem(
+                        value: m.id,
+                        child: Text(memberLabel(m)),
+                      ),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (id) => setState(() => _carerId = id),
                 ),
-                items: [
-                  for (final m in members)
-                    DropdownMenuItem(value: m.id, child: Text(memberLabel(m))),
+                if (_isHandoff) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    l10n.placementHandoffHint,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.primary),
+                  ),
                 ],
-                onChanged: _busy
-                    ? null
-                    : (id) => setState(() => _carerId = id),
-              ),
-              if (_isHandoff) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  l10n.placementHandoffHint,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.primary),
-                ),
+                const SizedBox(height: AppSpacing.md),
               ],
-              const SizedBox(height: AppSpacing.md),
               DateField(
                 label: l10n.placementFieldMovedAt,
                 value: _movedInAt,

@@ -156,6 +156,14 @@ class CaseTimeline extends ConsumerWidget {
                   child: Text(l10n.timelineAddMarking),
                 ),
                 PopupMenuItem(
+                  onTap: () => showPlacementSheet(
+                    context,
+                    medicalCase: medicalCase,
+                    mode: PlacementMode.handoff,
+                  ),
+                  child: Text(l10n.timelineAddHandoff),
+                ),
+                PopupMenuItem(
                   onTap: () =>
                       showPlacementSheet(context, medicalCase: medicalCase),
                   child: Text(l10n.timelineAddPlacement),
