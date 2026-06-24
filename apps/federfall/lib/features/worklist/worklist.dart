@@ -2,8 +2,7 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 
 /// The kinds of derived task surfaced on the worklist (UX Phase D, cr3.1).
-/// `staleCase` is reserved for the case_activity view wiring (cr3.5).
-enum WorklistKind { medicationDue, quarantineEnding }
+enum WorklistKind { medicationDue, quarantineEnding, staleCase }
 
 /// Whether an item is already past its due moment or merely approaching it.
 enum WorklistSeverity { overdue, upcoming }
@@ -50,19 +49,26 @@ const quarantineDueWindow = Duration(days: 7);
 /// landing later today should show; one days out should not.
 const medicationDueWindow = Duration(hours: 24);
 
+/// How long an active case may go untouched before it counts as "stale".
+const staleThreshold = Duration(days: 7);
+
 /// Builds the carer's worklist from cases they are responsible for plus the
 /// medications/doses on those cases, as of [now]. Pure and PocketBase-free so
 /// it can be unit-tested directly.
 ///
 /// [cases] should already be scoped to the relevant set (the provider passes
-/// the carer's own active cases). Items are returned soonest-due first.
+/// the carer's own active cases). [lastActivityByCase] maps a case id to the
+/// newest activity on it (from the case_activity view); a case missing from the
+/// map is never flagged stale. Items are returned soonest-due first.
 List<WorklistItem> buildWorklist({
   required List<Case> cases,
   required List<Medication> medications,
   required List<MedicationAdministration> administrations,
   required DateTime now,
+  Map<String, DateTime?> lastActivityByCase = const {},
   Duration quarantineWindow = quarantineDueWindow,
   Duration medicationWindow = medicationDueWindow,
+  Duration staleAfter = staleThreshold,
 }) {
   final items = <WorklistItem>[];
   final caseIds = {for (final c in cases) c.id};
@@ -113,6 +119,21 @@ List<WorklistItem> buildWorklist({
             ? WorklistSeverity.upcoming
             : WorklistSeverity.overdue,
         drug: m.drug,
+      ),
+    );
+  }
+
+  // Active cases untouched for longer than the threshold.
+  final staleBefore = now.subtract(staleAfter);
+  for (final c in cases) {
+    final last = lastActivityByCase[c.id];
+    if (last == null || !last.isBefore(staleBefore)) continue;
+    items.add(
+      WorklistItem(
+        kind: WorklistKind.staleCase,
+        caseId: c.id,
+        dueAt: last,
+        severity: WorklistSeverity.overdue,
       ),
     );
   }

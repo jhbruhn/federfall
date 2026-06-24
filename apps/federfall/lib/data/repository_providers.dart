@@ -91,6 +91,10 @@ Future<PbCaseSummariesRepository> caseSummariesRepository(Ref ref) async =>
     PbCaseSummariesRepository(await _client(ref), cache: _cache(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbCaseLastActivityRepository> caseActivityRepository(Ref ref) async =>
+    PbCaseLastActivityRepository(await _client(ref), cache: _cache(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbUsersRepository> usersRepository(Ref ref) async =>
     PbUsersRepository(await _client(ref), cache: _cache(ref));
 

@@ -203,6 +203,43 @@ void main() {
     });
   });
 
+  group('buildWorklist — stale cases', () {
+    test('a case untouched past the threshold is flagged stale', () {
+      final last = _now.subtract(const Duration(days: 10));
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medications: const [],
+        administrations: const [],
+        lastActivityByCase: {'c1': last},
+        now: _now,
+      );
+      expect(items.single.kind, WorklistKind.staleCase);
+      expect(items.single.severity, WorklistSeverity.overdue);
+      expect(items.single.dueAt, last);
+    });
+
+    test('a recently-touched case is not stale', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medications: const [],
+        administrations: const [],
+        lastActivityByCase: {'c1': _now.subtract(const Duration(days: 2))},
+        now: _now,
+      );
+      expect(items, isEmpty);
+    });
+
+    test('a case absent from the activity map is never stale', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medications: const [],
+        administrations: const [],
+        now: _now,
+      );
+      expect(items, isEmpty);
+    });
+  });
+
   test('items are sorted soonest-due first', () {
     final items = buildWorklist(
       cases: [_case('c1', quarantineUntil: _now.add(const Duration(days: 1)))],
