@@ -195,43 +195,47 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
       _ => (l10n.caseMarkBackToCare, CaseStatus.inCare),
     };
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l10n.caseActionsTitle, style: theme.textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            if (showStatusToggle)
-              FilledButton.tonalIcon(
-                onPressed: _busy ? null : () => _setStatus(statusTarget),
-                icon: _busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.flag_outlined),
-                label: Text(statusLabel),
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(l10n.caseActionsTitle, style: theme.textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.sm),
+              if (showStatusToggle)
+                FilledButton.tonalIcon(
+                  onPressed: _busy ? null : () => _setStatus(statusTarget),
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.flag_outlined),
+                  label: Text(statusLabel),
+                ),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: () => showEditCaseIntakeSheet(context, medicalCase),
+                icon: const Icon(Icons.edit_outlined),
+                label: Text(l10n.caseEditIntakeTitle),
               ),
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              onPressed: () => showEditCaseIntakeSheet(context, medicalCase),
-              icon: const Icon(Icons.edit_outlined),
-              label: Text(l10n.caseEditIntakeTitle),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              onPressed: () => showCaseShareSheet(
-                context,
-                caseId: medicalCase.id,
-                activeCarer: medicalCase.activeCarer,
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: () => showCaseShareSheet(
+                  context,
+                  caseId: medicalCase.id,
+                  activeCarer: medicalCase.activeCarer,
+                ),
+                icon: const Icon(Icons.share_outlined),
+                label: Text(l10n.caseShareAction),
               ),
-              icon: const Icon(Icons.share_outlined),
-              label: Text(l10n.caseShareAction),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -262,6 +266,7 @@ class _PriorCasesSection extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.md),
       child: Card(
+        margin: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
