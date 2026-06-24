@@ -1,10 +1,16 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/statistics/case_report.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 /// Reporting statistics (FED-7.2): outcome breakdown, intakes by species,
 /// conditions recorded and average time in care. Reached from the dashboard by
@@ -18,7 +24,16 @@ class StatisticsScreen extends ConsumerWidget {
     final stats = ref.watch(statisticsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.statsTitle)),
+      appBar: AppBar(
+        title: Text(l10n.statsTitle),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_outlined),
+            tooltip: l10n.statsExportCsv,
+            onPressed: () => _exportCsv(context, ref),
+          ),
+        ],
+      ),
       body: AsyncValueView<Statistics>(
         value: stats,
         onRetry: () => ref.invalidate(statisticsProvider),
@@ -68,6 +83,71 @@ class StatisticsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Builds the per-case CSV (org-wide for the viewer's role) and hands it to
+  /// the platform share/download sheet.
+  Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      // Load inline from the (keep-alive) repositories rather than a dedicated
+      // autoDispose provider, which would dispose mid-await on an imperative
+      // read. buildCaseReportRows stays the pure, tested core.
+      final casesRepo = await ref.read(casesRepositoryProvider.future);
+      final dispositionsRepo =
+          await ref.read(dispositionsRepositoryProvider.future);
+      final animalsRepo = await ref.read(animalsRepositoryProvider.future);
+      final animals = await animalsRepo.list();
+      final rows = buildCaseReportRows(
+        cases: await casesRepo.list(),
+        dispositions: await dispositionsRepo.list(),
+        animalsById: {for (final a in animals) a.id: a},
+      );
+      if (rows.isEmpty) {
+        messenger.showSnackBar(SnackBar(content: Text(l10n.statsExportEmpty)));
+        return;
+      }
+      String two(int n) => n.toString().padLeft(2, '0');
+      String isoDate(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${two(d.month)}-${two(d.day)}';
+      final csv = encodeCaseReportCsv(
+        rows: rows,
+        header: [
+          l10n.csvColCaseNumber,
+          l10n.csvColSpecies,
+          l10n.csvColName,
+          l10n.csvColAdmitted,
+          l10n.csvColFound,
+          l10n.csvColStatus,
+          l10n.csvColOutcome,
+          l10n.csvColEnded,
+          l10n.csvColDaysInCare,
+          l10n.csvColCity,
+          l10n.csvColRegion,
+          l10n.csvColReasons,
+        ],
+        status: (s) => caseStatusLabel(l10n, s),
+        outcome: (o) => dispositionTypeLabel(l10n, o),
+        reason: (r) => admissionReasonLabel(l10n, r),
+        date: isoDate,
+      );
+      final filename = 'federfall-cases-${DateTime.now().year}.csv';
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              Uint8List.fromList(utf8.encode(csv)),
+              mimeType: 'text/csv',
+              name: filename,
+            ),
+          ],
+          fileNameOverrides: [filename],
+        ),
+      );
+    } on Object catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 }
 

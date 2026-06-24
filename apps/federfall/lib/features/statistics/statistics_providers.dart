@@ -59,6 +59,21 @@ class Statistics {
 DateTime _dispoDate(Disposition d) =>
     d.disposedAt ?? d.created ?? DateTime.fromMillisecondsSinceEpoch(0);
 
+/// The latest (terminal) disposition per case id. Handles re-dispositions by
+/// keeping the most recent. Shared by the statistics and the CSV report.
+Map<String, Disposition> terminalDispositionByCase(
+  List<Disposition> dispositions,
+) {
+  final terminal = <String, Disposition>{};
+  for (final d in dispositions) {
+    final cur = terminal[d.caseId];
+    if (cur == null || _dispoDate(d).isAfter(_dispoDate(cur))) {
+      terminal[d.caseId] = d;
+    }
+  }
+  return terminal;
+}
+
 /// Sorts a label→count map into [StatCount]s, highest count first then label.
 List<StatCount> _ranked(Map<String, int> counts) {
   final list = [for (final e in counts.entries) StatCount(e.key, e.value)]
@@ -78,15 +93,7 @@ Statistics computeStatistics({
   required Map<String, String> speciesByAnimal,
   required Map<String, String> conditionLabels,
 }) {
-  // The latest disposition per case is its terminal outcome (handles the rare
-  // re-disposition by keeping the most recent).
-  final terminalByCase = <String, Disposition>{};
-  for (final d in dispositions) {
-    final cur = terminalByCase[d.caseId];
-    if (cur == null || _dispoDate(d).isAfter(_dispoDate(cur))) {
-      terminalByCase[d.caseId] = d;
-    }
-  }
+  final terminalByCase = terminalDispositionByCase(dispositions);
 
   final outcomeCounts = <DispositionType, int>{};
   for (final d in terminalByCase.values) {
