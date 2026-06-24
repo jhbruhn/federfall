@@ -62,6 +62,7 @@ void main() {
     finder: 'f1',
     foundAt: DateTime.utc(2026, 6, 20),
     admittedAt: DateTime.utc(2026, 6, 21),
+    quarantineUntil: DateTime.utc(2026, 7, 5),
     created: DateTime.utc(2026, 6, 21, 9),
   );
 
@@ -160,6 +161,7 @@ void main() {
     await pump(tester);
 
     expect(find.text('Domplatz'), findsOneWidget);
+    expect(find.text('Quarantine until'), findsOneWidget);
     expect(find.text('250 g'), findsOneWidget);
     expect(find.text('thin but alert'), findsOneWidget);
     expect(find.text('Klein · 0151'), findsOneWidget);

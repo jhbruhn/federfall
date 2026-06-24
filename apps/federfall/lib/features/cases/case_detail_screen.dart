@@ -373,6 +373,15 @@ class _IntakeSection extends ConsumerWidget {
         _DetailRow(Icons.event_outlined, l10n.caseFieldFoundAt, d),
       if (date(medicalCase.admittedAt) case final d?)
         _DetailRow(Icons.event_available_outlined, l10n.caseFieldAdmittedAt, d),
+      if (medicalCase.quarantineUntil case final q?)
+        _DetailRow(
+          Icons.shield_outlined,
+          l10n.caseFieldQuarantineUntil,
+          q.isAfter(DateTime.now())
+              ? materialL10n.formatMediumDate(q)
+              : '${materialL10n.formatMediumDate(q)} · '
+                    '${l10n.caseQuarantineEnded}',
+        ),
       if (medicalCase.findLocation case final loc?)
         _DetailRow(Icons.place_outlined, l10n.caseFieldFindLocation, loc),
       if (weight != null)

@@ -17,7 +17,11 @@ const _testCase = Case(
   intakeWeightG: 250,
 );
 
-Future<void> _open(WidgetTester tester, PbCasesRepository repo) async {
+Future<void> _open(
+  WidgetTester tester,
+  PbCasesRepository repo, {
+  Case medicalCase = _testCase,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -31,7 +35,7 @@ Future<void> _open(WidgetTester tester, PbCasesRepository repo) async {
           body: Builder(
             builder: (ctx) => Center(
               child: ElevatedButton(
-                onPressed: () => showEditCaseIntakeSheet(ctx, _testCase),
+                onPressed: () => showEditCaseIntakeSheet(ctx, medicalCase),
                 child: const Text('open'),
               ),
             ),
@@ -77,6 +81,40 @@ void main() {
             as Map<String, dynamic>;
     expect(data['intake_weight_g'], 300);
     expect(data['reasons_for_admission'], ['injury']);
+  });
+
+  testWidgets('lifting quarantine clears the end date', (tester) async {
+    final repo = MockCasesRepo();
+    when(() => repo.update(any(), any())).thenAnswer((_) async => _testCase);
+
+    await _open(
+      tester,
+      repo,
+      medicalCase: Case(
+        id: 'c1',
+        animal: 'a1',
+        reasonsForAdmission: const [AdmissionReason.injury],
+        quarantineUntil: DateTime.utc(2026, 7),
+      ),
+    );
+
+    // The quarantine row offers a "Lift quarantine" clear action.
+    final lift = find.byTooltip('Lift quarantine');
+    await tester.ensureVisible(lift);
+    await tester.pumpAndSettle();
+    await tester.tap(lift);
+    await tester.pumpAndSettle();
+
+    final save = find.widgetWithText(FilledButton, 'Save');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    final data =
+        verify(() => repo.update('c1', captureAny())).captured.single
+            as Map<String, dynamic>;
+    expect(data['quarantine_until'], '');
   });
 
   testWidgets('blocks saving when no admission reason is selected',

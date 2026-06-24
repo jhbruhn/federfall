@@ -46,6 +46,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
   late AgeClass? _ageClass;
   late DateTime? _foundAt;
   late DateTime? _admittedAt;
+  late DateTime? _quarantineUntil;
   GeoPoint? _findGeo;
   String? _findCity;
   String? _findRegion;
@@ -66,6 +67,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
     _ageClass = c.ageClass;
     _foundAt = c.foundAt;
     _admittedAt = c.admittedAt;
+    _quarantineUntil = c.quarantineUntil;
     _findGeo = c.findGeo;
     _findCity = c.city;
     _findRegion = c.region;
@@ -99,13 +101,17 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
   Future<void> _pickDate({
     required DateTime? current,
     required ValueChanged<DateTime?> onPicked,
+    bool allowFuture = false,
   }) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: current ?? now,
       firstDate: DateTime(2000),
-      lastDate: now,
+      // Quarantine ends in the future; intake dates can't be after today.
+      lastDate: allowFuture
+          ? DateTime(now.year + 3, now.month, now.day)
+          : now,
     );
     if (picked != null) onPicked(picked);
   }
@@ -129,6 +135,8 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
         'age_class': _ageClass?.wire ?? '',
         'found_at': _foundAt?.toUtc().toIso8601String() ?? '',
         'admitted_at': _admittedAt?.toUtc().toIso8601String() ?? '',
+        'quarantine_until':
+            _quarantineUntil?.toUtc().toIso8601String() ?? '',
         'find_location': _findLocation.text.trim(),
         'find_geo': _findGeo == null
             ? {'lon': 0, 'lat': 0}
@@ -262,6 +270,22 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
                   ),
                   onClear: () => setState(() => _admittedAt = null),
                 ),
+                _DateRow(
+                  label: l10n.caseFieldQuarantineUntil,
+                  value: _quarantineUntil,
+                  formatted: _quarantineUntil == null
+                      ? null
+                      : materialL10n.formatMediumDate(_quarantineUntil!),
+                  // Clearing lifts quarantine.
+                  clearTooltip: l10n.caseQuarantineLift,
+                  enabled: !_busy,
+                  onPick: () => _pickDate(
+                    current: _quarantineUntil,
+                    allowFuture: true,
+                    onPicked: (d) => setState(() => _quarantineUntil = d),
+                  ),
+                  onClear: () => setState(() => _quarantineUntil = null),
+                ),
                 const SizedBox(height: AppSpacing.md),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,6 +355,7 @@ class _DateRow extends StatelessWidget {
     required this.enabled,
     required this.onPick,
     required this.onClear,
+    this.clearTooltip,
   });
 
   final String label;
@@ -339,6 +364,7 @@ class _DateRow extends StatelessWidget {
   final bool enabled;
   final VoidCallback onPick;
   final VoidCallback onClear;
+  final String? clearTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -351,6 +377,7 @@ class _DateRow extends StatelessWidget {
           ? null
           : IconButton(
               icon: const Icon(Icons.clear),
+              tooltip: clearTooltip,
               onPressed: enabled ? onClear : null,
             ),
       onTap: enabled ? onPick : null,
