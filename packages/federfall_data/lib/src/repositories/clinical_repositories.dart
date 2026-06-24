@@ -88,6 +88,37 @@ class PbFollowUpsRepository extends PbRepository<FollowUp> {
     filter: filterExpr('case = {:c}', {'c': caseId}),
     sort: 'due_at',
   );
+
+  /// Open (not-yet-done) rechecks across the cases a carer is responsible for —
+  /// one query for the worklist instead of one per case.
+  Future<List<FollowUp>> openForCarer(String userId) => list(
+    filter: filterExpr(
+      'case.active_carer = {:u} && done_at = ""',
+      {'u': userId},
+    ),
+    sort: 'due_at',
+  );
+}
+
+/// Repository over the org-wide `medication_due` view (cr3.6): each active
+/// prescription with its server-computed next-due time, the worklist's
+/// medications-due source.
+class PbMedicationDueRepository extends PbRepository<MedicationDue> {
+  PbMedicationDueRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'medication_due',
+        fromRecord: MedicationDue.fromRecord,
+      );
+
+  /// Pending doses for the signed-in carer's cases (rows with a next-due time).
+  Future<List<MedicationDue>> mine(String userId) => list(
+    filter: filterExpr(
+      'active_carer = {:u} && next_due != ""',
+      {'u': userId},
+    ),
+    sort: 'next_due',
+  );
 }
 
 /// Repository over the `placements` collection (enclosure & handoff history).

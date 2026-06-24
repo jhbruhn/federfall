@@ -103,8 +103,7 @@ const staleThreshold = Duration(days: 7);
 /// map is never flagged stale. Items are returned soonest-due first.
 List<WorklistItem> buildWorklist({
   required List<Case> cases,
-  required List<Medication> medications,
-  required List<MedicationAdministration> administrations,
+  required List<MedicationDue> medicationsDue,
   required DateTime now,
   List<FollowUp> followUps = const [],
   Map<String, DateTime?> lastActivityByCase = const {},
@@ -136,39 +135,38 @@ List<WorklistItem> buildWorklist({
     );
   }
 
-  // Latest dose per prescription plan, to project the next due time.
-  final lastDoseByMed = <String, DateTime>{};
-  for (final a in administrations) {
-    final med = a.medication;
-    final at = a.administeredAt;
-    if (med == null || at == null) continue;
-    final current = lastDoseByMed[med];
-    if (current == null || at.isAfter(current)) lastDoseByMed[med] = at;
-  }
-
-  // Scheduled and one-off medications that are due within the window.
+  // Medications whose server-computed next-due falls within the window.
   final medicationThreshold = now.add(medicationWindow);
-  for (final m in medications) {
-    final c = casesById[m.caseId];
-    if (c == null) continue;
-    final ended = m.endedAt;
-    if (ended != null && ended.isBefore(now)) continue;
-
-    final due = _nextDue(m, lastDoseByMed[m.id]);
-    if (due == null || !due.isBefore(medicationThreshold)) continue;
-
+  for (final md in medicationsDue) {
+    final c = casesById[md.caseId];
+    final due = md.nextDue;
+    if (c == null || due == null || !due.isBefore(medicationThreshold)) {
+      continue;
+    }
     items.add(
       WorklistItem(
         kind: WorklistKind.medicationDue,
-        caseId: m.caseId,
+        caseId: md.caseId,
         dueAt: due,
         severity: due.isAfter(now)
             ? WorklistSeverity.upcoming
             : WorklistSeverity.overdue,
         caseNumber: c.caseNumber,
         animalName: animalNameById[c.animal],
-        drug: m.drug,
-        medication: m,
+        drug: md.drug,
+        // Reconstruct the plan so a dose can be logged from the worklist.
+        medication: Medication(
+          id: md.id,
+          caseId: md.caseId,
+          drug: md.drug,
+          dose: md.dose,
+          doseUnit: md.doseUnit,
+          route: md.route,
+          frequencyKind: md.frequencyKind,
+          intervalHours: md.intervalHours,
+          startedAt: md.startedAt,
+          endedAt: md.endedAt,
+        ),
       ),
     );
   }
@@ -214,24 +212,4 @@ List<WorklistItem> buildWorklist({
 
   items.sort((a, b) => a.dueAt.compareTo(b.dueAt));
   return items;
-}
-
-/// The next moment [m] is due given its [lastDose], or `null` when it has no
-/// schedule (as-needed) or has already been satisfied (a one-off that was
-/// given). Scheduled doses recur every `interval_hours`; the first dose of any
-/// plan is due at its start.
-DateTime? _nextDue(Medication m, DateTime? lastDose) {
-  switch (m.frequencyKind) {
-    case MedicationFrequencyKind.scheduled:
-      final interval = m.intervalHours;
-      if (interval == null) return null;
-      if (lastDose == null) return m.startedAt;
-      return lastDose.add(Duration(hours: interval));
-    case MedicationFrequencyKind.once:
-      // Due once; once given, it drops off the list.
-      return lastDose == null ? (m.startedAt ?? m.created) : null;
-    case MedicationFrequencyKind.asNeeded:
-    case null:
-      return null;
-  }
 }

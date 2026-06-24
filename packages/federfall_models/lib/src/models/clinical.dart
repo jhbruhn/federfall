@@ -87,6 +87,48 @@ abstract class Medication with _$Medication {
   }
 }
 
+/// A prescription's next-due projection, read from the org-wide
+/// `medication_due` view (cr3.6): the worklist's medications-due source in one
+/// query. [nextDue] is computed server-side (last dose + interval, or start if
+/// never given); null when the prescription has nothing pending.
+@freezed
+abstract class MedicationDue with _$MedicationDue {
+  const factory MedicationDue({
+    required String id,
+    required String caseId,
+    required String drug,
+    double? dose,
+    String? doseUnit,
+    MedicationRoute? route,
+    MedicationFrequencyKind? frequencyKind,
+    int? intervalHours,
+    DateTime? startedAt,
+    DateTime? endedAt,
+    DateTime? nextDue,
+    String? activeCarer,
+    String? org,
+  }) = _MedicationDue;
+
+  factory MedicationDue.fromRecord(RecordModel r) {
+    final d = r.data;
+    return MedicationDue(
+      id: r.id,
+      caseId: pbString(d['case_id']) ?? '',
+      drug: pbString(d['drug']) ?? '',
+      dose: pbDouble(d['dose']),
+      doseUnit: pbString(d['dose_unit']),
+      route: MedicationRoute.fromWire(d['route']),
+      frequencyKind: MedicationFrequencyKind.fromWire(d['frequency_kind']),
+      intervalHours: pbInt(d['interval_hours']),
+      startedAt: pbDate(d['started_at']),
+      endedAt: pbDate(d['ended_at']),
+      nextDue: pbDate(d['next_due']),
+      activeCarer: pbString(d['active_carer']),
+      org: pbString(d['org']),
+    );
+  }
+}
+
 /// A dated free-text journal entry with optional photo/file attachments.
 @freezed
 abstract class JournalEntry with _$JournalEntry {

@@ -75,6 +75,10 @@ Future<PbFollowUpsRepository> followUpsRepository(Ref ref) async =>
     PbFollowUpsRepository(await _client(ref), cache: _cache(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbMedicationDueRepository> medicationDueRepository(Ref ref) async =>
+    PbMedicationDueRepository(await _client(ref), cache: _cache(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbPlacementsRepository> placementsRepository(Ref ref) async =>
     PbPlacementsRepository(await _client(ref), cache: _cache(ref));
 

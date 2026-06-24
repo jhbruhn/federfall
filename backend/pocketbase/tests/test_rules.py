@@ -432,6 +432,28 @@ def main():
     s, _ = req("GET", f"/api/collections/follow_ups/records/{fu['id']}", te)
     check("other-org member CANNOT read the recheck", s != 200, f"status {s}")
 
+    # ── medication_due view (cr3.6) ─────────────────────────────────────────
+    # next_due = last_dose + interval_hours for a scheduled med; the view is the
+    # carer's worklist source, scoped to their own cases.
+    print("\n[medication_due view]")
+    mdcase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    med = mk(T, "medications", {
+        "case": mdcase, "drug": "Meloxicam", "frequency_kind": "scheduled",
+        "interval_hours": 12, "org": ORG,
+    })["id"]
+    mk(T, "medication_administrations", {
+        "case": mdcase, "medication": med, "drug": "Meloxicam",
+        "administered_at": "2026-06-20 08:00:00.000Z", "org": ORG,
+    })
+    s, row = req("GET", f"/api/collections/medication_due/records/{med}", toks["a"])
+    check("owner can read medication_due row", s == 200, f"{s} {row}")
+    # 2026-06-20 08:00 + 12h = 2026-06-20 20:00.
+    nd = (row or {}).get("next_due", "")
+    check("next_due = last dose + interval", nd.startswith("2026-06-20 20:00"), nd)
+    # Scoped to the carer: another carer in the org does not see the row.
+    s, _ = req("GET", f"/api/collections/medication_due/records/{med}", toks["b"])
+    check("other carer CANNOT read the medication_due row", s != 200, f"status {s}")
+
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)

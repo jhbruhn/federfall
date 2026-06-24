@@ -12,47 +12,22 @@ Case _case(String id, {DateTime? quarantineUntil}) => Case(
   quarantineUntil: quarantineUntil,
 );
 
-Medication _med(
+/// A `medication_due` row with its next-due already computed (server-side in
+/// production; the next-due math itself is covered by the backend rule tests).
+MedicationDue _due(
   String id, {
   String caseId = 'c1',
-  MedicationFrequencyKind? kind,
-  int? intervalHours,
-  DateTime? startedAt,
-  DateTime? endedAt,
+  DateTime? nextDue,
   String drug = 'Meloxicam',
-}) => Medication(
-  id: id,
-  caseId: caseId,
-  drug: drug,
-  frequencyKind: kind,
-  intervalHours: intervalHours,
-  startedAt: startedAt,
-  endedAt: endedAt,
-);
-
-MedicationAdministration _dose(String medId, DateTime at) =>
-    MedicationAdministration(
-      id: 'd-$medId-${at.millisecondsSinceEpoch}',
-      caseId: 'c1',
-      drug: 'Meloxicam',
-      medication: medId,
-      administeredAt: at,
-    );
+}) => MedicationDue(id: id, caseId: caseId, drug: drug, nextDue: nextDue);
 
 void main() {
   group('buildWorklist — medications', () {
-    test('scheduled dose is overdue once an interval has passed', () {
+    test('a med due within the window appears, overdue and with its plan', () {
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: [
-          _med(
-            'm1',
-            kind: MedicationFrequencyKind.scheduled,
-            intervalHours: 12,
-          ),
-        ],
-        administrations: [
-          _dose('m1', _now.subtract(const Duration(hours: 13))),
+        medicationsDue: [
+          _due('m1', nextDue: _now.subtract(const Duration(hours: 1))),
         ],
         now: _now,
       );
@@ -61,85 +36,25 @@ void main() {
       expect(items.single.kind, WorklistKind.medicationDue);
       expect(items.single.severity, WorklistSeverity.overdue);
       expect(items.single.drug, 'Meloxicam');
-      // Last dose 13h ago + 12h interval = due 1h ago.
-      expect(items.single.dueAt, _now.subtract(const Duration(hours: 1)));
+      // The plan is reconstructed so a dose can be logged from the worklist.
+      expect(items.single.medication?.id, 'm1');
     });
 
-    test('a dose given recently is not yet due (outside the window)', () {
+    test('a med due beyond the window is excluded', () {
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: [
-          _med(
-            'm1',
-            kind: MedicationFrequencyKind.scheduled,
-            intervalHours: 48,
-          ),
+        medicationsDue: [
+          _due('m1', nextDue: _now.add(const Duration(hours: 47))),
         ],
-        administrations: [_dose('m1', _now.subtract(const Duration(hours: 1)))],
-        now: _now,
-      );
-      // Next due in 47h — beyond the 24h window.
-      expect(items, isEmpty);
-    });
-
-    test('a never-given scheduled med is due at its start time', () {
-      final started = _now.subtract(const Duration(hours: 2));
-      final items = buildWorklist(
-        cases: [_case('c1')],
-        medications: [
-          _med(
-            'm1',
-            kind: MedicationFrequencyKind.scheduled,
-            intervalHours: 12,
-            startedAt: started,
-          ),
-        ],
-        administrations: const [],
-        now: _now,
-      );
-      expect(items.single.dueAt, started);
-      expect(items.single.severity, WorklistSeverity.overdue);
-    });
-
-    test('a once med drops off after it has been given', () {
-      final items = buildWorklist(
-        cases: [_case('c1')],
-        medications: [
-          _med(
-            'm1',
-            kind: MedicationFrequencyKind.once,
-            startedAt: _now.subtract(const Duration(hours: 3)),
-          ),
-        ],
-        administrations: [_dose('m1', _now.subtract(const Duration(hours: 2)))],
         now: _now,
       );
       expect(items, isEmpty);
     });
 
-    test('as-needed meds never appear', () {
+    test('a row with no next-due is skipped', () {
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: [_med('m1', kind: MedicationFrequencyKind.asNeeded)],
-        administrations: const [],
-        now: _now,
-      );
-      expect(items, isEmpty);
-    });
-
-    test('an ended prescription is excluded', () {
-      final items = buildWorklist(
-        cases: [_case('c1')],
-        medications: [
-          _med(
-            'm1',
-            kind: MedicationFrequencyKind.scheduled,
-            intervalHours: 12,
-            startedAt: _now.subtract(const Duration(days: 2)),
-            endedAt: _now.subtract(const Duration(hours: 1)),
-          ),
-        ],
-        administrations: const [],
+        medicationsDue: [_due('m1')],
         now: _now,
       );
       expect(items, isEmpty);
@@ -148,16 +63,13 @@ void main() {
     test('meds on cases outside the scoped set are ignored', () {
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: [
-          _med(
+        medicationsDue: [
+          _due(
             'm1',
             caseId: 'other',
-            kind: MedicationFrequencyKind.scheduled,
-            intervalHours: 12,
-            startedAt: _now.subtract(const Duration(hours: 1)),
+            nextDue: _now.subtract(const Duration(hours: 1)),
           ),
         ],
-        administrations: const [],
         now: _now,
       );
       expect(items, isEmpty);
@@ -169,8 +81,7 @@ void main() {
       final until = _now.add(const Duration(days: 2));
       final items = buildWorklist(
         cases: [_case('c1', quarantineUntil: until)],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         now: _now,
       );
       expect(items.single.kind, WorklistKind.quarantineEnding);
@@ -183,8 +94,7 @@ void main() {
         cases: [
           _case('c1', quarantineUntil: _now.subtract(const Duration(days: 1))),
         ],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         now: _now,
       );
       expect(items.single.severity, WorklistSeverity.overdue);
@@ -195,8 +105,7 @@ void main() {
         cases: [
           _case('c1', quarantineUntil: _now.add(const Duration(days: 30))),
         ],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         now: _now,
       );
       expect(items, isEmpty);
@@ -221,8 +130,7 @@ void main() {
       final due = _now.add(const Duration(days: 2));
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         followUps: [followUp(dueAt: due)],
         now: _now,
       );
@@ -235,8 +143,7 @@ void main() {
     test('a completed recheck is excluded', () {
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         followUps: [
           followUp(
             dueAt: _now.subtract(const Duration(days: 1)),
@@ -251,8 +158,7 @@ void main() {
     test('a recheck far in the future does not appear', () {
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         followUps: [followUp(dueAt: _now.add(const Duration(days: 30)))],
         now: _now,
       );
@@ -265,8 +171,7 @@ void main() {
       final last = _now.subtract(const Duration(days: 10));
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         lastActivityByCase: {'c1': last},
         now: _now,
       );
@@ -278,8 +183,7 @@ void main() {
     test('a recently-touched case is not stale', () {
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         lastActivityByCase: {'c1': _now.subtract(const Duration(days: 2))},
         now: _now,
       );
@@ -289,8 +193,7 @@ void main() {
     test('a case absent from the activity map is never stale', () {
       final items = buildWorklist(
         cases: [_case('c1')],
-        medications: const [],
-        administrations: const [],
+        medicationsDue: const [],
         now: _now,
       );
       expect(items, isEmpty);
@@ -300,15 +203,9 @@ void main() {
   test('items are sorted soonest-due first', () {
     final items = buildWorklist(
       cases: [_case('c1', quarantineUntil: _now.add(const Duration(days: 1)))],
-      medications: [
-        _med(
-          'm1',
-          kind: MedicationFrequencyKind.scheduled,
-          intervalHours: 6,
-          startedAt: _now.subtract(const Duration(hours: 5)),
-        ),
+      medicationsDue: [
+        _due('m1', nextDue: _now.subtract(const Duration(hours: 5))),
       ],
-      administrations: const [],
       now: _now,
     );
 
