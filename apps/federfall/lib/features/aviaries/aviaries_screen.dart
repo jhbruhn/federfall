@@ -6,10 +6,12 @@ import 'package:federfall/features/aviaries/aviary_form_sheet.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/home/account_actions.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Aviary registry (FED-6.1): the org's aviaries with their keeper, location
 /// and capacity. Coordinators/supervisors can create and edit; everyone can
@@ -48,8 +50,7 @@ class AviariesScreen extends ConsumerWidget {
               )
             : ListView.builder(
                 itemCount: list.length,
-                itemBuilder: (context, i) =>
-                    _AviaryTile(aviary: list[i], canManage: canManage),
+                itemBuilder: (context, i) => _AviaryTile(list[i]),
               ),
       ),
     );
@@ -57,10 +58,9 @@ class AviariesScreen extends ConsumerWidget {
 }
 
 class _AviaryTile extends ConsumerWidget {
-  const _AviaryTile({required this.aviary, required this.canManage});
+  const _AviaryTile(this.aviary);
 
   final Aviary aviary;
-  final bool canManage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -80,10 +80,8 @@ class _AviaryTile extends ConsumerWidget {
       leading: const Icon(Icons.holiday_village_outlined),
       title: Text(aviary.name),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
-      trailing: canManage ? const Icon(Icons.edit_outlined) : null,
-      onTap: canManage
-          ? () => showAviaryFormSheet(context, aviary: aviary)
-          : null,
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.go(AppRoutes.aviaryDetail(aviary.id)),
     );
   }
 }

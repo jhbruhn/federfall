@@ -7,6 +7,7 @@ import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/aviaries/aviaries_screen.dart';
+import 'package:federfall/features/aviaries/aviary_detail_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/cases/new_case_screen.dart';
@@ -123,6 +124,15 @@ GoRouter router(Ref ref) {
               GoRoute(
                 path: AppRoutes.aviaries,
                 builder: (_, _) => const AviariesScreen(),
+                routes: [
+                  GoRoute(
+                    path: AppRoutes.detailSegment,
+                    parentNavigatorKey: rootNavigatorKey,
+                    builder: (_, state) => AviaryDetailScreen(
+                      aviaryId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

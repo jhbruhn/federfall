@@ -88,8 +88,11 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet> {
         await repo.create(body);
       } else {
         await repo.update(existing.id, body);
+        ref.invalidate(aviaryByIdProvider(existing.id));
       }
-      ref.invalidate(aviariesProvider);
+      ref
+        ..invalidate(aviariesProvider)
+        ..invalidate(activeAviariesProvider);
       if (mounted) Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;

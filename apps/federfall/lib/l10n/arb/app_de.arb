@@ -77,6 +77,17 @@
         "placeholders": { "count": { "type": "int" } }
     },
     "aviarySaveAction": "Speichern",
+    "aviaryDetailTitle": "Voliere",
+    "aviaryResidentsTitle": "Bewohner",
+    "aviaryNoResidents": "Keine Bewohner",
+    "aviaryOccupancy": "{count, plural, one{1 Bewohner} other{{count} Bewohner}}",
+    "@aviaryOccupancy": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "aviaryOccupancyOfCapacity": "{count} / {capacity}",
+    "@aviaryOccupancyOfCapacity": {
+        "placeholders": { "count": { "type": "int" }, "capacity": { "type": "int" } }
+    },
     "dashboardTitle": "Übersicht",
     "dashboardActiveCases": "Aktive Fälle",
     "dashboardIntakesThisYear": "Aufnahmen dieses Jahr",

@@ -22,6 +22,9 @@ abstract final class AppRoutes {
   /// Aviaries tab — the aviary registry (FED-6.1).
   static const aviaries = '/aviaries';
 
+  /// Builds the concrete aviary-detail path for [id] (FED-6.2).
+  static String aviaryDetail(String id) => '/aviaries/$id';
+
   /// Builds the concrete animal-detail path for [id] (FED-7.6).
   static String animalDetail(String id) => '/animals/$id';
 

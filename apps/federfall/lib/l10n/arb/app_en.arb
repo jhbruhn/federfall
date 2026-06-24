@@ -196,6 +196,22 @@
     },
     "aviarySaveAction": "Save",
     "@aviarySaveAction": { "description": "Saves the aviary form" },
+    "aviaryDetailTitle": "Aviary",
+    "@aviaryDetailTitle": { "description": "Stable app-bar title of the aviary detail screen" },
+    "aviaryResidentsTitle": "Residents",
+    "@aviaryResidentsTitle": { "description": "Heading for an aviary's resident animals" },
+    "aviaryNoResidents": "No residents",
+    "@aviaryNoResidents": { "description": "Empty state for an aviary with no residents" },
+    "aviaryOccupancy": "{count} resident{count, plural, one{} other{s}}",
+    "@aviaryOccupancy": {
+        "description": "Resident count for an aviary",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "aviaryOccupancyOfCapacity": "{count} / {capacity}",
+    "@aviaryOccupancyOfCapacity": {
+        "description": "Resident count over capacity",
+        "placeholders": { "count": { "type": "int" }, "capacity": { "type": "int" } }
+    },
     "dashboardTitle": "Dashboard",
     "@dashboardTitle": { "description": "Title of the dashboard screen" },
     "dashboardActiveCases": "Active cases",
