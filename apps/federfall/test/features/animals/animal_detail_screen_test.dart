@@ -71,6 +71,26 @@ void main() {
     expect(find.text('2026-009'), findsOneWidget);
   });
 
+  testWidgets('can apply a marking from the animal detail (no case)',
+      (tester) async {
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+    );
+
+    // The markings section offers an "apply marking" action.
+    await tester.tap(find.byTooltip('Apply marking'));
+    await tester.pumpAndSettle();
+
+    // The marking form opens (no case required).
+    expect(find.text('Apply marking'), findsWidgets);
+  });
+
   testWidgets('marks inaccessible cases as non-tappable stubs',
       (tester) async {
     await _pump(

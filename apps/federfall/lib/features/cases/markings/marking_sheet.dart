@@ -10,12 +10,13 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Opens the apply/edit-marking form. Markings belong to [animalId]; a new one
-/// records [caseId] as the episode it was applied in.
+/// Opens the apply/edit-marking form. Markings belong to [animalId]; when
+/// applied during a treatment episode, [caseId] records it (null when managed
+/// directly on the animal, e.g. an aviary resident with no open case).
 Future<bool?> showMarkingSheet(
   BuildContext context, {
   required String animalId,
-  required String caseId,
+  String? caseId,
   Marking? marking,
 }) {
   return showModalBottomSheet<bool>(
@@ -35,13 +36,13 @@ Future<bool?> showMarkingSheet(
 class MarkingSheet extends ConsumerStatefulWidget {
   const MarkingSheet({
     required this.animalId,
-    required this.caseId,
+    this.caseId,
     this.marking,
     super.key,
   });
 
   final String animalId;
-  final String caseId;
+  final String? caseId;
   final Marking? marking;
 
   @override
@@ -122,7 +123,7 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> {
         await repo.create({
           ...body,
           'animal': widget.animalId,
-          'applied_in_case': widget.caseId,
+          'applied_in_case': ?widget.caseId,
           'applied_by': user.id,
           'is_active': true,
           'org': org,

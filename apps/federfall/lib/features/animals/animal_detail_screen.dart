@@ -1,8 +1,11 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/markings/marking_sheet.dart';
+import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -36,7 +39,7 @@ class AnimalDetailScreen extends ConsumerWidget {
           children: [
             _Identity(data.animal),
             const SizedBox(height: AppSpacing.md),
-            _MarkingsSection(data.markings),
+            _MarkingsSection(animalId: data.animal.id, markings: data.markings),
             const SizedBox(height: AppSpacing.md),
             _CasesSection(
               cases: data.cases,
@@ -77,13 +80,48 @@ class _Identity extends StatelessWidget {
   }
 }
 
-class _MarkingsSection extends StatelessWidget {
-  const _MarkingsSection(this.markings);
+class _MarkingsSection extends ConsumerWidget {
+  const _MarkingsSection({required this.animalId, required this.markings});
 
+  final String animalId;
   final List<Marking> markings;
 
+  Future<void> _remove(WidgetRef ref, Marking m) async {
+    final repo = await ref.read(markingsRepositoryProvider.future);
+    await repo.update(m.id, {
+      'is_active': false,
+      'removed_at': DateTime.now().toUtc().toIso8601String(),
+    });
+    ref.invalidate(markingsForAnimalProvider(animalId));
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref, Marking m) async {
+    final l10n = context.l10n;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.markingDeleteAction),
+        content: Text(l10n.markingDeleteConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.actionCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.markingDeleteAction),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final repo = await ref.read(markingsRepositoryProvider.future);
+    await repo.delete(m.id);
+    ref.invalidate(markingsForAnimalProvider(animalId));
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
@@ -94,11 +132,22 @@ class _MarkingsSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l10n.animalSectionMarkings,
-              style: theme.textTheme.titleMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.animalSectionMarkings,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: l10n.markingNewTitle,
+                  onPressed: () =>
+                      showMarkingSheet(context, animalId: animalId),
+                ),
+              ],
             ),
-            const SizedBox(height: AppSpacing.sm),
             if (markings.isEmpty)
               Text(
                 l10n.animalNoMarkings,
@@ -124,6 +173,29 @@ class _MarkingsSection extends StatelessWidget {
                                   materialL10n.formatMediumDate(m.removedAt!),
                                 ),
                         ),
+                  trailing: PopupMenuButton<void>(
+                    icon: const Icon(Icons.more_vert),
+                    tooltip: l10n.markingMenuTooltip,
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        onTap: () => showMarkingSheet(
+                          context,
+                          animalId: animalId,
+                          marking: m,
+                        ),
+                        child: Text(l10n.markingEditAction),
+                      ),
+                      if (m.isActive)
+                        PopupMenuItem(
+                          onTap: () => _remove(ref, m),
+                          child: Text(l10n.markingRemoveAction),
+                        ),
+                      PopupMenuItem(
+                        onTap: () => _delete(context, ref, m),
+                        child: Text(l10n.markingDeleteAction),
+                      ),
+                    ],
+                  ),
                 ),
           ],
         ),
