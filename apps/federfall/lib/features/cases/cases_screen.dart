@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/home/account_actions.dart';
@@ -339,7 +340,7 @@ class _CaseTile extends StatelessWidget {
     ].join(' · ');
 
     return ListTile(
-      leading: const Icon(Icons.medical_information_outlined),
+      leading: AnimalAvatar(animalId: medicalCase.animal, radius: 20),
       title: Text(medicalCase.caseNumber ?? l10n.caseNewTitle),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
       trailing: const Icon(Icons.chevron_right),

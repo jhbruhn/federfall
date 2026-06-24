@@ -124,7 +124,7 @@ class _ResidentTile extends StatelessWidget {
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: AnimalAvatar(animalId: animal.id),
+      leading: AnimalAvatar(animalId: animal.id, radius: 20),
       title: Text(hasName ? animal.name! : animal.species),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
       trailing: const Icon(Icons.chevron_right),

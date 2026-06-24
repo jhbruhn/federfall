@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/home/account_actions.dart';
@@ -98,7 +99,7 @@ class _AnimalTile extends StatelessWidget {
     ].join(' · ');
 
     return ListTile(
-      leading: const Icon(Icons.pets_outlined),
+      leading: AnimalAvatar(animalId: animal.id, radius: 20),
       title: Text(hasName ? animal.name! : animal.species),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
       trailing: const Icon(Icons.chevron_right),
