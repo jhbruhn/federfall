@@ -10,6 +10,7 @@ import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/edit_case_intake_sheet.dart';
 import 'package:federfall/features/cases/sharing/case_share_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -54,7 +55,12 @@ class CaseDetailScreen extends ConsumerWidget {
               onPressed: () =>
                   context.go(AppRoutes.animalDetail(medicalCase.animal)),
             ),
-          if (canShare)
+          if (canShare) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: l10n.caseEditIntakeTitle,
+              onPressed: () => showEditCaseIntakeSheet(context, medicalCase),
+            ),
             IconButton(
               icon: const Icon(Icons.share_outlined),
               tooltip: l10n.caseShareAction,
@@ -64,6 +70,7 @@ class CaseDetailScreen extends ConsumerWidget {
                 activeCarer: medicalCase.activeCarer,
               ),
             ),
+          ],
         ],
       ),
       body: AsyncValueView<Case>(

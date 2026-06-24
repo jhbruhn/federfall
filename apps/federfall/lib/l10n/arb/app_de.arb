@@ -142,6 +142,7 @@
     "caseFieldSpecies": "Art",
     "caseFieldReason": "Aufnahmegrund",
     "caseCreateAction": "Fall anlegen",
+    "caseEditIntakeTitle": "Aufnahme bearbeiten",
     "caseDetailTitle": "Fall",
     "caseNumberLabel": "Fallnummer",
     "caseStatusFieldLabel": "Status",

@@ -323,6 +323,8 @@
     "@caseFieldReason": { "description": "Label for the admission-reason field" },
     "caseCreateAction": "Create case",
     "@caseCreateAction": { "description": "Button that creates the case" },
+    "caseEditIntakeTitle": "Edit intake",
+    "@caseEditIntakeTitle": { "description": "Title of the edit-case-intake sheet / tooltip" },
     "caseDetailTitle": "Case",
     "@caseDetailTitle": { "description": "Title of the case detail screen" },
     "caseNumberLabel": "Case number",
