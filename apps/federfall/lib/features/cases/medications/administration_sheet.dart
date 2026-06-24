@@ -78,7 +78,7 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet> {
     _unit = TextEditingController(text: a?.doseUnit ?? p?.doseUnit ?? '');
     _notes = TextEditingController(text: a?.notes ?? '');
     _route = a?.route ?? p?.route;
-    _administeredAt = a?.administeredAt ?? DateTime.now();
+    _administeredAt = a?.administeredAt?.toLocal() ?? DateTime.now();
   }
 
   @override
@@ -95,12 +95,7 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _administeredAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+    final picked = await pickDateTime(context, initial: _administeredAt);
     if (picked != null) setState(() => _administeredAt = picked);
   }
 
@@ -231,6 +226,7 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet> {
                 label: l10n.doseGivenAt,
                 value: _administeredAt,
                 enabled: !_busy,
+                showTime: true,
                 onPick: _pickDate,
               ),
               const SizedBox(height: AppSpacing.md),

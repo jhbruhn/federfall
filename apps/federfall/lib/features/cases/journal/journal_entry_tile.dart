@@ -61,7 +61,9 @@ class JournalEntryTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.sticky_note_2_outlined,
-      date: date == null ? '' : materialL10n.formatMediumDate(date),
+      date: date == null
+          ? ''
+          : formatDateMaybeTime(materialL10n, date.toLocal(), withTime: true),
       isLast: isLast,
       trailing: _EntryMenu(
         onEdit: () => _edit(context),

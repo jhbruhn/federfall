@@ -63,7 +63,10 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet> {
     super.initState();
     final entry = widget.entry;
     _textController = TextEditingController(text: entry?.text ?? '');
-    _entryAt = entry?.entryAt ?? entry?.created ?? DateTime.now();
+    _entryAt =
+        entry?.entryAt?.toLocal() ??
+        entry?.created?.toLocal() ??
+        DateTime.now();
     _existingPhotos = [...?entry?.attachments];
   }
 
@@ -86,12 +89,7 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _entryAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+    final picked = await pickDateTime(context, initial: _entryAt);
     if (picked != null) setState(() => _entryAt = picked);
   }
 
@@ -169,7 +167,6 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
-    final materialL10n = MaterialLocalizations.of(context);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -198,15 +195,12 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet> {
                 validator: Validators.required(l10n),
               ),
               const SizedBox(height: AppSpacing.md),
-              InkWell(
-                onTap: _busy ? null : _pickDate,
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: l10n.journalFieldDate,
-                    prefixIcon: const Icon(Icons.event_outlined),
-                  ),
-                  child: Text(materialL10n.formatMediumDate(_entryAt)),
-                ),
+              DateField(
+                label: l10n.journalFieldDate,
+                value: _entryAt,
+                enabled: !_busy,
+                showTime: true,
+                onPick: _pickDate,
               ),
               const SizedBox(height: AppSpacing.md),
               if (_existingPhotos.isNotEmpty || _newPhotos.isNotEmpty)

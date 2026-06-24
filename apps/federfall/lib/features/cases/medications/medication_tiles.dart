@@ -196,7 +196,9 @@ class AdministrationTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.vaccines_outlined,
-      date: date == null ? '' : materialL10n.formatMediumDate(date),
+      date: date == null
+          ? ''
+          : formatDateMaybeTime(materialL10n, date.toLocal(), withTime: true),
       isLast: isLast,
       trailing: PopupMenuButton<void>(
         icon: const Icon(Icons.more_vert),
