@@ -205,8 +205,8 @@ void main() {
 
   group('buildWorklist — follow-ups', () {
     FollowUp followUp({
-      String id = 'f1',
       required DateTime dueAt,
+      String id = 'f1',
       DateTime? doneAt,
       String note = 'Recheck wound',
     }) => FollowUp(
