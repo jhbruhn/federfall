@@ -17,4 +17,8 @@ class PbUsersRepository extends PbRepository<AppUser> {
     filter: filterExpr('is_active = true'),
     sort: 'name',
   );
+
+  /// Every staff member (active and not), active first then name-sorted, for
+  /// the supervisor's team roster (UX Phase A).
+  Future<List<AppUser>> members() => list(sort: '-is_active,name');
 }

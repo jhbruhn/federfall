@@ -1,7 +1,6 @@
-import 'dart:async';
-
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/admin_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -48,6 +47,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required FakeAuthRepository repo,
   required UserRole role,
+  List<AppUser> members = const [],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -56,6 +56,7 @@ Future<void> _pump(
         currentUserProvider.overrideWith(
           (ref) async => AppUser(id: 'u1', email: 'me@x.org', role: role),
         ),
+        orgMembersProvider.overrideWith((ref) async => members),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -74,19 +75,61 @@ void main() {
     expect(find.text('You are not authorized to do that'), findsOneWidget);
   });
 
-  testWidgets('a supervisor sees the invite form', (tester) async {
-    await _pump(tester, repo: FakeAuthRepository(), role: UserRole.supervisor);
-    expect(find.text('Invite a member'), findsOneWidget);
+  testWidgets('a supervisor sees the team roster with status badges',
+      (tester) async {
+    await _pump(
+      tester,
+      repo: FakeAuthRepository(),
+      role: UserRole.supervisor,
+      members: const [
+        AppUser(
+          id: 'm1',
+          email: 'ada@x.org',
+          name: 'Ada',
+          role: UserRole.coordinator,
+          isActive: true,
+          verified: true,
+        ),
+        AppUser(
+          id: 'm2',
+          email: 'pending@x.org',
+          role: UserRole.carer,
+          isActive: true,
+        ),
+        AppUser(
+          id: 'm3',
+          email: 'old@x.org',
+          name: 'Old',
+          role: UserRole.carer,
+        ),
+      ],
+    );
+
+    expect(find.text('Ada'), findsOneWidget);
+    expect(find.textContaining('Coordinator'), findsOneWidget);
+    // m2 is active but not verified → invite pending.
+    expect(find.text('Invite pending'), findsOneWidget);
+    // m3 is not active → inactive.
+    expect(find.text('Inactive'), findsOneWidget);
   });
 
-  testWidgets('sending an invite calls the repo and confirms', (tester) async {
+  testWidgets('an empty roster shows the empty state', (tester) async {
+    await _pump(tester, repo: FakeAuthRepository(), role: UserRole.supervisor);
+    expect(find.text('No team members yet.'), findsOneWidget);
+  });
+
+  testWidgets('inviting from the FAB calls the repo and confirms',
+      (tester) async {
     final repo = FakeAuthRepository();
     await _pump(tester, repo: repo, role: UserRole.supervisor);
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'new@x.org',
+    // Open the invite sheet from the FAB.
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Invite a member'),
     );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).first, 'new@x.org');
     await tester.tap(find.widgetWithText(FilledButton, 'Send invite'));
     await tester.pumpAndSettle();
 

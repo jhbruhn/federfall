@@ -1,18 +1,17 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
-import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/admin/admin_providers.dart';
+import 'package:federfall/features/admin/invite_member_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Supervisor-only admin area (FED-3.3 / FED-3.2). Hosts the invite flow:
-/// the supervisor creates a member's account and PocketBase emails them a
-/// password-reset link to activate it. Re-checks the role so a typed-in URL
-/// degrades gracefully — the real boundary remains the server API rules.
+/// Supervisor-only admin area (FED-3.3 / FED-3.2). Hosts the team roster and
+/// the invite flow. Re-checks the role so a typed-in URL degrades gracefully —
+/// the real boundary remains the server API rules.
 class AdminScreen extends ConsumerWidget {
   const AdminScreen({super.key});
 
@@ -21,161 +20,131 @@ class AdminScreen extends ConsumerWidget {
     final l10n = context.l10n;
     final role = ref.watch(currentUserProvider).value?.role;
 
+    if (!canManageTeam(role)) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.adminTitle)),
+        body: EmptyView(
+          icon: Icons.lock_outline,
+          message: l10n.errorUnauthorized,
+        ),
+      );
+    }
+
+    final members = ref.watch(orgMembersProvider);
+
     return Scaffold(
       appBar: AppBar(title: Text(l10n.adminTitle)),
-      body: canManageTeam(role)
-          ? const _InviteForm()
-          : EmptyView(
-              icon: Icons.lock_outline,
-              message: l10n.errorUnauthorized,
-            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final invited = await showInviteMemberSheet(context);
+          if (invited ?? false) ref.invalidate(orgMembersProvider);
+        },
+        icon: const Icon(Icons.person_add_alt_1),
+        label: Text(l10n.inviteSectionTitle),
+      ),
+      body: AsyncValueView<List<AppUser>>(
+        value: members,
+        onRetry: () => ref.invalidate(orgMembersProvider),
+        errorMessage: (e) => errorMessage(l10n, e),
+        data: (list) => list.isEmpty
+            ? EmptyView(
+                icon: Icons.group_outlined,
+                message: l10n.adminNoMembers,
+              )
+            : ListView(
+                padding: const EdgeInsets.only(bottom: 88),
+                children: [
+                  for (final m in list) _MemberTile(member: m),
+                ],
+              ),
+      ),
     );
   }
 }
 
-class _InviteForm extends ConsumerStatefulWidget {
-  const _InviteForm();
+/// One member in the roster: name (or email), role, and a status badge for
+/// inactive or not-yet-onboarded accounts. Management actions land in the
+/// next task; the tile is informational for now.
+class _MemberTile extends StatelessWidget {
+  const _MemberTile({required this.member});
 
-  @override
-  ConsumerState<_InviteForm> createState() => _InviteFormState();
-}
-
-class _InviteFormState extends ConsumerState<_InviteForm> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _nameController = TextEditingController();
-
-  UserRole _role = UserRole.carer;
-  bool _busy = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _invite() async {
-    final l10n = context.l10n;
-    final messenger = ScaffoldMessenger.of(context);
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    final email = _emailController.text.trim();
-    try {
-      final repo = await ref.read(authRepositoryProvider.future);
-      await repo.inviteUser(
-        email: email,
-        role: _role,
-        name: _nameController.text,
-      );
-      if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.inviteSent(email))),
-      );
-      _emailController.clear();
-      _nameController.clear();
-      setState(() => _busy = false);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
-  }
+  final AppUser member;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
+    final name = member.name;
+    final hasName = name != null && name.isNotEmpty;
+    final role = member.role;
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    l10n.inviteSectionTitle,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _emailController,
-                    label: l10n.authEmailLabel,
-                    prefixIcon: Icons.alternate_email,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    enabled: !_busy,
-                    validator: Validators.compose([
-                      Validators.required(l10n),
-                      Validators.email(l10n),
-                    ]),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _nameController,
-                    label: l10n.inviteNameLabel,
-                    prefixIcon: Icons.badge_outlined,
-                    textInputAction: TextInputAction.next,
-                    enabled: !_busy,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  DropdownButtonFormField<UserRole>(
-                    initialValue: _role,
-                    decoration: InputDecoration(
-                      labelText: l10n.profileRoleLabel,
-                      prefixIcon: const Icon(Icons.security_outlined),
-                    ),
-                    items: [
-                      for (final r in UserRole.values)
-                        DropdownMenuItem(
-                          value: r,
-                          child: Text(userRoleLabel(l10n, r)),
-                        ),
-                    ],
-                    onChanged: _busy
-                        ? null
-                        : (r) => setState(() => _role = r ?? _role),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.error),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.lg),
-                  PrimaryButton(
-                    label: l10n.inviteAction,
-                    icon: Icons.send,
-                    isLoading: _busy,
-                    onPressed: _invite,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+    final badge = _statusBadge(context);
+
+    return ListTile(
+      leading: CircleAvatar(
+        child: Text(_initial(hasName ? name : member.email)),
+      ),
+      title: Text(hasName ? name : member.email),
+      subtitle: Text(
+        [
+          if (hasName) member.email,
+          if (role != null) userRoleLabel(l10n, role),
+        ].join(' · '),
+      ),
+      trailing: badge,
+      isThreeLine: false,
+    );
+  }
+
+  Widget? _statusBadge(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    if (!member.isActive) {
+      return _Chip(
+        label: l10n.memberInactive,
+        color: theme.colorScheme.errorContainer,
+        onColor: theme.colorScheme.onErrorContainer,
+      );
+    }
+    if (!member.verified) {
+      return _Chip(
+        label: l10n.memberInvitePending,
+        color: theme.colorScheme.tertiaryContainer,
+        onColor: theme.colorScheme.onTertiaryContainer,
+      );
+    }
+    return null;
+  }
+
+  String _initial(String s) =>
+      s.trim().isEmpty ? '?' : s.trim().characters.first.toUpperCase();
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({
+    required this.label,
+    required this.color,
+    required this.onColor,
+  });
+
+  final String label;
+  final Color color;
+  final Color onColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(color: onColor),
       ),
     );
   }
