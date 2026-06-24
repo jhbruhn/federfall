@@ -67,12 +67,13 @@ onRecordAfterCreateSuccess((e) => {
   if (caseId) {
     const caseRec = e.app.findRecordById("cases", caseId);
 
-    // placed_in_aviary keeps the case alive as a resident; everything else is
-    // a terminal outcome that disposes the case.
-    if (type !== "placed_in_aviary") {
-      caseRec.set("status", "disposed");
-      e.app.save(caseRec);
-    }
+    // Every disposition — including placed_in_aviary — closes (disposes) the
+    // case: the animal is well enough to leave acute care. Aviary placement
+    // additionally makes the animal a resident (lifetime_status=in_aviary,
+    // current_aviary set below); a resident that later falls ill gets a NEW
+    // case rather than reopening this one.
+    caseRec.set("status", "disposed");
+    e.app.save(caseRec);
 
     const animalId = caseRec.get("animal");
     if (animalId) {

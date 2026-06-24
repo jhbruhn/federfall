@@ -166,7 +166,7 @@ def main():
     mk(T, "dispositions", {"case": c2["id"], "type": "placed_in_aviary", "aviary": av, "org": ORG})
     _, c2f = req("GET", f"/api/collections/cases/records/{c2['id']}", T)
     _, an2 = req("GET", f"/api/collections/animals/records/{animal}", T)
-    check("placed_in_aviary keeps case alive", c2f["status"] == "in_care", c2f["status"])
+    check("placed_in_aviary -> case disposed", c2f["status"] == "disposed", c2f["status"])
     check("placed_in_aviary -> animal in_aviary", an2["lifetime_status"] == "in_aviary", an2["lifetime_status"])
     check("placed_in_aviary -> current_aviary set", an2["current_aviary"] == av, an2["current_aviary"])
 

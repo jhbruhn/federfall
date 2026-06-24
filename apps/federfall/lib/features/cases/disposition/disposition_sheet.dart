@@ -1,6 +1,8 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -28,18 +30,20 @@ Future<bool?> showDispositionSheet(
   );
 }
 
-/// Records a case outcome (FED-4.11): released (with location/geo), died,
-/// euthanized, transferred or returned to owner. The backend hook then sets the
-/// case to disposed and updates the animal's lifetime status. Aviary placement
-/// (FED-4.12) is intentionally excluded — it needs aviaries (FED-6.1).
+/// Records a case outcome (FED-4.11 / FED-4.12): released (with location/geo),
+/// placed in a named aviary, died, euthanized, transferred or returned to
+/// owner. The backend hook then maintains the case status and the animal's
+/// lifetime status (placement keeps the case alive as an aviary resident and
+/// sets the animal's current aviary).
 class DispositionSheet extends ConsumerStatefulWidget {
   const DispositionSheet({required this.caseId, super.key});
 
   final String caseId;
 
-  /// Outcomes selectable here (placed_in_aviary is FED-4.12).
+  /// Outcomes selectable here.
   static const List<DispositionType> _selectableTypes = [
     DispositionType.released,
+    DispositionType.placedInAviary,
     DispositionType.died,
     DispositionType.euthanized,
     DispositionType.transferred,
@@ -61,6 +65,7 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
 
   DispositionType _type = DispositionType.released;
   GeoPoint? _releaseGeo;
+  String? _aviaryId;
   DateTime _disposedAt = DateTime.now();
   bool _vetSignedOff = false;
   bool _busy = false;
@@ -69,6 +74,7 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
   bool get _isRelease => _type == DispositionType.released;
   bool get _isTransfer => _type == DispositionType.transferred;
   bool get _isEuthanized => _type == DispositionType.euthanized;
+  bool get _isAviary => _type == DispositionType.placedInAviary;
   // Release can carry a vet sign-off flag; euthanasia instead records the
   // external vet who performed it (no vet login — a name).
   bool get _showVetSignoff => _isRelease;
@@ -151,17 +157,19 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
           'transfer_type': _trim(_transferType) ?? '',
           'transfer_destination': _trim(_transferDestination) ?? '',
         },
+        if (_isAviary) 'aviary': ?_aviaryId,
       };
 
       await repo.create(body);
 
-      // The backend hook flips the case to disposed and updates the animal's
-      // lifetime status; refresh the views that show them.
+      // The backend hook maintains the case status and the animal's lifetime
+      // status / current aviary; refresh the views that show them.
       ref
         ..invalidate(dispositionsForCaseProvider(widget.caseId))
         ..invalidate(caseByIdProvider(widget.caseId))
         ..invalidate(casesBrowserDataProvider)
-        ..invalidate(dashboardSummaryProvider);
+        ..invalidate(dashboardSummaryProvider)
+        ..invalidate(animalsRegistryProvider);
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {
       if (!mounted) return;
@@ -274,6 +282,14 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
                   enabled: !_busy,
                 ),
               ],
+              if (_isAviary) ...[
+                const SizedBox(height: AppSpacing.md),
+                _AviaryPicker(
+                  value: _aviaryId,
+                  enabled: !_busy,
+                  onChanged: (id) => setState(() => _aviaryId = id),
+                ),
+              ],
               if (_isEuthanized) ...[
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
@@ -320,6 +336,42 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Aviary selector for the "placed in aviary" outcome (FED-4.12): a required
+/// dropdown of the org's active aviaries.
+class _AviaryPicker extends ConsumerWidget {
+  const _AviaryPicker({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String? value;
+  final bool enabled;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final aviaries =
+        ref.watch(activeAviariesProvider).value ?? const <Aviary>[];
+
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: l10n.dispositionFieldAviary,
+        prefixIcon: const Icon(Icons.holiday_village_outlined),
+      ),
+      items: [
+        for (final a in aviaries)
+          DropdownMenuItem(value: a.id, child: Text(a.name)),
+      ],
+      validator: (v) => v == null ? l10n.fieldRequired : null,
+      onChanged: enabled ? onChanged : null,
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -21,7 +22,11 @@ void main() {
     dispositions = MockDispositionsRepo();
   });
 
-  Future<void> pump(WidgetTester tester, Widget child) async {
+  Future<void> pump(
+    WidgetTester tester,
+    Widget child, {
+    List<Aviary> aviaries = const [],
+  }) async {
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith(
@@ -30,6 +35,7 @@ void main() {
         ),
         dispositionsRepositoryProvider
             .overrideWith((ref) async => dispositions),
+        activeAviariesProvider.overrideWith((ref) async => aviaries),
       ],
     );
     addTearDown(container.dispose);
@@ -77,6 +83,43 @@ void main() {
       expect(body['type'], 'died');
       expect(body['performed_by'], 'u1');
       expect(body['org'], 'org1');
+    });
+
+    testWidgets('placed in aviary records the chosen aviary (FED-4.12)',
+        (tester) async {
+      when(() => dispositions.create(any())).thenAnswer(
+        (_) async => const Disposition(
+          id: 'd1',
+          caseId: 'c1',
+          type: DispositionType.placedInAviary,
+        ),
+      );
+
+      await pump(
+        tester,
+        const DispositionSheet(caseId: 'c1'),
+        aviaries: const [Aviary(id: 'av1', name: 'Garden aviary')],
+      );
+
+      await tester.tap(find.text('Released'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Placed in aviary').last);
+      await tester.pumpAndSettle();
+
+      // Pick the aviary from the now-visible picker.
+      await tester.tap(find.text('Aviary'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Garden aviary').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Record outcome'));
+      await tester.pumpAndSettle();
+
+      final body = verify(() => dispositions.create(captureAny()))
+          .captured
+          .single as Map<String, dynamic>;
+      expect(body['type'], 'placed_in_aviary');
+      expect(body['aviary'], 'av1');
     });
 
     testWidgets('release shows the location field', (tester) async {

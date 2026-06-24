@@ -547,6 +547,8 @@
     "@dispositionSaveAction": { "description": "Button that saves the disposition" },
     "dispositionFieldType": "Outcome",
     "@dispositionFieldType": { "description": "Label for the disposition type" },
+    "dispositionFieldAviary": "Aviary",
+    "@dispositionFieldAviary": { "description": "Label for the aviary picker when placing a bird in an aviary" },
     "dispositionFieldDate": "Date",
     "@dispositionFieldDate": { "description": "Label for the disposition date" },
     "dispositionFieldReason": "Reason / notes",

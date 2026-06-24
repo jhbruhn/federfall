@@ -254,6 +254,7 @@
     "dispositionNewTitle": "Ausgang erfassen",
     "dispositionSaveAction": "Ausgang erfassen",
     "dispositionFieldType": "Ausgang",
+    "dispositionFieldAviary": "Voliere",
     "dispositionFieldDate": "Datum",
     "dispositionFieldReason": "Grund / Notizen",
     "dispositionFieldReleaseLocation": "Auswilderungsort",
