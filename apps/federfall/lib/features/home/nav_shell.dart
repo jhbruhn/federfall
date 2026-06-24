@@ -45,6 +45,11 @@ class NavShell extends StatelessWidget {
         selectedIcon: Icons.pets,
         label: l10n.navAnimals,
       ),
+      (
+        icon: Icons.holiday_village_outlined,
+        selectedIcon: Icons.holiday_village,
+        label: l10n.navAviaries,
+      ),
     ];
     final width = MediaQuery.sizeOf(context).width;
 

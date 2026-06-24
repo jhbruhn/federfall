@@ -16,6 +16,12 @@ bool canManageTeam(UserRole? role) => role == UserRole.supervisor;
 bool canViewReports(UserRole? role) =>
     role == UserRole.coordinator || role == UserRole.supervisor;
 
+/// Whether the role may create/edit aviaries (FED-6.1). All members can view
+/// them; coordinators and supervisors manage them (delete is supervisor-only,
+/// enforced server-side).
+bool canManageAviaries(UserRole? role) =>
+    role == UserRole.coordinator || role == UserRole.supervisor;
+
 /// Localized display name for a staff role (same pattern as the case labels).
 String userRoleLabel(AppLocalizations l10n, UserRole role) => switch (role) {
   UserRole.carer => l10n.userRoleCarer,
