@@ -250,6 +250,47 @@ def main():
     # restore A as carer for any later checks
     req("PATCH", f"/api/collections/cases/records/{case}", T, {"active_carer": A})
 
+    # ── opt-in share lifecycle (FED-5.2) ────────────────────────────────────
+    # End-to-end via carer tokens (not admin): the owner grants/revokes a share
+    # and a non-owner cannot; visibility flips accordingly.
+    print("\n[opt-in share lifecycle]")
+    ta = toks["a"]
+    td = login("d@f.local")[1]
+    shareCase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+
+    def d_views():
+        s, _ = req("GET", f"/api/collections/cases/records/{shareCase}", td)
+        return s == 200
+
+    def d_edits():
+        s, _ = req(
+            "PATCH", f"/api/collections/cases/records/{shareCase}", td,
+            {"intake_notes": "x"},
+        )
+        return s == 200
+
+    check("before share: outsider cannot view", not d_views())
+    # An outsider cannot grant a share on a case they don't own.
+    s, _ = req("POST", "/api/collections/case_shares/records", td, {
+        "case": shareCase, "shared_with": D, "access": "read",
+        "shared_by": D, "org": ORG,
+    })
+    check("outsider CANNOT grant themselves a share", s >= 400, f"status {s}")
+    # The owner (carer, not admin) grants a read share to D.
+    s, sh = req("POST", "/api/collections/case_shares/records", ta, {
+        "case": shareCase, "shared_with": D, "access": "read",
+        "shared_by": A, "org": ORG,
+    })
+    check("owner can grant a read share", s == 200, f"{s} {sh}")
+    check("after share: D can view", d_views())
+    check("read share: D still cannot edit", not d_edits())
+    if s == 200:
+        sd, _ = req(
+            "DELETE", f"/api/collections/case_shares/records/{sh['id']}", ta,
+        )
+        check("owner can revoke the share", sd == 204, f"status {sd}")
+        check("after revoke: D can no longer view", not d_views())
+
     # ── deactivated user cannot authenticate ────────────────────────────────
     print("\n[auth gate]")
     s, _ = login("inactive@f.local")
