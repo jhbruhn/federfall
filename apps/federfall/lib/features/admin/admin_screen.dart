@@ -3,6 +3,7 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/invite_member_sheet.dart';
+import 'package:federfall/features/admin/member_management_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -54,7 +55,17 @@ class AdminScreen extends ConsumerWidget {
             : ListView(
                 padding: const EdgeInsets.only(bottom: 88),
                 children: [
-                  for (final m in list) _MemberTile(member: m),
+                  for (final m in list)
+                    _MemberTile(
+                      member: m,
+                      onTap: () async {
+                        final changed =
+                            await showMemberManagementSheet(context, m);
+                        if (changed ?? false) {
+                          ref.invalidate(orgMembersProvider);
+                        }
+                      },
+                    ),
                 ],
               ),
       ),
@@ -66,9 +77,10 @@ class AdminScreen extends ConsumerWidget {
 /// inactive or not-yet-onboarded accounts. Management actions land in the
 /// next task; the tile is informational for now.
 class _MemberTile extends StatelessWidget {
-  const _MemberTile({required this.member});
+  const _MemberTile({required this.member, this.onTap});
 
   final AppUser member;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -90,8 +102,14 @@ class _MemberTile extends StatelessWidget {
           if (role != null) userRoleLabel(l10n, role),
         ].join(' · '),
       ),
-      trailing: badge,
-      isThreeLine: false,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ?badge,
+          if (onTap != null) const Icon(Icons.chevron_right),
+        ],
+      ),
+      onTap: onTap,
     );
   }
 

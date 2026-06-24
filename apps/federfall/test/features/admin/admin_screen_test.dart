@@ -8,6 +8,9 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockUsersRepo extends Mock implements PbUsersRepository {}
 
 class FakeAuthRepository implements AuthRepository {
   String? invitedEmail;
@@ -48,6 +51,7 @@ Future<void> _pump(
   required FakeAuthRepository repo,
   required UserRole role,
   List<AppUser> members = const [],
+  PbUsersRepository? users,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -57,6 +61,8 @@ Future<void> _pump(
           (ref) async => AppUser(id: 'u1', email: 'me@x.org', role: role),
         ),
         orgMembersProvider.overrideWith((ref) async => members),
+        if (users != null)
+          usersRepositoryProvider.overrideWith((ref) async => users),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -70,6 +76,8 @@ Future<void> _pump(
 }
 
 void main() {
+  setUpAll(() => registerFallbackValue(<String, dynamic>{}));
+
   testWidgets('a carer is shown an unauthorized message', (tester) async {
     await _pump(tester, repo: FakeAuthRepository(), role: UserRole.carer);
     expect(find.text('You are not authorized to do that'), findsOneWidget);
@@ -136,5 +144,102 @@ void main() {
     expect(repo.invitedEmail, 'new@x.org');
     expect(repo.invitedRole, UserRole.carer);
     expect(find.text('Invite sent to new@x.org.'), findsOneWidget);
+  });
+
+  testWidgets('changing a member role saves via the repo', (tester) async {
+    final users = MockUsersRepo();
+    when(() => users.update(any(), any()))
+        .thenAnswer((_) async => const AppUser(id: 'm1', email: 'ada@x.org'));
+
+    await _pump(
+      tester,
+      repo: FakeAuthRepository(),
+      role: UserRole.supervisor,
+      users: users,
+      members: const [
+        AppUser(
+          id: 'm1',
+          email: 'ada@x.org',
+          name: 'Ada',
+          role: UserRole.carer,
+          isActive: true,
+          verified: true,
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('Ada'));
+    await tester.pumpAndSettle();
+
+    // Promote to coordinator, then save.
+    await tester.tap(find.text('Carer').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coordinator').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final captured =
+        verify(() => users.update('m1', captureAny())).captured.single;
+    expect((captured as Map)['role'], 'coordinator');
+  });
+
+  testWidgets('opening your own account hides remove and shows a note',
+      (tester) async {
+    final users = MockUsersRepo();
+    await _pump(
+      tester,
+      repo: FakeAuthRepository(),
+      role: UserRole.supervisor,
+      users: users,
+      members: const [
+        AppUser(
+          id: 'u1',
+          email: 'me@x.org',
+          name: 'Me',
+          role: UserRole.supervisor,
+          isActive: true,
+          verified: true,
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('Me'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('your own account'), findsOneWidget);
+    expect(find.text('Remove member'), findsNothing);
+  });
+
+  testWidgets('removing a member confirms and deletes', (tester) async {
+    final users = MockUsersRepo();
+    when(() => users.delete(any())).thenAnswer((_) async {});
+
+    await _pump(
+      tester,
+      repo: FakeAuthRepository(),
+      role: UserRole.supervisor,
+      users: users,
+      members: const [
+        AppUser(
+          id: 'm1',
+          email: 'ada@x.org',
+          name: 'Ada',
+          role: UserRole.carer,
+          isActive: true,
+          verified: true,
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('Ada'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Remove member'));
+    await tester.pumpAndSettle();
+    // Confirm in the dialog.
+    await tester.tap(find.widgetWithText(TextButton, 'Remove member').last);
+    await tester.pumpAndSettle();
+
+    verify(() => users.delete('m1')).called(1);
   });
 }

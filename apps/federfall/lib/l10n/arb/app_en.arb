@@ -834,6 +834,17 @@
     "@memberInactive": { "description": "Badge on a deactivated member" },
     "memberInvitePending": "Invite pending",
     "@memberInvitePending": { "description": "Badge on a member who has not yet activated their account" },
+    "memberActiveLabel": "Active",
+    "@memberActiveLabel": { "description": "Toggle for whether a member account is active" },
+    "memberSelfNote": "This is your own account — manage it from your profile.",
+    "@memberSelfNote": { "description": "Note shown when a supervisor opens their own member entry" },
+    "memberRemoveAction": "Remove member",
+    "@memberRemoveAction": { "description": "Destructive action that deletes a member account" },
+    "memberRemoveConfirm": "Remove {name} from the team? They will lose access.",
+    "@memberRemoveConfirm": {
+        "description": "Confirmation before removing a member",
+        "placeholders": { "name": { "type": "String" } }
+    },
     "userRoleCarer": "Carer",
     "@userRoleCarer": { "description": "Staff role" },
     "userRoleCoordinator": "Coordinator",
