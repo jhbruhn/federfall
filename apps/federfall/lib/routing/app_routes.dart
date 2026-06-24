@@ -61,6 +61,9 @@ abstract final class AppRoutes {
   /// Supervisor-only organisation settings (UX Phase A).
   static const orgSettings = '/admin/org-settings';
 
+  /// Supervisor-only condition code-list editor (UX Phase A).
+  static const conditionsAdmin = '/admin/conditions';
+
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 

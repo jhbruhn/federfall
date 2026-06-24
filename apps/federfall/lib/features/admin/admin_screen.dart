@@ -39,10 +39,20 @@ class AdminScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.adminTitle),
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: l10n.orgSettingsTitle,
-            onPressed: () => context.push(AppRoutes.orgSettings),
+            tooltip: l10n.adminSettingsMenuTooltip,
+            onSelected: context.push,
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: AppRoutes.orgSettings,
+                child: Text(l10n.orgSettingsTitle),
+              ),
+              PopupMenuItem(
+                value: AppRoutes.conditionsAdmin,
+                child: Text(l10n.conditionsAdminTitle),
+              ),
+            ],
           ),
         ],
       ),
