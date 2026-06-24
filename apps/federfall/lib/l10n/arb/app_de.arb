@@ -126,6 +126,7 @@
     "worklistDueInDays": "{days, plural, one{In 1 Tag fällig} other{In {days} Tagen fällig}}",
     "worklistStaleDays": "{days, plural, one{Seit 1 Tag keine Aktivität} other{Seit {days} Tagen keine Aktivität}}",
     "animalsTitle": "Tiere",
+    "aviaryAddResident": "Bewohner hinzufügen",
     "animalEditTitle": "Tier bearbeiten",
     "animalDetailTitle": "Tier",
     "animalNewCase": "Neuer Fall",

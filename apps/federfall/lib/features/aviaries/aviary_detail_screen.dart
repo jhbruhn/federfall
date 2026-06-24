@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/features/animals/add_animal_sheet.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/aviaries/aviary_form_sheet.dart';
@@ -50,6 +51,13 @@ class AviaryDetailScreen extends ConsumerWidget {
             ),
         ],
       ),
+      floatingActionButton: canManage
+          ? FloatingActionButton.extended(
+              onPressed: () => showAddAnimalSheet(context, aviaryId: aviaryId),
+              icon: const Icon(Icons.add),
+              label: Text(l10n.aviaryAddResident),
+            )
+          : null,
       body: AsyncValueView<Aviary>(
         value: aviary,
         onRetry: () => ref.invalidate(aviaryByIdProvider(aviaryId)),

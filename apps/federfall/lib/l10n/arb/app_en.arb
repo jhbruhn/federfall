@@ -306,6 +306,8 @@
     },
     "animalsTitle": "Animals",
     "@animalsTitle": { "description": "Title of the animals registry screen" },
+    "aviaryAddResident": "Add resident",
+    "@aviaryAddResident": { "description": "Action/title for adding a resident animal directly to an aviary (without a case)" },
     "animalEditTitle": "Edit animal",
     "@animalEditTitle": { "description": "Title of the edit-animal sheet / tooltip" },
     "animalDetailTitle": "Animal",
