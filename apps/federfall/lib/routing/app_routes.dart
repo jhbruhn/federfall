@@ -13,6 +13,9 @@ abstract final class AppRoutes {
   /// Dashboard tab of the navigation shell (FED-7.0 / FED-7.1).
   static const dashboard = '/dashboard';
 
+  /// Today / worklist — the carer's derived to-do list (UX Phase D, cr3.2).
+  static const today = '/today';
+
   /// Cases tab — the carer's case list (FED-3.4).
   static const cases = '/cases';
 

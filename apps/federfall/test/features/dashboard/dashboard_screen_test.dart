@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_screen.dart';
+import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ Future<void> _pump(WidgetTester tester, DashboardSummary summary) async {
       overrides: [
         dashboardSummaryProvider.overrideWith((ref) async => summary),
         currentUserProvider.overrideWith((ref) async => null),
+        worklistProvider.overrideWith((ref) async => const []),
       ],
       child: const MaterialApp(
         locale: Locale('en'),

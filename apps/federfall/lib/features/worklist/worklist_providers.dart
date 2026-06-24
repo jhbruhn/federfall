@@ -30,6 +30,7 @@ Future<List<WorklistItem>> worklist(Ref ref) async {
     medicationAdministrationsRepositoryProvider.future,
   );
   final activityRepo = await ref.watch(caseActivityRepositoryProvider.future);
+  final animalsRepo = await ref.watch(animalsRepositoryProvider.future);
 
   final medsByCase = await Future.wait(
     myActive.map((c) => medsRepo.forCase(c.id)),
@@ -38,12 +39,15 @@ Future<List<WorklistItem>> worklist(Ref ref) async {
     myActive.map((c) => adminRepo.forCase(c.id)),
   );
   final activity = await activityRepo.all();
+  final animalIds = {for (final c in myActive) c.animal};
+  final animals = await Future.wait(animalIds.map(animalsRepo.getOne));
 
   return buildWorklist(
     cases: myActive,
     medications: medsByCase.expand((m) => m).toList(),
     administrations: dosesByCase.expand((a) => a).toList(),
     lastActivityByCase: {for (final a in activity) a.id: a.lastActivity},
+    animalNameById: {for (final a in animals) a.id: a.name},
     now: DateTime.now(),
   );
 }

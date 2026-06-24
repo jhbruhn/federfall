@@ -235,6 +235,47 @@
         "description": "Badge for a quarantine ending in N days",
         "placeholders": { "days": { "type": "int" } }
     },
+    "todayTitle": "Today",
+    "@todayTitle": { "description": "Title of the Today / worklist screen and dashboard section" },
+    "worklistEmpty": "Nothing due — you're all caught up.",
+    "@worklistEmpty": { "description": "Empty state when the carer has no worklist items" },
+    "worklistSeeAll": "See all",
+    "@worklistSeeAll": { "description": "Link from the dashboard worklist preview to the full Today screen" },
+    "worklistGroupMeds": "Medications due",
+    "@worklistGroupMeds": { "description": "Worklist group heading for due medications" },
+    "worklistGroupQuarantine": "Quarantine ending",
+    "@worklistGroupQuarantine": { "description": "Worklist group heading for ending quarantines" },
+    "worklistGroupStale": "Inactive cases",
+    "@worklistGroupStale": { "description": "Worklist group heading for cases without recent activity" },
+    "worklistUnnumberedCase": "Unnumbered case",
+    "@worklistUnnumberedCase": { "description": "Row title fallback when a case has no case number" },
+    "worklistOverdueHours": "{hours, plural, one{Overdue by 1 h} other{Overdue by {hours} h}}",
+    "@worklistOverdueHours": {
+        "description": "How far past due a worklist item is, within a day",
+        "placeholders": { "hours": { "type": "int" } }
+    },
+    "worklistOverdueDays": "{days, plural, one{Overdue by 1 day} other{Overdue by {days} days}}",
+    "@worklistOverdueDays": {
+        "description": "How far past due a worklist item is, a day or more",
+        "placeholders": { "days": { "type": "int" } }
+    },
+    "worklistLogDose": "Log dose",
+    "@worklistLogDose": { "description": "Tooltip on the give-medication shortcut in a worklist row" },
+    "worklistDueInHours": "{hours, plural, one{Due in 1 h} other{Due in {hours} h}}",
+    "@worklistDueInHours": {
+        "description": "Relative due time within a day",
+        "placeholders": { "hours": { "type": "int" } }
+    },
+    "worklistDueInDays": "{days, plural, one{Due in 1 day} other{Due in {days} days}}",
+    "@worklistDueInDays": {
+        "description": "Relative due time a day or more out",
+        "placeholders": { "days": { "type": "int" } }
+    },
+    "worklistStaleDays": "{days, plural, one{No activity for 1 day} other{No activity for {days} days}}",
+    "@worklistStaleDays": {
+        "description": "How long a stale case has gone untouched",
+        "placeholders": { "days": { "type": "int" } }
+    },
     "animalsTitle": "Animals",
     "@animalsTitle": { "description": "Title of the animals registry screen" },
     "animalEditTitle": "Edit animal",

@@ -2,6 +2,8 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/home/account_menu.dart';
+import 'package:federfall/features/worklist/worklist_providers.dart';
+import 'package:federfall/features/worklist/worklist_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
@@ -38,6 +40,7 @@ class DashboardScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
+              const _WorklistPreview(),
               Wrap(
                 spacing: AppSpacing.md,
                 runSpacing: AppSpacing.md,
@@ -63,6 +66,50 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Compact "Today" card at the top of the dashboard: the first few worklist
+/// items with a link to the full screen. Renders nothing when nothing is due,
+/// so it never adds empty chrome.
+class _WorklistPreview extends ConsumerWidget {
+  const _WorklistPreview();
+
+  static const _previewMax = 4;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+
+    return ref
+        .watch(worklistProvider)
+        .maybeWhen(
+          data: (list) {
+            if (list.isEmpty) return const SizedBox.shrink();
+            final now = DateTime.now();
+            return Card(
+              margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+              child: Column(
+                children: [
+                  ListTile(
+                    title: Text(
+                      l10n.todayTitle,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    trailing: TextButton(
+                      onPressed: () => context.push(AppRoutes.today),
+                      child: Text(l10n.worklistSeeAll),
+                    ),
+                  ),
+                  for (final item in list.take(_previewMax))
+                    WorklistTile(item: item, now: now),
+                ],
+              ),
+            );
+          },
+          orElse: () => const SizedBox.shrink(),
+        );
   }
 }
 

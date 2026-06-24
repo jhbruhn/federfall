@@ -96,3 +96,4 @@
 {"id":"int-901ddcbc","kind":"field_change","created_at":"2026-06-24T19:23:22.771270389Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-cr3.3","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-5d49db2b","kind":"field_change","created_at":"2026-06-24T19:38:43.934639912Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-cr3.5","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
 {"id":"int-b5d42ae0","kind":"field_change","created_at":"2026-06-24T19:44:06.731823145Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-cr3.1","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-6dd11fe8","kind":"field_change","created_at":"2026-06-24T19:59:11.511586458Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-cr3.2","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}

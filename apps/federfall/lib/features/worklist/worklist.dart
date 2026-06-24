@@ -18,7 +18,10 @@ class WorklistItem {
     required this.caseId,
     required this.dueAt,
     required this.severity,
+    this.caseNumber,
+    this.animalName,
     this.drug,
+    this.medication,
   });
 
   final WorklistKind kind;
@@ -26,8 +29,19 @@ class WorklistItem {
   final DateTime dueAt;
   final WorklistSeverity severity;
 
+  /// The case's display number, for the row title (null on an unnumbered case).
+  final String? caseNumber;
+
+  /// The animal's name, shown alongside the case number (null if unnamed).
+  final String? animalName;
+
   /// The drug name, for [WorklistKind.medicationDue] items only.
   final String? drug;
+
+  /// The prescription behind a [WorklistKind.medicationDue] item, so a dose can
+  /// be logged straight from the worklist (prefilling the administration
+  /// sheet). Null for ad-hoc dues and other kinds.
+  final Medication? medication;
 
   @override
   bool operator ==(Object other) =>
@@ -36,10 +50,22 @@ class WorklistItem {
       other.caseId == caseId &&
       other.dueAt == dueAt &&
       other.severity == severity &&
-      other.drug == drug;
+      other.caseNumber == caseNumber &&
+      other.animalName == animalName &&
+      other.drug == drug &&
+      other.medication == medication;
 
   @override
-  int get hashCode => Object.hash(kind, caseId, dueAt, severity, drug);
+  int get hashCode => Object.hash(
+    kind,
+    caseId,
+    dueAt,
+    severity,
+    caseNumber,
+    animalName,
+    drug,
+    medication,
+  );
 }
 
 /// How far ahead a quarantine end counts as "soon" (mirrors the dashboard).
@@ -66,12 +92,13 @@ List<WorklistItem> buildWorklist({
   required List<MedicationAdministration> administrations,
   required DateTime now,
   Map<String, DateTime?> lastActivityByCase = const {},
+  Map<String, String?> animalNameById = const {},
   Duration quarantineWindow = quarantineDueWindow,
   Duration medicationWindow = medicationDueWindow,
   Duration staleAfter = staleThreshold,
 }) {
   final items = <WorklistItem>[];
-  final caseIds = {for (final c in cases) c.id};
+  final casesById = {for (final c in cases) c.id: c};
 
   // Quarantines ending within the window (or already overdue).
   final quarantineThreshold = now.add(quarantineWindow);
@@ -86,6 +113,8 @@ List<WorklistItem> buildWorklist({
         severity: until.isAfter(now)
             ? WorklistSeverity.upcoming
             : WorklistSeverity.overdue,
+        caseNumber: c.caseNumber,
+        animalName: animalNameById[c.animal],
       ),
     );
   }
@@ -103,7 +132,8 @@ List<WorklistItem> buildWorklist({
   // Scheduled and one-off medications that are due within the window.
   final medicationThreshold = now.add(medicationWindow);
   for (final m in medications) {
-    if (!caseIds.contains(m.caseId)) continue;
+    final c = casesById[m.caseId];
+    if (c == null) continue;
     final ended = m.endedAt;
     if (ended != null && ended.isBefore(now)) continue;
 
@@ -118,7 +148,10 @@ List<WorklistItem> buildWorklist({
         severity: due.isAfter(now)
             ? WorklistSeverity.upcoming
             : WorklistSeverity.overdue,
+        caseNumber: c.caseNumber,
+        animalName: animalNameById[c.animal],
         drug: m.drug,
+        medication: m,
       ),
     );
   }
@@ -134,6 +167,8 @@ List<WorklistItem> buildWorklist({
         caseId: c.id,
         dueAt: last,
         severity: WorklistSeverity.overdue,
+        caseNumber: c.caseNumber,
+        animalName: animalNameById[c.animal],
       ),
     );
   }
