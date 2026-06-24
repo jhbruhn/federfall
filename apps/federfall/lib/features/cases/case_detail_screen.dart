@@ -13,11 +13,13 @@ import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/sharing/case_share_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 /// Case detail (FED-4.3): a persistent name-first identity header over two
@@ -45,6 +47,13 @@ class CaseDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.caseDetailTitle),
         actions: [
+          if (medicalCase != null)
+            IconButton(
+              icon: const Icon(Icons.pets_outlined),
+              tooltip: l10n.caseOpenAnimal,
+              onPressed: () =>
+                  context.go(AppRoutes.animalDetail(medicalCase.animal)),
+            ),
           if (canShare)
             IconButton(
               icon: const Icon(Icons.share_outlined),

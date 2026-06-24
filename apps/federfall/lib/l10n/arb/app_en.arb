@@ -327,6 +327,8 @@
     "@casePriorCasesTitle": { "description": "Heading for the animal's other cases on the case overview" },
     "caseShareAction": "Share",
     "@caseShareAction": { "description": "App-bar action / button to share the case" },
+    "caseOpenAnimal": "Open animal record",
+    "@caseOpenAnimal": { "description": "App-bar action to open the animal's lifetime record from a case" },
     "caseShareTitle": "Share case",
     "@caseShareTitle": { "description": "Title of the case-sharing sheet" },
     "caseShareNone": "Not shared with anyone yet",
