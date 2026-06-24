@@ -104,6 +104,120 @@ onRecordAfterCreateSuccess((e) => {
   e.next();
 }, "dispositions");
 
+// ── 2b. dispositions: re-derive case.status + animal lifetime on update/delete ──
+// Editing or deleting a disposition (UX Phase B correction path) must keep the
+// derived state honest: a deleted terminal disposition re-opens the case, and
+// the animal's lifetime is recomputed from its latest REMAINING disposition
+// across all its cases (so a returning bird falls back correctly). The helper
+// is defined inside each callback because pb_hooks callbacks run in isolated
+// JSVMs — file-level functions are not in scope. `created` is an ISO-ish
+// string, so its lexicographic max is the latest disposition.
+onRecordAfterUpdateSuccess((e) => {
+  function reconcile(app, caseId) {
+    if (!caseId) return;
+    const caseRec = app.findRecordById("cases", caseId);
+    const remaining = app.findRecordsByFilter(
+      "dispositions", "case = {:c}", "-created", 200, 0, { c: caseId },
+    );
+    caseRec.set("status", remaining.length > 0 ? "disposed" : "in_care");
+    app.save(caseRec);
+    const animalId = caseRec.get("animal");
+    if (!animalId) return;
+    const cases = app.findRecordsByFilter(
+      "cases", "animal = {:a}", "", 200, 0, { a: animalId },
+    );
+    let latest = null;
+    for (const c of cases) {
+      const disps = app.findRecordsByFilter(
+        "dispositions", "case = {:c}", "-created", 200, 0, { c: c.id },
+      );
+      for (const d of disps) {
+        if (!latest || d.getString("created") > latest.getString("created")) {
+          latest = d;
+        }
+      }
+    }
+    const animal = app.findRecordById("animals", animalId);
+    let lifetime = "in_care";
+    let aviary = "";
+    if (latest) {
+      switch (latest.getString("type")) {
+        case "died":
+        case "euthanized":
+          lifetime = "deceased";
+          break;
+        case "placed_in_aviary":
+          lifetime = "in_aviary";
+          aviary = latest.get("aviary");
+          break;
+        case "released":
+        case "returned_to_owner":
+        case "transferred":
+          lifetime = "at_large_released";
+          break;
+      }
+    }
+    animal.set("lifetime_status", lifetime);
+    animal.set("current_aviary", aviary);
+    app.save(animal);
+  }
+  reconcile(e.app, e.record.get("case"));
+  e.next();
+}, "dispositions");
+
+onRecordAfterDeleteSuccess((e) => {
+  function reconcile(app, caseId) {
+    if (!caseId) return;
+    const caseRec = app.findRecordById("cases", caseId);
+    const remaining = app.findRecordsByFilter(
+      "dispositions", "case = {:c}", "-created", 200, 0, { c: caseId },
+    );
+    caseRec.set("status", remaining.length > 0 ? "disposed" : "in_care");
+    app.save(caseRec);
+    const animalId = caseRec.get("animal");
+    if (!animalId) return;
+    const cases = app.findRecordsByFilter(
+      "cases", "animal = {:a}", "", 200, 0, { a: animalId },
+    );
+    let latest = null;
+    for (const c of cases) {
+      const disps = app.findRecordsByFilter(
+        "dispositions", "case = {:c}", "-created", 200, 0, { c: c.id },
+      );
+      for (const d of disps) {
+        if (!latest || d.getString("created") > latest.getString("created")) {
+          latest = d;
+        }
+      }
+    }
+    const animal = app.findRecordById("animals", animalId);
+    let lifetime = "in_care";
+    let aviary = "";
+    if (latest) {
+      switch (latest.getString("type")) {
+        case "died":
+        case "euthanized":
+          lifetime = "deceased";
+          break;
+        case "placed_in_aviary":
+          lifetime = "in_aviary";
+          aviary = latest.get("aviary");
+          break;
+        case "released":
+        case "returned_to_owner":
+        case "transferred":
+          lifetime = "at_large_released";
+          break;
+      }
+    }
+    animal.set("lifetime_status", lifetime);
+    animal.set("current_aviary", aviary);
+    app.save(animal);
+  }
+  reconcile(e.app, e.record.get("case"));
+  e.next();
+}, "dispositions");
+
 // ── 3. cases: share-on-handoff (previous carer keeps read) ─────────────────────
 onRecordUpdate((e) => {
   const rec = e.record;

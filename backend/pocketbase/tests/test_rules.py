@@ -170,6 +170,32 @@ def main():
     check("placed_in_aviary -> animal in_aviary", an2["lifetime_status"] == "in_aviary", an2["lifetime_status"])
     check("placed_in_aviary -> current_aviary set", an2["current_aviary"] == av, an2["current_aviary"])
 
+    # ── hooks: disposition edit/delete reconciliation (UX Phase B) ──────────
+    # Fresh animal/case so we don't disturb the shared `animal` state above.
+    ra = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    rc = mk(T, "cases", {"animal": ra, "active_carer": A, "org": ORG})["id"]
+    rd = mk(T, "dispositions", {"case": rc, "type": "released", "org": ORG})["id"]
+    _, raf = req("GET", f"/api/collections/animals/records/{ra}", T)
+    check("reconcile setup -> at_large_released",
+          raf["lifetime_status"] == "at_large_released", raf["lifetime_status"])
+
+    # Editing the outcome type re-derives the animal's lifetime.
+    req("PATCH", f"/api/collections/dispositions/records/{rd}", T, {"type": "died"})
+    _, raf = req("GET", f"/api/collections/animals/records/{ra}", T)
+    _, rcf = req("GET", f"/api/collections/cases/records/{rc}", T)
+    check("edit outcome died -> animal deceased",
+          raf["lifetime_status"] == "deceased", raf["lifetime_status"])
+    check("edit outcome -> case stays disposed", rcf["status"] == "disposed", rcf["status"])
+
+    # Deleting the only disposition re-opens the case and reverts the animal.
+    req("DELETE", f"/api/collections/dispositions/records/{rd}", T)
+    _, raf = req("GET", f"/api/collections/animals/records/{ra}", T)
+    _, rcf = req("GET", f"/api/collections/cases/records/{rc}", T)
+    check("delete outcome -> case re-opens (in_care)",
+          rcf["status"] == "in_care", rcf["status"])
+    check("delete outcome -> animal back to in_care",
+          raf["lifetime_status"] == "in_care", raf["lifetime_status"])
+
     # ── hooks: share-on-handoff ─────────────────────────────────────────────
     print("\n[hooks: share-on-handoff]")
     req("PATCH", f"/api/collections/cases/records/{c3['id']}", T, {"active_carer": B})

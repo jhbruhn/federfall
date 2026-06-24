@@ -223,6 +223,7 @@ class CaseTimeline extends ConsumerWidget {
               ),
               _DispositionEvent(:final disposition) => DispositionTile(
                 disposition: disposition,
+                caseId: caseId,
                 isLast: i == events.length - 1,
               ),
               _MilestoneEvent(:final icon, :final label, :final at) =>

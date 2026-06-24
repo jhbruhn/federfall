@@ -85,6 +85,64 @@ void main() {
       expect(body['org'], 'org1');
     });
 
+    testWidgets('editing an existing outcome updates it', (tester) async {
+      when(() => dispositions.update(any(), any())).thenAnswer(
+        (_) async => const Disposition(
+          id: 'd1',
+          caseId: 'c1',
+          type: DispositionType.released,
+        ),
+      );
+
+      await pump(
+        tester,
+        const DispositionSheet(
+          caseId: 'c1',
+          disposition: Disposition(
+            id: 'd1',
+            caseId: 'c1',
+            type: DispositionType.released,
+            reason: 'fit to fly',
+          ),
+        ),
+      );
+
+      // Prefilled in edit mode.
+      expect(find.text('Edit outcome'), findsOneWidget);
+      expect(find.text('fit to fly'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Record outcome'));
+      await tester.pumpAndSettle();
+
+      verify(() => dispositions.update('d1', any())).called(1);
+      verifyNever(() => dispositions.create(any()));
+    });
+
+    testWidgets('deleting an outcome confirms and calls delete',
+        (tester) async {
+      when(() => dispositions.delete(any())).thenAnswer((_) async {});
+
+      await pump(
+        tester,
+        const DispositionSheet(
+          caseId: 'c1',
+          disposition: Disposition(
+            id: 'd1',
+            caseId: 'c1',
+            type: DispositionType.released,
+          ),
+        ),
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Delete outcome'));
+      await tester.pumpAndSettle();
+      // Confirm in the dialog.
+      await tester.tap(find.widgetWithText(TextButton, 'Delete outcome').last);
+      await tester.pumpAndSettle();
+
+      verify(() => dispositions.delete('d1')).called(1);
+    });
+
     testWidgets('placed in aviary records the chosen aviary (FED-4.12)',
         (tester) async {
       when(() => dispositions.create(any())).thenAnswer(

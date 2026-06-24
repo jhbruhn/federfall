@@ -1,4 +1,5 @@
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -10,11 +11,16 @@ import 'package:flutter/material.dart';
 class DispositionTile extends StatelessWidget {
   const DispositionTile({
     required this.disposition,
+    this.caseId,
     this.isLast = false,
     super.key,
   });
 
   final Disposition disposition;
+
+  /// When set, the tile offers an edit action that opens the disposition sheet
+  /// (where the outcome can be corrected or deleted, re-opening the case).
+  final String? caseId;
   final bool isLast;
 
   IconData get _icon => switch (disposition.type) {
@@ -41,10 +47,24 @@ class DispositionTile extends StatelessWidget {
       if (d.transferType case final t? when t.isNotEmpty) t,
     ].join(' · ');
 
+    final caseId = this.caseId;
     return TimelineItem(
       icon: _icon,
       date: date == null ? '' : materialL10n.formatMediumDate(date),
       isLast: isLast,
+      trailing: caseId == null
+          ? null
+          : IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              tooltip: l10n.dispositionEditTitle,
+              onPressed: () => showDispositionSheet(
+                context,
+                caseId: caseId,
+                disposition: d,
+              ),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

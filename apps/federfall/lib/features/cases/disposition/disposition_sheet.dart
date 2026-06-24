@@ -16,17 +16,18 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Opens the record-outcome (disposition) form for a case. Resolves to `true`
-/// when an outcome was recorded.
+/// Opens the record-outcome (disposition) form for a case. Pass [disposition]
+/// to edit an existing outcome. Resolves to `true` when something changed.
 Future<bool?> showDispositionSheet(
   BuildContext context, {
   required String caseId,
+  Disposition? disposition,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => DispositionSheet(caseId: caseId),
+    builder: (_) => DispositionSheet(caseId: caseId, disposition: disposition),
   );
 }
 
@@ -36,9 +37,10 @@ Future<bool?> showDispositionSheet(
 /// lifetime status (placement keeps the case alive as an aviary resident and
 /// sets the animal's current aviary).
 class DispositionSheet extends ConsumerStatefulWidget {
-  const DispositionSheet({required this.caseId, super.key});
+  const DispositionSheet({required this.caseId, this.disposition, super.key});
 
   final String caseId;
+  final Disposition? disposition;
 
   /// Outcomes selectable here.
   static const List<DispositionType> _selectableTypes = [
@@ -78,6 +80,26 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
   // Release can carry a vet sign-off flag; euthanasia instead records the
   // external vet who performed it (no vet login — a name).
   bool get _showVetSignoff => _isRelease;
+
+  bool get _isEditing => widget.disposition != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.disposition;
+    if (d == null) return;
+    _type = d.type;
+    _disposedAt = d.disposedAt ?? DateTime.now();
+    _reason.text = d.reason ?? '';
+    _releaseLocation.text = d.releaseLocation ?? '';
+    _releaseType.text = d.releaseType ?? '';
+    _releaseGeo = d.releaseGeo;
+    _transferType.text = d.transferType ?? '';
+    _transferDestination.text = d.transferDestination ?? '';
+    _aviaryId = d.aviary;
+    _vet.text = d.vet ?? '';
+    _vetSignedOff = d.vetSignedOff;
+  }
 
   @override
   void dispose() {
@@ -160,17 +182,75 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
         if (_isAviary) 'aviary': ?_aviaryId,
       };
 
-      await repo.create(body);
+      final existing = widget.disposition;
+      if (existing == null) {
+        await repo.create(body);
+      } else {
+        await repo.update(existing.id, body);
+      }
 
-      // The backend hook maintains the case status and the animal's lifetime
-      // status / current aviary; refresh the views that show them.
-      ref
-        ..invalidate(dispositionsForCaseProvider(widget.caseId))
-        ..invalidate(caseByIdProvider(widget.caseId))
-        ..invalidate(casesBrowserDataProvider)
-        ..invalidate(dashboardSummaryProvider)
-        ..invalidate(animalsRegistryProvider);
+      _refresh();
       if (mounted) Navigator.of(context).pop(true);
+    } on RepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = errorMessage(l10n, e);
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = l10n.errorGenericTitle;
+      });
+    }
+  }
+
+  /// The backend hook maintains the case status and the animal's lifetime
+  /// status / current aviary on any disposition change; refresh the views that
+  /// show them.
+  void _refresh() {
+    ref
+      ..invalidate(dispositionsForCaseProvider(widget.caseId))
+      ..invalidate(caseByIdProvider(widget.caseId))
+      ..invalidate(casesBrowserDataProvider)
+      ..invalidate(dashboardSummaryProvider)
+      ..invalidate(animalsRegistryProvider);
+  }
+
+  Future<void> _delete() async {
+    final l10n = context.l10n;
+    final navigator = Navigator.of(context);
+    final existing = widget.disposition;
+    if (existing == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.dispositionDeleteAction),
+        content: Text(l10n.dispositionDeleteConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.actionCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.dispositionDeleteAction),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final repo = await ref.read(dispositionsRepositoryProvider.future);
+      await repo.delete(existing.id);
+      _refresh();
+      if (!mounted) return;
+      navigator.pop(true);
     } on RepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -206,7 +286,12 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(l10n.dispositionNewTitle, style: theme.textTheme.titleLarge),
+              Text(
+                _isEditing
+                    ? l10n.dispositionEditTitle
+                    : l10n.dispositionNewTitle,
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<DispositionType>(
                 initialValue: _type,
@@ -332,6 +417,20 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
                 isLoading: _busy,
                 onPressed: _save,
               ),
+              if (_isEditing) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextButton.icon(
+                  onPressed: _busy ? null : _delete,
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: theme.colorScheme.error,
+                  ),
+                  label: Text(
+                    l10n.dispositionDeleteAction,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
