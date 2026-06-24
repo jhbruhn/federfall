@@ -384,6 +384,30 @@ def main():
     _, dd = req("GET", f"/api/collections/animals/records/{animal}", toks["d"])
     check("uploaded animal photo is stored & readable", bool(dd.get("photo")), dd)
 
+    # ── case_activity view (cr3.5) ──────────────────────────────────────────
+    # last_activity reflects the newest child-record touch and is org-scoped
+    # readable (timestamp only, no clinical detail). Powers the worklist's
+    # "stale cases" source.
+    print("\n[case activity view]")
+    actcase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+
+    def activity(tok, cid):
+        s, d = req("GET", f"/api/collections/case_activity/records/{cid}", tok)
+        return s, d
+
+    s, rec = activity(toks["a"], actcase)
+    check("owner can read case_activity", s == 200, f"{s} {rec}")
+    base = rec.get("last_activity") if rec else None
+    check("case_activity has a last_activity stamp", bool(base), rec)
+    # A fresh child touch must move last_activity forward.
+    mk(T, "weights", {"animal": animal, "case": actcase, "weight_g": 333, "org": ORG})
+    _, rec2 = activity(toks["a"], actcase)
+    check("last_activity advances after a new child record",
+          rec2 and rec2.get("last_activity") >= base, f"{base} -> {rec2}")
+    # Org isolation: another org's member sees nothing.
+    s, _ = activity(te, actcase)
+    check("other-org member CANNOT read case_activity", s != 200, f"status {s}")
+
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)
