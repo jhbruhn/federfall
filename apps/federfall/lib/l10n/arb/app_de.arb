@@ -99,6 +99,7 @@
     "dashboardQuarantineToday": "Endet heute",
     "dashboardQuarantineInDays": "{days, plural, one{Endet in 1 Tag} other{Endet in {days} Tagen}}",
     "animalsTitle": "Tiere",
+    "animalEditTitle": "Tier bearbeiten",
     "animalDetailTitle": "Tier",
     "animalNewCase": "Neuer Fall",
     "animalsSearchHint": "Name oder Ring-/Chipnummer suchen",

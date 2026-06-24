@@ -237,6 +237,8 @@
     },
     "animalsTitle": "Animals",
     "@animalsTitle": { "description": "Title of the animals registry screen" },
+    "animalEditTitle": "Edit animal",
+    "@animalEditTitle": { "description": "Title of the edit-animal sheet / tooltip" },
     "animalDetailTitle": "Animal",
     "@animalDetailTitle": { "description": "Stable app-bar title of the animal lifetime detail screen" },
     "animalNewCase": "New case",

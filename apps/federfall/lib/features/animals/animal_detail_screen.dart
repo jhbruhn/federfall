@@ -2,6 +2,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/edit_animal_sheet.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
@@ -34,6 +35,12 @@ class AnimalDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.animalDetailTitle),
         actions: [
+          if (lifetime.value case final data?)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: l10n.animalEditTitle,
+              onPressed: () => showEditAnimalSheet(context, data.animal),
+            ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: l10n.animalNewCase,

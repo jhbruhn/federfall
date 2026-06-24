@@ -1,16 +1,22 @@
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
 Future<void> _pump(
   WidgetTester tester,
   AnimalLifetime lifetime, {
   List<Weight> weights = const [],
+  PbAnimalsRepository? animals,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -19,6 +25,8 @@ Future<void> _pump(
           'a1',
         ).overrideWith((ref) async => lifetime),
         weightsForAnimalProvider('a1').overrideWith((ref) async => weights),
+        if (animals != null)
+          animalsRepositoryProvider.overrideWith((ref) async => animals),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -32,6 +40,44 @@ Future<void> _pump(
 }
 
 void main() {
+  setUpAll(() => registerFallbackValue(<String, dynamic>{}));
+
+  testWidgets('editing identity saves species/name/sex via the repo',
+      (tester) async {
+    final animals = MockAnimalsRepo();
+    when(() => animals.update(any(), any())).thenAnswer(
+      (_) async => const Animal(id: 'a1', species: 'Columba livia'),
+    );
+
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Colmba livia', name: 'Pip'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      animals: animals,
+    );
+
+    await tester.tap(find.byTooltip('Edit animal'));
+    await tester.pumpAndSettle();
+
+    // Fix the species typo and save.
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Species'),
+      'Columba livia',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final data =
+        verify(() => animals.update('a1', captureAny())).captured.single
+            as Map<String, dynamic>;
+    expect(data['species'], 'Columba livia');
+    expect(data['name'], 'Pip');
+  });
+
   testWidgets('shows identity, markings and all cases', (tester) async {
     await _pump(
       tester,
