@@ -41,6 +41,10 @@ class FakeAuthRepository implements AuthRepository {
   @override
   void signOut() {}
   @override
+  Future<AppUser> updateProfile({String? name, String? phone}) async =>
+      throw UnimplementedError();
+
+  @override
   Future<void> requestPasswordReset(String email) async {}
   @override
   Future<void> confirmPasswordReset(String token, String password) async {}

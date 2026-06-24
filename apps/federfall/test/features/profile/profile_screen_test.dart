@@ -39,6 +39,17 @@ class FakeAuthRepository implements AuthRepository {
     String? name,
   }) async => throw UnimplementedError();
 
+  String? updatedName;
+  String? updatedPhone;
+
+  @override
+  Future<AppUser> updateProfile({String? name, String? phone}) async {
+    updatedName = name;
+    updatedPhone = phone;
+    final u = currentUser!;
+    return AppUser(id: u.id, email: u.email, name: name, phone: phone);
+  }
+
   @override
   Future<void> requestPasswordReset(String email) async {}
 
@@ -75,6 +86,33 @@ void main() {
 
     expect(find.text('sup@x.org'), findsOneWidget);
     expect(find.text('Supervisor'), findsOneWidget);
+  });
+
+  testWidgets('editing the profile saves name and phone', (tester) async {
+    final repo = FakeAuthRepository()
+      ..currentUser = const AppUser(id: 'u1', email: 'c@x.org');
+    await _pump(
+      tester,
+      repo,
+      const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+    );
+
+    await tester.tap(find.byTooltip('Edit profile'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Jamie',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Phone'),
+      '0123',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(repo.updatedName, 'Jamie');
+    expect(repo.updatedPhone, '0123');
   });
 
   testWidgets('signs out from the profile action', (tester) async {

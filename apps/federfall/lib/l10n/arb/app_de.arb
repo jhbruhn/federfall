@@ -411,6 +411,8 @@
     "profileNameLabel": "Name",
     "profileEmailLabel": "E-Mail",
     "profileRoleLabel": "Rolle",
+    "profilePhoneLabel": "Telefon",
+    "profileEditTitle": "Profil bearbeiten",
     "adminTitle": "Verwaltung",
     "adminNoMembers": "Noch keine Teammitglieder.",
     "memberInactive": "Inaktiv",

@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/profile/edit_profile_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -26,7 +27,17 @@ class ProfileScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.profileTitle)),
+      appBar: AppBar(
+        title: Text(l10n.profileTitle),
+        actions: [
+          if (user.value case final u?)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: l10n.profileEditTitle,
+              onPressed: () => showEditProfileSheet(context, u),
+            ),
+        ],
+      ),
       body: AsyncValueView<AppUser?>(
         value: user,
         onRetry: () => ref.invalidate(currentUserProvider),
@@ -68,6 +79,12 @@ class _ProfileBody extends StatelessWidget {
           title: Text(l10n.profileRoleLabel),
           subtitle: Text(role == null ? '—' : userRoleLabel(l10n, role)),
         ),
+        if (user.phone != null && user.phone!.isNotEmpty)
+          ListTile(
+            leading: const Icon(Icons.phone_outlined),
+            title: Text(l10n.profilePhoneLabel),
+            subtitle: Text(user.phone!),
+          ),
         const SizedBox(height: AppSpacing.lg),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),

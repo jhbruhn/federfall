@@ -35,6 +35,10 @@ abstract interface class AuthRepository {
     String? name,
   });
 
+  /// Updates the signed-in user's own profile (name/phone) and refreshes the
+  /// session so [currentUser]/[changes] reflect the new values immediately.
+  Future<AppUser> updateProfile({String? name, String? phone});
+
   /// Requests a password-reset email for [email] (used by the invite flow and
   /// "forgot password").
   Future<void> requestPasswordReset(String email);
@@ -124,6 +128,29 @@ class PbAuthRepository implements AuthRepository {
       );
       await _users.requestPasswordReset(email);
       return AppUser.fromRecord(record);
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<AppUser> updateProfile({String? name, String? phone}) async {
+    final record = pb.authStore.record;
+    if (record == null) {
+      throw const RepositoryException('not signed in');
+    }
+    try {
+      final updated = await _users.update(
+        record.id,
+        body: {
+          'name': name?.trim() ?? '',
+          'phone': phone?.trim() ?? '',
+        },
+      );
+      // Persist the refreshed record into the auth store so currentUser and
+      // the changes stream emit the new values without a re-login.
+      pb.authStore.save(pb.authStore.token, updated);
+      return AppUser.fromRecord(updated);
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
     }
