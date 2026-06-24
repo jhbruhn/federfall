@@ -2,7 +2,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
-import 'package:federfall/features/home/account_actions.dart';
+import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
@@ -63,7 +63,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_query.allScope ? l10n.casesAllTitle : l10n.casesTitle),
-        actions: const [AccountActions()],
+        actions: const [AccountMenu()],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => context.go(AppRoutes.newCase),

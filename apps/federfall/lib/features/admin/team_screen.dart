@@ -5,18 +5,17 @@ import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/invite_member_sheet.dart';
 import 'package:federfall/features/admin/member_management_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
-import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-/// Supervisor-only admin area (FED-3.3 / FED-3.2). Hosts the team roster and
-/// the invite flow. Re-checks the role so a typed-in URL degrades gracefully —
-/// the real boundary remains the server API rules.
-class AdminScreen extends ConsumerWidget {
-  const AdminScreen({super.key});
+/// Supervisor-only team roster (FED-3.3 / FED-3.2). Hosts the member list and
+/// the invite flow; reached from the management hub (federfall-dri). Re-checks
+/// the role so a typed-in URL degrades gracefully — the real boundary remains
+/// the server API rules.
+class TeamScreen extends ConsumerWidget {
+  const TeamScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,7 +24,7 @@ class AdminScreen extends ConsumerWidget {
 
     if (!canManageTeam(role)) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.adminTitle)),
+        appBar: AppBar(title: Text(l10n.manageTeamTitle)),
         body: EmptyView(
           icon: Icons.lock_outline,
           message: l10n.errorUnauthorized,
@@ -36,26 +35,7 @@ class AdminScreen extends ConsumerWidget {
     final members = ref.watch(orgMembersProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.adminTitle),
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: l10n.adminSettingsMenuTooltip,
-            onSelected: context.push,
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: AppRoutes.orgSettings,
-                child: Text(l10n.orgSettingsTitle),
-              ),
-              PopupMenuItem(
-                value: AppRoutes.conditionsAdmin,
-                child: Text(l10n.conditionsAdminTitle),
-              ),
-            ],
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(l10n.manageTeamTitle)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final invited = await showInviteMemberSheet(context);

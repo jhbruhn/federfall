@@ -4,7 +4,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/aviaries/aviary_form_sheet.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
-import 'package:federfall/features/home/account_actions.dart';
+import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
@@ -30,7 +30,7 @@ class AviariesScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.aviariesTitle),
-        actions: const [AccountActions()],
+        actions: const [AccountMenu()],
       ),
       floatingActionButton: canManage
           ? FloatingActionButton(

@@ -131,18 +131,23 @@ void main() {
     expect(find.text('No matching cases'), findsOneWidget);
   });
 
-  testWidgets('always offers the profile action, hides admin for a carer',
+  testWidgets('account menu offers profile but hides admin for a carer',
       (tester) async {
     await _pump(
       tester,
       user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
     );
 
-    expect(find.byTooltip('Profile'), findsOneWidget);
-    expect(find.byTooltip('Administration'), findsNothing);
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Administration'), findsNothing);
+    expect(find.text('Statistics'), findsNothing);
   });
 
-  testWidgets('shows the admin action for a supervisor', (tester) async {
+  testWidgets('account menu shows admin and reports for a supervisor',
+      (tester) async {
     await _pump(
       tester,
       user: const AppUser(
@@ -152,6 +157,10 @@ void main() {
       ),
     );
 
-    expect(find.byTooltip('Administration'), findsOneWidget);
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Administration'), findsOneWidget);
+    expect(find.text('Statistics'), findsOneWidget);
   });
 }

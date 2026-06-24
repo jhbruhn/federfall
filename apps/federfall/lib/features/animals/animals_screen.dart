@@ -2,7 +2,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
-import 'package:federfall/features/home/account_actions.dart';
+import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
@@ -38,7 +38,7 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.animalsTitle),
-        actions: const [AccountActions()],
+        actions: const [AccountMenu()],
       ),
       body: AsyncValueView<List<AnimalListItem>>(
         value: registry,

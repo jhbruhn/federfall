@@ -1,9 +1,10 @@
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
-import 'package:federfall/features/admin/admin_screen.dart';
 import 'package:federfall/features/admin/conditions_admin_screen.dart';
+import 'package:federfall/features/admin/management_screen.dart';
 import 'package:federfall/features/admin/org_settings_screen.dart';
+import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
@@ -148,7 +149,11 @@ GoRouter router(Ref ref) {
       ),
       GoRoute(
         path: AppRoutes.admin,
-        builder: (_, _) => const AdminScreen(),
+        builder: (_, _) => const ManagementScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.manageTeam,
+        builder: (_, _) => const TeamScreen(),
       ),
       GoRoute(
         path: AppRoutes.orgSettings,

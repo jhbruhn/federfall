@@ -1,7 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
-import 'package:federfall/features/admin/admin_screen.dart';
+import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -72,7 +72,7 @@ Future<void> _pump(
         locale: Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: AdminScreen(),
+        home: TeamScreen(),
       ),
     ),
   );

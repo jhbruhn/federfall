@@ -55,8 +55,11 @@ abstract final class AppRoutes {
   /// Signed-in user's profile (FED-3.3).
   static const profile = '/profile';
 
-  /// Supervisor-only admin area (FED-3.3 / FED-3.2 invites).
+  /// Management hub — admin/reporting landing for supervisors (federfall-dri).
   static const admin = '/admin';
+
+  /// Supervisor-only team roster + invites, under the management hub (FED-3.3).
+  static const manageTeam = '/admin/team';
 
   /// Supervisor-only organisation settings (UX Phase A).
   static const orgSettings = '/admin/org-settings';
