@@ -22,8 +22,6 @@ String admissionReasonLabel(AppLocalizations l10n, AdmissionReason r) =>
 
 String caseStatusLabel(AppLocalizations l10n, CaseStatus s) => switch (s) {
   CaseStatus.inCare => l10n.caseStatusInCare,
-  CaseStatus.inTreatment => l10n.caseStatusInTreatment,
-  CaseStatus.rehab => l10n.caseStatusRehab,
   CaseStatus.readyForRelease => l10n.caseStatusReadyForRelease,
   CaseStatus.disposed => l10n.caseStatusDisposed,
 };

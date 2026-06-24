@@ -34,9 +34,7 @@ void main() {
         intakesThisYear: 7,
         byStatus: {
           CaseStatus.inCare: 3,
-          CaseStatus.inTreatment: 0,
-          CaseStatus.rehab: 1,
-          CaseStatus.readyForRelease: 0,
+          CaseStatus.readyForRelease: 1,
         },
         quarantineEndingSoon: [],
       ),
@@ -51,12 +49,10 @@ void main() {
       findsOneWidget,
     );
 
-    // Statuses that have no cases are hidden (several stages are unreachable
-    // today — see federfall-blp.1), so only non-zero rows show.
+    // Statuses with no cases are hidden, so only non-zero rows show. The
+    // lifecycle is the 3-state model: in_care -> ready_for_release -> disposed.
     expect(find.text('In care'), findsOneWidget);
-    expect(find.text('Rehab'), findsOneWidget);
-    expect(find.text('In treatment'), findsNothing);
-    expect(find.text('Ready for release'), findsNothing);
+    expect(find.text('Ready for release'), findsOneWidget);
   });
 
   testWidgets('lists quarantines ending soon', (tester) async {

@@ -37,8 +37,6 @@ class DashboardSummary {
 /// The active (non-disposed) statuses, in display order.
 const List<CaseStatus> _activeStatuses = [
   CaseStatus.inCare,
-  CaseStatus.inTreatment,
-  CaseStatus.rehab,
   CaseStatus.readyForRelease,
 ];
 

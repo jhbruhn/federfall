@@ -89,8 +89,6 @@ enum AdmissionReason {
 /// Lifecycle status of a case (`cases.status`).
 enum CaseStatus {
   inCare('in_care'),
-  inTreatment('in_treatment'),
-  rehab('rehab'),
   readyForRelease('ready_for_release'),
   disposed('disposed');
 

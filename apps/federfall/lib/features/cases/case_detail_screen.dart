@@ -8,11 +8,13 @@ import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
+import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/edit_case_intake_sheet.dart';
 import 'package:federfall/features/cases/sharing/case_share_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
+import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
@@ -36,18 +38,13 @@ class CaseDetailScreen extends ConsumerWidget {
     final l10n = context.l10n;
     final caseAsync = ref.watch(caseByIdProvider(caseId));
     final medicalCase = caseAsync.value;
-    final me = ref.watch(currentUserProvider).value;
-    // Only the active carer or a supervisor may share (the server create rule
-    // enforces this too).
-    final canShare =
-        medicalCase != null &&
-        me != null &&
-        (medicalCase.activeCarer == me.id || me.role == UserRole.supervisor);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.caseDetailTitle),
         actions: [
+          // Edit / share / status moved into the Overview actions card; the
+          // app bar keeps only navigation to the animal.
           if (medicalCase != null)
             IconButton(
               icon: const Icon(Icons.pets_outlined),
@@ -55,22 +52,6 @@ class CaseDetailScreen extends ConsumerWidget {
               onPressed: () =>
                   context.go(AppRoutes.animalDetail(medicalCase.animal)),
             ),
-          if (canShare) ...[
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: l10n.caseEditIntakeTitle,
-              onPressed: () => showEditCaseIntakeSheet(context, medicalCase),
-            ),
-            IconButton(
-              icon: const Icon(Icons.share_outlined),
-              tooltip: l10n.caseShareAction,
-              onPressed: () => showCaseShareSheet(
-                context,
-                caseId: caseId,
-                activeCarer: medicalCase.activeCarer,
-              ),
-            ),
-          ],
         ],
       ),
       body: AsyncValueView<Case>(
@@ -149,7 +130,110 @@ class _OverviewTab extends StatelessWidget {
         WeightTrendChart.forCase(medicalCase.id),
         _IntakeSection(medicalCase: medicalCase, animal: animal),
         _PriorCasesSection(medicalCase: medicalCase),
+        _CaseActions(medicalCase: medicalCase),
       ],
+    );
+  }
+}
+
+/// Actions for the case, grouped in one card at the bottom of the Overview
+/// (UX Phase C / C.1): advance the lifecycle status (in_care ->
+/// ready_for_release; disposed is terminal, set by the disposition hook),
+/// edit the intake, and manage sharing. Shown only to the active carer or a
+/// supervisor — mirrors the server update/share rules; read-only viewers see
+/// nothing here.
+class _CaseActions extends ConsumerStatefulWidget {
+  const _CaseActions({required this.medicalCase});
+
+  final Case medicalCase;
+
+  @override
+  ConsumerState<_CaseActions> createState() => _CaseActionsState();
+}
+
+class _CaseActionsState extends ConsumerState<_CaseActions> {
+  bool _busy = false;
+
+  Future<void> _setStatus(CaseStatus status) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final repo = await ref.read(casesRepositoryProvider.future);
+      await repo.update(widget.medicalCase.id, {'status': status.wire});
+      ref
+        ..invalidate(caseByIdProvider(widget.medicalCase.id))
+        ..invalidate(casesBrowserDataProvider)
+        ..invalidate(dashboardSummaryProvider);
+    } on Object catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final me = ref.watch(currentUserProvider).value;
+    final medicalCase = widget.medicalCase;
+    final status = medicalCase.status;
+    final canEdit =
+        me != null &&
+        (medicalCase.activeCarer == me.id || me.role == UserRole.supervisor);
+
+    if (!canEdit) return const SizedBox.shrink();
+
+    final showStatusToggle = status != CaseStatus.disposed;
+    final (statusLabel, statusTarget) = switch (status) {
+      CaseStatus.inCare => (
+        l10n.caseMarkReadyForRelease,
+        CaseStatus.readyForRelease,
+      ),
+      _ => (l10n.caseMarkBackToCare, CaseStatus.inCare),
+    };
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(l10n.caseActionsTitle, style: theme.textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            if (showStatusToggle)
+              FilledButton.tonalIcon(
+                onPressed: _busy ? null : () => _setStatus(statusTarget),
+                icon: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.flag_outlined),
+                label: Text(statusLabel),
+              ),
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: () => showEditCaseIntakeSheet(context, medicalCase),
+              icon: const Icon(Icons.edit_outlined),
+              label: Text(l10n.caseEditIntakeTitle),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: () => showCaseShareSheet(
+                context,
+                caseId: medicalCase.id,
+                activeCarer: medicalCase.activeCarer,
+              ),
+              icon: const Icon(Icons.share_outlined),
+              label: Text(l10n.caseShareAction),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

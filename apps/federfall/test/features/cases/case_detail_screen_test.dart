@@ -1,3 +1,4 @@
+import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
@@ -34,6 +35,8 @@ class MockPlacementsRepo extends Mock implements PbPlacementsRepository {}
 class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
 
 void main() {
+  setUpAll(() => registerFallbackValue(<String, dynamic>{}));
+
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
   late MockFindersRepo finders;
@@ -50,7 +53,7 @@ void main() {
     id: 'c1',
     animal: 'a1',
     caseNumber: '2026-001',
-    status: CaseStatus.inTreatment,
+    status: CaseStatus.inCare,
     ageClass: AgeClass.adult,
     reasonsForAdmission: const [AdmissionReason.injury],
     findLocation: 'Domplatz',
@@ -92,7 +95,11 @@ void main() {
     );
   });
 
-  Future<void> pump(WidgetTester tester, {AnimalLifetime? lifetime}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    AnimalLifetime? lifetime,
+    AppUser? currentUser,
+  }) async {
     // A tall surface so the whole scroll view (incl. the timeline) is built.
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -119,6 +126,8 @@ void main() {
             .overrideWith((ref) async => dispositions),
         if (lifetime != null)
           animalLifetimeProvider('a1').overrideWith((ref) async => lifetime),
+        if (currentUser != null)
+          currentUserProvider.overrideWith((ref) async => currentUser),
       ],
     );
     addTearDown(container.dispose);
@@ -143,7 +152,7 @@ void main() {
 
     expect(find.text('Pauli'), findsOneWidget);
     expect(find.text('Stadttaube · 2026-001'), findsOneWidget);
-    expect(find.text('In treatment'), findsOneWidget);
+    expect(find.text('In care'), findsOneWidget);
   });
 
   testWidgets('shows the intake summary and the linked finder',
@@ -205,5 +214,42 @@ void main() {
     );
 
     expect(find.text('Other cases'), findsNothing);
+  });
+
+  testWidgets('a supervisor can mark an in-care case ready for release',
+      (tester) async {
+    when(() => cases.update(any(), any())).thenAnswer(
+      (_) async => medicalCase,
+    );
+
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'sup1',
+        email: 'sup@x.org',
+        role: UserRole.supervisor,
+      ),
+    );
+
+    await tester.tap(find.text('Mark ready for release'));
+    await tester.pumpAndSettle();
+
+    final data =
+        verify(() => cases.update('c1', captureAny())).captured.single
+            as Map<String, dynamic>;
+    expect(data['status'], 'ready_for_release');
+  });
+
+  testWidgets('a read-only viewer sees no status control', (tester) async {
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'other',
+        email: 'other@x.org',
+        role: UserRole.carer,
+      ),
+    );
+
+    expect(find.text('Mark ready for release'), findsNothing);
   });
 }

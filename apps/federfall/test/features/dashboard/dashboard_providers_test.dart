@@ -21,7 +21,7 @@ void main() {
   test('counts active cases and excludes disposed', () {
     final s = buildDashboardSummary([
       _case(id: '1', status: CaseStatus.inCare),
-      _case(id: '2', status: CaseStatus.rehab),
+      _case(id: '2', status: CaseStatus.readyForRelease),
       _case(id: '3', status: CaseStatus.disposed),
     ], now);
 
@@ -43,18 +43,15 @@ void main() {
     final s = buildDashboardSummary([
       _case(id: '1', status: CaseStatus.inCare),
       _case(id: '2', status: CaseStatus.inCare),
-      _case(id: '3', status: CaseStatus.rehab),
+      _case(id: '3', status: CaseStatus.readyForRelease),
       _case(id: '4', status: CaseStatus.disposed),
     ], now);
 
     expect(s.byStatus[CaseStatus.inCare], 2);
-    expect(s.byStatus[CaseStatus.rehab], 1);
-    expect(s.byStatus[CaseStatus.readyForRelease], 0);
+    expect(s.byStatus[CaseStatus.readyForRelease], 1);
     expect(s.byStatus.containsKey(CaseStatus.disposed), isFalse);
     expect(s.byStatus.keys.toList(), const [
       CaseStatus.inCare,
-      CaseStatus.inTreatment,
-      CaseStatus.rehab,
       CaseStatus.readyForRelease,
     ]);
   });
