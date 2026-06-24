@@ -239,6 +239,8 @@
     "@animalsTitle": { "description": "Title of the animals registry screen" },
     "animalDetailTitle": "Animal",
     "@animalDetailTitle": { "description": "Stable app-bar title of the animal lifetime detail screen" },
+    "animalNewCase": "New case",
+    "@animalNewCase": { "description": "Action to open a new case pre-linked to this animal" },
     "animalsSearchHint": "Search name or ring/chip code",
     "@animalsSearchHint": { "description": "Placeholder for the animals registry search field" },
     "animalsEmpty": "No animals yet",

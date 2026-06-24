@@ -7,10 +7,12 @@ import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Animal lifetime detail (FED-7.6): one animal's full record — identity,
 /// markings (active + historic) and every case newest-first. Cases the user
@@ -26,7 +28,17 @@ class AnimalDetailScreen extends ConsumerWidget {
     final lifetime = ref.watch(animalLifetimeProvider(animalId));
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.animalDetailTitle)),
+      appBar: AppBar(
+        title: Text(l10n.animalDetailTitle),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: l10n.animalNewCase,
+            onPressed: () =>
+                context.go(AppRoutes.newCaseForAnimal(animalId)),
+          ),
+        ],
+      ),
       body: AsyncValueView<AnimalLifetime>(
         value: lifetime,
         onRetry: () => ref.invalidate(animalLifetimeProvider(animalId)),

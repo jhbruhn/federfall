@@ -90,7 +90,9 @@ GoRouter router(Ref ref) {
                   GoRoute(
                     path: AppRoutes.newCaseSegment,
                     parentNavigatorKey: rootNavigatorKey,
-                    builder: (_, _) => const NewCaseScreen(),
+                    builder: (_, state) => NewCaseScreen(
+                      animalId: state.uri.queryParameters['animal'],
+                    ),
                   ),
                   GoRoute(
                     path: AppRoutes.detailSegment,

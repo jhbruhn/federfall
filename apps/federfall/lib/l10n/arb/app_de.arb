@@ -100,6 +100,7 @@
     "dashboardQuarantineInDays": "{days, plural, one{Endet in 1 Tag} other{Endet in {days} Tagen}}",
     "animalsTitle": "Tiere",
     "animalDetailTitle": "Tier",
+    "animalNewCase": "Neuer Fall",
     "animalsSearchHint": "Name oder Ring-/Chipnummer suchen",
     "animalsEmpty": "Noch keine Tiere",
     "animalsNoMatches": "Keine passenden Tiere",

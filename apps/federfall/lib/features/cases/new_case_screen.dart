@@ -29,7 +29,11 @@ import 'package:image_picker/image_picker.dart';
 /// Photo attachments and map-based find-location are deferred to FED-4.7 and
 /// FED-4.2 respectively.
 class NewCaseScreen extends ConsumerStatefulWidget {
-  const NewCaseScreen({super.key});
+  const NewCaseScreen({this.animalId, super.key});
+
+  /// When set, the case is pre-linked to this existing animal (e.g. opening a
+  /// new case for an aviary resident) instead of starting from re-id search.
+  final String? animalId;
 
   /// Default species — the overwhelming majority of intakes are feral pigeons.
   static const defaultSpecies = 'Stadttaube';
@@ -81,6 +85,22 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   bool _busy = false;
   String? _error;
   bool _reasonsTouched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.animalId;
+    if (id != null) {
+      // Pre-link to the given animal (e.g. a resident relapse) so the carer
+      // skips re-id search.
+      ref
+          .read(animalByIdProvider(id).future)
+          .then((a) {
+            if (mounted) setState(() => _linkedAnimal = a);
+          })
+          .ignore();
+    }
+  }
 
   @override
   void dispose() {

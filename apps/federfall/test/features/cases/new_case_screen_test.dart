@@ -70,7 +70,7 @@ void main() {
     await tester.enterText(field, value);
   }
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester, {String? animalId}) async {
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith(
@@ -94,7 +94,8 @@ void main() {
         ),
         GoRoute(
           path: '/cases/new',
-          builder: (_, _) => const NewCaseScreen(),
+          builder: (_, state) =>
+              NewCaseScreen(animalId: state.uri.queryParameters['animal']),
         ),
       ],
     );
@@ -110,7 +111,11 @@ void main() {
         ),
       ),
     );
-    unawaited(router.push('/cases/new'));
+    unawaited(
+      router.push(
+        animalId == null ? '/cases/new' : '/cases/new?animal=$animalId',
+      ),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -250,6 +255,34 @@ void main() {
     final caseBody = verify(() => cases.create(captureAny())).captured.single
         as Map<String, dynamic>;
     expect(caseBody['animal'], 'a9');
+  });
+
+  testWidgets('pre-links the case when opened for an existing animal',
+      (tester) async {
+    when(() => animals.getOne('a1')).thenAnswer(
+      (_) async => const Animal(id: 'a1', species: 'Stadttaube', name: 'Pauli'),
+    );
+
+    await pump(tester, animalId: 'a1');
+
+    // The animal is pre-linked (linked summary shown, no re-id search).
+    expect(find.byIcon(Icons.link), findsOneWidget);
+    expect(find.text('Returning bird? Search'), findsNothing);
+
+    final injury = find.widgetWithText(FilterChip, 'Injury');
+    await tester.ensureVisible(injury);
+    await tester.tap(injury);
+    await tester.pumpAndSettle();
+
+    final submit = find.widgetWithText(FilledButton, 'Create case');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    verifyNever(() => animals.create(any()));
+    final caseBody = verify(() => cases.create(captureAny())).captured.single
+        as Map<String, dynamic>;
+    expect(caseBody['animal'], 'a1');
   });
 
   testWidgets('staged intake photos upload via createWithFiles',
