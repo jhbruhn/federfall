@@ -5,10 +5,12 @@ import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/invite_member_sheet.dart';
 import 'package:federfall/features/admin/member_management_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Supervisor-only admin area (FED-3.3 / FED-3.2). Hosts the team roster and
 /// the invite flow. Re-checks the role so a typed-in URL degrades gracefully —
@@ -34,7 +36,16 @@ class AdminScreen extends ConsumerWidget {
     final members = ref.watch(orgMembersProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.adminTitle)),
+      appBar: AppBar(
+        title: Text(l10n.adminTitle),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: l10n.orgSettingsTitle,
+            onPressed: () => context.push(AppRoutes.orgSettings),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final invited = await showInviteMemberSheet(context);

@@ -58,6 +58,9 @@ abstract final class AppRoutes {
   /// Supervisor-only admin area (FED-3.3 / FED-3.2 invites).
   static const admin = '/admin';
 
+  /// Supervisor-only organisation settings (UX Phase A).
+  static const orgSettings = '/admin/org-settings';
+
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 

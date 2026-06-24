@@ -95,5 +95,9 @@ Future<PbUsersRepository> usersRepository(Ref ref) async =>
     PbUsersRepository(await _client(ref), cache: _cache(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbOrganisationsRepository> organisationsRepository(Ref ref) async =>
+    PbOrganisationsRepository(await _client(ref), cache: _cache(ref));
+
+@Riverpod(keepAlive: true)
 Future<GeocodingRepository> geocodingRepository(Ref ref) async =>
     PbGeocodingRepository(await _client(ref));

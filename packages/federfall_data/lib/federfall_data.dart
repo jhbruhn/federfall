@@ -16,5 +16,6 @@ export 'src/repositories/dispositions_repository.dart';
 export 'src/repositories/finders_repository.dart';
 export 'src/repositories/geocoding_repository.dart';
 export 'src/repositories/markings_repository.dart';
+export 'src/repositories/organisations_repository.dart';
 export 'src/repositories/users_repository.dart';
 export 'src/repository_exception.dart';
