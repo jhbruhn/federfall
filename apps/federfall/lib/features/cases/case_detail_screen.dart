@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:federfall/config/app_environment.dart';
+import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
@@ -9,6 +10,7 @@ import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/sharing/case_share_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -30,9 +32,31 @@ class CaseDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final caseAsync = ref.watch(caseByIdProvider(caseId));
+    final medicalCase = caseAsync.value;
+    final me = ref.watch(currentUserProvider).value;
+    // Only the active carer or a supervisor may share (the server create rule
+    // enforces this too).
+    final canShare =
+        medicalCase != null &&
+        me != null &&
+        (medicalCase.activeCarer == me.id || me.role == UserRole.supervisor);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.caseDetailTitle)),
+      appBar: AppBar(
+        title: Text(l10n.caseDetailTitle),
+        actions: [
+          if (canShare)
+            IconButton(
+              icon: const Icon(Icons.share_outlined),
+              tooltip: l10n.caseShareAction,
+              onPressed: () => showCaseShareSheet(
+                context,
+                caseId: caseId,
+                activeCarer: medicalCase.activeCarer,
+              ),
+            ),
+        ],
+      ),
       body: AsyncValueView<Case>(
         value: caseAsync,
         onRetry: () => ref.invalidate(caseByIdProvider(caseId)),

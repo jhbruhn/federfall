@@ -36,6 +36,11 @@ String lifetimeStatusLabel(AppLocalizations l10n, LifetimeStatus s) =>
       LifetimeStatus.deceased => l10n.lifetimeStatusDeceased,
     };
 
+String shareAccessLabel(AppLocalizations l10n, ShareAccess a) => switch (a) {
+  ShareAccess.read => l10n.caseShareAccessRead,
+  ShareAccess.edit => l10n.caseShareAccessEdit,
+};
+
 String sexLabel(AppLocalizations l10n, Sex s) => switch (s) {
   Sex.male => l10n.sexMale,
   Sex.female => l10n.sexFemale,
