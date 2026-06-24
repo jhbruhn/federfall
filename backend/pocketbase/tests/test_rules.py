@@ -408,6 +408,30 @@ def main():
     s, _ = activity(te, actcase)
     check("other-org member CANNOT read case_activity", s != 200, f"status {s}")
 
+    # ── follow_ups (cr3.4) ──────────────────────────────────────────────────
+    # Case-scoped like the other clinical child records: the owner can schedule
+    # and read a recheck; a same-org outsider with no share cannot; another org
+    # sees nothing.
+    print("\n[follow_ups]")
+    fucase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+
+    def mk_followup(tok):
+        return req("POST", "/api/collections/follow_ups/records", tok, {
+            "case": fucase, "due_at": "2026-07-01 09:00:00.000Z",
+            "note": "recheck wound", "org": ORG,
+        })
+
+    s, fu = mk_followup(toks["a"])
+    check("owner can schedule a recheck", s == 200, f"{s} {fu}")
+    s, _ = req("GET", f"/api/collections/follow_ups/records/{fu['id']}", toks["a"])
+    check("owner can read the recheck", s == 200, f"status {s}")
+    s, _ = mk_followup(td)
+    check("same-org outsider CANNOT schedule a recheck", s != 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/follow_ups/records/{fu['id']}", td)
+    check("same-org outsider CANNOT read the recheck", s != 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/follow_ups/records/{fu['id']}", te)
+    check("other-org member CANNOT read the recheck", s != 200, f"status {s}")
+
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)

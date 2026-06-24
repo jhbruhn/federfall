@@ -203,6 +203,63 @@ void main() {
     });
   });
 
+  group('buildWorklist — follow-ups', () {
+    FollowUp followUp({
+      String id = 'f1',
+      required DateTime dueAt,
+      DateTime? doneAt,
+      String note = 'Recheck wound',
+    }) => FollowUp(
+      id: id,
+      caseId: 'c1',
+      dueAt: dueAt,
+      doneAt: doneAt,
+      note: note,
+    );
+
+    test('an open recheck due within the window appears', () {
+      final due = _now.add(const Duration(days: 2));
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medications: const [],
+        administrations: const [],
+        followUps: [followUp(dueAt: due)],
+        now: _now,
+      );
+      expect(items.single.kind, WorklistKind.followUpDue);
+      expect(items.single.severity, WorklistSeverity.upcoming);
+      expect(items.single.dueAt, due);
+      expect(items.single.followUp?.note, 'Recheck wound');
+    });
+
+    test('a completed recheck is excluded', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medications: const [],
+        administrations: const [],
+        followUps: [
+          followUp(
+            dueAt: _now.subtract(const Duration(days: 1)),
+            doneAt: _now,
+          ),
+        ],
+        now: _now,
+      );
+      expect(items, isEmpty);
+    });
+
+    test('a recheck far in the future does not appear', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medications: const [],
+        administrations: const [],
+        followUps: [followUp(dueAt: _now.add(const Duration(days: 30)))],
+        now: _now,
+      );
+      expect(items, isEmpty);
+    });
+  });
+
   group('buildWorklist — stale cases', () {
     test('a case untouched past the threshold is flagged stale', () {
       final last = _now.subtract(const Duration(days: 10));

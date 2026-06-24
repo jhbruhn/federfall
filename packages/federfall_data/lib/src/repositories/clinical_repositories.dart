@@ -74,6 +74,22 @@ class PbJournalRepository extends PbRepository<JournalEntry> {
   );
 }
 
+/// Repository over the `follow_ups` collection (one-off rechecks on a case).
+class PbFollowUpsRepository extends PbRepository<FollowUp> {
+  PbFollowUpsRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'follow_ups',
+        fromRecord: FollowUp.fromRecord,
+      );
+
+  /// Follow-ups for a case, soonest due first.
+  Future<List<FollowUp>> forCase(String caseId) => list(
+    filter: filterExpr('case = {:c}', {'c': caseId}),
+    sort: 'due_at',
+  );
+}
+
 /// Repository over the `placements` collection (enclosure & handoff history).
 class PbPlacementsRepository extends PbRepository<Placement> {
   PbPlacementsRepository(PocketBase pb, {super.cache})

@@ -1,3 +1,4 @@
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/features/worklist/worklist_labels.dart';
@@ -27,13 +28,19 @@ class WorklistTile extends ConsumerWidget {
     if (saved ?? false) ref.invalidate(worklistProvider);
   }
 
+  Future<void> _markFollowUpDone(WidgetRef ref) async {
+    final repo = await ref.read(followUpsRepositoryProvider.future);
+    await repo.update(item.followUp!.id, {
+      'done_at': DateTime.now().toUtc().toIso8601String(),
+    });
+    ref.invalidate(worklistProvider);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final overdue = item.severity == WorklistSeverity.overdue;
-    final canLogDose =
-        item.kind == WorklistKind.medicationDue && item.medication != null;
 
     return ListTile(
       leading: Icon(worklistIcon(item.kind)),
@@ -46,14 +53,28 @@ class WorklistTile extends ConsumerWidget {
               )
             : null,
       ),
-      trailing: canLogDose
-          ? IconButton(
-              icon: const Icon(Icons.vaccines_outlined),
-              tooltip: l10n.worklistLogDose,
-              onPressed: () => _logDose(context, ref),
-            )
-          : const Icon(Icons.chevron_right),
+      trailing: _trailing(context, ref, l10n),
       onTap: () => context.push(AppRoutes.caseDetail(item.caseId)),
     );
+  }
+
+  /// A one-tap completion shortcut where the kind supports it (log a dose, mark
+  /// a recheck done); a plain chevron otherwise.
+  Widget _trailing(BuildContext context, WidgetRef ref, AppLocalizations l10n) {
+    if (item.kind == WorklistKind.medicationDue && item.medication != null) {
+      return IconButton(
+        icon: const Icon(Icons.vaccines_outlined),
+        tooltip: l10n.worklistLogDose,
+        onPressed: () => _logDose(context, ref),
+      );
+    }
+    if (item.kind == WorklistKind.followUpDue && item.followUp != null) {
+      return IconButton(
+        icon: const Icon(Icons.check_circle_outline),
+        tooltip: l10n.followUpMarkDone,
+        onPressed: () => _markFollowUpDone(ref),
+      );
+    }
+    return const Icon(Icons.chevron_right);
   }
 }

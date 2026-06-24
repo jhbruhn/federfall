@@ -118,6 +118,39 @@ abstract class JournalEntry with _$JournalEntry {
   }
 }
 
+/// A one-off, future-dated recheck on a case (cr3.4): "recheck the wound
+/// Thursday". [doneAt] is set when it has been carried out; until then it is an
+/// open follow-up the worklist surfaces when due.
+@freezed
+abstract class FollowUp with _$FollowUp {
+  const factory FollowUp({
+    required String id,
+    required String caseId,
+    DateTime? dueAt,
+    String? note,
+    DateTime? doneAt,
+    String? createdBy,
+    String? org,
+    DateTime? created,
+    DateTime? updated,
+  }) = _FollowUp;
+
+  factory FollowUp.fromRecord(RecordModel r) {
+    final d = r.data;
+    return FollowUp(
+      id: r.id,
+      caseId: pbString(d['case']) ?? '',
+      dueAt: pbDate(d['due_at']),
+      note: pbString(d['note']),
+      doneAt: pbDate(d['done_at']),
+      createdBy: pbString(d['created_by']),
+      org: pbString(d['org']),
+      created: pbDate(d['created']),
+      updated: pbDate(d['updated']),
+    );
+  }
+}
+
 /// An enclosure move / handoff (chain-of-custody) record on a case.
 @freezed
 abstract class Placement with _$Placement {

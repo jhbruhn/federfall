@@ -2,7 +2,12 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 
 /// The kinds of derived task surfaced on the worklist (UX Phase D, cr3.1).
-enum WorklistKind { medicationDue, quarantineEnding, staleCase }
+enum WorklistKind {
+  medicationDue,
+  followUpDue,
+  quarantineEnding,
+  staleCase,
+}
 
 /// Whether an item is already past its due moment or merely approaching it.
 enum WorklistSeverity { overdue, upcoming }
@@ -22,6 +27,7 @@ class WorklistItem {
     this.animalName,
     this.drug,
     this.medication,
+    this.followUp,
   });
 
   final WorklistKind kind;
@@ -43,6 +49,10 @@ class WorklistItem {
   /// sheet). Null for ad-hoc dues and other kinds.
   final Medication? medication;
 
+  /// The recheck behind a [WorklistKind.followUpDue] item, so it can be marked
+  /// done from the worklist. Null for other kinds.
+  final FollowUp? followUp;
+
   @override
   bool operator ==(Object other) =>
       other is WorklistItem &&
@@ -53,7 +63,8 @@ class WorklistItem {
       other.caseNumber == caseNumber &&
       other.animalName == animalName &&
       other.drug == drug &&
-      other.medication == medication;
+      other.medication == medication &&
+      other.followUp == followUp;
 
   @override
   int get hashCode => Object.hash(
@@ -65,6 +76,7 @@ class WorklistItem {
     animalName,
     drug,
     medication,
+    followUp,
   );
 }
 
@@ -74,6 +86,9 @@ const quarantineDueWindow = Duration(days: 7);
 /// How far ahead a scheduled dose counts as "due" on the worklist — a dose
 /// landing later today should show; one days out should not.
 const medicationDueWindow = Duration(hours: 24);
+
+/// How far ahead a recheck counts as "due" on the worklist.
+const followUpDueWindow = Duration(days: 7);
 
 /// How long an active case may go untouched before it counts as "stale".
 const staleThreshold = Duration(days: 7);
@@ -91,10 +106,12 @@ List<WorklistItem> buildWorklist({
   required List<Medication> medications,
   required List<MedicationAdministration> administrations,
   required DateTime now,
+  List<FollowUp> followUps = const [],
   Map<String, DateTime?> lastActivityByCase = const {},
   Map<String, String?> animalNameById = const {},
   Duration quarantineWindow = quarantineDueWindow,
   Duration medicationWindow = medicationDueWindow,
+  Duration followUpWindow = followUpDueWindow,
   Duration staleAfter = staleThreshold,
 }) {
   final items = <WorklistItem>[];
@@ -152,6 +169,28 @@ List<WorklistItem> buildWorklist({
         animalName: animalNameById[c.animal],
         drug: m.drug,
         medication: m,
+      ),
+    );
+  }
+
+  // Open rechecks due within the window (or already overdue).
+  final followUpThreshold = now.add(followUpWindow);
+  for (final f in followUps) {
+    final c = casesById[f.caseId];
+    final due = f.dueAt;
+    if (c == null || f.doneAt != null || due == null) continue;
+    if (!due.isBefore(followUpThreshold)) continue;
+    items.add(
+      WorklistItem(
+        kind: WorklistKind.followUpDue,
+        caseId: f.caseId,
+        dueAt: due,
+        severity: due.isAfter(now)
+            ? WorklistSeverity.upcoming
+            : WorklistSeverity.overdue,
+        caseNumber: c.caseNumber,
+        animalName: animalNameById[c.animal],
+        followUp: f,
       ),
     );
   }

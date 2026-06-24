@@ -5,6 +5,9 @@ import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_tile.dart';
+import 'package:federfall/features/cases/follow_ups/follow_up_sheet.dart';
+import 'package:federfall/features/cases/follow_ups/follow_up_tile.dart';
+import 'package:federfall/features/cases/follow_ups/follow_ups_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
@@ -58,6 +61,7 @@ class CaseTimeline extends ConsumerWidget {
     final markings = ref.watch(markingsForAnimalProvider(medicalCase.animal));
     final placements = ref.watch(placementsForCaseProvider(caseId));
     final dispositions = ref.watch(dispositionsForCaseProvider(caseId));
+    final followUps = ref.watch(followUpsForCaseProvider(caseId));
     final isLoading = journal.isLoading ||
         weights.isLoading ||
         conditions.isLoading ||
@@ -65,7 +69,8 @@ class CaseTimeline extends ConsumerWidget {
         doses.isLoading ||
         markings.isLoading ||
         placements.isLoading ||
-        dispositions.isLoading;
+        dispositions.isLoading ||
+        followUps.isLoading;
     final error = journal.error ??
         weights.error ??
         conditions.error ??
@@ -73,7 +78,8 @@ class CaseTimeline extends ConsumerWidget {
         doses.error ??
         markings.error ??
         placements.error ??
-        dispositions.error;
+        dispositions.error ??
+        followUps.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -101,6 +107,8 @@ class CaseTimeline extends ConsumerWidget {
         _PlacementEvent(placement),
       for (final disposition in dispositions.value ?? const <Disposition>[])
         _DispositionEvent(disposition),
+      for (final followUp in followUps.value ?? const <FollowUp>[])
+        _FollowUpEvent(followUp),
     ]..sort((a, b) => b.at.compareTo(a.at));
 
     final isDisposed = (dispositions.value ?? const []).isNotEmpty;
@@ -168,6 +176,10 @@ class CaseTimeline extends ConsumerWidget {
                       showPlacementSheet(context, medicalCase: medicalCase),
                   child: Text(l10n.timelineAddPlacement),
                 ),
+                PopupMenuItem(
+                  onTap: () => showFollowUpSheet(context, caseId: caseId),
+                  child: Text(l10n.timelineAddFollowUp),
+                ),
                 if (!isDisposed)
                   PopupMenuItem(
                     onTap: () =>
@@ -231,6 +243,11 @@ class CaseTimeline extends ConsumerWidget {
               ),
               _DispositionEvent(:final disposition) => DispositionTile(
                 disposition: disposition,
+                caseId: caseId,
+                isLast: i == events.length - 1,
+              ),
+              _FollowUpEvent(:final followUp) => FollowUpTile(
+                followUp: followUp,
                 caseId: caseId,
                 isLast: i == events.length - 1,
               ),
@@ -352,6 +369,19 @@ class _PlacementEvent extends _Event {
   DateTime get at =>
       placement.movedInAt ??
       placement.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A recheck placed on the timeline by its due date (or created time).
+class _FollowUpEvent extends _Event {
+  const _FollowUpEvent(this.followUp);
+
+  final FollowUp followUp;
+
+  @override
+  DateTime get at =>
+      followUp.dueAt ??
+      followUp.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }
 

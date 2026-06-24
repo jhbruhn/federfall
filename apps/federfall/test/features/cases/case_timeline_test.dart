@@ -26,6 +26,8 @@ class MockPlacementsRepo extends Mock implements PbPlacementsRepository {}
 
 class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
 
+class MockFollowUpsRepo extends Mock implements PbFollowUpsRepository {}
+
 void main() {
   late MockJournalRepo journal;
   late MockWeightsRepo weights;
@@ -35,6 +37,7 @@ void main() {
   late MockMarkingsRepo markings;
   late MockPlacementsRepo placements;
   late MockDispositionsRepo dispositions;
+  late MockFollowUpsRepo followUps;
 
   setUp(() {
     journal = MockJournalRepo();
@@ -45,6 +48,7 @@ void main() {
     markings = MockMarkingsRepo();
     placements = MockPlacementsRepo();
     dispositions = MockDispositionsRepo();
+    followUps = MockFollowUpsRepo();
     when(() => weights.forCase(any())).thenAnswer((_) async => []);
     when(() => caseConditions.forCase(any())).thenAnswer((_) async => []);
     when(() => medications.forCase(any())).thenAnswer((_) async => []);
@@ -52,6 +56,7 @@ void main() {
     when(() => markings.forAnimal(any())).thenAnswer((_) async => []);
     when(() => placements.forCase(any())).thenAnswer((_) async => []);
     when(() => dispositions.forCase(any())).thenAnswer((_) async => []);
+    when(() => followUps.forCase(any())).thenAnswer((_) async => []);
   });
 
   Future<void> pump(WidgetTester tester, Case medicalCase) async {
@@ -70,6 +75,7 @@ void main() {
             .overrideWith((ref) async => placements),
         dispositionsRepositoryProvider
             .overrideWith((ref) async => dispositions),
+        followUpsRepositoryProvider.overrideWith((ref) async => followUps),
       ],
     );
     addTearDown(container.dispose);

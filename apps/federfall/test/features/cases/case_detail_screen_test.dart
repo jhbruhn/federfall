@@ -34,6 +34,8 @@ class MockPlacementsRepo extends Mock implements PbPlacementsRepository {}
 
 class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
 
+class MockFollowUpsRepo extends Mock implements PbFollowUpsRepository {}
+
 void main() {
   setUpAll(() => registerFallbackValue(<String, dynamic>{}));
 
@@ -48,6 +50,7 @@ void main() {
   late MockMarkingsRepo markings;
   late MockPlacementsRepo placements;
   late MockDispositionsRepo dispositions;
+  late MockFollowUpsRepo followUps;
 
   final medicalCase = Case(
     id: 'c1',
@@ -78,6 +81,8 @@ void main() {
     markings = MockMarkingsRepo();
     placements = MockPlacementsRepo();
     dispositions = MockDispositionsRepo();
+    followUps = MockFollowUpsRepo();
+    when(() => followUps.forCase(any())).thenAnswer((_) async => []);
     when(() => placements.forCase(any())).thenAnswer((_) async => []);
     when(() => dispositions.forCase(any())).thenAnswer((_) async => []);
     when(() => journal.forCase(any())).thenAnswer((_) async => []);
@@ -125,6 +130,7 @@ void main() {
             .overrideWith((ref) async => placements),
         dispositionsRepositoryProvider
             .overrideWith((ref) async => dispositions),
+        followUpsRepositoryProvider.overrideWith((ref) async => followUps),
         if (lifetime != null)
           animalLifetimeProvider('a1').overrideWith((ref) async => lifetime),
         if (currentUser != null)
