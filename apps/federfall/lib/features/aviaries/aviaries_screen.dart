@@ -48,9 +48,12 @@ class AviariesScreen extends ConsumerWidget {
                 icon: Icons.holiday_village_outlined,
                 message: l10n.aviariesEmpty,
               )
-            : ListView.builder(
-                itemCount: list.length,
-                itemBuilder: (context, i) => _AviaryTile(list[i]),
+            : RefreshIndicator(
+                onRefresh: () => ref.refresh(aviariesProvider.future),
+                child: ListView.builder(
+                  itemCount: list.length,
+                  itemBuilder: (context, i) => _AviaryTile(list[i]),
+                ),
               ),
       ),
     );

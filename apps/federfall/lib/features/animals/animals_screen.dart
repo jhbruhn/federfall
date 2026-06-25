@@ -67,9 +67,14 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
                     ? EmptyView(message: l10n.animalsEmpty)
                     : results.isEmpty
                     ? EmptyView(message: l10n.animalsNoMatches)
-                    : ListView.builder(
-                        itemCount: results.length,
-                        itemBuilder: (context, i) => _AnimalTile(results[i]),
+                    : RefreshIndicator(
+                        onRefresh: () =>
+                            ref.refresh(animalsRegistryProvider.future),
+                        child: ListView.builder(
+                          itemCount: results.length,
+                          itemBuilder: (context, i) =>
+                              _AnimalTile(results[i]),
+                        ),
                       ),
               ),
             ],

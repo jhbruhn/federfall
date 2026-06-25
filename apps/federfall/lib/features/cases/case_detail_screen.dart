@@ -73,6 +73,20 @@ class _CaseDetail extends ConsumerWidget {
 
   final Case medicalCase;
 
+  /// Pull-to-refresh: re-fetch the case header and rebuild the whole timeline
+  /// from the server.
+  Future<void> _refresh(WidgetRef ref) async {
+    invalidateCaseTimeline(
+      ref,
+      caseId: medicalCase.id,
+      animalId: medicalCase.animal,
+    );
+    ref
+      ..invalidate(animalByIdProvider(medicalCase.animal))
+      ..invalidate(caseByIdProvider(medicalCase.id));
+    await ref.read(caseByIdProvider(medicalCase.id).future);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
@@ -100,12 +114,19 @@ class _CaseDetail extends ConsumerWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _OverviewTab(medicalCase: medicalCase, animal: animal),
-                ListView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  children: [
-                    CaseTimeline(medicalCase: medicalCase, showTitle: false),
-                  ],
+                _OverviewTab(
+                  medicalCase: medicalCase,
+                  animal: animal,
+                  onRefresh: () => _refresh(ref),
+                ),
+                RefreshIndicator(
+                  onRefresh: () => _refresh(ref),
+                  child: ListView(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    children: [
+                      CaseTimeline(medicalCase: medicalCase, showTitle: false),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -118,21 +139,29 @@ class _CaseDetail extends ConsumerWidget {
 
 /// The Overview tab: structured intake summary and the weight trend.
 class _OverviewTab extends StatelessWidget {
-  const _OverviewTab({required this.medicalCase, required this.animal});
+  const _OverviewTab({
+    required this.medicalCase,
+    required this.animal,
+    required this.onRefresh,
+  });
 
   final Case medicalCase;
   final Animal? animal;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      children: [
-        WeightTrendChart.forCase(medicalCase.id),
-        _IntakeSection(medicalCase: medicalCase, animal: animal),
-        _PriorCasesSection(medicalCase: medicalCase),
-        _CaseActions(medicalCase: medicalCase),
-      ],
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        children: [
+          WeightTrendChart.forCase(medicalCase.id),
+          _IntakeSection(medicalCase: medicalCase, animal: animal),
+          _PriorCasesSection(medicalCase: medicalCase),
+          _CaseActions(medicalCase: medicalCase),
+        ],
+      ),
     );
   }
 }

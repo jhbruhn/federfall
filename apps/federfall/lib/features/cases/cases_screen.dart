@@ -109,12 +109,16 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
                     ? EmptyView(message: l10n.casesEmpty)
                     : results.isEmpty
                     ? EmptyView(message: l10n.casesNoMatches)
-                    : ListView.builder(
-                        itemCount: results.length,
-                        itemBuilder: (context, i) {
-                          final c = results[i];
-                          return _CaseTile(c, d.animalsById[c.animal]);
-                        },
+                    : RefreshIndicator(
+                        onRefresh: () =>
+                            ref.refresh(casesBrowserDataProvider.future),
+                        child: ListView.builder(
+                          itemCount: results.length,
+                          itemBuilder: (context, i) {
+                            final c = results[i];
+                            return _CaseTile(c, d.animalsById[c.animal]);
+                          },
+                        ),
                       ),
               ),
             ],

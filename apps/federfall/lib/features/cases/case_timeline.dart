@@ -34,6 +34,29 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// Invalidates every provider the [CaseTimeline] reads for [caseId] (and the
+/// animal-scoped markings for [animalId]), so a pull-to-refresh or a realtime
+/// event rebuilds the whole chronology from the server. Kept here, next to the
+/// list of sources, so the two never drift.
+void invalidateCaseTimeline(
+  WidgetRef ref, {
+  required String caseId,
+  required String animalId,
+}) {
+  ref
+    ..invalidate(journalForCaseProvider(caseId))
+    ..invalidate(weightsForCaseProvider(caseId))
+    ..invalidate(caseConditionsForCaseProvider(caseId))
+    ..invalidate(medicationsForCaseProvider(caseId))
+    ..invalidate(administrationsForCaseProvider(caseId))
+    ..invalidate(markingsForAnimalProvider(animalId))
+    ..invalidate(placementsForCaseProvider(caseId))
+    ..invalidate(dispositionsForCaseProvider(caseId))
+    ..invalidate(followUpsForCaseProvider(caseId))
+    ..invalidate(examsForCaseProvider(caseId))
+    ..invalidate(examFindingsForCaseProvider(caseId));
+}
+
 /// The case's single, unified chronology (FED-4.3 + FED-4.7): intake milestones
 /// and journal entries interleaved newest-first in one ordered list. Further
 /// Phase 4 records (weights, medications, conditions, dispositions) become
