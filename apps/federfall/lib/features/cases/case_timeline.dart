@@ -1,31 +1,21 @@
 import 'package:federfall/core/error/error_message.dart';
-import 'package:federfall/features/cases/conditions/condition_entry_sheet.dart';
 import 'package:federfall/features/cases/conditions/condition_entry_tile.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
-import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_tile.dart';
-import 'package:federfall/features/cases/exams/exam_sheet.dart';
 import 'package:federfall/features/cases/exams/exam_tile.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
-import 'package:federfall/features/cases/follow_ups/follow_up_sheet.dart';
 import 'package:federfall/features/cases/follow_ups/follow_up_tile.dart';
 import 'package:federfall/features/cases/follow_ups/follow_ups_providers.dart';
-import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
-import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_tile.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
-import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
-import 'package:federfall/features/cases/medications/prescription_sheet.dart';
-import 'package:federfall/features/cases/placements/placement_sheet.dart';
 import 'package:federfall/features/cases/placements/placement_tile.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
-import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_entry_tile.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -146,94 +136,15 @@ class CaseTimeline extends ConsumerWidget {
         _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
     ]..sort((a, b) => b.at.compareTo(a.at));
 
-    final isDisposed = (dispositions.value ?? const []).isNotEmpty;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: showTitle
-                  ? Text(l10n.caseTimelineTitle,
-                      style: theme.textTheme.titleMedium)
-                  : const SizedBox.shrink(),
-            ),
-            PopupMenuButton<void>(
-              icon: const Icon(Icons.add),
-              tooltip: l10n.timelineAddTooltip,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  onTap: () => showJournalEntrySheet(context, caseId: caseId),
-                  child: Text(l10n.timelineAddNote),
-                ),
-                PopupMenuItem(
-                  onTap: () => showWeightEntrySheet(
-                    context,
-                    animalId: medicalCase.animal,
-                    caseId: caseId,
-                  ),
-                  child: Text(l10n.timelineAddWeight),
-                ),
-                PopupMenuItem(
-                  onTap: () =>
-                      showConditionEntrySheet(context, caseId: caseId),
-                  child: Text(l10n.timelineAddCondition),
-                ),
-                PopupMenuItem(
-                  onTap: () => showExamSheet(
-                    context,
-                    caseId: caseId,
-                    animalId: medicalCase.animal,
-                  ),
-                  child: Text(l10n.timelineAddExam),
-                ),
-                PopupMenuItem(
-                  onTap: () =>
-                      showPrescriptionSheet(context, caseId: caseId),
-                  child: Text(l10n.timelineAddPrescription),
-                ),
-                PopupMenuItem(
-                  onTap: () =>
-                      showAdministrationSheet(context, caseId: caseId),
-                  child: Text(l10n.timelineAddDose),
-                ),
-                PopupMenuItem(
-                  onTap: () => showMarkingSheet(
-                    context,
-                    animalId: medicalCase.animal,
-                    caseId: caseId,
-                  ),
-                  child: Text(l10n.timelineAddMarking),
-                ),
-                PopupMenuItem(
-                  onTap: () => showPlacementSheet(
-                    context,
-                    medicalCase: medicalCase,
-                    mode: PlacementMode.handoff,
-                  ),
-                  child: Text(l10n.timelineAddHandoff),
-                ),
-                PopupMenuItem(
-                  onTap: () =>
-                      showPlacementSheet(context, medicalCase: medicalCase),
-                  child: Text(l10n.timelineAddPlacement),
-                ),
-                PopupMenuItem(
-                  onTap: () => showFollowUpSheet(context, caseId: caseId),
-                  child: Text(l10n.timelineAddFollowUp),
-                ),
-                if (!isDisposed)
-                  PopupMenuItem(
-                    onTap: () =>
-                        showDispositionSheet(context, caseId: caseId),
-                    child: Text(l10n.timelineRecordOutcome),
-                  ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
+        // The add-entry trigger now lives on the case detail FAB
+        // (showAddEntrySheet); the timeline only renders the chronology.
+        if (showTitle) ...[
+          Text(l10n.caseTimelineTitle, style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         // Only on the first load (no events yet). A refresh keeps the existing
         // events on screen and is already signalled by the pull-to-refresh
         // indicator, so showing the bar too would be a second, redundant

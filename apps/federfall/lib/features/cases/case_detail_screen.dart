@@ -7,6 +7,7 @@ import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/add_entry_sheet.dart';
 import 'package:federfall/features/cases/case_realtime.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
@@ -85,6 +86,12 @@ class _CaseDetail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final animal = ref.watch(animalByIdProvider(medicalCase.animal)).value;
+    final me = ref.watch(currentUserProvider).value;
+    // Same write rule as the Overview actions card / server update rules: only
+    // the active carer or a supervisor adds to the chronology.
+    final canAddEntry = me != null &&
+        (medicalCase.activeCarer == me.id ||
+            me.role == UserRole.supervisor);
     ref
       // Live-sync: re-fetch the timeline when a teammate changes this case.
       ..watch(caseLiveProvider(medicalCase.id, medicalCase.animal))
@@ -127,13 +134,31 @@ class _CaseDetail extends ConsumerWidget {
                   animal: animal,
                   onRefresh: () => _refresh(ref),
                 ),
-                RefreshIndicator(
-                  onRefresh: () => _refresh(ref),
-                  child: ListView(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    children: [
-                      CaseTimeline(medicalCase: medicalCase, showTitle: false),
-                    ],
+                // The add-entry FAB lives on the History tab only — the
+                // chronology is what it acts on — so it is absent on Overview.
+                Scaffold(
+                  backgroundColor: Colors.transparent,
+                  floatingActionButton: canAddEntry
+                      ? FloatingActionButton.extended(
+                          onPressed: () => showAddEntrySheet(
+                            context,
+                            medicalCase: medicalCase,
+                          ),
+                          icon: const Icon(Icons.add),
+                          label: Text(l10n.timelineAddEntry),
+                        )
+                      : null,
+                  body: RefreshIndicator(
+                    onRefresh: () => _refresh(ref),
+                    child: ListView(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      children: [
+                        CaseTimeline(
+                          medicalCase: medicalCase,
+                          showTitle: false,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
