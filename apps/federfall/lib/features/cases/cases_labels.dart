@@ -147,3 +147,17 @@ String findingStatusLabel(AppLocalizations l10n, FindingStatus s) =>
       FindingStatus.normal => l10n.findingStatusNormal,
       FindingStatus.abnormal => l10n.findingStatusAbnormal,
     };
+
+String mmColorLabel(AppLocalizations l10n, MmColor c) => switch (c) {
+  MmColor.pink => l10n.mmColorPink,
+  MmColor.pale => l10n.mmColorPale,
+  MmColor.cyanotic => l10n.mmColorCyanotic,
+  MmColor.icteric => l10n.mmColorIcteric,
+  MmColor.injected => l10n.mmColorInjected,
+};
+
+String mmTextureLabel(AppLocalizations l10n, MmTexture t) => switch (t) {
+  MmTexture.moist => l10n.mmTextureMoist,
+  MmTexture.tacky => l10n.mmTextureTacky,
+  MmTexture.dry => l10n.mmTextureDry,
+};

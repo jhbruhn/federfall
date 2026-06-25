@@ -60,16 +60,10 @@ void main() {
 
     await _open(tester, repo);
 
-    // Prefilled with the existing weight.
     expect(find.text('Edit intake'), findsOneWidget);
-    final weightField =
-        find.widgetWithText(TextFormField, 'Intake weight (g)');
-    expect(
-      tester.widget<TextFormField>(weightField).controller?.text,
-      '250',
-    );
+    // Weight is no longer an intake field — it lives in the weights trend.
+    expect(find.widgetWithText(TextFormField, 'Intake weight (g)'), findsNothing);
 
-    await tester.enterText(weightField, '300');
     final save = find.widgetWithText(FilledButton, 'Save');
     await tester.ensureVisible(save);
     await tester.pumpAndSettle();
@@ -79,7 +73,7 @@ void main() {
     final data =
         verify(() => repo.update('c1', captureAny())).captured.single
             as Map<String, dynamic>;
-    expect(data['intake_weight_g'], 300);
+    expect(data.containsKey('intake_weight_g'), isFalse);
     expect(data['reasons_for_admission'], ['injury']);
   });
 

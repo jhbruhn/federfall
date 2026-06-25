@@ -260,7 +260,6 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           'find_geo': {'lon': geo.lon, 'lat': geo.lat},
         'city': ?_findCity,
         'region': ?_findRegion,
-        'intake_weight_g': ?weight,
         'intake_notes': ?_trimmedOrNull(_intakeNotesController),
         'finder': ?finderId,
       };
@@ -269,6 +268,21 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       final created = photos.isEmpty
           ? await casesRepo.create(body)
           : await casesRepo.createWithFiles(body, photos);
+
+      // The intake weight is a real Weight entry (single source of truth +
+      // trend), not a field on the case. Baseline measured at admission.
+      if (weight != null && weight > 0) {
+        final weightsRepo = await ref.read(weightsRepositoryProvider.future);
+        await weightsRepo.create({
+          'animal': animalId,
+          'case': created.id,
+          'weight_g': weight,
+          'measured_at':
+              (_admittedAt ?? DateTime.now()).toUtc().toIso8601String(),
+          'author': user.id,
+          'org': org,
+        });
+      }
 
       ref
         ..invalidate(casesBrowserDataProvider)

@@ -181,7 +181,6 @@ void main() {
 
     expect(find.text('Domplatz'), findsOneWidget);
     expect(find.text('Quarantine until'), findsOneWidget);
-    expect(find.text('250 g'), findsOneWidget);
     expect(find.text('thin but alert'), findsOneWidget);
     expect(find.text('Klein · 0151'), findsOneWidget);
   });

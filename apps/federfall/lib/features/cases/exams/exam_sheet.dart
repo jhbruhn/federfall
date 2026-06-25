@@ -3,6 +3,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
+import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -55,11 +56,15 @@ class ExamSheet extends ConsumerStatefulWidget {
 
 class _ExamSheetState extends ConsumerState<ExamSheet> {
   late final TextEditingController _notes;
+  late final TextEditingController _weight;
+  late final TextEditingController _temperature;
   late final Map<BodySystem, TextEditingController> _findingNotes;
   late DateTime _examinedAt;
   int? _bodyCondition;
   Hydration? _hydration;
   Mentation? _mentation;
+  MmColor? _mmColor;
+  MmTexture? _mmTexture;
   final Map<BodySystem, FindingStatus> _findingStatus = {};
   bool _busy = false;
   String? _error;
@@ -71,10 +76,16 @@ class _ExamSheetState extends ConsumerState<ExamSheet> {
     super.initState();
     final e = widget.exam;
     _notes = TextEditingController(text: e?.notes ?? '');
+    _weight = TextEditingController();
+    _temperature = TextEditingController(
+      text: e?.temperature == null ? '' : '${e!.temperature}',
+    );
     _examinedAt = e?.examinedAt?.toLocal() ?? DateTime.now();
     _bodyCondition = e?.bodyCondition;
     _hydration = e?.hydration;
     _mentation = e?.mentation;
+    _mmColor = e?.mmColor;
+    _mmTexture = e?.mmTexture;
     _findingNotes = {
       for (final s in BodySystem.values) s: TextEditingController(),
     };
@@ -90,11 +101,16 @@ class _ExamSheetState extends ConsumerState<ExamSheet> {
   @override
   void dispose() {
     _notes.dispose();
+    _weight.dispose();
+    _temperature.dispose();
     for (final c in _findingNotes.values) {
       c.dispose();
     }
     super.dispose();
   }
+
+  double? _parseNumber(String raw) =>
+      double.tryParse(raw.trim().replaceFirst(',', '.'));
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -128,6 +144,9 @@ class _ExamSheetState extends ConsumerState<ExamSheet> {
         'body_condition': ?_bodyCondition,
         'hydration': ?_hydration?.wire,
         'mentation': ?_mentation?.wire,
+        'temperature': ?_parseNumber(_temperature.text),
+        'mm_color': ?_mmColor?.wire,
+        'mm_texture': ?_mmTexture?.wire,
         'notes': _notes.text.trim(),
       };
 
@@ -141,6 +160,22 @@ class _ExamSheetState extends ConsumerState<ExamSheet> {
           'examiner': user.id,
           'org': org,
         })).id;
+        // A weight taken at the exam becomes a real Weight entry (single
+        // source of truth + trend), not a field on the exam. Create-path only
+        // so editing the exam can't silently duplicate it.
+        final w = _parseNumber(_weight.text);
+        if (w != null && w > 0) {
+          final weights = await ref.read(weightsRepositoryProvider.future);
+          await weights.create({
+            'animal': widget.animalId,
+            'case': widget.caseId,
+            'weight_g': w,
+            'measured_at': _examinedAt.toUtc().toIso8601String(),
+            'author': user.id,
+            'org': org,
+          });
+          ref.invalidate(weightsForCaseProvider(widget.caseId));
+        }
       } else {
         examId = existing.id;
         await exams.update(examId, body);
@@ -214,6 +249,39 @@ class _ExamSheetState extends ConsumerState<ExamSheet> {
             // Zone 1 — vitals, always visible (the fast path).
             Text(l10n.examGeneralSection, style: theme.textTheme.titleSmall),
             const SizedBox(height: AppSpacing.sm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Weight becomes a Weight entry on save; only on a new exam, so
+                // editing can't duplicate it. Hidden when editing.
+                if (!_isEditing) ...[
+                  Expanded(
+                    child: AppTextField(
+                      controller: _weight,
+                      label: l10n.examWeightLabel,
+                      prefixIcon: Icons.scale_outlined,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      enabled: !_busy,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                ],
+                Expanded(
+                  child: AppTextField(
+                    controller: _temperature,
+                    label: l10n.examTemperatureLabel,
+                    prefixIcon: Icons.thermostat_outlined,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    enabled: !_busy,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
             Text(
               l10n.examBodyConditionLabel,
               style: theme.textTheme.bodyMedium,
@@ -259,6 +327,24 @@ class _ExamSheetState extends ConsumerState<ExamSheet> {
               enabled: !_busy,
               labelOf: (v) => mentationLabel(l10n, v),
               onChanged: (v) => setState(() => _mentation = v),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _ChipRow<MmColor>(
+              label: l10n.examMmColorLabel,
+              values: MmColor.values,
+              selected: _mmColor,
+              enabled: !_busy,
+              labelOf: (v) => mmColorLabel(l10n, v),
+              onChanged: (v) => setState(() => _mmColor = v),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _ChipRow<MmTexture>(
+              label: l10n.examMmTextureLabel,
+              values: MmTexture.values,
+              selected: _mmTexture,
+              enabled: !_busy,
+              labelOf: (v) => mmTextureLabel(l10n, v),
+              onChanged: (v) => setState(() => _mmTexture = v),
             ),
             const SizedBox(height: AppSpacing.md),
 

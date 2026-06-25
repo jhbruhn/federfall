@@ -252,3 +252,31 @@ enum FindingStatus {
 
   static FindingStatus? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
 }
+
+/// Mucous-membrane colour on a structured exam (`exams.mm_color`).
+enum MmColor {
+  pink('pink'),
+  pale('pale'),
+  cyanotic('cyanotic'),
+  icteric('icteric'),
+  injected('injected');
+
+  const MmColor(this.wire);
+
+  final String wire;
+
+  static MmColor? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}
+
+/// Mucous-membrane texture on a structured exam (`exams.mm_texture`).
+enum MmTexture {
+  moist('moist'),
+  tacky('tacky'),
+  dry('dry');
+
+  const MmTexture(this.wire);
+
+  final String wire;
+
+  static MmTexture? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}

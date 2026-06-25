@@ -18,7 +18,6 @@ void main() {
         'intake_weight_g': 320,
         'status': 'in_care',
         'is_releasable': true,
-        'exam_temperature': 41.2,
       });
 
       final c = Case.fromRecord(r);
@@ -36,7 +35,6 @@ void main() {
       expect(c.intakeWeightG, 320);
       expect(c.status, CaseStatus.inCare);
       expect(c.isReleasable, isTrue);
-      expect(c.examTemperature, 41.2);
     });
 
     test('treats {0,0} geoPoint as no pin', () {
@@ -121,6 +119,9 @@ void main() {
         'body_condition': 3,
         'hydration': 'moderate',
         'mentation': 'quiet',
+        'temperature': 41.2,
+        'mm_color': 'pale',
+        'mm_texture': 'tacky',
         'notes': 'mild dehydration on admission',
       });
       final e = Exam.fromRecord(r);
@@ -131,6 +132,9 @@ void main() {
       expect(e.bodyCondition, 3);
       expect(e.hydration, Hydration.moderate);
       expect(e.mentation, Mentation.quiet);
+      expect(e.temperature, 41.2);
+      expect(e.mmColor, MmColor.pale);
+      expect(e.mmTexture, MmTexture.tacky);
       expect(e.notes, 'mild dehydration on admission');
     });
 

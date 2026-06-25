@@ -26,6 +26,8 @@ class MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
 
 class MockImagePicker extends Mock implements ImagePicker {}
 
+class MockWeightsRepo extends Mock implements PbWeightsRepository {}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(<String, dynamic>{});
@@ -37,6 +39,7 @@ void main() {
   late MockFindersRepo finders;
   late MockMarkingsRepo markings;
   late MockImagePicker picker;
+  late MockWeightsRepo weights;
 
   setUp(() {
     animals = MockAnimalsRepo();
@@ -44,7 +47,11 @@ void main() {
     finders = MockFindersRepo();
     markings = MockMarkingsRepo();
     picker = MockImagePicker();
+    weights = MockWeightsRepo();
     when(picker.pickMultiImage).thenAnswer((_) async => []);
+    when(() => weights.create(any())).thenAnswer(
+      (_) async => const Weight(id: 'w1', animal: 'a1', weightG: 0),
+    );
     when(() => animals.create(any()))
         .thenAnswer((_) async => const Animal(id: 'a1', species: 'Stadttaube'));
     when(() => animals.searchByName(any())).thenAnswer((_) async => []);
@@ -81,6 +88,7 @@ void main() {
         casesRepositoryProvider.overrideWith((ref) async => cases),
         findersRepositoryProvider.overrideWith((ref) async => finders),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
+        weightsRepositoryProvider.overrideWith((ref) async => weights),
         imagePickerProvider.overrideWithValue(picker),
       ],
     );
@@ -216,10 +224,17 @@ void main() {
 
     final caseBody = verify(() => cases.create(captureAny())).captured.single
         as Map<String, dynamic>;
-    expect(caseBody['intake_weight_g'], 250);
+    expect(caseBody.containsKey('intake_weight_g'), isFalse);
     expect(caseBody['intake_notes'], 'thin but alert');
     expect(caseBody['find_location'], 'Domplatz');
     expect(caseBody['finder'], 'f1');
+
+    // Intake weight becomes a Weight entry on the new case, not a case field.
+    final weightBody = verify(() => weights.create(captureAny())).captured.single
+        as Map<String, dynamic>;
+    expect(weightBody['weight_g'], 250);
+    expect(weightBody['case'], 'c1');
+    expect(weightBody['animal'], 'a1');
 
     final finderBody = verify(() => finders.create(captureAny()))
         .captured

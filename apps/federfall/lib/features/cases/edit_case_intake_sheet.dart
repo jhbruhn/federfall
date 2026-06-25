@@ -10,7 +10,6 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Edit a case's intake details after creation (UX Phase B): admission
@@ -40,7 +39,6 @@ class EditCaseIntakeSheet extends ConsumerStatefulWidget {
 class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _findLocation;
-  late final TextEditingController _weight;
   late final TextEditingController _notes;
   late final Set<AdmissionReason> _reasons;
   late AgeClass? _ageClass;
@@ -59,9 +57,6 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
     super.initState();
     final c = widget.medicalCase;
     _findLocation = TextEditingController(text: c.findLocation ?? '');
-    _weight = TextEditingController(
-      text: c.intakeWeightG == null ? '' : '${c.intakeWeightG}',
-    );
     _notes = TextEditingController(text: c.intakeNotes ?? '');
     _reasons = {...c.reasonsForAdmission};
     _ageClass = c.ageClass;
@@ -76,7 +71,6 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
   @override
   void dispose() {
     _findLocation.dispose();
-    _weight.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -129,7 +123,6 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
     });
     try {
       final repo = await ref.read(casesRepositoryProvider.future);
-      final weight = int.tryParse(_weight.text.trim());
       await repo.update(widget.medicalCase.id, {
         'reasons_for_admission': [for (final r in _reasons) r.wire],
         'age_class': _ageClass?.wire ?? '',
@@ -143,7 +136,6 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
             : {'lon': _findGeo!.lon, 'lat': _findGeo!.lat},
         'city': _findCity ?? '',
         'region': _findRegion ?? '',
-        'intake_weight_g': weight,
         'intake_notes': _notes.text.trim(),
       });
       ref
@@ -304,15 +296,6 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
                       onPressed: _busy ? null : _pickLocation,
                     ),
                   ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _weight,
-                  label: l10n.caseFieldIntakeWeight,
-                  prefixIcon: Icons.monitor_weight_outlined,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  enabled: !_busy,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(

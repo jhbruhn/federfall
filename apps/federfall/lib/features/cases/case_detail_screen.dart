@@ -358,7 +358,6 @@ class _IntakeSection extends ConsumerWidget {
         .join(', ');
     final sex = animal?.sex;
     final ageClass = medicalCase.ageClass;
-    final weight = medicalCase.intakeWeightG;
 
     final rows = <_DetailRow>[
       if (sex != null)
@@ -384,9 +383,6 @@ class _IntakeSection extends ConsumerWidget {
         ),
       if (medicalCase.findLocation case final loc?)
         _DetailRow(Icons.place_outlined, l10n.caseFieldFindLocation, loc),
-      if (weight != null)
-        _DetailRow(Icons.monitor_weight_outlined, l10n.caseFieldIntakeWeight,
-            '$weight g'),
       if (medicalCase.intakeNotes case final notes?)
         _DetailRow(Icons.notes_outlined, l10n.caseFieldIntakeNotes, notes),
     ];
