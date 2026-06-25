@@ -130,6 +130,8 @@
     "animalsNoMatches": "Keine passenden Tiere",
     "animalSectionWeight": "Gewicht",
     "animalNoWeight": "Kein Gewicht erfasst",
+    "animalSectionExams": "Untersuchungen",
+    "animalNoExams": "Keine Untersuchungen erfasst",
     "animalSectionMarkings": "Kennzeichnung",
     "animalSectionCases": "Fälle",
     "animalNoMarkings": "Keine Kennzeichnung erfasst",

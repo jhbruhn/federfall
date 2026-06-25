@@ -5,6 +5,7 @@ import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/edit_animal_sheet.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
@@ -62,6 +63,8 @@ class AnimalDetailScreen extends ConsumerWidget {
             _Identity(data.animal),
             const SizedBox(height: AppSpacing.md),
             _WeightSection(animalId: data.animal.id),
+            const SizedBox(height: AppSpacing.md),
+            _ExamsSection(animalId: data.animal.id),
             const SizedBox(height: AppSpacing.md),
             _MarkingsSection(animalId: data.animal.id, markings: data.markings),
             const SizedBox(height: AppSpacing.md),
@@ -167,6 +170,70 @@ class _WeightSection extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Life-long exams: every structured exam across the animal's cases, newest
+/// first, each tapping through to the case it belongs to (blp.5). Read-only
+/// roll-up — exams are created/edited on the case timeline.
+class _ExamsSection extends ConsumerWidget {
+  const _ExamsSection({required this.animalId});
+
+  final String animalId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final materialL10n = MaterialLocalizations.of(context);
+    final exams =
+        ref.watch(examsForAnimalProvider(animalId)).value ?? const <Exam>[];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.animalSectionExams, style: theme.textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            if (exams.isEmpty)
+              Text(
+                l10n.animalNoExams,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              for (final exam in exams)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.monitor_heart_outlined),
+                  title: Text(
+                    switch (exam.examinedAt ?? exam.created) {
+                      final at? => materialL10n.formatMediumDate(at.toLocal()),
+                      _ => l10n.examTitle,
+                    },
+                  ),
+                  subtitle: Text(_vitalsSummary(l10n, exam)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      context.push(AppRoutes.caseDetail(exam.caseId)),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _vitalsSummary(AppLocalizations l10n, Exam e) {
+    final parts = <String>[
+      if (e.bodyCondition case final bc?) l10n.examBodyConditionShort(bc),
+      if (e.hydration case final h?) hydrationLabel(l10n, h),
+      if (e.mentation case final m?) mentationLabel(l10n, m),
+      if (e.temperature case final t?) '$t °C',
+    ];
+    return parts.isEmpty ? l10n.examNoVitals : parts.join(' · ');
   }
 }
 

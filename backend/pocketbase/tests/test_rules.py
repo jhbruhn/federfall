@@ -454,6 +454,49 @@ def main():
     s, _ = req("GET", f"/api/collections/medication_due/records/{med}", toks["b"])
     check("other carer CANNOT read the medication_due row", s != 200, f"status {s}")
 
+    # ── exams + exam_findings (FED-4.8 / blp.6) ─────────────────────────────
+    # exams is a case-scoped clinical record like the others. exam_findings is a
+    # GRANDCHILD whose rules traverse exam.case — verify that traversal grants
+    # the owner access and still denies a same-org outsider / another org.
+    print("\n[exams]")
+    excase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+
+    def mk_exam(tok):
+        return req("POST", "/api/collections/exams/records", tok, {
+            "case": excase, "animal": animal, "body_condition": 3,
+            "hydration": "moderate", "mentation": "quiet", "org": ORG,
+        })
+
+    s, ex = mk_exam(toks["a"])
+    check("owner can record an exam", s == 200, f"{s} {ex}")
+    s, _ = req("GET", f"/api/collections/exams/records/{ex['id']}", toks["a"])
+    check("owner can read the exam", s == 200, f"status {s}")
+    s, _ = mk_exam(td)
+    check("same-org outsider CANNOT record an exam", s != 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/exams/records/{ex['id']}", td)
+    check("same-org outsider CANNOT read the exam", s != 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/exams/records/{ex['id']}", te)
+    check("other-org member CANNOT read the exam", s != 200, f"status {s}")
+
+    print("\n[exam_findings]")
+
+    def mk_finding(tok):
+        return req("POST", "/api/collections/exam_findings/records", tok, {
+            "exam": ex["id"], "system": "legs_feet", "status": "abnormal",
+            "note": "pododermatitis", "org": ORG,
+        })
+
+    s, ef = mk_finding(toks["a"])
+    check("owner can add a finding (exam.case traversal)", s == 200, f"{s} {ef}")
+    s, _ = req("GET", f"/api/collections/exam_findings/records/{ef['id']}", toks["a"])
+    check("owner can read the finding", s == 200, f"status {s}")
+    s, _ = mk_finding(td)
+    check("same-org outsider CANNOT add a finding", s != 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/exam_findings/records/{ef['id']}", td)
+    check("same-org outsider CANNOT read the finding", s != 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/exam_findings/records/{ef['id']}", te)
+    check("other-org member CANNOT read the finding", s != 200, f"status {s}")
+
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)

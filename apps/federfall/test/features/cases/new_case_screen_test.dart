@@ -230,8 +230,9 @@ void main() {
     expect(caseBody['finder'], 'f1');
 
     // Intake weight becomes a Weight entry on the new case, not a case field.
-    final weightBody = verify(() => weights.create(captureAny())).captured.single
-        as Map<String, dynamic>;
+    final weightBody =
+        verify(() => weights.create(captureAny())).captured.single
+            as Map<String, dynamic>;
     expect(weightBody['weight_g'], 250);
     expect(weightBody['case'], 'c1');
     expect(weightBody['animal'], 'a1');

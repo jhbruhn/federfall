@@ -62,7 +62,10 @@ void main() {
 
     expect(find.text('Edit intake'), findsOneWidget);
     // Weight is no longer an intake field — it lives in the weights trend.
-    expect(find.widgetWithText(TextFormField, 'Intake weight (g)'), findsNothing);
+    expect(
+      find.widgetWithText(TextFormField, 'Intake weight (g)'),
+      findsNothing,
+    );
 
     final save = find.widgetWithText(FilledButton, 'Save');
     await tester.ensureVisible(save);

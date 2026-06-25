@@ -1,6 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -16,6 +17,7 @@ Future<void> _pump(
   WidgetTester tester,
   AnimalLifetime lifetime, {
   List<Weight> weights = const [],
+  List<Exam> exams = const [],
   PbAnimalsRepository? animals,
 }) async {
   await tester.pumpWidget(
@@ -25,6 +27,7 @@ Future<void> _pump(
           'a1',
         ).overrideWith((ref) async => lifetime),
         weightsForAnimalProvider('a1').overrideWith((ref) async => weights),
+        examsForAnimalProvider('a1').overrideWith((ref) async => exams),
         if (animals != null)
           animalsRepositoryProvider.overrideWith((ref) async => animals),
       ],
@@ -211,6 +214,31 @@ void main() {
     expect(stubTile.onTap, isNull);
   });
 
+  testWidgets('lists the animal lifetime exams with a vitals summary',
+      (tester) async {
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      exams: const [
+        Exam(
+          id: 'e1',
+          caseId: 'c1',
+          animal: 'a1',
+          bodyCondition: 3,
+          hydration: Hydration.moderate,
+        ),
+      ],
+    );
+
+    expect(find.text('Exams'), findsOneWidget);
+    expect(find.textContaining('BC 3/5'), findsOneWidget);
+  });
+
   testWidgets('shows empty states with no markings or cases', (tester) async {
     await _pump(
       tester,
@@ -224,5 +252,6 @@ void main() {
 
     expect(find.text('No markings recorded'), findsOneWidget);
     expect(find.text('No cases recorded'), findsOneWidget);
+    expect(find.text('No exams recorded'), findsOneWidget);
   });
 }
