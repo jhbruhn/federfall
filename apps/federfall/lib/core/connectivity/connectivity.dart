@@ -25,9 +25,12 @@ enum OnlineStatus { online, offline }
 /// dies under a live connection is still noticed), and only emits on change.
 @riverpod
 Stream<OnlineStatus> onlineStatus(Ref ref) async* {
+  // Read the synchronous dependency before any await: if this provider is
+  // disposed during the awaits below, a later `ref.watch` would throw
+  // "used after dispose".
+  final probe = ref.watch(serverProbeProvider);
   final config = await ref.watch(serverConfigControllerProvider.future);
   final baseUrl = config.baseUrlOrNull;
-  final probe = ref.watch(serverProbeProvider);
   final connectivity = Connectivity();
 
   Future<OnlineStatus> check() async {
@@ -42,6 +45,7 @@ Stream<OnlineStatus> onlineStatus(Ref ref) async* {
   }
 
   var current = await check();
+  if (!ref.mounted) return;
   yield current;
 
   final controller = StreamController<OnlineStatus>();
@@ -60,11 +64,19 @@ Stream<OnlineStatus> onlineStatus(Ref ref) async* {
     const Duration(seconds: 30),
     (_) => unawaited(reevaluate()),
   );
-  ref.onDispose(() {
+  void teardown() {
     unawaited(sub.cancel());
     heartbeat.cancel();
     unawaited(controller.close());
-  });
+  }
+
+  // Disposed during `await check()` above? Registering onDispose would throw,
+  // so tear down inline instead.
+  if (!ref.mounted) {
+    teardown();
+    return;
+  }
+  ref.onDispose(teardown);
 
   yield* controller.stream;
 }

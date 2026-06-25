@@ -15,6 +15,11 @@ Future<AppUser?> currentUser(Ref ref) async {
   final repo = await ref.watch(authRepositoryProvider.future);
 
   final sub = repo.changes.listen((_) => ref.invalidateSelf());
+  // Disposed during the await above? onDispose would throw; cancel inline.
+  if (!ref.mounted) {
+    await sub.cancel();
+    return repo.currentUser;
+  }
   ref.onDispose(sub.cancel);
 
   return repo.currentUser;

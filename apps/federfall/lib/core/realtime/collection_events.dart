@@ -39,6 +39,15 @@ Stream<RecordSubscriptionEvent> collectionEvents(
     return;
   }
 
+  // The provider may have been disposed during the awaits above (e.g.
+  // connectivity flipped or the last listener went away). Registering
+  // onDispose on a dead ref throws, so tear the subscription down inline.
+  if (!ref.mounted) {
+    await unsubscribe();
+    await controller.close();
+    return;
+  }
+
   ref.onDispose(() async {
     await unsubscribe?.call();
     await controller.close();

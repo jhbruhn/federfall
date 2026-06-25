@@ -24,6 +24,11 @@ class AuthStatus extends _$AuthStatus {
 
     // Re-evaluate whenever the session changes (login/logout/refresh).
     final sub = pb.authStore.onChange.listen((_) => ref.invalidateSelf());
+    // Disposed during the awaits above? onDispose would throw; cancel inline.
+    if (!ref.mounted) {
+      await sub.cancel();
+      return pb.authStore.isValid;
+    }
     ref.onDispose(sub.cancel);
 
     return pb.authStore.isValid;
