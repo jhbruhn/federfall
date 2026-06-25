@@ -12,7 +12,7 @@
     "@errorGenericTitle": {
         "description": "Title of the generic error state"
     },
-    "errorOffline": "No connection to the server",
+    "errorOffline": "You're offline — check your connection and try again. Your entry is kept so you can retry.",
     "@errorOffline": {
         "description": "Shown when the device cannot reach the backend"
     },

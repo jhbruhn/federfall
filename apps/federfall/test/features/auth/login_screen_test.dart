@@ -146,7 +146,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
 
-    expect(find.text('No connection to the server'), findsOneWidget);
+    expect(find.textContaining("You're offline"), findsOneWidget);
   });
 
   testWidgets('blocks submission when the form is empty', (tester) async {

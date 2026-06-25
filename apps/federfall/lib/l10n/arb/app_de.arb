@@ -6,7 +6,7 @@
     },
     "loadingLabel": "Wird geladen…",
     "errorGenericTitle": "Etwas ist schiefgelaufen",
-    "errorOffline": "Keine Verbindung zum Server",
+    "errorOffline": "Du bist offline – prüfe deine Verbindung und versuche es erneut. Deine Eingabe bleibt erhalten.",
     "errorUnauthorized": "Dazu bist du nicht berechtigt",
     "errorNotFound": "Nicht gefunden",
     "errorValidation": "Die Daten konnten nicht gespeichert werden",
