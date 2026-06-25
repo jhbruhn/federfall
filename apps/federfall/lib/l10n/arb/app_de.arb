@@ -228,6 +228,8 @@
     "locationNoMatches": "Keine Treffer",
     "locationPermissionDenied": "Standort konnte nicht ermittelt werden. Prüfe die Standortberechtigung und ob die Ortung aktiv ist.",
     "actionClear": "Löschen",
+    "imageShareAction": "Teilen",
+    "imageShareFailed": "Bild konnte nicht geteilt werden.",
     "caseFieldIntakeWeight": "Aufnahmegewicht (g)",
     "caseFieldIntakeNotes": "Aufnahmenotizen",
     "caseDateNotSet": "Nicht angegeben",

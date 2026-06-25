@@ -126,9 +126,17 @@ class _AttachmentStrip extends ConsumerWidget {
         itemBuilder: (context, i) {
           final filename = entry.attachments[i];
           final thumb = repo.fileUrl(entry.id, filename, thumb: '200x200');
-          final full = repo.fileUrl(entry.id, filename);
           return GestureDetector(
-            onTap: () => _openFull(context, full),
+            onTap: () => unawaited(
+              showImageViewer(
+                context,
+                imageUrls: [
+                  for (final f in entry.attachments)
+                    repo.fileUrl(entry.id, f).toString(),
+                ],
+                initialIndex: i,
+              ),
+            ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.network(
@@ -150,16 +158,4 @@ class _AttachmentStrip extends ConsumerWidget {
     );
   }
 
-  void _openFull(BuildContext context, Uri url) {
-    unawaited(
-      showDialog<void>(
-        context: context,
-        builder: (_) => Dialog(
-          child: InteractiveViewer(
-            child: Image.network(url.toString(), fit: BoxFit.contain),
-          ),
-        ),
-      ),
-    );
-  }
 }

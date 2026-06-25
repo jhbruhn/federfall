@@ -489,16 +489,14 @@ class _IntakePhotos extends ConsumerWidget {
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, i) {
           final thumb = repo.fileUrl(caseId, filenames[i], thumb: '200x200');
-          final full = repo.fileUrl(caseId, filenames[i]);
           return GestureDetector(
             onTap: () => unawaited(
-              showDialog<void>(
-                context: context,
-                builder: (_) => Dialog(
-                  child: InteractiveViewer(
-                    child: Image.network(full.toString(), fit: BoxFit.contain),
-                  ),
-                ),
+              showImageViewer(
+                context,
+                imageUrls: [
+                  for (final f in filenames) repo.fileUrl(caseId, f).toString(),
+                ],
+                initialIndex: i,
               ),
             ),
             child: ClipRRect(
