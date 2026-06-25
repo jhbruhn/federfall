@@ -56,6 +56,10 @@ class PrescriptionTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
     final date = plan.startedAt ?? plan.created;
+    // A plan still being given gets a direct "log dose" action inline — the
+    // most contextual home for dosing (xc8.5). Ended plans don't.
+    final isActive =
+        plan.endedAt == null || plan.endedAt!.isAfter(DateTime.now());
 
     final frequency = medicationFrequencyLabel(
       l10n,
@@ -136,6 +140,22 @@ class PrescriptionTile extends ConsumerWidget {
               l10n.medPrescribedByLine(p),
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          if (isActive)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.tonalIcon(
+                  onPressed: () => showAdministrationSheet(
+                    context,
+                    caseId: caseId,
+                    plan: plan,
+                  ),
+                  icon: const Icon(Icons.vaccines_outlined, size: 18),
+                  label: Text(l10n.medLogDose),
+                ),
+              ),
             ),
         ],
       ),

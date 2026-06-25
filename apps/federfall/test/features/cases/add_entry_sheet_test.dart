@@ -58,12 +58,17 @@ void main() {
     expect(find.text('Hand off to carer'), findsOneWidget);
   });
 
-  testWidgets('offers the outcome action on a live case', (tester) async {
+  ListTile outcomeTile(WidgetTester tester) =>
+      tester.widget<ListTile>(find.widgetWithText(ListTile, 'Record outcome'));
+
+  testWidgets('offers an enabled outcome action on a live case',
+      (tester) async {
     await open(tester);
     expect(find.text('Record outcome'), findsOneWidget);
+    expect(outcomeTile(tester).enabled, isTrue);
   });
 
-  testWidgets('hides the outcome action once the case is disposed',
+  testWidgets('keeps the outcome action visible but disabled once disposed',
       (tester) async {
     await open(
       tester,
@@ -71,7 +76,9 @@ void main() {
         Disposition(id: 'd1', caseId: 'c1', type: DispositionType.released),
       ],
     );
-    expect(find.text('Record outcome'), findsNothing);
+    // Still present (layout/muscle memory preserved) but inert.
+    expect(find.text('Record outcome'), findsOneWidget);
+    expect(outcomeTile(tester).enabled, isFalse);
     // The rest of the sheet still works.
     expect(find.text('Add note'), findsOneWidget);
   });

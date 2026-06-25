@@ -171,6 +171,34 @@ void main() {
       expect(find.text('Controlled'), findsOneWidget);
     });
 
+    testWidgets('inline log-dose button shows only on an active plan',
+        (tester) async {
+      // No end date → still being given → inline action present.
+      await pump(
+        tester,
+        const PrescriptionTile(
+          plan: Medication(id: 'm1', caseId: 'c1', drug: 'Baytril'),
+          caseId: 'c1',
+        ),
+      );
+      expect(find.widgetWithText(FilledButton, 'Log dose'), findsOneWidget);
+
+      // Ended in the past → no inline action.
+      await pump(
+        tester,
+        PrescriptionTile(
+          plan: Medication(
+            id: 'm1',
+            caseId: 'c1',
+            drug: 'Baytril',
+            endedAt: DateTime.utc(2020),
+          ),
+          caseId: 'c1',
+        ),
+      );
+      expect(find.widgetWithText(FilledButton, 'Log dose'), findsNothing);
+    });
+
     testWidgets('administration tile shows the dose and deletes',
         (tester) async {
       when(() => administrations.delete('a1')).thenAnswer((_) async {});

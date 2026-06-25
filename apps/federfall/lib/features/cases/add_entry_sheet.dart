@@ -80,13 +80,16 @@ Future<void> showAddEntrySheet(
   }
 }
 
-/// One selectable entry kind in the picker.
+/// One selectable entry kind in the picker. [enabled] controls whether it can
+/// be chosen — a disabled kind stays visible (so the layout and muscle memory
+/// don't shift) but is greyed out and inert.
 class _Entry {
-  const _Entry(this.kind, this.icon, this.label);
+  const _Entry(this.kind, this.icon, this.label, {this.enabled = true});
 
   final _AddKind kind;
   final IconData icon;
   final String label;
+  final bool enabled;
 }
 
 class _AddEntrySheet extends ConsumerWidget {
@@ -99,9 +102,8 @@ class _AddEntrySheet extends ConsumerWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
 
-    // The outcome action ends the case, so hide it once a disposition exists —
-    // preserves the old popup's `isDisposed` guard. (Richer context gates for
-    // dose/outcome land in xc8.2.)
+    // The outcome action ends the case. Once a disposition exists we disable it
+    // rather than hiding it, so the sheet's layout and muscle memory stay put.
     final dispositions =
         ref.watch(dispositionsForCaseProvider(medicalCase.id)).value;
     final isDisposed = dispositions != null && dispositions.isNotEmpty;
@@ -152,12 +154,12 @@ class _AddEntrySheet extends ConsumerWidget {
           Icons.event_repeat_outlined,
           l10n.timelineAddFollowUp,
         ),
-        if (!isDisposed)
-          _Entry(
-            _AddKind.outcome,
-            Icons.flag_outlined,
-            l10n.timelineRecordOutcome,
-          ),
+        _Entry(
+          _AddKind.outcome,
+          Icons.flag_outlined,
+          l10n.timelineRecordOutcome,
+          enabled: !isDisposed,
+        ),
       ]),
     ];
 
@@ -197,13 +199,20 @@ class _AddEntrySheet extends ConsumerWidget {
                 ),
                 for (final entry in entries)
                   ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: theme.colorScheme.secondaryContainer,
-                      foregroundColor: theme.colorScheme.onSecondaryContainer,
-                      child: Icon(entry.icon, size: 20),
+                    enabled: entry.enabled,
+                    leading: Opacity(
+                      opacity: entry.enabled ? 1 : 0.38,
+                      child: CircleAvatar(
+                        backgroundColor: theme.colorScheme.secondaryContainer,
+                        foregroundColor:
+                            theme.colorScheme.onSecondaryContainer,
+                        child: Icon(entry.icon, size: 20),
+                      ),
                     ),
                     title: Text(entry.label),
-                    onTap: () => Navigator.of(context).pop(entry.kind),
+                    onTap: entry.enabled
+                        ? () => Navigator.of(context).pop(entry.kind)
+                        : null,
                   ),
               ],
             const SizedBox(height: AppSpacing.sm),
