@@ -4,6 +4,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/exams/exam_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/location/location_picker_screen.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
@@ -85,6 +86,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   bool _busy = false;
   String? _error;
   bool _reasonsTouched = false;
+  bool _withExam = false;
 
   @override
   void initState() {
@@ -264,16 +266,25 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       };
 
       final photos = await _intakePhotoFiles();
-      if (photos.isEmpty) {
-        await casesRepo.create(body);
-      } else {
-        await casesRepo.createWithFiles(body, photos);
-      }
+      final created = photos.isEmpty
+          ? await casesRepo.create(body)
+          : await casesRepo.createWithFiles(body, photos);
 
       ref
         ..invalidate(casesBrowserDataProvider)
         ..invalidate(dashboardSummaryProvider);
-      if (mounted) context.pop();
+      if (!mounted) return;
+      // Optional intake exam: open the same sheet on the just-created case
+      // (kept off the create path so it never blocks intake).
+      if (_withExam) {
+        await showExamSheet(
+          context,
+          caseId: created.id,
+          animalId: animalId,
+        );
+        if (!mounted) return;
+      }
+      context.pop();
     } on RepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -477,6 +488,17 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
                       email: _finderEmail,
                       city: _finderCity,
                       enabled: !_busy,
+                    ),
+
+                    const SizedBox(height: AppSpacing.md),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _withExam,
+                      onChanged: _busy
+                          ? null
+                          : (v) => setState(() => _withExam = v),
+                      title: Text(l10n.caseIntakeWithExam),
+                      subtitle: Text(l10n.caseIntakeWithExamHint),
                     ),
 
                     if (_error != null) ...[

@@ -1018,6 +1018,10 @@
 
     "timelineAddExam": "Exam",
     "@timelineAddExam": { "description": "Timeline add-menu item for a structured exam" },
+    "caseIntakeWithExam": "Record an exam now",
+    "@caseIntakeWithExam": { "description": "Intake toggle to open the exam sheet after creating the case" },
+    "caseIntakeWithExamHint": "Opens a structured exam for the new patient after admission.",
+    "@caseIntakeWithExamHint": { "description": "Subtitle for the intake exam toggle" },
     "examNewTitle": "New exam",
     "@examNewTitle": { "description": "Title of the new-exam sheet" },
     "examEditTitle": "Edit exam",

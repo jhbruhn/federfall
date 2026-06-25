@@ -496,6 +496,8 @@
     "resetSuccess": "Passwort gesetzt. Du kannst dich jetzt anmelden.",
 
     "timelineAddExam": "Untersuchung",
+    "caseIntakeWithExam": "Erstuntersuchung jetzt erfassen",
+    "caseIntakeWithExamHint": "Öffnet nach der Aufnahme eine strukturierte Untersuchung für den neuen Patienten.",
     "examNewTitle": "Neue Untersuchung",
     "examEditTitle": "Untersuchung bearbeiten",
     "examDateLabel": "Untersucht am",

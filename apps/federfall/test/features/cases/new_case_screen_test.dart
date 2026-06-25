@@ -149,6 +149,33 @@ void main() {
     expect(find.text('HOME'), findsOneWidget);
   });
 
+  testWidgets('opens the exam sheet after intake when opted in',
+      (tester) async {
+    await pump(tester);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Injury'));
+    await tester.pumpAndSettle();
+
+    final toggle = find.widgetWithText(SwitchListTile, 'Record an exam now');
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    final submit = find.widgetWithText(FilledButton, 'Create case');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    // The create button keeps spinning while the awaited sheet is open, so
+    // pump explicit frames rather than settling.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // The case was created, and the exam sheet opened on it instead of
+    // popping straight back to the list.
+    verify(() => cases.create(any())).called(1);
+    expect(find.text('New exam'), findsOneWidget);
+    expect(find.text('HOME'), findsNothing);
+  });
+
   testWidgets('requires a reason before submitting', (tester) async {
     await pump(tester);
 
