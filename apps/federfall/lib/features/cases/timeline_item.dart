@@ -55,7 +55,12 @@ class TimelineItem extends StatelessWidget {
                           ),
                         ),
                       ),
-                      ?trailing,
+                      // Pin the action to a compact square. Menus/buttons
+                      // otherwise impose a 48px tap target that inflates the
+                      // date header and pushes the body down — making editable
+                      // entries sit lower than read-only ones (federfall-533).
+                      if (trailing case final t?)
+                        SizedBox.square(dimension: 32, child: t),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xs),

@@ -304,7 +304,7 @@ class CaseTimeline extends ConsumerWidget {
               _MilestoneEvent(:final icon, :final label, :final at) =>
                 TimelineItem(
                   icon: icon,
-                  date: MaterialLocalizations.of(context).formatMediumDate(at),
+                  date: formatEventDate(MaterialLocalizations.of(context), at),
                   isLast: i == events.length - 1,
                   child: Text(label, style: theme.textTheme.bodyLarge),
                 ),

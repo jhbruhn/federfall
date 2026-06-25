@@ -3,6 +3,7 @@ import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,7 +66,7 @@ class WeightEntryTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.monitor_weight_outlined,
-      date: date == null ? '' : materialL10n.formatMediumDate(date),
+      date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: PopupMenuButton<void>(
         icon: const Icon(Icons.more_vert),

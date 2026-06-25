@@ -99,7 +99,7 @@ class ExamTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.monitor_heart_outlined,
-      date: at == null ? '' : materialL10n.formatMediumDate(at.toLocal()),
+      date: formatEventDate(materialL10n, at),
       isLast: isLast,
       trailing: _Menu(
         onEdit: () => showExamSheet(
@@ -114,31 +114,26 @@ class ExamTile extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.examTitle,
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: AppSpacing.xs),
+          Text(l10n.examTitle, style: theme.textTheme.bodyLarge),
           if (vitals.isEmpty)
-            Text(
-              l10n.examNoVitals,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(
+                l10n.examNoVitals,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
             )
           else
             for (final (label, value) in vitals)
               _Fact(label: label, value: value),
           for (final f in abnormal)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.xs),
-              child: _Fact(
-                label: bodySystemLabel(l10n, f.system!),
-                value: f.note?.isNotEmpty ?? false
-                    ? f.note!
-                    : findingStatusLabel(l10n, FindingStatus.abnormal),
-                emphasis: theme.colorScheme.error,
-              ),
+            _Fact(
+              label: bodySystemLabel(l10n, f.system!),
+              value: f.note?.isNotEmpty ?? false
+                  ? f.note!
+                  : findingStatusLabel(l10n, FindingStatus.abnormal),
+              emphasis: theme.colorScheme.error,
             ),
           if (normalSystems.isNotEmpty)
             Padding(
@@ -151,7 +146,7 @@ class ExamTile extends ConsumerWidget {
               ),
             ),
           if (notes != null && notes.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: AppSpacing.xs),
             Text(notes, style: theme.textTheme.bodyMedium),
           ],
         ],

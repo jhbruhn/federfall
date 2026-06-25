@@ -72,7 +72,7 @@ class PrescriptionTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.medication_outlined,
-      date: date == null ? '' : materialL10n.formatMediumDate(date),
+      date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: PopupMenuButton<void>(
         icon: const Icon(Icons.more_vert),
@@ -196,9 +196,7 @@ class AdministrationTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.vaccines_outlined,
-      date: date == null
-          ? ''
-          : formatDateMaybeTime(materialL10n, date.toLocal(), withTime: true),
+      date: formatEventDate(materialL10n, date, withTime: true),
       isLast: isLast,
       trailing: PopupMenuButton<void>(
         icon: const Icon(Icons.more_vert),

@@ -50,7 +50,7 @@ class DispositionTile extends StatelessWidget {
     final caseId = this.caseId;
     return TimelineItem(
       icon: _icon,
-      date: date == null ? '' : materialL10n.formatMediumDate(date),
+      date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: caseId == null
           ? null
@@ -70,7 +70,7 @@ class DispositionTile extends StatelessWidget {
         children: [
           Text(
             dispositionTypeLabel(l10n, d.type),
-            style: theme.textTheme.titleSmall,
+            style: theme.textTheme.bodyLarge,
           ),
           if (detail.isNotEmpty)
             Text(

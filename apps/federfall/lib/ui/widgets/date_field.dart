@@ -63,6 +63,24 @@ String formatDateMaybeTime(
   return '$date, $time';
 }
 
+/// Formats a chronology event's timestamp for display. PocketBase stores UTC
+/// (and `MaterialLocalizations` does not convert time zones), so this converts
+/// to local time first; pass any timeline date through here so every entry
+/// shares one time-zone-correct treatment. Returns '' for null so a tile can
+/// simply omit the header.
+String formatEventDate(
+  MaterialLocalizations materialL10n,
+  DateTime? value, {
+  bool withTime = false,
+}) {
+  if (value == null) return '';
+  return formatDateMaybeTime(
+    materialL10n,
+    value.toLocal(),
+    withTime: withTime,
+  );
+}
+
 /// Chains a date then a time picker, returning the combined **local**
 /// [DateTime], or `null` if the date step was cancelled. [initial] (local)
 /// seeds both steps; cancelling only the time step keeps [initial]'s time.

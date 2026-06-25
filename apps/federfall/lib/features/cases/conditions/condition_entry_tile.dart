@@ -73,7 +73,7 @@ class ConditionEntryTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.coronavirus_outlined,
-      date: date == null ? '' : materialL10n.formatMediumDate(date),
+      date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: PopupMenuButton<void>(
         icon: const Icon(Icons.more_vert),
