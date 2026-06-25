@@ -71,11 +71,14 @@ class _WorklistPreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    // Live-sync the preview too (else it only updated on the Today tab).
-    ref.liveRefresh(
-      worklistLiveCollections,
-      () => ref.invalidate(worklistProvider),
-    );
+    // Live-sync the preview too (else it only updated on the Today tab), plus
+    // the 1-minute tick for time-relative items.
+    ref
+      ..liveRefresh(
+        worklistLiveCollections,
+        () => ref.invalidate(worklistProvider),
+      )
+      ..watch(worklistTickerProvider);
 
     return ref
         .watch(worklistProvider)

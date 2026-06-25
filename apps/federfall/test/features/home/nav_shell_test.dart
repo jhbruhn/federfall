@@ -8,6 +8,7 @@ import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_screen.dart';
+import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
 import 'package:flutter/material.dart';
@@ -48,6 +49,8 @@ Future<void> _pump(WidgetTester tester, {required Size size}) async {
         (ref) async => const <AnimalListItem>[],
       ),
       currentUserProvider.overrideWith((ref) async => null),
+      // No real periodic timer in the widget test.
+      worklistTickerProvider.overrideWith((ref) {}),
       dashboardSummaryProvider.overrideWith(
         (ref) async => const DashboardSummary(
           activeCount: 0,

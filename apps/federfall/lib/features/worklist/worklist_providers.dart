@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/worklist/worklist.dart';
@@ -24,6 +26,22 @@ const worklistLiveCollections = [
   'medication_administrations',
   'cases',
 ];
+
+/// Re-evaluates the worklist every minute so time-relative items — a dose
+/// becoming due, a quarantine ending — surface as their moment arrives, the one
+/// thing realtime can't trigger (no data changes, only the clock). Invalidate
+/// only: AsyncValueView keeps the current list visible during the reload
+/// (skipLoadingOnReload), so nothing flashes or shifts unless an item genuinely
+/// enters/leaves the due window. Screen-scoped, so the timer stops when neither
+/// the Today tab nor the dashboard card is visible.
+@riverpod
+void worklistTicker(Ref ref) {
+  final timer = Timer.periodic(
+    const Duration(minutes: 1),
+    (_) => ref.invalidate(worklistProvider),
+  );
+  ref.onDispose(timer.cancel);
+}
 
 @riverpod
 Future<List<WorklistItem>> worklist(Ref ref) async {

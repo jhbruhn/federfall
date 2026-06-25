@@ -26,11 +26,14 @@ class TodayScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    // Live-sync: re-fetch the worklist when its source collections change.
-    ref.liveRefresh(
-      worklistLiveCollections,
-      () => ref.invalidate(worklistProvider),
-    );
+    // Live-sync: re-fetch the worklist when its source collections change,
+    // plus a 1-minute tick so time-relative items surface as they fall due.
+    ref
+      ..liveRefresh(
+        worklistLiveCollections,
+        () => ref.invalidate(worklistProvider),
+      )
+      ..watch(worklistTickerProvider);
     final items = ref.watch(worklistProvider);
     final now = DateTime.now();
 
