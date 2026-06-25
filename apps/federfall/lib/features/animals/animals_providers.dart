@@ -119,13 +119,26 @@ Future<Uri?> animalAvatarUrl(Ref ref, String animalId) async {
   final source = pickAvatarSource(animal, cases);
   if (source == null) return null;
 
+  // Both source fields (animals.photo, cases.intake_photos) are Protected
+  // (FED-8.1), so the thumbnail URL needs a short-lived file token.
+  final token = await ref.watch(fileTokenProvider.future);
   switch (source.collection) {
     case AvatarCollection.animals:
       final repo = await ref.watch(animalsRepositoryProvider.future);
-      return repo.fileUrl(source.recordId, source.filename, thumb: '200x200');
+      return repo.fileUrl(
+        source.recordId,
+        source.filename,
+        thumb: '200x200',
+        token: token,
+      );
     case AvatarCollection.cases:
       final repo = await ref.watch(casesRepositoryProvider.future);
-      return repo.fileUrl(source.recordId, source.filename, thumb: '200x200');
+      return repo.fileUrl(
+        source.recordId,
+        source.filename,
+        thumb: '200x200',
+        token: token,
+      );
   }
 }
 

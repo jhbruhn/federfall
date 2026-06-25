@@ -384,6 +384,38 @@ def main():
     _, dd = req("GET", f"/api/collections/animals/records/{animal}", toks["d"])
     check("uploaded animal photo is stored & readable", bool(dd.get("photo")), dd)
 
+    # ── protected file access (FED-8.1 / 49l.1) ─────────────────────────────
+    # animals.photo is a Protected file field: its URL is only served with a
+    # short-lived file token issued for an auth model that can read the owning
+    # record. A bare URL must be rejected; a same-org member's token works; an
+    # other-org member's token does not (they cannot view this org's animal).
+    print("\n[protected file access]")
+    photo = dd.get("photo")
+    file_path = f"/api/files/animals/{animal}/{photo}"
+
+    def file_status(path):
+        r = urllib.request.Request(BASE + path, method="GET")
+        try:
+            return urllib.request.urlopen(r).status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    def file_token(tok):
+        s, d = req("POST", "/api/files/token", tok)
+        return d["token"] if s == 200 else None
+
+    # No token → rejected (the whole point of Protected).
+    check("protected file URL WITHOUT a token is rejected",
+          file_status(file_path) != 200, file_status(file_path))
+    # Same-org member's token → served.
+    tok_d = file_token(toks["d"])
+    check("same-org member's file token serves the photo",
+          file_status(f"{file_path}?token={tok_d}") == 200)
+    # Other-org member's token → rejected (cannot view this org's animal).
+    tok_e = file_token(te)
+    check("other-org member's file token CANNOT serve the photo",
+          file_status(f"{file_path}?token={tok_e}") != 200)
+
     # ── case_activity view (cr3.5) ──────────────────────────────────────────
     # last_activity reflects the newest child-record touch and is org-scoped
     # readable (timestamp only, no clinical detail). Powers the worklist's

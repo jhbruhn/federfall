@@ -184,6 +184,25 @@ void main() {
     );
   });
 
+  test('fileUrl appends a file token for Protected fields', () {
+    final realRepo = _AnimalsRepo(PocketBase('http://localhost:8090'));
+
+    expect(
+      realRepo.fileUrl('r1', 'pic.jpg', token: 'tok123').toString(),
+      contains('token=tok123'),
+    );
+    final both = realRepo
+        .fileUrl('r1', 'pic.jpg', thumb: '100x100', token: 'tok123')
+        .toString();
+    expect(both, contains('thumb=100x100'));
+    expect(both, contains('token=tok123'));
+    // Omitting the token leaves the URL token-free (public/unprotected use).
+    expect(
+      realRepo.fileUrl('r1', 'pic.jpg').toString(),
+      isNot(contains('token=')),
+    );
+  });
+
   test('translates ClientException into RepositoryException', () async {
     when(
       () => service.getOne(any(), expand: any(named: 'expand')),

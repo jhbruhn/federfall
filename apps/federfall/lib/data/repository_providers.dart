@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/core/connectivity/connectivity.dart';
 import 'package:federfall/core/pocketbase/pocketbase_provider.dart';
 import 'package:federfall/data/cache/prefs_record_cache.dart';
@@ -211,3 +213,24 @@ Future<PbOrganisationsRepository> organisationsRepository(Ref ref) async =>
 @Riverpod(keepAlive: true)
 Future<GeocodingRepository> geocodingRepository(Ref ref) async =>
     PbGeocodingRepository(await _client(ref));
+
+/// A short-lived PocketBase file access token (FED-8.1) for fetching the
+/// Protected image fields (case intake photos, journal attachments, animal
+/// photo). One token is valid for any protected file the current user may read
+/// (~2min server TTL), so it is minted once and reused across a screen's
+/// images. The result is cached briefly and then self-invalidated so the next
+/// read re-mints well before the server-side token expires; appended to file
+/// URLs via `repo.fileUrl(..., token:)`.
+@riverpod
+Future<String> fileToken(Ref ref) async {
+  final pb = await _client(ref);
+  final token = await pb.files.getToken();
+  // The provider may have been disposed during the awaits above; touching the
+  // ref (keepAlive/onDispose) then throws, so bail with the token as-is.
+  if (!ref.mounted) return token;
+  // Cache under the ~2min TTL, then drop so the next read mints a fresh one.
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(seconds: 90), link.close);
+  ref.onDispose(timer.cancel);
+  return token;
+}

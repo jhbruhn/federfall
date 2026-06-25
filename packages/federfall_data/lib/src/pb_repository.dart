@@ -205,12 +205,24 @@ abstract class PbRepository<T> implements Repository<T> {
   }
 
   /// Absolute URL for a [filename] stored on record [recordId]'s file field.
-  /// Pass [thumb] (e.g. `100x100`) for a server-generated thumbnail. The file
-  /// field is unprotected, so the URL is usable without an auth token.
-  Uri fileUrl(String recordId, String filename, {String? thumb}) => pb.buildURL(
-    '/api/files/$collection/$recordId/$filename',
-    thumb == null ? const {} : {'thumb': thumb},
-  );
+  /// Pass [thumb] (e.g. `100x100`) for a server-generated thumbnail.
+  ///
+  /// The clinical/finder-linked image fields are **Protected** (FED-8.1), so
+  /// their URLs are only served with a short-lived file [token]
+  /// (`pb.files.getToken()`, ~2min TTL) issued for an auth model that can read
+  /// the owning record. Pass that token here for protected fields; omit it for
+  /// genuinely public assets. This mirrors `pb.files.getURL(token:)` but builds
+  /// the path from [recordId]/[filename] directly (we hold those, not a fetched
+  /// [RecordModel]).
+  Uri fileUrl(
+    String recordId,
+    String filename, {
+    String? thumb,
+    String? token,
+  }) => pb.buildURL('/api/files/$collection/$recordId/$filename', {
+    'thumb': ?thumb,
+    'token': ?token,
+  });
 
   @override
   Future<T> update(String id, Map<String, dynamic> body) {
