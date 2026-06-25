@@ -70,8 +70,11 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    // 'case_shares' matters because a case shared *with* the signed-in user
+    // grants list visibility without touching the case record itself — so only
+    // the case_shares create/delete event reflects the change live.
     ref.liveRefresh(
-      const ['cases', 'animals'],
+      const ['cases', 'animals', 'case_shares'],
       () => ref.invalidate(casesBrowserDataProvider),
     );
     final data = ref.watch(casesBrowserDataProvider);

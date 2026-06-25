@@ -7,8 +7,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'case_realtime.g.dart';
 
 /// The collections behind the case timeline — the realtime sources we watch.
+/// 'case_shares' is included because a share granted/revoked on THIS case
+/// changes the viewer's own access without touching the case record; the
+/// default event filter (`data['case'] == caseId`) catches it, so a recipient
+/// gains (or loses) the detail view live instead of needing a full reload.
 const _caseTimelineCollections = [
   'cases',
+  'case_shares',
   'journal_entries',
   'weights',
   'case_conditions',

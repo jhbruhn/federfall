@@ -24,8 +24,10 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     // Live-sync the caseload KPIs as cases are admitted / dispositioned.
+    // A carer's KPIs include cases shared *with* them, so watch 'case_shares'
+    // too — a share grants/revokes visibility without changing the case record.
     ref.liveRefresh(
-      const ['cases', 'dispositions'],
+      const ['cases', 'dispositions', 'case_shares'],
       () => ref.invalidate(dashboardSummaryProvider),
     );
     final summary = ref.watch(dashboardSummaryProvider);
