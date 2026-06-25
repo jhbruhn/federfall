@@ -109,4 +109,62 @@ void main() {
       expect(d.releaseGeo, const GeoPoint(lon: 10, lat: 54));
     });
   });
+
+  group('Exam.fromRecord', () {
+    test('maps vitals, enums and denormalized animal', () {
+      final r = RecordModel({
+        'id': 'exam0000000001',
+        'case': 'case0000000001',
+        'animal': 'anml0000000001',
+        'examined_at': '2026-03-10 09:00:00.000Z',
+        'examiner': 'user0000000001',
+        'body_condition': 3,
+        'hydration': 'moderate',
+        'mentation': 'quiet',
+        'notes': 'mild dehydration on admission',
+      });
+      final e = Exam.fromRecord(r);
+      expect(e.caseId, 'case0000000001');
+      expect(e.animal, 'anml0000000001');
+      expect(e.examinedAt?.hour, 9);
+      expect(e.examiner, 'user0000000001');
+      expect(e.bodyCondition, 3);
+      expect(e.hydration, Hydration.moderate);
+      expect(e.mentation, Mentation.quiet);
+      expect(e.notes, 'mild dehydration on admission');
+    });
+
+    test('leaves unset vitals null (a sparse, partial exam)', () {
+      final r = RecordModel({
+        'id': 'exam0000000002',
+        'case': 'case0000000001',
+        'animal': 'anml0000000001',
+        'body_condition': '',
+        'hydration': '',
+        'mentation': '',
+      });
+      final e = Exam.fromRecord(r);
+      expect(e.bodyCondition, isNull);
+      expect(e.hydration, isNull);
+      expect(e.mentation, isNull);
+      expect(e.examinedAt, isNull);
+    });
+  });
+
+  group('ExamFinding.fromRecord', () {
+    test('maps system, status and note', () {
+      final r = RecordModel({
+        'id': 'find0000000001',
+        'exam': 'exam0000000001',
+        'system': 'legs_feet',
+        'status': 'abnormal',
+        'note': 'pododermatitis left foot',
+      });
+      final f = ExamFinding.fromRecord(r);
+      expect(f.exam, 'exam0000000001');
+      expect(f.system, BodySystem.legsFeet);
+      expect(f.status, FindingStatus.abnormal);
+      expect(f.note, 'pododermatitis left foot');
+    });
+  });
 }

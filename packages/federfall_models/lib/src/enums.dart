@@ -188,3 +188,67 @@ enum ShareAccess {
 
   static ShareAccess? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
 }
+
+/// Hydration assessment on a structured exam (`exams.hydration`), ordered from
+/// well-hydrated to severely dehydrated (≈5 / 7 / ≥10 %).
+enum Hydration {
+  normal('normal'),
+  mild('mild'),
+  moderate('moderate'),
+  severe('severe');
+
+  const Hydration(this.wire);
+
+  final String wire;
+
+  static Hydration? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}
+
+/// Attitude / mentation on a structured exam (`exams.mentation`), the clinical
+/// BAR → QAR → depressed → non-responsive scale.
+enum Mentation {
+  bright('bright'),
+  quiet('quiet'),
+  depressed('depressed'),
+  unresponsive('unresponsive');
+
+  const Mentation(this.wire);
+
+  final String wire;
+
+  static Mentation? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}
+
+/// A body region assessed on a structured exam (`exam_findings.system`).
+enum BodySystem {
+  eyes('eyes'),
+  beakNares('beak_nares'),
+  oral('oral'),
+  integument('integument'),
+  wings('wings'),
+  legsFeet('legs_feet'),
+  keel('keel'),
+  respiratory('respiratory'),
+  coelom('coelom'),
+  neuro('neuro'),
+  vent('vent');
+
+  const BodySystem(this.wire);
+
+  final String wire;
+
+  static BodySystem? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}
+
+/// Whether an assessed body system was normal or abnormal
+/// (`exam_findings.status`).
+enum FindingStatus {
+  normal('normal'),
+  abnormal('abnormal');
+
+  const FindingStatus(this.wire);
+
+  final String wire;
+
+  static FindingStatus? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}

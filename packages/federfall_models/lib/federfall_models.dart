@@ -22,6 +22,7 @@ export 'src/models/case_summary.dart';
 export 'src/models/clinical.dart';
 export 'src/models/condition.dart';
 export 'src/models/disposition.dart';
+export 'src/models/exam.dart';
 export 'src/models/finder.dart';
 export 'src/models/geo_point.dart';
 export 'src/models/marking.dart';
