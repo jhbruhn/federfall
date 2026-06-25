@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/home/account_menu.dart';
@@ -22,6 +23,11 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    // Live-sync the caseload KPIs as cases are admitted / dispositioned.
+    ref.liveRefresh(
+      const ['cases', 'dispositions'],
+      () => ref.invalidate(dashboardSummaryProvider),
+    );
     final summary = ref.watch(dashboardSummaryProvider);
 
     return Scaffold(
@@ -65,9 +71,11 @@ class _WorklistPreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    // Live-sync the preview too: without this the subscription only ran on the
-    // Today tab, so the dashboard card went stale.
-    ref.watch(worklistLiveProvider);
+    // Live-sync the preview too (else it only updated on the Today tab).
+    ref.liveRefresh(
+      worklistLiveCollections,
+      () => ref.invalidate(worklistProvider),
+    );
 
     return ref
         .watch(worklistProvider)

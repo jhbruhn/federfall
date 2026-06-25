@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/statistics/case_report.dart';
@@ -21,6 +22,10 @@ class StatisticsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    ref.liveRefresh(
+      const ['cases', 'dispositions'],
+      () => ref.invalidate(statisticsProvider),
+    );
     final stats = ref.watch(statisticsProvider);
 
     return Scaffold(

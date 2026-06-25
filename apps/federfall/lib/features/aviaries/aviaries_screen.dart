@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/aviaries/aviary_form_sheet.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
@@ -22,6 +23,10 @@ class AviariesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    ref.liveRefresh(
+      const ['aviaries', 'dispositions', 'animals'],
+      () => ref.invalidate(aviariesProvider),
+    );
     final aviaries = ref.watch(aviariesProvider);
     final canManage = canManageAviaries(
       ref.watch(currentUserProvider).value?.role,

@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
@@ -69,6 +70,10 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    ref.liveRefresh(
+      const ['cases', 'animals'],
+      () => ref.invalidate(casesBrowserDataProvider),
+    );
     final data = ref.watch(casesBrowserDataProvider);
 
     return Scaffold(

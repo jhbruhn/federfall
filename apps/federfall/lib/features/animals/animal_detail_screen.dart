@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
@@ -30,6 +31,22 @@ class AnimalDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    ref.liveRefresh(
+      const [
+        'animals',
+        'cases',
+        'markings',
+        'weights',
+        'exams',
+        'exam_findings',
+      ],
+      () {
+        ref
+          ..invalidate(animalLifetimeProvider(animalId))
+          ..invalidate(weightsForAnimalProvider(animalId))
+          ..invalidate(examsForAnimalProvider(animalId));
+      },
+    );
     final lifetime = ref.watch(animalLifetimeProvider(animalId));
 
     return Scaffold(
@@ -45,8 +62,7 @@ class AnimalDetailScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: l10n.animalNewCase,
-            onPressed: () =>
-                context.go(AppRoutes.newCaseForAnimal(animalId)),
+            onPressed: () => context.go(AppRoutes.newCaseForAnimal(animalId)),
           ),
         ],
       ),
@@ -217,8 +233,7 @@ class _ExamsSection extends ConsumerWidget {
                   ),
                   subtitle: Text(_vitalsSummary(l10n, exam)),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () =>
-                      context.push(AppRoutes.caseDetail(exam.caseId)),
+                  onTap: () => context.push(AppRoutes.caseDetail(exam.caseId)),
                 ),
           ],
         ),

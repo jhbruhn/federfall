@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/features/worklist/worklist_labels.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
@@ -26,7 +27,10 @@ class TodayScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     // Live-sync: re-fetch the worklist when its source collections change.
-    ref.watch(worklistLiveProvider);
+    ref.liveRefresh(
+      worklistLiveCollections,
+      () => ref.invalidate(worklistProvider),
+    );
     final items = ref.watch(worklistProvider);
     final now = DateTime.now();
 
