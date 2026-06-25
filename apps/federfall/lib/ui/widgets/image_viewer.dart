@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/widgets/cached_file_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -307,15 +309,14 @@ class _ZoomableImageState extends State<_ZoomableImage>
         transformationController: _transform,
         maxScale: 5,
         child: Center(
-          child: Image.network(
-            widget.url,
+          child: CachedNetworkImage(
+            imageUrl: widget.url,
+            cacheKey: fileCacheKey(Uri.parse(widget.url)),
             fit: BoxFit.contain,
-            loadingBuilder: (context, child, progress) => progress == null
-                ? child
-                : const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
-                  ),
-            errorBuilder: (_, _, _) => const Icon(
+            placeholder: (context, _) => const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+            errorWidget: (_, _, _) => const Icon(
               Icons.broken_image_outlined,
               color: Colors.white54,
               size: 64,

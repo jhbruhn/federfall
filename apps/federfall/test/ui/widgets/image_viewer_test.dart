@@ -16,6 +16,17 @@ void main() {
     );
   }
 
+  /// Pumps a fixed sequence of frames to drive the page transition. We can't
+  /// use pumpAndSettle here: the full-screen viewer shows an animated loading
+  /// spinner for images that never resolve in tests, so the frame queue never
+  /// drains. A bounded series of timed pumps advances the ~300ms page animation
+  /// (and fires onPageChanged) without waiting on the perpetual spinner.
+  Future<void> settlePage(WidgetTester tester) async {
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+  }
+
   testWidgets('shows a counter and a share action for multiple images',
       (tester) async {
     await pump(tester, const [
@@ -36,7 +47,7 @@ void main() {
     await tester.pump();
 
     await tester.fling(find.byType(PageView), const Offset(-400, 0), 1000);
-    await tester.pumpAndSettle();
+    await settlePage(tester);
 
     expect(find.text('2 / 2'), findsOneWidget);
   });
@@ -51,13 +62,13 @@ void main() {
     // On the first image: only "next" is shown.
     expect(find.byIcon(Icons.chevron_left), findsNothing);
     await tester.tap(find.byIcon(Icons.chevron_right));
-    await tester.pumpAndSettle();
+    await settlePage(tester);
 
     expect(find.text('2 / 2'), findsOneWidget);
     // On the last image: only "previous" is shown.
     expect(find.byIcon(Icons.chevron_right), findsNothing);
     await tester.tap(find.byIcon(Icons.chevron_left));
-    await tester.pumpAndSettle();
+    await settlePage(tester);
 
     expect(find.text('1 / 2'), findsOneWidget);
   });
@@ -70,11 +81,11 @@ void main() {
     await tester.pump();
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pumpAndSettle();
+    await settlePage(tester);
     expect(find.text('2 / 2'), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pumpAndSettle();
+    await settlePage(tester);
     expect(find.text('1 / 2'), findsOneWidget);
   });
 

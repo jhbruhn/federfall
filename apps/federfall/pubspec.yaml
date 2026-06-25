@@ -11,6 +11,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  cached_network_image: ^3.4.1
   connectivity_plus: ^6.1.0
   csv: ^8.0.0
   federfall_data:

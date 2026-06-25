@@ -4,6 +4,7 @@ import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,12 +49,11 @@ class AnimalAvatar extends ConsumerWidget {
       child: ClipOval(
         child: url == null
             ? placeholder
-            : Image.network(
-                url.toString(),
+            : CachedFileImage(
+                url: url,
                 width: diameter,
                 height: diameter,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => placeholder,
+                errorWidget: placeholder,
               ),
       ),
     );

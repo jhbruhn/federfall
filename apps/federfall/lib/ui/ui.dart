@@ -7,6 +7,7 @@ export 'package:federfall/theme/app_theme.dart';
 export 'validators.dart';
 export 'widgets/app_text_field.dart';
 export 'widgets/async_value_view.dart';
+export 'widgets/cached_file_image.dart';
 export 'widgets/date_field.dart';
 export 'widgets/detail_header.dart';
 export 'widgets/empty_view.dart';

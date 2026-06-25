@@ -115,7 +115,14 @@ class _AttachmentStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(journalRepositoryProvider).value;
-    if (repo == null) return const SizedBox.shrink();
+    // Attachments are a Protected file field (FED-8.1): URLs need a token.
+    final token = ref.watch(fileTokenProvider).value;
+    if (repo == null || token == null) {
+      return const SizedBox(
+        height: 96,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return SizedBox(
       height: 96,
@@ -125,32 +132,26 @@ class _AttachmentStrip extends ConsumerWidget {
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, i) {
           final filename = entry.attachments[i];
-          final thumb = repo.fileUrl(entry.id, filename, thumb: '200x200');
+          final thumb = repo.fileUrl(
+            entry.id,
+            filename,
+            thumb: '200x200',
+            token: token,
+          );
           return GestureDetector(
             onTap: () => unawaited(
               showImageViewer(
                 context,
                 imageUrls: [
                   for (final f in entry.attachments)
-                    repo.fileUrl(entry.id, f).toString(),
+                    repo.fileUrl(entry.id, f, token: token).toString(),
                 ],
                 initialIndex: i,
               ),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                thumb.toString(),
-                width: 96,
-                height: 96,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 96,
-                  height: 96,
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.broken_image_outlined),
-                ),
-              ),
+              child: CachedFileImage(url: thumb, width: 96, height: 96),
             ),
           );
         },
