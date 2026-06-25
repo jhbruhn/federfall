@@ -1,10 +1,13 @@
-# Federfall — local PocketBase backend (fully containerized).
+# Federfall — PocketBase backend (containerized), production-safe BASE stack.
 #
-# Usage:
-#   docker compose up --build      # build pinned image + serve on :8090
-#   docker compose down            # stop (pb_data persists in ./pb_data)
+# This base file is what a server runs. It is self-contained: migrations and
+# hooks are baked into the image (see Dockerfile), so the ONLY host state is the
+# pb_data volume. No source bind mounts → nothing on the host can shadow or drift
+# from the committed schema.
 #
-# Config lives here as literal values (no .env files in this project).
+#   Production:  docker compose -f docker-compose.yml up -d --build
+#   Local dev:   docker compose up --build      # auto-merges docker-compose.override.yml
+#
 # To change the PocketBase version: edit PB_VERSION below AND the Dockerfile ARG.
 
 services:
@@ -16,6 +19,9 @@ services:
     image: federfall-pocketbase:0.39.4
     container_name: federfall_pocketbase
     restart: unless-stopped
+    # Published on all interfaces. NOTE: this exposes plain HTTP on :8090 — put a
+    # TLS-terminating reverse proxy (Caddy/Traefik) in front, or run PocketBase
+    # with its built-in Let's Encrypt (serve --https on :443 + a real domain).
     ports:
       - "8090:8090"
     environment:
@@ -24,17 +30,10 @@ services:
       # traffic; point this at a self-hosted instance or a permitted mirror.
       # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"
       # FEDERFALL_GEOCODER_KEY: ""        # optional API key (keyed mirrors)
-      # User-Agent sent upstream. Default "Federfall/1.0" (no address). You may
-      # add a REAL contact, e.g. "Federfall/1.0 (admin@yourdomain.tld)" — note
-      # Nominatim blocks placeholder domains like example.org.
-      # FEDERFALL_USER_AGENT: "Federfall/1.0"
+      # FEDERFALL_USER_AGENT: "Federfall/1.0 (admin@yourdomain.tld)"
     volumes:
-      # SQLite DB, uploaded files, logs — gitignored, persisted on host.
+      # SQLite DB, uploaded files, logs — the only persisted host state.
       - ./pb_data:/pb/pb_data
-      # Schema migrations (.js) — committed; automigrate writes new ones here in dev.
-      - ./pb_migrations:/pb/pb_migrations
-      # JS hooks (pb_hooks/*.pb.js) — committed; hot-reloaded in dev.
-      - ./pb_hooks:/pb/pb_hooks
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/api/health"]
       interval: 10s

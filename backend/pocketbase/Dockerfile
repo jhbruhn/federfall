@@ -26,13 +26,20 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata wget
 COPY --from=fetch /pb/pocketbase /usr/local/bin/pocketbase
 WORKDIR /pb
-# Mount points (declared so the dirs exist even before volumes attach):
-RUN mkdir -p /pb/pb_data /pb/pb_migrations /pb/pb_hooks
+RUN mkdir -p /pb/pb_data
+# Bake the committed migrations + hooks INTO the image so it is self-contained
+# and reproducible — production runs them from here with no host bind mounts.
+# (Local dev shadows these with bind mounts via docker-compose.override.yml so
+# automigrate + hot-reload still work.)
+COPY pb_migrations/ /pb/pb_migrations/
+COPY pb_hooks/      /pb/pb_hooks/
 EXPOSE 8090
-# Automigrate is on by default in dev — schema changes in the Admin UI write
-# .js migration files into the mounted pb_migrations/ on the host.
+# Production default: automigrate OFF — schema only ever changes via the
+# committed migration files baked above, never drifts from the Admin UI.
+# The dev override re-enables it and bind-mounts the dirs.
 ENTRYPOINT ["pocketbase"]
 CMD ["serve", "--http=0.0.0.0:8090", \
      "--dir=/pb/pb_data", \
      "--migrationsDir=/pb/pb_migrations", \
-     "--hooksDir=/pb/pb_hooks"]
+     "--hooksDir=/pb/pb_hooks", \
+     "--automigrate=0"]
