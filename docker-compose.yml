@@ -1,0 +1,60 @@
+# Federfall — production stack (BASE). Single public entry: nginx (container :80,
+# published on host :8090) serves the Flutter SPA and reverse-proxies the
+# PocketBase API + Admin under the same origin. PocketBase has NO published port —
+# only nginx reaches it over the compose network.
+#
+#   Production:  docker compose -f docker-compose.yml up -d --build
+#   Local dev:   docker compose up --build      # auto-merges docker-compose.override.yml
+#                                               # (bind-mounts migrations/hooks, automigrate on);
+#                                               # SPA + API stay on http://localhost:8090.
+#
+# Both images are version-pinned and self-contained (migrations/hooks baked into
+# the backend image; automigrate off). Ship changes by rebuilding + recreating.
+
+services:
+  backend:
+    build:
+      context: ./backend/pocketbase
+      args:
+        PB_VERSION: "0.39.4"
+    image: federfall-pocketbase:0.39.4
+    container_name: federfall_backend
+    restart: unless-stopped
+    environment:
+      TZ: "Europe/Berlin"
+      # Geocoding proxy — see backend/pocketbase/README.md:
+      # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"
+      # FEDERFALL_GEOCODER_KEY: ""
+      # FEDERFALL_USER_AGENT: "Federfall/1.0 (admin@yourdomain.tld)"
+    #expose:
+    #  - "8090"            # internal-only; reachable to nginx, not the host
+    volumes:
+      - pb_data:/pb/pb_data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/federfall/web.Dockerfile
+    image: federfall-web:latest
+    container_name: federfall_web
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8090:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  pb_data:

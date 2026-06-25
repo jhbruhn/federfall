@@ -1,0 +1,26 @@
+# Build context for the web image (apps/federfall/web.Dockerfile) is the repo
+# root — keep it lean. The backend image builds from ./backend/pocketbase with
+# its own .dockerignore, so excluding backend/ here is safe.
+.git
+.github
+.beads
+docs
+backend
+deploy
+
+# Generated / build outputs — regenerated inside the image.
+**/build/
+**/.dart_tool/
+**/coverage/
+**/.flutter-plugins-dependencies
+
+# Native platforms — not needed for a web build.
+apps/federfall/android
+apps/federfall/ios
+
+# Tests, IDE, local cruft.
+**/test/
+**/.idea
+**/.vscode
+*.iml
+docker-compose*.yml

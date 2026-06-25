@@ -1,0 +1,31 @@
+# Federfall — LOCAL DEV overrides, auto-merged by `docker compose up` on top of
+# docker-compose.yml. NOT used in production (deploy runs an explicit
+# `-f docker-compose.yml`, which skips this file).
+#
+# Dev still goes through nginx on :8090 (the backend is never published directly):
+#   docker compose up --build      # backend + web; SPA + API on http://localhost:8090
+#   flutter run …                  # optional hot-reload UI; its API base is localhost:8090
+#
+# These overrides only relax the BACKEND for dev convenience:
+#   - bind-mount pb_migrations/ + pb_hooks/ so host edits take effect without a rebuild
+#     (hooks hot-reload; new Admin-UI migrations land back on the host to commit),
+#   - bind-mount the existing local pb_data so dev data persists on the host,
+#   - automigrate ON so Admin-UI schema changes are written as .js migration files.
+
+services:
+  backend:
+    # Explicit build context (merges with the base build config) so this file is
+    # self-describing about what `docker compose up backend` builds.
+    build:
+      context: ./backend/pocketbase
+    volumes:
+      - ./backend/pocketbase/pb_data:/pb/pb_data
+      - ./backend/pocketbase/pb_migrations:/pb/pb_migrations
+      - ./backend/pocketbase/pb_hooks:/pb/pb_hooks
+    command:
+      - "serve"
+      - "--http=0.0.0.0:8090"
+      - "--dir=/pb/pb_data"
+      - "--migrationsDir=/pb/pb_migrations"
+      - "--hooksDir=/pb/pb_hooks"
+      - "--automigrate=1"
