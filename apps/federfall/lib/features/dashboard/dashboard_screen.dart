@@ -12,12 +12,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Dashboard tab of the navigation shell (FED-7.1). KPI cards plus the
-/// active-case status breakdown and quarantines ending soon. Scope follows the
-/// access rules via [dashboardSummaryProvider].
-///
-/// Tap-through to a pre-filtered all-cases browser arrives with FED-7.4; for
-/// now the quarantine list links straight to each case.
+/// Dashboard tab of the navigation shell (FED-7.1): the carer's Today preview
+/// plus a caseload KPI grid. Each tile taps through to the pre-filtered case
+/// browser — or the aviaries list (ctw.6). Scope follows the access rules via
+/// [dashboardSummaryProvider].
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -41,26 +39,12 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
               const _WorklistPreview(),
-              Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.md,
-                children: [
-                  _KpiCard(
-                    label: l10n.dashboardActiveCases,
-                    value: s.activeCount,
-                    icon: Icons.medical_information_outlined,
-                  ),
-                  _KpiCard(
-                    label: l10n.dashboardIntakesThisYear,
-                    value: s.intakesThisYear,
-                    icon: Icons.input_outlined,
-                  ),
-                ],
+              Text(
+                l10n.dashboardCaseloadTitle,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              const SizedBox(height: AppSpacing.lg),
-              _StatusBreakdown(s),
-              const SizedBox(height: AppSpacing.md),
-              _QuarantineSoon(s.quarantineEndingSoon),
+              const SizedBox(height: AppSpacing.sm),
+              _KpiGrid(s),
             ],
           ),
         ),
@@ -113,139 +97,121 @@ class _WorklistPreview extends ConsumerWidget {
   }
 }
 
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  final String label;
-  final int value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: SizedBox(
-        width: 160,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: theme.colorScheme.primary),
-              const SizedBox(height: AppSpacing.sm),
-              Text('$value', style: theme.textTheme.headlineMedium),
-              Text(label, style: theme.textTheme.bodyMedium),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBreakdown extends StatelessWidget {
-  const _StatusBreakdown(this.summary);
+/// The caseload KPI grid: a 2-column grid of tappable metric tiles. Each tile
+/// deep-links to the matching pre-filtered case browser, or the aviaries list.
+class _KpiGrid extends StatelessWidget {
+  const _KpiGrid(this.summary);
 
   final DashboardSummary summary;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    // Only surface statuses that actually occur: several lifecycle stages have
-    // no transition into them yet, so showing them stuck at 0 just confuses.
-    // See federfall-blp.1 for the lifecycle decision.
-    final present =
-        summary.byStatus.entries.where((e) => e.value > 0).toList();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.dashboardByStatus, style: theme.textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            if (present.isEmpty)
-              Text(
-                l10n.dashboardByStatusEmpty,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              )
-            else
-              for (final entry in present)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(caseStatusLabel(l10n, entry.key)),
-                      Text(
-                        '${entry.value}',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ],
-                  ),
-                ),
-          ],
-        ),
+    final year = DateTime.now().year;
+    final ready = summary.byStatus[CaseStatus.readyForRelease] ?? 0;
+    final readyWire = CaseStatus.readyForRelease.wire;
+
+    final tiles = <_Kpi>[
+      _Kpi(
+        icon: Icons.medical_information_outlined,
+        label: l10n.dashboardActiveCases,
+        value: summary.activeCount,
+        route: AppRoutes.casesBrowse('scope=all&activity=active'),
       ),
+      _Kpi(
+        icon: Icons.input_outlined,
+        label: l10n.dashboardIntakesThisYear,
+        value: summary.intakesThisYear,
+        route: AppRoutes.casesBrowse('scope=all&activity=all&year=$year'),
+      ),
+      _Kpi(
+        icon: Icons.task_alt_outlined,
+        label: caseStatusLabel(l10n, CaseStatus.readyForRelease),
+        value: ready,
+        route: AppRoutes.casesBrowse('scope=all&status=$readyWire'),
+      ),
+      // The aviary tile switches to the Aviaries tab rather than a filtered
+      // case list, so it navigates (go) instead of pushing a transient view.
+      _Kpi(
+        icon: Icons.holiday_village_outlined,
+        label: l10n.dashboardInAviary,
+        value: summary.inAviaryCount,
+        route: AppRoutes.aviaries,
+        push: false,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = (constraints.maxWidth - AppSpacing.md) / 2;
+        return Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.md,
+          children: [
+            for (final t in tiles)
+              SizedBox(width: width, child: _KpiCard(t)),
+          ],
+        );
+      },
     );
   }
 }
 
-class _QuarantineSoon extends StatelessWidget {
-  const _QuarantineSoon(this.cases);
+/// Data for one KPI tile.
+class _Kpi {
+  const _Kpi({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.route,
+    this.push = true,
+  });
 
-  final List<Case> cases;
+  final IconData icon;
+  final String label;
+  final int value;
+  final String route;
+
+  /// Push a transient screen over the shell (filtered case browser) vs. switch
+  /// to a top-level tab (the aviaries list).
+  final bool push;
+}
+
+class _KpiCard extends StatelessWidget {
+  const _KpiCard(this.kpi);
+
+  final _Kpi kpi;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     final theme = Theme.of(context);
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.dashboardQuarantineSoon,
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            if (cases.isEmpty)
-              Text(
-                l10n.dashboardQuarantineSoonEmpty,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              )
-            else
-              for (final c in cases)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.shield_outlined),
-                  title: Text(c.caseNumber ?? c.id),
-                  trailing: Text(_quarantineBadge(l10n, c.quarantineUntil!)),
-                  onTap: () => context.go(AppRoutes.caseDetail(c.id)),
-                ),
-          ],
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () =>
+            kpi.push ? context.push(kpi.route) : context.go(kpi.route),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(kpi.icon, color: theme.colorScheme.primary),
+                  const Spacer(),
+                  Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text('${kpi.value}', style: theme.textTheme.headlineMedium),
+              Text(kpi.label, style: theme.textTheme.bodyMedium),
+            ],
+          ),
         ),
       ),
     );
   }
-}
-
-/// Human-readable label for how soon a quarantine ends, relative to today.
-String _quarantineBadge(AppLocalizations l10n, DateTime until) {
-  final today = DateUtils.dateOnly(DateTime.now());
-  final days = DateUtils.dateOnly(until).difference(today).inDays;
-  if (days < 0) return l10n.dashboardQuarantineOverdue;
-  if (days == 0) return l10n.dashboardQuarantineToday;
-  return l10n.dashboardQuarantineInDays(days);
 }

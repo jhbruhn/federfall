@@ -18,6 +18,7 @@ class DashboardSummary {
     required this.intakesThisYear,
     required this.byStatus,
     required this.quarantineEndingSoon,
+    this.inAviaryCount = 0,
   });
 
   /// Cases that have not yet been disposed.
@@ -25,6 +26,9 @@ class DashboardSummary {
 
   /// Cases admitted within the current calendar year.
   final int intakesThisYear;
+
+  /// Animals currently resident in an aviary (lifetime_status = in_aviary).
+  final int inAviaryCount;
 
   /// Active-case counts per status, in [CaseStatus] order (disposed excluded).
   final Map<CaseStatus, int> byStatus;
@@ -46,6 +50,7 @@ DashboardSummary buildDashboardSummary(
   List<Case> cases,
   DateTime now, {
   Duration soonWindow = quarantineSoonWindow,
+  int inAviaryCount = 0,
 }) {
   final byStatus = {for (final s in _activeStatuses) s: 0};
   final soonThreshold = now.add(soonWindow);
@@ -77,6 +82,7 @@ DashboardSummary buildDashboardSummary(
     intakesThisYear: intakes,
     byStatus: byStatus,
     quarantineEndingSoon: quarantineSoon,
+    inAviaryCount: inAviaryCount,
   );
 }
 
@@ -84,7 +90,20 @@ DashboardSummary buildDashboardSummary(
 /// expose, then aggregates client-side.
 @riverpod
 Future<DashboardSummary> dashboardSummary(Ref ref) async {
-  final repo = await ref.watch(casesRepositoryProvider.future);
-  final cases = await repo.list(sort: '-created');
-  return buildDashboardSummary(cases, DateTime.now());
+  final (casesRepo, animalsRepo) = await (
+    ref.watch(casesRepositoryProvider.future),
+    ref.watch(animalsRepositoryProvider.future),
+  ).wait;
+  final (cases, animals) = await (
+    casesRepo.list(sort: '-created'),
+    animalsRepo.list(),
+  ).wait;
+  final inAviary = animals
+      .where((a) => a.lifetimeStatus == LifetimeStatus.inAviary)
+      .length;
+  return buildDashboardSummary(
+    cases,
+    DateTime.now(),
+    inAviaryCount: inAviary,
+  );
 }

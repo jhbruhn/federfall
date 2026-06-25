@@ -19,10 +19,35 @@ class CaseQuery {
   const CaseQuery({
     this.allScope = false,
     this.activity = CaseActivity.active,
+    this.status,
     this.species,
     this.admittedRange,
     this.text = '',
   });
+
+  /// Seeds a query from deep-link route parameters (dashboard tap-through,
+  /// ctw.6): `scope=all`, `activity=active|closed|all`, `status=<wire>`,
+  /// `species=<name>`, `year=<yyyy>`. Unknown/absent params fall back to
+  /// defaults.
+  factory CaseQuery.fromParams(Map<String, String> params) {
+    final year = int.tryParse(params['year'] ?? '');
+    return CaseQuery(
+      allScope: params['scope'] == 'all',
+      activity: switch (params['activity']) {
+        'closed' => CaseActivity.closed,
+        'all' => CaseActivity.all,
+        _ => CaseActivity.active,
+      },
+      status: CaseStatus.fromWire(params['status']),
+      species: params['species'],
+      admittedRange: year == null
+          ? null
+          : DateTimeRange(
+              start: DateTime(year),
+              end: DateTime(year, 12, 31),
+            ),
+    );
+  }
 
   /// `false` = only the signed-in user's own cases ("My cases"); `true` widens
   /// to everything they may access (the server rules already scope that).
@@ -30,6 +55,9 @@ class CaseQuery {
 
   /// Active / closed / all split.
   final CaseActivity activity;
+
+  /// Exact lifecycle status, or null for any (used by dashboard tap-through).
+  final CaseStatus? status;
 
   /// Exact species match against the case's animal, or null for any.
   final String? species;
@@ -48,24 +76,42 @@ class CaseQuery {
   int get activeFacetCount =>
       (allScope ? 1 : 0) +
       (activity != CaseActivity.active ? 1 : 0) +
+      (status != null ? 1 : 0) +
       (species != null ? 1 : 0) +
       (admittedRange != null ? 1 : 0);
 
   CaseQuery copyWith({
     bool? allScope,
     CaseActivity? activity,
+    CaseStatus? status,
     String? species,
     DateTimeRange? admittedRange,
     String? text,
+    bool clearStatus = false,
     bool clearSpecies = false,
     bool clearRange = false,
   }) => CaseQuery(
     allScope: allScope ?? this.allScope,
     activity: activity ?? this.activity,
+    status: clearStatus ? null : (status ?? this.status),
     species: clearSpecies ? null : (species ?? this.species),
     admittedRange: clearRange ? null : (admittedRange ?? this.admittedRange),
     text: text ?? this.text,
   );
+
+  @override
+  bool operator ==(Object other) =>
+      other is CaseQuery &&
+      other.allScope == allScope &&
+      other.activity == activity &&
+      other.status == status &&
+      other.species == species &&
+      other.admittedRange == admittedRange &&
+      other.text == text;
+
+  @override
+  int get hashCode =>
+      Object.hash(allScope, activity, status, species, admittedRange, text);
 }
 
 /// Everything the browser needs in one shot: the accessible cases (server-
@@ -136,6 +182,8 @@ List<Case> filterCases(
       case CaseActivity.all:
         break;
     }
+
+    if (query.status != null && c.status != query.status) return false;
 
     final animal = animalsById[c.animal];
     if (query.species != null && animal?.species != query.species) {

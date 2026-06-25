@@ -18,7 +18,12 @@ import 'package:go_router/go_router.dart';
 /// rest of the filters (activity, species, admission-date range) live behind a
 /// compact filter button so they don't dominate the screen.
 class CasesScreen extends ConsumerStatefulWidget {
-  const CasesScreen({super.key});
+  const CasesScreen({this.initialQuery, super.key});
+
+  /// A filter seeded from deep-link route params (dashboard tap-through,
+  /// ctw.6), e.g. `/cases?scope=all&status=ready_for_release`. Null for the
+  /// plain tab.
+  final CaseQuery? initialQuery;
 
   @override
   ConsumerState<CasesScreen> createState() => _CasesScreenState();
@@ -26,7 +31,13 @@ class CasesScreen extends ConsumerStatefulWidget {
 
 class _CasesScreenState extends ConsumerState<CasesScreen> {
   final _searchController = TextEditingController();
-  CaseQuery _query = const CaseQuery();
+  late CaseQuery _query = widget.initialQuery ?? const CaseQuery();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.text = _query.text;
+  }
 
   @override
   void dispose() {

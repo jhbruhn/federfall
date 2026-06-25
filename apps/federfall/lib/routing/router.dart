@@ -12,6 +12,7 @@ import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/aviaries/aviaries_screen.dart';
 import 'package:federfall/features/aviaries/aviary_detail_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
+import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/cases/new_case_screen.dart';
 import 'package:federfall/features/dashboard/dashboard_screen.dart';
@@ -96,6 +97,17 @@ GoRouter router(Ref ref) {
                     parentNavigatorKey: rootNavigatorKey,
                     builder: (_, state) => NewCaseScreen(
                       animalId: state.uri.queryParameters['animal'],
+                    ),
+                  ),
+                  // `/cases/browse?…` — transient pre-filtered browser pushed
+                  // over the shell from a dashboard KPI; literal before `:id`.
+                  GoRoute(
+                    path: AppRoutes.casesBrowseSegment,
+                    parentNavigatorKey: rootNavigatorKey,
+                    builder: (_, state) => CasesScreen(
+                      initialQuery: CaseQuery.fromParams(
+                        state.uri.queryParameters,
+                      ),
                     ),
                   ),
                   GoRoute(

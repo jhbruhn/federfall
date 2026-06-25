@@ -100,4 +100,32 @@ void main() {
 
     expect(_ids(result), ['in']);
   });
+
+  test('status filter keeps only the matching lifecycle status', () {
+    final result = run([
+      _c('care'),
+      _c('ready', status: CaseStatus.readyForRelease),
+    ], const CaseQuery(allScope: true, status: CaseStatus.readyForRelease));
+
+    expect(_ids(result), ['ready']);
+  });
+
+  test('CaseQuery.fromParams seeds a deep-linked filter', () {
+    final q = CaseQuery.fromParams(const {
+      'scope': 'all',
+      'activity': 'all',
+      'status': 'ready_for_release',
+      'year': '2025',
+    });
+
+    expect(q.allScope, isTrue);
+    expect(q.activity, CaseActivity.all);
+    expect(q.status, CaseStatus.readyForRelease);
+    expect(q.admittedRange?.start.year, 2025);
+    expect(q.admittedRange?.end.year, 2025);
+  });
+
+  test('CaseQuery.fromParams falls back to defaults for empty params', () {
+    expect(CaseQuery.fromParams(const {}), const CaseQuery());
+  });
 }

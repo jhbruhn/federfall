@@ -44,6 +44,12 @@ abstract final class AppRoutes {
   /// Builds the concrete case-detail path for [id] (FED-3.4).
   static String caseDetail(String id) => '/cases/$id';
 
+  /// Pre-filtered, transient all-cases browser pushed over the shell from a
+  /// dashboard KPI (ctw.6). [query] is appended verbatim, e.g.
+  /// `scope=all&activity=active`. Kept separate from the Cases tab so the tab's
+  /// own filter is never touched by a drill-down.
+  static String casesBrowse(String query) => '/cases/browse?$query';
+
   // Relative sub-path segments, used when declaring the case/animal detail
   // routes as children of their navigation-shell branch (so the address bar
   // and back button track the pushed detail page — go_router does not update
@@ -51,6 +57,9 @@ abstract final class AppRoutes {
 
   /// `new` — create-case form, child of the cases branch.
   static const newCaseSegment = 'new';
+
+  /// `browse` — pre-filtered all-cases browser, child of the cases branch.
+  static const casesBrowseSegment = 'browse';
 
   /// `:id` — detail page, child of the cases / animals branch.
   static const detailSegment = ':id';

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/server/server_config.dart';
@@ -143,6 +144,51 @@ void main() {
       router.routerDelegate.currentConfiguration.uri.toString(),
       '/cases/c1',
     );
+  });
+
+  testWidgets('a pushed /cases/browse applies the deep-linked filter', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigControllerProvider.overrideWith(
+          () => _FakeServerConfig(
+            const ServerConfig.configured('https://x.example'),
+          ),
+        ),
+        authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => const CasesBrowserData(
+            // Owned by someone else: only visible under scope=all.
+            cases: [
+              Case(
+                id: 'c1',
+                animal: 'a1',
+                caseNumber: '2026-099',
+                activeCarer: 'other',
+                status: CaseStatus.inCare,
+              ),
+            ],
+            animalsById: {},
+            myUserId: 'u1',
+          ),
+        ),
+        currentUserProvider.overrideWith((ref) async => null),
+      ],
+    );
+    await _pumpContainer(tester, container);
+
+    unawaited(
+      container
+          .read(routerProvider)
+          .push(AppRoutes.casesBrowse('scope=all&activity=active')),
+    );
+    await tester.pumpAndSettle();
+
+    // The transient browser renders and the scope=all filter reveals the
+    // other carer's case (hidden under the default "mine" scope).
+    expect(find.byType(CasesScreen), findsOneWidget);
+    expect(find.text('2026-099'), findsOneWidget);
   });
 
   testWidgets('confirm-reset is reachable without a session', (tester) async {

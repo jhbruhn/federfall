@@ -13,6 +13,7 @@ Future<void> _pump(
   Map<String, Animal> animalsById = const {},
   String myUserId = 'me',
   AppUser? user,
+  CaseQuery? initialQuery,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -26,11 +27,11 @@ Future<void> _pump(
         ),
         currentUserProvider.overrideWith((ref) async => user),
       ],
-      child: const MaterialApp(
-        locale: Locale('en'),
+      child: MaterialApp(
+        locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: CasesScreen(),
+        home: CasesScreen(initialQuery: initialQuery),
       ),
     ),
   );
@@ -41,6 +42,26 @@ void main() {
   testWidgets('shows the empty state when there are no cases', (tester) async {
     await _pump(tester);
     expect(find.text('No cases yet'), findsOneWidget);
+  });
+
+  testWidgets('a deep-linked initialQuery widens to all cases', (tester) async {
+    await _pump(
+      tester,
+      // A case owned by someone else: hidden under the default "mine" scope,
+      // shown when the dashboard deep-links scope=all.
+      cases: const [
+        Case(
+          id: 'c1',
+          animal: 'a1',
+          caseNumber: '2026-099',
+          activeCarer: 'other',
+          status: CaseStatus.inCare,
+        ),
+      ],
+      initialQuery: const CaseQuery(allScope: true),
+    );
+
+    expect(find.text('2026-099'), findsOneWidget);
   });
 
   testWidgets("defaults to the user's own active cases", (tester) async {
