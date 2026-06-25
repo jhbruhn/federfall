@@ -37,9 +37,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Invalidates every provider the [CaseTimeline] reads for [caseId] (and the
 /// animal-scoped markings for [animalId]), so a pull-to-refresh or a realtime
 /// event rebuilds the whole chronology from the server. Kept here, next to the
-/// list of sources, so the two never drift.
+/// list of sources, so the two never drift. Driven from the [Ref] of the
+/// case-live notifier, which both the screen refresh and realtime go through.
 void invalidateCaseTimeline(
-  WidgetRef ref, {
+  Ref ref, {
   required String caseId,
   required String animalId,
 }) {

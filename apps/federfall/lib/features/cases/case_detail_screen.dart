@@ -6,6 +6,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/case_realtime.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
@@ -73,24 +74,18 @@ class _CaseDetail extends ConsumerWidget {
 
   final Case medicalCase;
 
-  /// Pull-to-refresh: re-fetch the case header and rebuild the whole timeline
-  /// from the server.
-  Future<void> _refresh(WidgetRef ref) async {
-    invalidateCaseTimeline(
-      ref,
-      caseId: medicalCase.id,
-      animalId: medicalCase.animal,
-    );
-    ref
-      ..invalidate(animalByIdProvider(medicalCase.animal))
-      ..invalidate(caseByIdProvider(medicalCase.id));
-    await ref.read(caseByIdProvider(medicalCase.id).future);
-  }
+  /// Pull-to-refresh: delegate to the case-live notifier so refresh and
+  /// realtime share one source list (and one [Ref]).
+  Future<void> _refresh(WidgetRef ref) => ref
+      .read(caseLiveProvider(medicalCase.id, medicalCase.animal).notifier)
+      .refresh();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final animal = ref.watch(animalByIdProvider(medicalCase.animal)).value;
+    // Live-sync: re-fetch the timeline when a teammate changes this case.
+    ref.watch(caseLiveProvider(medicalCase.id, medicalCase.animal));
 
     return DefaultTabController(
       length: 2,

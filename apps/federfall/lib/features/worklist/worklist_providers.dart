@@ -1,4 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/connectivity/connectivity.dart';
+import 'package:federfall/core/realtime/collection_events.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -15,6 +17,34 @@ part 'worklist_providers.g.dart';
 /// filtered lists, last-activity via the `case_activity` view — all issued
 /// concurrently and folded into the pure [buildWorklist]. Returns an empty list
 /// when signed out.
+/// The base collections feeding the worklist. The `medication_due` source is a
+/// DB *view* (no realtime), so we watch the base collections it derives from.
+const _worklistCollections = [
+  'follow_ups',
+  'medications',
+  'medication_administrations',
+  'cases',
+];
+
+/// Live-sync for the worklist (Pattern A): re-fetches the worklist when any of
+/// its source collections change, and on reconnect. The today screen watches
+/// this to activate it. Over-invalidating on org-wide events is fine — the
+/// refetch is a handful of cache-backed, carer-scoped queries.
+@riverpod
+void worklistLive(Ref ref) {
+  for (final collection in _worklistCollections) {
+    ref.listen(collectionEventsProvider(collection), (_, next) {
+      if (next.value != null) ref.invalidate(worklistProvider);
+    });
+  }
+  ref.listen(onlineStatusProvider, (prev, next) {
+    if (next.value == OnlineStatus.online &&
+        prev?.value == OnlineStatus.offline) {
+      ref.invalidate(worklistProvider);
+    }
+  });
+}
+
 @riverpod
 Future<List<WorklistItem>> worklist(Ref ref) async {
   final me = (await ref.watch(currentUserProvider.future))?.id;
