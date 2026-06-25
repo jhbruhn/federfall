@@ -6,6 +6,7 @@ import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/edit_animal_sheet.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
@@ -35,14 +36,24 @@ class AnimalDetailScreen extends ConsumerWidget {
       const [
         'animals',
         'cases',
+        // A case shared with the signed-in user joins this animal's history
+        // without changing the case record itself — only case_shares fires.
+        'case_shares',
         'markings',
         'weights',
         'exams',
         'exam_findings',
       ],
       () {
+        // Invalidate the leaf list providers, not just animalLifetime:
+        // animalLifetime watches these via .future, so invalidating it alone
+        // would re-read their still-cached values. Touching the leaves cascades
+        // up to animalLifetime, refreshing the case history + accessibility.
         ref
-          ..invalidate(animalLifetimeProvider(animalId))
+          ..invalidate(animalByIdProvider(animalId))
+          ..invalidate(casesForAnimalProvider(animalId))
+          ..invalidate(caseSummariesForAnimalProvider(animalId))
+          ..invalidate(markingsForAnimalProvider(animalId))
           ..invalidate(weightsForAnimalProvider(animalId))
           ..invalidate(examsForAnimalProvider(animalId));
       },

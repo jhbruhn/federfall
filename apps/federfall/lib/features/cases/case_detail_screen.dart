@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
@@ -84,8 +85,20 @@ class _CaseDetail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final animal = ref.watch(animalByIdProvider(medicalCase.animal)).value;
-    // Live-sync: re-fetch the timeline when a teammate changes this case.
-    ref.watch(caseLiveProvider(medicalCase.id, medicalCase.animal));
+    ref
+      // Live-sync: re-fetch the timeline when a teammate changes this case.
+      ..watch(caseLiveProvider(medicalCase.id, medicalCase.animal))
+      // Live-sync the "prior cases" card. CaseLive only reacts to events for
+      // THIS case, but a sibling case being shared/unshared changes which prior
+      // cases are visible/tappable — and that flows through case_shares (the
+      // case record is untouched). Invalidate the leaf list providers
+      // (animalLifetime watches them, so it recomputes); invalidating
+      // animalLifetime alone would re-read their still-cached values.
+      ..liveRefresh(const ['cases', 'case_shares'], () {
+        ref
+          ..invalidate(casesForAnimalProvider(medicalCase.animal))
+          ..invalidate(caseSummariesForAnimalProvider(medicalCase.animal));
+      });
 
     return DefaultTabController(
       length: 2,
