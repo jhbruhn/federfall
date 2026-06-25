@@ -121,6 +121,54 @@ class PbMedicationDueRepository extends PbRepository<MedicationDue> {
   );
 }
 
+/// Repository over the `exams` collection (structured physical exams, FED-4.8).
+class PbExamsRepository extends PbRepository<Exam> {
+  PbExamsRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'exams',
+        fromRecord: Exam.fromRecord,
+      );
+
+  /// Exams for a case, most recent first (a timeline source).
+  Future<List<Exam>> forCase(String caseId) => list(
+    filter: filterExpr('case = {:c}', {'c': caseId}),
+    sort: '-examined_at',
+  );
+
+  /// Every exam recorded for an animal across its life, newest first — the
+  /// lifetime view aggregating exams across cases.
+  Future<List<Exam>> forAnimal(String animalId) => list(
+    filter: filterExpr('animal = {:a}', {'a': animalId}),
+    sort: '-examined_at',
+  );
+}
+
+/// Repository over the `exam_findings` collection (one sparse row per assessed
+/// body system on an [Exam], FED-4.8).
+class PbExamFindingsRepository extends PbRepository<ExamFinding> {
+  PbExamFindingsRepository(PocketBase pb, {super.cache})
+    : super(
+        pb: pb,
+        collection: 'exam_findings',
+        fromRecord: ExamFinding.fromRecord,
+      );
+
+  /// Findings for a single exam (for the edit sheet), in insertion order.
+  Future<List<ExamFinding>> forExam(String examId) => list(
+    filter: filterExpr('exam = {:e}', {'e': examId}),
+    sort: 'created',
+  );
+
+  /// Every finding across all the case's exams in ONE query (traversing the
+  /// grandparent `exam.case`), for the caller to group client-side under each
+  /// exam — avoids a per-exam round trip on the timeline.
+  Future<List<ExamFinding>> forCase(String caseId) => list(
+    filter: filterExpr('exam.case = {:c}', {'c': caseId}),
+    sort: 'created',
+  );
+}
+
 /// Repository over the `placements` collection (enclosure & handoff history).
 class PbPlacementsRepository extends PbRepository<Placement> {
   PbPlacementsRepository(PocketBase pb, {super.cache})

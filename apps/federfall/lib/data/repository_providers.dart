@@ -83,6 +83,14 @@ Future<PbPlacementsRepository> placementsRepository(Ref ref) async =>
     PbPlacementsRepository(await _client(ref), cache: _cache(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbExamsRepository> examsRepository(Ref ref) async =>
+    PbExamsRepository(await _client(ref), cache: _cache(ref));
+
+@Riverpod(keepAlive: true)
+Future<PbExamFindingsRepository> examFindingsRepository(Ref ref) async =>
+    PbExamFindingsRepository(await _client(ref), cache: _cache(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbMarkingsRepository> markingsRepository(Ref ref) async =>
     PbMarkingsRepository(await _client(ref), cache: _cache(ref));
 
