@@ -36,6 +36,10 @@ class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
 
 class MockFollowUpsRepo extends Mock implements PbFollowUpsRepository {}
 
+class MockExamsRepo extends Mock implements PbExamsRepository {}
+
+class MockExamFindingsRepo extends Mock implements PbExamFindingsRepository {}
+
 void main() {
   setUpAll(() => registerFallbackValue(<String, dynamic>{}));
 
@@ -51,6 +55,8 @@ void main() {
   late MockPlacementsRepo placements;
   late MockDispositionsRepo dispositions;
   late MockFollowUpsRepo followUps;
+  late MockExamsRepo exams;
+  late MockExamFindingsRepo examFindings;
 
   final medicalCase = Case(
     id: 'c1',
@@ -82,7 +88,11 @@ void main() {
     placements = MockPlacementsRepo();
     dispositions = MockDispositionsRepo();
     followUps = MockFollowUpsRepo();
+    exams = MockExamsRepo();
+    examFindings = MockExamFindingsRepo();
     when(() => followUps.forCase(any())).thenAnswer((_) async => []);
+    when(() => exams.forCase(any())).thenAnswer((_) async => []);
+    when(() => examFindings.forCase(any())).thenAnswer((_) async => []);
     when(() => placements.forCase(any())).thenAnswer((_) async => []);
     when(() => dispositions.forCase(any())).thenAnswer((_) async => []);
     when(() => journal.forCase(any())).thenAnswer((_) async => []);
@@ -131,6 +141,9 @@ void main() {
         dispositionsRepositoryProvider
             .overrideWith((ref) async => dispositions),
         followUpsRepositoryProvider.overrideWith((ref) async => followUps),
+        examsRepositoryProvider.overrideWith((ref) async => exams),
+        examFindingsRepositoryProvider
+            .overrideWith((ref) async => examFindings),
         if (lifetime != null)
           animalLifetimeProvider('a1').overrideWith((ref) async => lifetime),
         if (currentUser != null)

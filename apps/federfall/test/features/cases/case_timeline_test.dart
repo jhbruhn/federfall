@@ -28,6 +28,10 @@ class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
 
 class MockFollowUpsRepo extends Mock implements PbFollowUpsRepository {}
 
+class MockExamsRepo extends Mock implements PbExamsRepository {}
+
+class MockExamFindingsRepo extends Mock implements PbExamFindingsRepository {}
+
 void main() {
   late MockJournalRepo journal;
   late MockWeightsRepo weights;
@@ -38,6 +42,8 @@ void main() {
   late MockPlacementsRepo placements;
   late MockDispositionsRepo dispositions;
   late MockFollowUpsRepo followUps;
+  late MockExamsRepo exams;
+  late MockExamFindingsRepo examFindings;
 
   setUp(() {
     journal = MockJournalRepo();
@@ -49,6 +55,8 @@ void main() {
     placements = MockPlacementsRepo();
     dispositions = MockDispositionsRepo();
     followUps = MockFollowUpsRepo();
+    exams = MockExamsRepo();
+    examFindings = MockExamFindingsRepo();
     when(() => weights.forCase(any())).thenAnswer((_) async => []);
     when(() => caseConditions.forCase(any())).thenAnswer((_) async => []);
     when(() => medications.forCase(any())).thenAnswer((_) async => []);
@@ -57,6 +65,8 @@ void main() {
     when(() => placements.forCase(any())).thenAnswer((_) async => []);
     when(() => dispositions.forCase(any())).thenAnswer((_) async => []);
     when(() => followUps.forCase(any())).thenAnswer((_) async => []);
+    when(() => exams.forCase(any())).thenAnswer((_) async => []);
+    when(() => examFindings.forCase(any())).thenAnswer((_) async => []);
   });
 
   Future<void> pump(WidgetTester tester, Case medicalCase) async {
@@ -76,6 +86,9 @@ void main() {
         dispositionsRepositoryProvider
             .overrideWith((ref) async => dispositions),
         followUpsRepositoryProvider.overrideWith((ref) async => followUps),
+        examsRepositoryProvider.overrideWith((ref) async => exams),
+        examFindingsRepositoryProvider
+            .overrideWith((ref) async => examFindings),
       ],
     );
     addTearDown(container.dispose);
@@ -149,6 +162,40 @@ void main() {
     await pump(tester, const Case(id: 'c1', animal: 'a1'));
 
     expect(find.text('248 g'), findsOneWidget);
+  });
+
+  testWidgets('places an exam with vitals and an abnormal finding',
+      (tester) async {
+    when(() => journal.forCase('c1')).thenAnswer((_) async => []);
+    when(() => exams.forCase('c1')).thenAnswer(
+      (_) async => [
+        Exam(
+          id: 'e1',
+          caseId: 'c1',
+          animal: 'a1',
+          examinedAt: DateTime.utc(2026, 6, 21),
+          bodyCondition: 3,
+          hydration: Hydration.moderate,
+        ),
+      ],
+    );
+    when(() => examFindings.forCase('c1')).thenAnswer(
+      (_) async => [
+        const ExamFinding(
+          id: 'f1',
+          exam: 'e1',
+          system: BodySystem.legsFeet,
+          status: FindingStatus.abnormal,
+          note: 'pododermatitis',
+        ),
+      ],
+    );
+
+    await pump(tester, const Case(id: 'c1', animal: 'a1'));
+
+    expect(find.text('Exam'), findsOneWidget);
+    expect(find.textContaining('BC 3/5'), findsOneWidget);
+    expect(find.textContaining('Legs & feet: pododermatitis'), findsOneWidget);
   });
 
   testWidgets('shows the empty state when nothing is on the timeline',

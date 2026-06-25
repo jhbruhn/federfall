@@ -113,3 +113,37 @@ String markingTypeLabel(AppLocalizations l10n, MarkingType t) => switch (t) {
   MarkingType.associationRing => l10n.markingAssociationRing,
   MarkingType.microchip => l10n.markingMicrochip,
 };
+
+String hydrationLabel(AppLocalizations l10n, Hydration h) => switch (h) {
+  Hydration.normal => l10n.hydrationNormal,
+  Hydration.mild => l10n.hydrationMild,
+  Hydration.moderate => l10n.hydrationModerate,
+  Hydration.severe => l10n.hydrationSevere,
+};
+
+String mentationLabel(AppLocalizations l10n, Mentation m) => switch (m) {
+  Mentation.bright => l10n.mentationBright,
+  Mentation.quiet => l10n.mentationQuiet,
+  Mentation.depressed => l10n.mentationDepressed,
+  Mentation.unresponsive => l10n.mentationUnresponsive,
+};
+
+String bodySystemLabel(AppLocalizations l10n, BodySystem s) => switch (s) {
+  BodySystem.eyes => l10n.bodySystemEyes,
+  BodySystem.beakNares => l10n.bodySystemBeakNares,
+  BodySystem.oral => l10n.bodySystemOral,
+  BodySystem.integument => l10n.bodySystemIntegument,
+  BodySystem.wings => l10n.bodySystemWings,
+  BodySystem.legsFeet => l10n.bodySystemLegsFeet,
+  BodySystem.keel => l10n.bodySystemKeel,
+  BodySystem.respiratory => l10n.bodySystemRespiratory,
+  BodySystem.coelom => l10n.bodySystemCoelom,
+  BodySystem.neuro => l10n.bodySystemNeuro,
+  BodySystem.vent => l10n.bodySystemVent,
+};
+
+String findingStatusLabel(AppLocalizations l10n, FindingStatus s) =>
+    switch (s) {
+      FindingStatus.normal => l10n.findingStatusNormal,
+      FindingStatus.abnormal => l10n.findingStatusAbnormal,
+    };

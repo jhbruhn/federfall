@@ -5,6 +5,9 @@ import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_tile.dart';
+import 'package:federfall/features/cases/exams/exam_sheet.dart';
+import 'package:federfall/features/cases/exams/exam_tile.dart';
+import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/follow_ups/follow_up_sheet.dart';
 import 'package:federfall/features/cases/follow_ups/follow_up_tile.dart';
 import 'package:federfall/features/cases/follow_ups/follow_ups_providers.dart';
@@ -62,6 +65,8 @@ class CaseTimeline extends ConsumerWidget {
     final placements = ref.watch(placementsForCaseProvider(caseId));
     final dispositions = ref.watch(dispositionsForCaseProvider(caseId));
     final followUps = ref.watch(followUpsForCaseProvider(caseId));
+    final exams = ref.watch(examsForCaseProvider(caseId));
+    final examFindings = ref.watch(examFindingsForCaseProvider(caseId));
     final isLoading = journal.isLoading ||
         weights.isLoading ||
         conditions.isLoading ||
@@ -70,7 +75,9 @@ class CaseTimeline extends ConsumerWidget {
         markings.isLoading ||
         placements.isLoading ||
         dispositions.isLoading ||
-        followUps.isLoading;
+        followUps.isLoading ||
+        exams.isLoading ||
+        examFindings.isLoading;
     final error = journal.error ??
         weights.error ??
         conditions.error ??
@@ -79,7 +86,9 @@ class CaseTimeline extends ConsumerWidget {
         markings.error ??
         placements.error ??
         dispositions.error ??
-        followUps.error;
+        followUps.error ??
+        exams.error ??
+        examFindings.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -109,6 +118,8 @@ class CaseTimeline extends ConsumerWidget {
         _DispositionEvent(disposition),
       for (final followUp in followUps.value ?? const <FollowUp>[])
         _FollowUpEvent(followUp),
+      for (final exam in exams.value ?? const <Exam>[])
+        _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
     ]..sort((a, b) => b.at.compareTo(a.at));
 
     final isDisposed = (dispositions.value ?? const []).isNotEmpty;
@@ -144,6 +155,14 @@ class CaseTimeline extends ConsumerWidget {
                   onTap: () =>
                       showConditionEntrySheet(context, caseId: caseId),
                   child: Text(l10n.timelineAddCondition),
+                ),
+                PopupMenuItem(
+                  onTap: () => showExamSheet(
+                    context,
+                    caseId: caseId,
+                    animalId: medicalCase.animal,
+                  ),
+                  child: Text(l10n.timelineAddExam),
                 ),
                 PopupMenuItem(
                   onTap: () =>
@@ -249,6 +268,13 @@ class CaseTimeline extends ConsumerWidget {
               _FollowUpEvent(:final followUp) => FollowUpTile(
                 followUp: followUp,
                 caseId: caseId,
+                isLast: i == events.length - 1,
+              ),
+              _ExamEvent(:final exam, :final findings) => ExamTile(
+                exam: exam,
+                findings: findings,
+                caseId: caseId,
+                animalId: medicalCase.animal,
                 isLast: i == events.length - 1,
               ),
               _MilestoneEvent(:final icon, :final label, :final at) =>
@@ -382,6 +408,21 @@ class _FollowUpEvent extends _Event {
   DateTime get at =>
       followUp.dueAt ??
       followUp.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A structured exam placed on the timeline by its exam date (or created time),
+/// carrying its already-fetched by-system findings.
+class _ExamEvent extends _Event {
+  const _ExamEvent(this.exam, this.findings);
+
+  final Exam exam;
+  final List<ExamFinding> findings;
+
+  @override
+  DateTime get at =>
+      exam.examinedAt ??
+      exam.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }
 
