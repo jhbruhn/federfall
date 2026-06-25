@@ -63,19 +63,39 @@ class ExamTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
     final at = exam.examinedAt ?? exam.created;
+
+    // Top-line vitals as labelled facts so each value is readable at a glance
+    // rather than crammed into a single dot-separated line.
+    // Body condition (1–5) and temperature default to 0 in PocketBase when not
+    // recorded, so treat 0 as "unset" and omit it rather than showing 0/5 or
+    // 0.0 °C.
+    final vitals = <(String, String)>[
+      if (exam.bodyCondition case final bc? when bc != 0)
+        (l10n.examBodyConditionLabel, '$bc/5'),
+      if (exam.temperature case final t? when t != 0)
+        (l10n.examTemperatureLabel, t.toStringAsFixed(1)),
+      if (exam.hydration case final h?)
+        (l10n.examHydrationLabel, hydrationLabel(l10n, h)),
+      if (exam.mentation case final m?)
+        (l10n.examMentationLabel, mentationLabel(l10n, m)),
+      if (exam.mmColor case final c?)
+        (l10n.examMmColorLabel, mmColorLabel(l10n, c)),
+      if (exam.mmTexture case final tx?)
+        (l10n.examMmTextureLabel, mmTextureLabel(l10n, tx)),
+    ];
+
+    // Abnormal findings first (with their note), then a single muted line
+    // naming the systems that were assessed and found normal.
     final abnormal = [
       for (final f in findings)
-        if (f.status == FindingStatus.abnormal) f,
+        if (f.status == FindingStatus.abnormal && f.system != null) f,
     ];
-    final normalCount =
-        findings.where((f) => f.status == FindingStatus.normal).length;
-
-    final vitals = <String>[
-      if (exam.bodyCondition case final bc?)
-        l10n.examBodyConditionShort(bc),
-      if (exam.hydration case final h?) hydrationLabel(l10n, h),
-      if (exam.mentation case final m?) mentationLabel(l10n, m),
+    final normalSystems = [
+      for (final f in findings)
+        if (f.status == FindingStatus.normal && f.system != null)
+          bodySystemLabel(l10n, f.system!),
     ];
+    final notes = exam.notes;
 
     return TimelineItem(
       icon: Icons.monitor_heart_outlined,
@@ -94,37 +114,84 @@ class ExamTile extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.examTitle, style: theme.textTheme.bodyLarge),
-          const SizedBox(height: AppSpacing.xs),
           Text(
-            vitals.isEmpty ? l10n.examNoVitals : vitals.join(' · '),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            l10n.examTitle,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600),
           ),
+          const SizedBox(height: AppSpacing.xs),
+          if (vitals.isEmpty)
+            Text(
+              l10n.examNoVitals,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            )
+          else
+            for (final (label, value) in vitals)
+              _Fact(label: label, value: value),
           for (final f in abnormal)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.xs),
-              child: Text(
-                f.note?.isNotEmpty ?? false
-                    ? '${bodySystemLabel(l10n, f.system!)}: ${f.note}'
-                    : bodySystemLabel(l10n, f.system!),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
+              child: _Fact(
+                label: bodySystemLabel(l10n, f.system!),
+                value: f.note?.isNotEmpty ?? false
+                    ? f.note!
+                    : findingStatusLabel(l10n, FindingStatus.abnormal),
+                emphasis: theme.colorScheme.error,
               ),
             ),
-          if (normalCount > 0)
+          if (normalSystems.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.xs),
               child: Text(
-                l10n.examNormalCount(normalCount),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                '${findingStatusLabel(l10n, FindingStatus.normal)}: '
+                '${normalSystems.join(', ')}',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ),
+          if (notes != null && notes.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(notes, style: theme.textTheme.bodyMedium),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// One labelled fact line — a muted "label:" followed by its value, wrapping
+/// freely so long values are never clipped. [emphasis] colours the value (e.g.
+/// red for an abnormal finding); the label stays muted.
+class _Fact extends StatelessWidget {
+  const _Fact({required this.label, required this.value, this.emphasis});
+
+  final String label;
+  final String value;
+  final Color? emphasis;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            TextSpan(
+              text: value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: emphasis,
+                fontWeight: emphasis == null ? null : FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

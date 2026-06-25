@@ -2,7 +2,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
-import 'package:federfall_models/federfall_models.dart';
+import 'package:federfall_models/federfall_models.dart' hide Finder;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -194,8 +194,8 @@ void main() {
     await pump(tester, const Case(id: 'c1', animal: 'a1'));
 
     expect(find.text('Exam'), findsOneWidget);
-    expect(find.textContaining('BC 3/5'), findsOneWidget);
-    expect(find.textContaining('Legs & feet: pododermatitis'), findsOneWidget);
+    expect(_richContaining('Body condition', '3/5'), findsOneWidget);
+    expect(_richContaining('Legs & feet', 'pododermatitis'), findsOneWidget);
   });
 
   testWidgets('shows the empty state when nothing is on the timeline',
@@ -207,3 +207,12 @@ void main() {
     expect(find.text('No entries yet'), findsOneWidget);
   });
 }
+
+/// Matches a `Text.rich` labelled fact whose combined plain text contains both
+/// [label] and [value] (the exam tile renders each across separate spans).
+Finder _richContaining(String label, String value) => find.byWidgetPredicate(
+      (w) =>
+          w is RichText &&
+          w.text.toPlainText().contains(label) &&
+          w.text.toPlainText().contains(value),
+    );
