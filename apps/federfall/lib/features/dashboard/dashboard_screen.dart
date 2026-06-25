@@ -65,6 +65,9 @@ class _WorklistPreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    // Live-sync the preview too: without this the subscription only ran on the
+    // Today tab, so the dashboard card went stale.
+    ref.watch(worklistLiveProvider);
 
     return ref
         .watch(worklistProvider)
