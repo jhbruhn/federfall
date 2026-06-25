@@ -469,6 +469,17 @@
     "@caseSectionIntake": { "description": "Intake form/detail section heading for admission details" },
     "caseSectionFinder": "Finder (optional)",
     "@caseSectionFinder": { "description": "Intake form section heading for the finder's contact details" },
+    "caseStepFinish": "Documentation & finder",
+    "@caseStepFinish": { "description": "Title of the final intake wizard step (photos, notes, finder)" },
+    "caseStepLabel": "Step {current} of {total}",
+    "@caseStepLabel": {
+        "description": "Progress label in the intake wizard header",
+        "placeholders": { "current": { "type": "int" }, "total": { "type": "int" } }
+    },
+    "actionNext": "Next",
+    "@actionNext": { "description": "Advance to the next wizard step" },
+    "actionBack": "Back",
+    "@actionBack": { "description": "Return to the previous wizard step" },
     "caseFieldSex": "Sex",
     "@caseFieldSex": { "description": "Label for the animal sex field" },
     "caseFieldAgeClass": "Age class",

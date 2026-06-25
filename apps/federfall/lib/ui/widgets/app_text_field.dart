@@ -11,6 +11,7 @@ class AppTextField extends StatelessWidget {
     this.initialValue,
     this.validator,
     this.onChanged,
+    this.onSubmitted,
     this.keyboardType,
     this.obscureText = false,
     this.autofocus = false,
@@ -29,6 +30,7 @@ class AppTextField extends StatelessWidget {
   final String? initialValue;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final TextInputType? keyboardType;
   final bool obscureText;
   final bool autofocus;
@@ -45,6 +47,7 @@ class AppTextField extends StatelessWidget {
       initialValue: initialValue,
       validator: validator,
       onChanged: onChanged,
+      onFieldSubmitted: onSubmitted,
       keyboardType: keyboardType,
       obscureText: obscureText,
       autofocus: autofocus,

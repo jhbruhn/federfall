@@ -50,7 +50,6 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   final _nameController = TextEditingController();
   final _speciesController =
       TextEditingController(text: NewCaseScreen.defaultSpecies);
-  Sex? _sex;
 
   // Re-identification (FED-4.10): when set, the case links to this existing
   // animal instead of creating a fresh one.
@@ -87,6 +86,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   String? _error;
   bool _reasonsTouched = false;
   bool _withExam = false;
+
+  /// Current wizard step: 0 = animal, 1 = admission, 2 = docs & finder.
+  int _step = 0;
+  static const _lastStep = 2;
 
   @override
   void initState() {
@@ -232,7 +235,6 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
         animalId = (await animalsRepo.create({
           'species': _speciesController.text.trim(),
           'name': ?name,
-          if (_sex != null) 'sex': _sex!.wire,
           'org': org,
         })).id;
       }
@@ -314,248 +316,377 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
     }
   }
 
+  /// Advances to the next step, validating the current one first. The two
+  /// required fields are checked at the step that owns them: species on step 0
+  /// (unless an existing animal is linked), at least one reason on step 1.
+  void _next() {
+    if (_step == 0) {
+      if (_linkedAnimal == null &&
+          !(_formKey.currentState?.validate() ?? false)) {
+        return;
+      }
+    } else if (_step == 1) {
+      setState(() => _reasonsTouched = true);
+      if (_reasons.isEmpty) return;
+    }
+    setState(() => _step++);
+  }
+
+  void _back() => setState(() => _step--);
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final titles = [
+      l10n.caseSectionAnimal,
+      l10n.caseSectionIntake,
+      l10n.caseStepFinish,
+    ];
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.caseNewTitle)),
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _SectionHeading(l10n.caseSectionAnimal),
-                    if (_linkedAnimal case final linked?)
-                      _LinkedAnimalCard(
-                        animal: linked,
-                        enabled: !_busy,
-                        onUnlink: () => setState(() => _linkedAnimal = null),
-                      )
-                    else ...[
-                      _ReidSearchField(
-                        controller: _reidController,
-                        enabled: !_busy,
-                        query: _reidQuery,
-                        onSearch: (q) => setState(() => _reidQuery = q),
-                        onLink: (a) => setState(() {
-                          _linkedAnimal = a;
-                          _reidQuery = '';
-                          _reidController.clear();
-                        }),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppTextField(
-                        controller: _nameController,
-                        label: l10n.caseFieldName,
-                        prefixIcon: Icons.badge_outlined,
-                        textInputAction: TextInputAction.next,
-                        enabled: !_busy,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppTextField(
-                        controller: _speciesController,
-                        label: l10n.caseFieldSpecies,
-                        prefixIcon: Icons.pets_outlined,
-                        textInputAction: TextInputAction.next,
-                        enabled: !_busy,
-                        validator: Validators.required(l10n),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      DropdownButtonFormField<Sex>(
-                        initialValue: _sex,
-                        decoration: InputDecoration(
-                          labelText: l10n.caseFieldSex,
-                          prefixIcon: const Icon(Icons.transgender_outlined),
-                        ),
-                        items: [
-                          for (final s in Sex.values)
-                            DropdownMenuItem(
-                              value: s,
-                              child: Text(sexLabel(l10n, s)),
-                            ),
-                        ],
-                        onChanged:
-                            _busy ? null : (s) => setState(() => _sex = s),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.lg),
-
-                    _SectionHeading(l10n.caseSectionIntake),
-                    _ReasonsField(
-                      selected: _reasons,
-                      enabled: !_busy,
-                      error: _reasonsTouched && _reasons.isEmpty
-                          ? l10n.fieldRequired
-                          : null,
-                      onToggle: (r) => setState(() {
-                        if (!_reasons.remove(r)) _reasons.add(r);
-                      }),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    DropdownButtonFormField<AgeClass>(
-                      initialValue: _ageClass,
-                      decoration: InputDecoration(
-                        labelText: l10n.caseFieldAgeClass,
-                        prefixIcon: const Icon(Icons.cake_outlined),
-                      ),
-                      items: [
-                        for (final a in AgeClass.values)
-                          DropdownMenuItem(
-                            value: a,
-                            child: Text(ageClassLabel(l10n, a)),
-                          ),
-                      ],
-                      onChanged: _busy
-                          ? null
-                          : (a) => setState(() => _ageClass = a),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _DateField(
-                      label: l10n.caseFieldFoundAt,
-                      value: _foundAt,
-                      enabled: !_busy,
-                      onPick: () => _pickDate(
-                        _foundAt,
-                        (d) => setState(() => _foundAt = d),
-                      ),
-                      onClear: () => setState(() => _foundAt = null),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _DateField(
-                      label: l10n.caseFieldAdmittedAt,
-                      value: _admittedAt,
-                      enabled: !_busy,
-                      onPick: () => _pickDate(
-                        _admittedAt,
-                        (d) => setState(() => _admittedAt = d),
-                      ),
-                      onClear: () => setState(() => _admittedAt = null),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: AppTextField(
-                            controller: _findLocationController,
-                            label: l10n.caseFieldFindLocation,
-                            prefixIcon: Icons.place_outlined,
-                            textInputAction: TextInputAction.next,
-                            enabled: !_busy,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        IconButton.filledTonal(
-                          icon: Icon(
-                            _findGeo == null
-                                ? Icons.add_location_alt_outlined
-                                : Icons.edit_location_alt,
-                          ),
-                          tooltip: l10n.locationPickAction,
-                          onPressed: _busy ? null : _pickLocation,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppTextField(
-                      controller: _intakeWeightController,
-                      label: l10n.caseFieldIntakeWeight,
-                      prefixIcon: Icons.monitor_weight_outlined,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
-                      textInputAction: TextInputAction.next,
-                      enabled: !_busy,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppTextField(
-                      controller: _intakeNotesController,
-                      label: l10n.caseFieldIntakeNotes,
-                      prefixIcon: Icons.notes_outlined,
-                      enabled: !_busy,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    StagedPhotos(
-                      photos: _intakePhotos,
-                      enabled: !_busy,
-                      onAdd: _addPhotos,
-                      onCapture: _capturePhoto,
-                      onRemove: (i) =>
-                          setState(() => _intakePhotos.removeAt(i)),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    _FinderSection(
-                      firstName: _finderFirstName,
-                      lastName: _finderLastName,
-                      phone: _finderPhone,
-                      email: _finderEmail,
-                      city: _finderCity,
-                      enabled: !_busy,
-                    ),
-
-                    const SizedBox(height: AppSpacing.md),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _withExam,
-                      onChanged: _busy
-                          ? null
-                          : (v) => setState(() => _withExam = v),
-                      title: Text(l10n.caseIntakeWithExam),
-                      subtitle: Text(l10n.caseIntakeWithExamHint),
-                    ),
-
-                    if (_error != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        _error!,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.error),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.lg),
-                    PrimaryButton(
-                      label: l10n.caseCreateAction,
-                      icon: Icons.check,
-                      isLoading: _busy,
-                      onPressed: _create,
-                    ),
-                  ],
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              children: [
+                _WizardHeader(
+                  step: _step,
+                  total: _lastStep + 1,
+                  title: titles[_step],
                 ),
-              ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      0,
+                      AppSpacing.lg,
+                      AppSpacing.lg,
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: switch (_step) {
+                        0 => _buildAnimalStep(l10n),
+                        1 => _buildIntakeStep(l10n),
+                        _ => _buildFinishStep(l10n),
+                      },
+                    ),
+                  ),
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                    ),
+                    child: Text(
+                      _error!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.error),
+                    ),
+                  ),
+                _WizardNav(
+                  showBack: _step > 0,
+                  busy: _busy,
+                  onBack: _busy ? null : _back,
+                  isLast: _step == _lastStep,
+                  onNext: _busy ? null : _next,
+                  onCreate: _create,
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+
+  /// Step 0 — the animal identity: re-id search, species and name.
+  Widget _buildAnimalStep(AppLocalizations l10n) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_linkedAnimal case final linked?)
+          _LinkedAnimalCard(
+            animal: linked,
+            enabled: !_busy,
+            onUnlink: () => setState(() => _linkedAnimal = null),
+          )
+        else ...[
+          _ReidSearchField(
+            controller: _reidController,
+            enabled: !_busy,
+            query: _reidQuery,
+            onSearch: (q) => setState(() => _reidQuery = q),
+            onLink: (a) => setState(() {
+              _linkedAnimal = a;
+              _reidQuery = '';
+              _reidController.clear();
+            }),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _speciesController,
+            label: l10n.caseFieldSpecies,
+            prefixIcon: Icons.pets_outlined,
+            textInputAction: TextInputAction.next,
+            enabled: !_busy,
+            validator: Validators.required(l10n),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _nameController,
+            label: l10n.caseFieldName,
+            prefixIcon: Icons.badge_outlined,
+            textInputAction: TextInputAction.next,
+            enabled: !_busy,
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Step 1 — the admission: reasons, age class, dates, find location, weight.
+  Widget _buildIntakeStep(AppLocalizations l10n) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ReasonsField(
+          selected: _reasons,
+          enabled: !_busy,
+          error: _reasonsTouched && _reasons.isEmpty
+              ? l10n.fieldRequired
+              : null,
+          onToggle: (r) => setState(() {
+            if (!_reasons.remove(r)) _reasons.add(r);
+          }),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        DropdownButtonFormField<AgeClass>(
+          initialValue: _ageClass,
+          decoration: InputDecoration(
+            labelText: l10n.caseFieldAgeClass,
+            prefixIcon: const Icon(Icons.cake_outlined),
+          ),
+          items: [
+            for (final a in AgeClass.values)
+              DropdownMenuItem(value: a, child: Text(ageClassLabel(l10n, a))),
+          ],
+          onChanged: _busy ? null : (a) => setState(() => _ageClass = a),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _DateField(
+          label: l10n.caseFieldFoundAt,
+          value: _foundAt,
+          enabled: !_busy,
+          onPick: () =>
+              _pickDate(_foundAt, (d) => setState(() => _foundAt = d)),
+          onClear: () => setState(() => _foundAt = null),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _DateField(
+          label: l10n.caseFieldAdmittedAt,
+          value: _admittedAt,
+          enabled: !_busy,
+          onPick: () =>
+              _pickDate(_admittedAt, (d) => setState(() => _admittedAt = d)),
+          onClear: () => setState(() => _admittedAt = null),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: AppTextField(
+                controller: _findLocationController,
+                label: l10n.caseFieldFindLocation,
+                prefixIcon: Icons.place_outlined,
+                textInputAction: TextInputAction.next,
+                enabled: !_busy,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            IconButton.filledTonal(
+              icon: Icon(
+                _findGeo == null
+                    ? Icons.add_location_alt_outlined
+                    : Icons.edit_location_alt,
+              ),
+              tooltip: l10n.locationPickAction,
+              onPressed: _busy ? null : _pickLocation,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        AppTextField(
+          controller: _intakeWeightController,
+          label: l10n.caseFieldIntakeWeight,
+          prefixIcon: Icons.monitor_weight_outlined,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          textInputAction: TextInputAction.next,
+          enabled: !_busy,
+        ),
+      ],
+    );
+  }
+
+  /// Step 2 — documentation and people: photos, notes, the optional finder and
+  /// the create action (with the optional intake exam).
+  Widget _buildFinishStep(AppLocalizations l10n) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        StagedPhotos(
+          photos: _intakePhotos,
+          enabled: !_busy,
+          onAdd: _addPhotos,
+          onCapture: _capturePhoto,
+          onRemove: (i) => setState(() => _intakePhotos.removeAt(i)),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        AppTextField(
+          controller: _intakeNotesController,
+          label: l10n.caseFieldIntakeNotes,
+          prefixIcon: Icons.notes_outlined,
+          enabled: !_busy,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _FinderSection(
+          firstName: _finderFirstName,
+          lastName: _finderLastName,
+          phone: _finderPhone,
+          email: _finderEmail,
+          city: _finderCity,
+          enabled: !_busy,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _withExam,
+          onChanged: _busy ? null : (v) => setState(() => _withExam = v),
+          title: Text(l10n.caseIntakeWithExam),
+          subtitle: Text(l10n.caseIntakeWithExamHint),
+        ),
+      ],
+    );
+  }
 }
 
-/// A left-aligned section title separating groups of fields.
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading(this.title);
+/// Wizard progress header: a "step n of total" label, the step title and a row
+/// of segment bars marking progress through the intake.
+class _WizardHeader extends StatelessWidget {
+  const _WizardHeader({
+    required this.step,
+    required this.total,
+    required this.title,
+  });
 
+  final int step;
+  final int total;
   final String title;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Text(
-        title,
-        style: theme.textTheme.titleMedium
-            ?.copyWith(color: theme.colorScheme.primary),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.caseStepLabel(step + 1, total),
+            style: theme.textTheme.labelMedium
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(title, style: theme.textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              for (var i = 0; i < total; i++) ...[
+                if (i > 0) const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: i <= step
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Wizard bottom bar: Back (from step 2 on) plus either Next or, on the final
+/// step, the Create action.
+class _WizardNav extends StatelessWidget {
+  const _WizardNav({
+    required this.showBack,
+    required this.busy,
+    required this.onBack,
+    required this.isLast,
+    required this.onNext,
+    required this.onCreate,
+  });
+
+  final bool showBack;
+  final bool busy;
+  final VoidCallback? onBack;
+  final bool isLast;
+  final VoidCallback? onNext;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Row(
+        children: [
+          if (showBack) ...[
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back),
+                label: Text(l10n.actionBack),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+          ],
+          Expanded(
+            child: isLast
+                ? PrimaryButton(
+                    label: l10n.caseCreateAction,
+                    icon: Icons.check,
+                    isLoading: busy,
+                    onPressed: onCreate,
+                  )
+                : FilledButton.icon(
+                    onPressed: onNext,
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(l10n.actionNext),
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -763,13 +894,17 @@ class _ReidSearchField extends ConsumerWidget {
                 controller: controller,
                 label: l10n.reidSearchLabel,
                 hintText: l10n.reidSearchHint,
-                prefixIcon: Icons.search,
+                prefixIcon: Icons.badge_outlined,
                 enabled: enabled,
+                textInputAction: TextInputAction.search,
                 onChanged: (_) {},
+                onSubmitted: (v) => onSearch(v.trim()),
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             IconButton.filledTonal(
               icon: const Icon(Icons.search),
+              tooltip: l10n.reidSearchLabel,
               onPressed:
                   enabled ? () => onSearch(controller.text.trim()) : null,
             ),

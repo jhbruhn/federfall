@@ -77,7 +77,19 @@ void main() {
     await tester.enterText(field, value);
   }
 
+  // Advances the intake wizard to the next step.
+  Future<void> tapNext(WidgetTester tester) async {
+    await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+    await tester.pumpAndSettle();
+  }
+
   Future<void> pump(WidgetTester tester, {String? animalId}) async {
+    // A tall surface so each wizard step lays out without scrolling.
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith(
@@ -127,17 +139,21 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // Picks the Injury reason on the intake (step 1) — the required field.
+  Future<void> pickInjury(WidgetTester tester) async {
+    await tester.tap(find.widgetWithText(FilterChip, 'Injury'));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('creates an animal + case and returns to the list',
       (tester) async {
     await pump(tester);
 
-    // Pick a reason (species is pre-filled with the default).
-    await tester.tap(find.widgetWithText(FilterChip, 'Injury'));
-    await tester.pumpAndSettle();
-
-    final submit = find.widgetWithText(FilledButton, 'Create case');
-    await tester.ensureVisible(submit);
-    await tester.tap(submit);
+    // Step 0 (species pre-filled) → step 1: pick a reason → step 2: create.
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
     final animalBody =
@@ -161,17 +177,16 @@ void main() {
       (tester) async {
     await pump(tester);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Injury'));
-    await tester.pumpAndSettle();
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
 
     final toggle = find.widgetWithText(SwitchListTile, 'Record an exam now');
     await tester.ensureVisible(toggle);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
 
-    final submit = find.widgetWithText(FilledButton, 'Create case');
-    await tester.ensureVisible(submit);
-    await tester.tap(submit);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     // The create button keeps spinning while the awaited sheet is open, so
     // pump explicit frames rather than settling.
     await tester.pump();
@@ -184,42 +199,39 @@ void main() {
     expect(find.text('HOME'), findsNothing);
   });
 
-  testWidgets('requires a reason before submitting', (tester) async {
+  testWidgets('requires a reason before advancing past intake',
+      (tester) async {
     await pump(tester);
 
-    final submit = find.widgetWithText(FilledButton, 'Create case');
-    await tester.ensureVisible(submit);
-    await tester.tap(submit);
-    await tester.pumpAndSettle();
+    await tapNext(tester); // step 0 → 1
+    // Try to advance without a reason: stays on step 1 with an error.
+    await tapNext(tester);
 
-    verifyNever(() => animals.create(any()));
     expect(find.text('This field is required'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Create case'), findsNothing);
+    verifyNever(() => animals.create(any()));
   });
 
   testWidgets('captures intake details and creates a linked finder',
       (tester) async {
     await pump(tester);
 
+    await tapNext(tester); // step 0 → 1
+
+    await pickInjury(tester);
     await enterByLabel(tester, 'Intake weight (g)', '250');
-    await enterByLabel(tester, 'Intake notes', 'thin but alert');
     await enterByLabel(tester, 'Find location', 'Domplatz');
 
+    await tapNext(tester); // step 1 → 2
+
+    await enterByLabel(tester, 'Intake notes', 'thin but alert');
     // Open the optional finder section and fill some contact details.
-    final finderHeader = find.text('Finder (optional)');
-    await tester.ensureVisible(finderHeader);
-    await tester.tap(finderHeader);
+    await tester.tap(find.text('Finder (optional)'));
     await tester.pumpAndSettle();
     await enterByLabel(tester, 'Last name', 'Klein');
     await enterByLabel(tester, 'Phone', '0151 234');
 
-    final injury = find.widgetWithText(FilterChip, 'Injury');
-    await tester.ensureVisible(injury);
-    await tester.tap(injury);
-    await tester.pumpAndSettle();
-
-    final submit = find.widgetWithText(FilledButton, 'Create case');
-    await tester.ensureVisible(submit);
-    await tester.tap(submit);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
     final caseBody = verify(() => cases.create(captureAny())).captured.single
@@ -249,14 +261,10 @@ void main() {
       (tester) async {
     await pump(tester);
 
-    final injury = find.widgetWithText(FilterChip, 'Injury');
-    await tester.ensureVisible(injury);
-    await tester.tap(injury);
-    await tester.pumpAndSettle();
-
-    final submit = find.widgetWithText(FilledButton, 'Create case');
-    await tester.ensureVisible(submit);
-    await tester.tap(submit);
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
     verifyNever(() => finders.create(any()));
@@ -274,24 +282,18 @@ void main() {
 
     await pump(tester);
 
-    // Search for a returning bird and link the match.
+    // Step 0: search for a returning bird and link the match.
     await enterByLabel(tester, 'Returning bird? Search', 'Pauli');
     await tester.tap(find.byIcon(Icons.search).last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Pauli · Stadttaube'));
     await tester.pumpAndSettle();
-
-    // Linked summary is shown; the create-animal fields are gone.
     expect(find.byIcon(Icons.link), findsOneWidget);
 
-    final injury = find.widgetWithText(FilterChip, 'Injury');
-    await tester.ensureVisible(injury);
-    await tester.tap(injury);
-    await tester.pumpAndSettle();
-
-    final submit = find.widgetWithText(FilledButton, 'Create case');
-    await tester.ensureVisible(submit);
-    await tester.tap(submit);
+    await tapNext(tester); // step 0 → 1 (linked, no species needed)
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
     verifyNever(() => animals.create(any()));
@@ -312,14 +314,10 @@ void main() {
     expect(find.byIcon(Icons.link), findsOneWidget);
     expect(find.text('Returning bird? Search'), findsNothing);
 
-    final injury = find.widgetWithText(FilterChip, 'Injury');
-    await tester.ensureVisible(injury);
-    await tester.tap(injury);
-    await tester.pumpAndSettle();
-
-    final submit = find.widgetWithText(FilledButton, 'Create case');
-    await tester.ensureVisible(submit);
-    await tester.tap(submit);
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
     verifyNever(() => animals.create(any()));
@@ -344,19 +342,14 @@ void main() {
 
     await pump(tester);
 
-    final addPhotos = find.widgetWithText(OutlinedButton, 'Add photos');
-    await tester.ensureVisible(addPhotos);
-    await tester.tap(addPhotos);
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester); // step 2 — photos live here
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Add photos'));
     await tester.pumpAndSettle();
 
-    final injury = find.widgetWithText(FilterChip, 'Injury');
-    await tester.ensureVisible(injury);
-    await tester.tap(injury);
-    await tester.pumpAndSettle();
-
-    final submit = find.widgetWithText(FilledButton, 'Create case');
-    await tester.ensureVisible(submit);
-    await tester.tap(submit);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
     verifyNever(() => cases.create(any()));
