@@ -1,6 +1,7 @@
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -38,6 +39,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('2 / 2'), findsOneWidget);
+  });
+
+  testWidgets('next/prev buttons page on desktop (no swipe)', (tester) async {
+    await pump(tester, const [
+      'https://example.test/a.jpg',
+      'https://example.test/b.jpg',
+    ]);
+    await tester.pump();
+
+    // On the first image: only "next" is shown.
+    expect(find.byIcon(Icons.chevron_left), findsNothing);
+    await tester.tap(find.byIcon(Icons.chevron_right));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 / 2'), findsOneWidget);
+    // On the last image: only "previous" is shown.
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    await tester.tap(find.byIcon(Icons.chevron_left));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 / 2'), findsOneWidget);
+  });
+
+  testWidgets('arrow keys page between images', (tester) async {
+    await pump(tester, const [
+      'https://example.test/a.jpg',
+      'https://example.test/b.jpg',
+    ]);
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 2'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 2'), findsOneWidget);
   });
 
   testWidgets('hides the counter for a single image', (tester) async {

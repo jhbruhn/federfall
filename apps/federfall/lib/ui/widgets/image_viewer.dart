@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall/l10n/l10n.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 
@@ -56,6 +57,35 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Animates to [target], clamped to the valid range (the prev/next buttons
+  /// and arrow keys go through here).
+  void _goTo(int target) {
+    final next = target.clamp(0, widget.imageUrls.length - 1);
+    if (next == _index) return;
+    unawaited(
+      _controller.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  KeyEventResult _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowLeft:
+        _goTo(_index - 1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        _goTo(_index + 1);
+        return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   Future<void> _share() async {
@@ -128,11 +158,73 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
             ),
         ],
       ),
-      body: PageView.builder(
-        controller: _controller,
-        onPageChanged: (i) => setState(() => _index = i),
-        itemCount: total,
-        itemBuilder: (_, i) => _ZoomableImage(url: widget.imageUrls[i]),
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (_, event) => _onKey(event),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            PageView.builder(
+              controller: _controller,
+              onPageChanged: (i) => setState(() => _index = i),
+              itemCount: total,
+              itemBuilder: (_, i) => _ZoomableImage(url: widget.imageUrls[i]),
+            ),
+            // Desktop / web affordances: arrow keys (handled above) plus these
+            // on-screen prev/next buttons, since there is no swipe gesture.
+            if (total > 1) ...[
+              if (_index > 0)
+                _NavArrow(
+                  alignment: Alignment.centerLeft,
+                  icon: Icons.chevron_left,
+                  tooltip: l10n.imagePrevious,
+                  onPressed: () => _goTo(_index - 1),
+                ),
+              if (_index < total - 1)
+                _NavArrow(
+                  alignment: Alignment.centerRight,
+                  icon: Icons.chevron_right,
+                  tooltip: l10n.imageNext,
+                  onPressed: () => _goTo(_index + 1),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A translucent edge-aligned previous/next button for pointer (desktop/web)
+/// navigation between images.
+class _NavArrow extends StatelessWidget {
+  const _NavArrow({
+    required this.alignment,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final Alignment alignment;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: IconButton.filled(
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.black.withValues(alpha: 0.4),
+            foregroundColor: Colors.white,
+          ),
+          icon: Icon(icon),
+          tooltip: tooltip,
+          onPressed: onPressed,
+        ),
       ),
     );
   }

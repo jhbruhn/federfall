@@ -230,6 +230,8 @@
     "actionClear": "Löschen",
     "imageShareAction": "Teilen",
     "imageShareFailed": "Bild konnte nicht geteilt werden.",
+    "imagePrevious": "Vorheriges Bild",
+    "imageNext": "Nächstes Bild",
     "caseFieldIntakeWeight": "Aufnahmegewicht (g)",
     "caseFieldIntakeNotes": "Aufnahmenotizen",
     "caseDateNotSet": "Nicht angegeben",
