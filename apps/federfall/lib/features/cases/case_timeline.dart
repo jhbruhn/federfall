@@ -234,7 +234,11 @@ class CaseTimeline extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        if (isLoading) const LinearProgressIndicator(),
+        // Only on the first load (no events yet). A refresh keeps the existing
+        // events on screen and is already signalled by the pull-to-refresh
+        // indicator, so showing the bar too would be a second, redundant
+        // loading indicator.
+        if (isLoading && events.isEmpty) const LinearProgressIndicator(),
         if (error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
