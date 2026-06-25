@@ -134,7 +134,17 @@ class CaseTimeline extends ConsumerWidget {
         _FollowUpEvent(followUp),
       for (final exam in exams.value ?? const <Exam>[])
         _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
-    ]..sort((a, b) => b.at.compareTo(a.at));
+    ]..sort((a, b) {
+      final byTime = b.at.compareTo(a.at);
+      if (byTime != 0) return byTime;
+      // Same instant — e.g. the intake weight is measured at the admission
+      // time (new_case_screen). Keep the genesis milestones (Admitted, Case
+      // opened) above the records logged at that moment, rather than letting
+      // an unstable tie wedge the weight above "Aufgenommen".
+      final aRank = a is _MilestoneEvent ? 1 : 0;
+      final bRank = b is _MilestoneEvent ? 1 : 0;
+      return aRank.compareTo(bRank);
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

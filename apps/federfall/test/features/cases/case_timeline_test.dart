@@ -164,6 +164,31 @@ void main() {
     expect(find.text('248 g'), findsOneWidget);
   });
 
+  testWidgets('keeps the Admitted milestone above a same-instant weight',
+      (tester) async {
+    when(() => journal.forCase('c1')).thenAnswer((_) async => []);
+    // The intake weight is measured at the admission time (new_case_screen),
+    // so the two share an instant; the milestone must stay above the record.
+    final instant = DateTime.utc(2026, 6, 20, 9);
+    when(() => weights.forCase('c1')).thenAnswer(
+      (_) async => [
+        Weight(
+          id: 'w1',
+          animal: 'a1',
+          caseId: 'c1',
+          weightG: 250,
+          measuredAt: instant,
+        ),
+      ],
+    );
+
+    await pump(tester, Case(id: 'c1', animal: 'a1', admittedAt: instant));
+
+    final admitted = tester.getTopLeft(find.text('Admitted')).dy;
+    final weight = tester.getTopLeft(find.text('250 g')).dy;
+    expect(admitted, lessThan(weight));
+  });
+
   testWidgets('places an exam with vitals and an abnormal finding',
       (tester) async {
     when(() => journal.forCase('c1')).thenAnswer((_) async => []);
