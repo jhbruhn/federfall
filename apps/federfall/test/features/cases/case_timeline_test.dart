@@ -164,11 +164,12 @@ void main() {
     expect(find.text('248 g'), findsOneWidget);
   });
 
-  testWidgets('keeps the Admitted milestone above a same-instant weight',
+  testWidgets('orders a same-instant weight above the Admitted milestone',
       (tester) async {
     when(() => journal.forCase('c1')).thenAnswer((_) async => []);
     // The intake weight is measured at the admission time (new_case_screen),
-    // so the two share an instant; the milestone must stay above the record.
+    // so the two share an instant; the record sorts above the milestone
+    // (deterministic tie-break, not the unstable order it had before).
     final instant = DateTime.utc(2026, 6, 20, 9);
     when(() => weights.forCase('c1')).thenAnswer(
       (_) async => [
@@ -186,7 +187,7 @@ void main() {
 
     final admitted = tester.getTopLeft(find.text('Admitted')).dy;
     final weight = tester.getTopLeft(find.text('250 g')).dy;
-    expect(admitted, lessThan(weight));
+    expect(weight, lessThan(admitted));
   });
 
   testWidgets('places an exam with vitals and an abnormal finding',
