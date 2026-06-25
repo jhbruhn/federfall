@@ -50,6 +50,8 @@
 	<string>Federfall uses the camera to attach photos to a case's journal entries.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Federfall accesses your photo library to attach photos to a case's journal entries.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Federfall uses your location to centre the map when recording where an animal was found.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
