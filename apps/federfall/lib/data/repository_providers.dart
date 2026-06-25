@@ -1,3 +1,4 @@
+import 'package:federfall/core/connectivity/connectivity.dart';
 import 'package:federfall/core/pocketbase/pocketbase_provider.dart';
 import 'package:federfall/data/cache/prefs_record_cache.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -22,101 +23,190 @@ Future<PocketBase> _client(Ref ref) => ref.watch(pocketBaseProvider.future);
 
 RecordCache _cache(Ref ref) => ref.watch(recordCacheProvider);
 
+/// A live snapshot of whether the configured server is known to be unreachable,
+/// passed to every repository so reads serve the cache instantly (and writes
+/// fail fast) instead of hanging on a dead connection. Reads the latest
+/// [onlineStatusProvider] value each call; defaults to online while resolving.
+bool Function() _isOffline(Ref ref) =>
+    () => ref.read(onlineStatusProvider).value == OnlineStatus.offline;
+
 @Riverpod(keepAlive: true)
 Future<AuthRepository> authRepository(Ref ref) async =>
     PbAuthRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
-Future<PbCasesRepository> casesRepository(Ref ref) async =>
-    PbCasesRepository(await _client(ref), cache: _cache(ref));
+Future<PbCasesRepository> casesRepository(Ref ref) async => PbCasesRepository(
+  await _client(ref),
+  cache: _cache(ref),
+  isOffline: _isOffline(ref),
+);
 
 @Riverpod(keepAlive: true)
 Future<PbAnimalsRepository> animalsRepository(Ref ref) async =>
-    PbAnimalsRepository(await _client(ref), cache: _cache(ref));
+    PbAnimalsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbFindersRepository> findersRepository(Ref ref) async =>
-    PbFindersRepository(await _client(ref), cache: _cache(ref));
+    PbFindersRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbAviariesRepository> aviariesRepository(Ref ref) async =>
-    PbAviariesRepository(await _client(ref), cache: _cache(ref));
+    PbAviariesRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbConditionsRepository> conditionsRepository(Ref ref) async =>
-    PbConditionsRepository(await _client(ref), cache: _cache(ref));
+    PbConditionsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbCaseConditionsRepository> caseConditionsRepository(Ref ref) async =>
-    PbCaseConditionsRepository(await _client(ref), cache: _cache(ref));
+    PbCaseConditionsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbWeightsRepository> weightsRepository(Ref ref) async =>
-    PbWeightsRepository(await _client(ref), cache: _cache(ref));
+    PbWeightsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbMedicationsRepository> medicationsRepository(Ref ref) async =>
-    PbMedicationsRepository(await _client(ref), cache: _cache(ref));
+    PbMedicationsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbMedicationAdministrationsRepository>
-    medicationAdministrationsRepository(Ref ref) async =>
-        PbMedicationAdministrationsRepository(
-          await _client(ref),
-          cache: _cache(ref),
-        );
+medicationAdministrationsRepository(Ref ref) async =>
+    PbMedicationAdministrationsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbJournalRepository> journalRepository(Ref ref) async =>
-    PbJournalRepository(await _client(ref), cache: _cache(ref));
+    PbJournalRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbFollowUpsRepository> followUpsRepository(Ref ref) async =>
-    PbFollowUpsRepository(await _client(ref), cache: _cache(ref));
+    PbFollowUpsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbMedicationDueRepository> medicationDueRepository(Ref ref) async =>
-    PbMedicationDueRepository(await _client(ref), cache: _cache(ref));
+    PbMedicationDueRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbPlacementsRepository> placementsRepository(Ref ref) async =>
-    PbPlacementsRepository(await _client(ref), cache: _cache(ref));
+    PbPlacementsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
-Future<PbExamsRepository> examsRepository(Ref ref) async =>
-    PbExamsRepository(await _client(ref), cache: _cache(ref));
+Future<PbExamsRepository> examsRepository(Ref ref) async => PbExamsRepository(
+  await _client(ref),
+  cache: _cache(ref),
+  isOffline: _isOffline(ref),
+);
 
 @Riverpod(keepAlive: true)
 Future<PbExamFindingsRepository> examFindingsRepository(Ref ref) async =>
-    PbExamFindingsRepository(await _client(ref), cache: _cache(ref));
+    PbExamFindingsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbMarkingsRepository> markingsRepository(Ref ref) async =>
-    PbMarkingsRepository(await _client(ref), cache: _cache(ref));
+    PbMarkingsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbDispositionsRepository> dispositionsRepository(Ref ref) async =>
-    PbDispositionsRepository(await _client(ref), cache: _cache(ref));
+    PbDispositionsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbCaseSharesRepository> caseSharesRepository(Ref ref) async =>
-    PbCaseSharesRepository(await _client(ref), cache: _cache(ref));
+    PbCaseSharesRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbCaseSummariesRepository> caseSummariesRepository(Ref ref) async =>
-    PbCaseSummariesRepository(await _client(ref), cache: _cache(ref));
+    PbCaseSummariesRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<PbCaseLastActivityRepository> caseActivityRepository(Ref ref) async =>
-    PbCaseLastActivityRepository(await _client(ref), cache: _cache(ref));
+    PbCaseLastActivityRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
-Future<PbUsersRepository> usersRepository(Ref ref) async =>
-    PbUsersRepository(await _client(ref), cache: _cache(ref));
+Future<PbUsersRepository> usersRepository(Ref ref) async => PbUsersRepository(
+  await _client(ref),
+  cache: _cache(ref),
+  isOffline: _isOffline(ref),
+);
 
 @Riverpod(keepAlive: true)
 Future<PbOrganisationsRepository> organisationsRepository(Ref ref) async =>
-    PbOrganisationsRepository(await _client(ref), cache: _cache(ref));
+    PbOrganisationsRepository(
+      await _client(ref),
+      cache: _cache(ref),
+      isOffline: _isOffline(ref),
+    );
 
 @Riverpod(keepAlive: true)
 Future<GeocodingRepository> geocodingRepository(Ref ref) async =>

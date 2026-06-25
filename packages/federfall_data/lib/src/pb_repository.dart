@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall_data/src/record_cache.dart';
 import 'package:federfall_data/src/repository_exception.dart';
 import 'package:http/http.dart' as http;
@@ -40,6 +42,8 @@ abstract class PbRepository<T> implements Repository<T> {
     required this.collection,
     required this.fromRecord,
     this.cache = const NoopRecordCache(),
+    this.networkTimeout = const Duration(seconds: 5),
+    this.isOffline,
   });
 
   /// The PocketBase client.
@@ -54,6 +58,23 @@ abstract class PbRepository<T> implements Repository<T> {
   /// The read-through cache backing offline reads (FED-2.6).
   final RecordCache cache;
 
+  /// How long a single request may run before it is treated as a connectivity
+  /// failure. Without this, a reachable network but unreachable server hangs on
+  /// the OS TCP timeout (minutes) instead of falling back to the cache.
+  final Duration networkTimeout;
+
+  /// Optional snapshot of whether the app already knows it is offline. When it
+  /// returns true, reads skip the network and serve the cache immediately, and
+  /// writes fail fast — so a known-down server never makes the UI wait.
+  final bool Function()? isOffline;
+
+  bool get _knownOffline => isOffline?.call() ?? false;
+
+  RepositoryException get _offlineException => const RepositoryException(
+    'Could not reach the server',
+    kind: RepositoryErrorKind.network,
+  );
+
   RecordService get service => pb.collection(collection);
 
   /// Builds a safe filter expression with bound [params]
@@ -63,10 +84,15 @@ abstract class PbRepository<T> implements Repository<T> {
 
   @override
   Future<T> getOne(String id, {String? expand}) async {
+    if (_knownOffline) return _cachedRecord(id);
     try {
-      final record = await service.getOne(id, expand: expand);
+      final record = await service
+          .getOne(id, expand: expand)
+          .timeout(networkTimeout);
       await cache.putRecord(collection, id, record.toJson());
       return fromRecord(record);
+    } on TimeoutException {
+      return _cachedRecord(id);
     } on ClientException catch (e) {
       final failure = RepositoryException.fromClient(e);
       if (failure.isNetwork) {
@@ -80,18 +106,19 @@ abstract class PbRepository<T> implements Repository<T> {
   @override
   Future<List<T>> list({String? filter, String? sort, String? expand}) async {
     final key = _listKey(filter, sort, expand);
+    if (_knownOffline) return _cachedList(key);
     try {
-      final items = await service.getFullList(
-        filter: filter,
-        sort: sort,
-        expand: expand,
-      );
+      final items = await service
+          .getFullList(filter: filter, sort: sort, expand: expand)
+          .timeout(networkTimeout);
       await cache.putList(
         collection,
         key,
         items.map((r) => r.toJson()).toList(),
       );
       return items.map(fromRecord).toList();
+    } on TimeoutException {
+      return _cachedList(key);
     } on ClientException catch (e) {
       final failure = RepositoryException.fromClient(e);
       if (failure.isNetwork) {
@@ -102,6 +129,22 @@ abstract class PbRepository<T> implements Repository<T> {
       }
       throw failure;
     }
+  }
+
+  /// Serves a single cached record, or throws an offline error on a miss.
+  Future<T> _cachedRecord(String id) async {
+    final cached = await cache.getRecord(collection, id);
+    if (cached != null) return fromRecord(RecordModel(cached));
+    throw _offlineException;
+  }
+
+  /// Serves a cached list result, or throws an offline error on a miss.
+  Future<List<T>> _cachedList(String key) async {
+    final cached = await cache.getList(collection, key);
+    if (cached != null) {
+      return cached.map((m) => fromRecord(RecordModel(m))).toList();
+    }
+    throw _offlineException;
   }
 
   /// Returns the first record matching [filter], or `null` if none.
@@ -164,11 +207,10 @@ abstract class PbRepository<T> implements Repository<T> {
   /// Absolute URL for a [filename] stored on record [recordId]'s file field.
   /// Pass [thumb] (e.g. `100x100`) for a server-generated thumbnail. The file
   /// field is unprotected, so the URL is usable without an auth token.
-  Uri fileUrl(String recordId, String filename, {String? thumb}) =>
-      pb.buildURL(
-        '/api/files/$collection/$recordId/$filename',
-        thumb == null ? const {} : {'thumb': thumb},
-      );
+  Uri fileUrl(String recordId, String filename, {String? thumb}) => pb.buildURL(
+    '/api/files/$collection/$recordId/$filename',
+    thumb == null ? const {} : {'thumb': thumb},
+  );
 
   @override
   Future<T> update(String id, Map<String, dynamic> body) {
@@ -193,10 +235,15 @@ abstract class PbRepository<T> implements Repository<T> {
   String _listKey(String? filter, String? sort, String? expand) =>
       '${filter ?? ''}|${sort ?? ''}|${expand ?? ''}';
 
-  /// Runs [op], translating PocketBase failures to [RepositoryException].
+  /// Runs a network [op] (writes, `firstWhere`), translating failures to
+  /// [RepositoryException]. Fails fast when the app already knows it is
+  /// offline, and caps the op at [networkTimeout] so a dead server never hangs.
   Future<R> _guard<R>(Future<R> Function() op) async {
+    if (_knownOffline) throw _offlineException;
     try {
-      return await op();
+      return await op().timeout(networkTimeout);
+    } on TimeoutException {
+      throw _offlineException;
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
     }

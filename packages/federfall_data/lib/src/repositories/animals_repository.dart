@@ -4,7 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `animals` collection (persistent animal identities).
 class PbAnimalsRepository extends PbRepository<Animal> {
-  PbAnimalsRepository(PocketBase pb, {super.cache})
+  PbAnimalsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'animals',

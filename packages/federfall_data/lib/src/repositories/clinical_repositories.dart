@@ -4,7 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `weights` collection (drives the trend chart).
 class PbWeightsRepository extends PbRepository<Weight> {
-  PbWeightsRepository(PocketBase pb, {super.cache})
+  PbWeightsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'weights',
@@ -27,7 +27,7 @@ class PbWeightsRepository extends PbRepository<Weight> {
 
 /// Repository over the `medications` collection (prescriptions).
 class PbMedicationsRepository extends PbRepository<Medication> {
-  PbMedicationsRepository(PocketBase pb, {super.cache})
+  PbMedicationsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'medications',
@@ -44,12 +44,15 @@ class PbMedicationsRepository extends PbRepository<Medication> {
 /// Repository over the `medication_administrations` collection (doses given).
 class PbMedicationAdministrationsRepository
     extends PbRepository<MedicationAdministration> {
-  PbMedicationAdministrationsRepository(PocketBase pb, {super.cache})
-    : super(
-        pb: pb,
-        collection: 'medication_administrations',
-        fromRecord: MedicationAdministration.fromRecord,
-      );
+  PbMedicationAdministrationsRepository(
+    PocketBase pb, {
+    super.cache,
+    super.isOffline,
+  }) : super(
+         pb: pb,
+         collection: 'medication_administrations',
+         fromRecord: MedicationAdministration.fromRecord,
+       );
 
   /// Administrations for a case, most recent first.
   Future<List<MedicationAdministration>> forCase(String caseId) => list(
@@ -60,7 +63,7 @@ class PbMedicationAdministrationsRepository
 
 /// Repository over the `journal_entries` collection (dated log + photos).
 class PbJournalRepository extends PbRepository<JournalEntry> {
-  PbJournalRepository(PocketBase pb, {super.cache})
+  PbJournalRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'journal_entries',
@@ -76,7 +79,7 @@ class PbJournalRepository extends PbRepository<JournalEntry> {
 
 /// Repository over the `follow_ups` collection (one-off rechecks on a case).
 class PbFollowUpsRepository extends PbRepository<FollowUp> {
-  PbFollowUpsRepository(PocketBase pb, {super.cache})
+  PbFollowUpsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'follow_ups',
@@ -104,7 +107,7 @@ class PbFollowUpsRepository extends PbRepository<FollowUp> {
 /// prescription with its server-computed next-due time, the worklist's
 /// medications-due source.
 class PbMedicationDueRepository extends PbRepository<MedicationDue> {
-  PbMedicationDueRepository(PocketBase pb, {super.cache})
+  PbMedicationDueRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'medication_due',
@@ -123,7 +126,7 @@ class PbMedicationDueRepository extends PbRepository<MedicationDue> {
 
 /// Repository over the `exams` collection (structured physical exams, FED-4.8).
 class PbExamsRepository extends PbRepository<Exam> {
-  PbExamsRepository(PocketBase pb, {super.cache})
+  PbExamsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'exams',
@@ -147,7 +150,7 @@ class PbExamsRepository extends PbRepository<Exam> {
 /// Repository over the `exam_findings` collection (one sparse row per assessed
 /// body system on an [Exam], FED-4.8).
 class PbExamFindingsRepository extends PbRepository<ExamFinding> {
-  PbExamFindingsRepository(PocketBase pb, {super.cache})
+  PbExamFindingsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'exam_findings',
@@ -171,7 +174,7 @@ class PbExamFindingsRepository extends PbRepository<ExamFinding> {
 
 /// Repository over the `placements` collection (enclosure & handoff history).
 class PbPlacementsRepository extends PbRepository<Placement> {
-  PbPlacementsRepository(PocketBase pb, {super.cache})
+  PbPlacementsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'placements',

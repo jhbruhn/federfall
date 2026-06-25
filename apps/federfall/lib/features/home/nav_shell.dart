@@ -1,3 +1,4 @@
+import 'package:federfall/core/connectivity/offline_banner.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -74,14 +75,26 @@ class NavShell extends StatelessWidget {
               ],
             ),
             const VerticalDivider(width: 1),
-            Expanded(child: navigationShell),
+            Expanded(
+              child: Column(
+                children: [
+                  const OfflineBanner(),
+                  Expanded(child: navigationShell),
+                ],
+              ),
+            ),
           ],
         ),
       );
     }
 
     return Scaffold(
-      body: navigationShell,
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: navigationShell),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: _go,

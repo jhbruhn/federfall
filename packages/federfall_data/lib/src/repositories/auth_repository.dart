@@ -175,8 +175,7 @@ class PbAuthRepository implements AuthRepository {
   }
 
   String _randomPassword() {
-    const chars =
-        'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     final rnd = Random.secure();
     return List.generate(24, (_) => chars[rnd.nextInt(chars.length)]).join();
   }

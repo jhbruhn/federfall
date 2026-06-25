@@ -4,7 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `conditions` code list (supervisor-managed diagnoses).
 class PbConditionsRepository extends PbRepository<Condition> {
-  PbConditionsRepository(PocketBase pb, {super.cache})
+  PbConditionsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'conditions',
@@ -20,7 +20,7 @@ class PbConditionsRepository extends PbRepository<Condition> {
 
 /// Repository over the `case_conditions` collection (diagnoses on a case).
 class PbCaseConditionsRepository extends PbRepository<CaseCondition> {
-  PbCaseConditionsRepository(PocketBase pb, {super.cache})
+  PbCaseConditionsRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'case_conditions',

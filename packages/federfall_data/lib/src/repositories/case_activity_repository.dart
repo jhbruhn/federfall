@@ -6,7 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 /// anything happened on each case, used to surface "stale" cases on the carer
 /// worklist without an N+1 scan of every child collection.
 class PbCaseLastActivityRepository extends PbRepository<CaseLastActivity> {
-  PbCaseLastActivityRepository(PocketBase pb, {super.cache})
+  PbCaseLastActivityRepository(PocketBase pb, {super.cache, super.isOffline})
     : super(
         pb: pb,
         collection: 'case_activity',
