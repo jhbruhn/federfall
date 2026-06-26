@@ -6,6 +6,7 @@ import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
+import 'package:federfall/routing/route_selection.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +40,7 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
       () => ref.invalidate(animalsRegistryProvider),
     );
     final registry = ref.watch(animalsRegistryProvider);
+    final selectedId = selectedDetailId(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -77,8 +79,10 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
                             ref.refresh(animalsRegistryProvider.future),
                         child: ListView.builder(
                           itemCount: results.length,
-                          itemBuilder: (context, i) =>
-                              _AnimalTile(results[i]),
+                          itemBuilder: (context, i) => _AnimalTile(
+                            results[i],
+                            selected: results[i].animal.id == selectedId,
+                          ),
                         ),
                       ),
               ),
@@ -91,9 +95,12 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
 }
 
 class _AnimalTile extends StatelessWidget {
-  const _AnimalTile(this.item);
+  const _AnimalTile(this.item, {this.selected = false});
 
   final AnimalListItem item;
+
+  /// Highlighted when its detail is open in the adjacent pane (two-pane).
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +116,7 @@ class _AnimalTile extends StatelessWidget {
     ].join(' · ');
 
     return ListTile(
+      selected: selected,
       leading: AnimalAvatar(animalId: animal.id, radius: 20),
       title: Text(hasName ? animal.name! : animal.species),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),

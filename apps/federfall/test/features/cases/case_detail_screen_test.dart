@@ -115,9 +115,12 @@ void main() {
     WidgetTester tester, {
     AnimalLifetime? lifetime,
     AppUser? currentUser,
+    double width = 420,
   }) async {
     // A tall surface so the whole scroll view (incl. the timeline) is built.
-    tester.view.physicalSize = const Size(1200, 2400);
+    // [width] defaults narrow so the case detail renders its compact, tabbed
+    // form; the wide Overview|History split has its own test.
+    tester.view.physicalSize = Size(width, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -192,6 +195,18 @@ void main() {
     await tester.tap(find.text('History'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Admitted'), findsOneWidget);
+    expect(find.text('Case opened'), findsOneWidget);
+  });
+
+  testWidgets('shows Overview and History side-by-side on a wide pane',
+      (tester) async {
+    await pump(tester, width: 1000);
+
+    // No tabs on a wide pane — both columns are visible at once, so the intake
+    // summary (Overview) and the chronology (History) show together.
+    expect(find.text('Overview'), findsNothing);
+    expect(find.text('Domplatz'), findsOneWidget);
     expect(find.text('Admitted'), findsOneWidget);
     expect(find.text('Case opened'), findsOneWidget);
   });

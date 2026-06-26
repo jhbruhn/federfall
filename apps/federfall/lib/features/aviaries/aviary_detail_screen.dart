@@ -36,6 +36,8 @@ class AviaryDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // No up arrow in the two-pane right pane (see case detail).
+        automaticallyImplyLeading: !context.isExpanded,
         title: Text(l10n.aviaryDetailTitle),
         actions: [
           if (canManage)

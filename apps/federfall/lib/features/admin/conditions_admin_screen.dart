@@ -34,7 +34,11 @@ class ConditionsAdminScreen extends ConsumerWidget {
     final conditions = ref.watch(conditionsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.conditionsAdminTitle)),
+      appBar: AppBar(
+        // No up arrow when shown as the right pane of the admin two-pane.
+        automaticallyImplyLeading: !context.isExpanded,
+        title: Text(l10n.conditionsAdminTitle),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final changed = await showConditionCodelistSheet(context);

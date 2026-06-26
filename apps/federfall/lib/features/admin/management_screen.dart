@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/features/admin/conditions_admin_screen.dart';
+import 'package:federfall/features/admin/org_settings_screen.dart';
+import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
@@ -7,18 +12,62 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Management hub (federfall-dri): one home for the org's admin and reporting
-/// surfaces, replacing the scattered app-bar icons and the team-screen gear
-/// popup. Lists the team roster, organisation settings, the condition
-/// code-list and reporting — each its own route.
+/// One admin section reachable from the hub.
+enum _AdminSection {
+  team(Icons.group_outlined, AppRoutes.manageTeam),
+  orgSettings(Icons.business_outlined, AppRoutes.orgSettings),
+  conditions(Icons.checklist_outlined, AppRoutes.conditionsAdmin);
+
+  const _AdminSection(this.icon, this.route);
+
+  final IconData icon;
+  final String route;
+
+  String title(AppLocalizations l10n) => switch (this) {
+    _AdminSection.team => l10n.manageTeamTitle,
+    _AdminSection.orgSettings => l10n.orgSettingsTitle,
+    _AdminSection.conditions => l10n.conditionsAdminTitle,
+  };
+
+  Widget screen() => switch (this) {
+    _AdminSection.team => const TeamScreen(),
+    _AdminSection.orgSettings => const OrgSettingsScreen(),
+    _AdminSection.conditions => const ConditionsAdminScreen(),
+  };
+}
+
+/// Management hub (federfall-dri): one home for the org's admin surfaces — the
+/// team roster, organisation settings and the condition code-list. (Reporting
+/// is reached from the account menu / rail, not here.)
+///
+/// On wide screens it lays the hub and the selected section out side-by-side,
+/// holding the selection itself (federfall-zbe) rather than via go_router — so
+/// this stays a single pushed route whose back-to-app affordance never
+/// disappears. On narrow screens it pushes the section's own full-screen route.
 ///
 /// Supervisor-gated; re-checks the role so a typed-in URL degrades gracefully.
 /// The real boundary remains the server API rules.
-class ManagementScreen extends ConsumerWidget {
+class ManagementScreen extends ConsumerStatefulWidget {
   const ManagementScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ManagementScreen> createState() => _ManagementScreenState();
+}
+
+class _ManagementScreenState extends ConsumerState<ManagementScreen> {
+  _AdminSection? _selected;
+
+  void _open(_AdminSection section) {
+    if (context.isExpanded) {
+      setState(() => _selected = section);
+    } else {
+      // Narrow: the section is its own full-screen route, with a back button.
+      unawaited(context.push(section.route));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
     final role = ref.watch(currentUserProvider).value?.role;
 
@@ -32,53 +81,68 @@ class ManagementScreen extends ConsumerWidget {
       );
     }
 
-    return Scaffold(
+    final expanded = context.isExpanded;
+    // The hub is its own Scaffold so it carries the "Administration" app bar
+    // (and, since this screen is pushed over the app, the back-to-app button) —
+    // mirroring the list pane of the cases/animals/aviaries surfaces.
+    final hub = Scaffold(
       appBar: AppBar(title: Text(l10n.adminTitle)),
       body: ListView(
         children: [
-          _HubTile(
-            icon: Icons.group_outlined,
-            title: l10n.manageTeamTitle,
-            route: AppRoutes.manageTeam,
-          ),
-          _HubTile(
-            icon: Icons.business_outlined,
-            title: l10n.orgSettingsTitle,
-            route: AppRoutes.orgSettings,
-          ),
-          _HubTile(
-            icon: Icons.checklist_outlined,
-            title: l10n.conditionsAdminTitle,
-            route: AppRoutes.conditionsAdmin,
-          ),
-          _HubTile(
-            icon: Icons.bar_chart_outlined,
-            title: l10n.statsTitle,
-            route: AppRoutes.statistics,
-          ),
+          for (final section in _AdminSection.values)
+            _HubTile(
+              icon: section.icon,
+              title: section.title(l10n),
+              // Only the wide layout keeps a persistent selection to highlight.
+              selected: expanded && section == _selected,
+              onTap: () => _open(section),
+            ),
         ],
       ),
+    );
+
+    if (!expanded) return hub;
+
+    // Wide: hub on the left, the selected section (its own Scaffold) or the
+    // empty-selection placeholder on the right — no outer app bar, so it reads
+    // exactly like the other two-pane surfaces.
+    return Row(
+      children: [
+        SizedBox(width: kListPaneWidth, child: hub),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: _selected?.screen() ??
+              DetailPanePlaceholder(
+                icon: Icons.manage_accounts_outlined,
+                message: l10n.adminSelectSection,
+              ),
+        ),
+      ],
     );
   }
 }
 
-/// One hub row: a labelled icon that pushes its destination route.
+/// One hub row: a labelled icon that opens its section (in the side pane on
+/// wide screens, or full-screen on narrow ones), highlighted while active.
 class _HubTile extends StatelessWidget {
   const _HubTile({
     required this.icon,
     required this.title,
-    required this.route,
+    required this.onTap,
+    this.selected = false,
   });
 
   final IconData icon;
   final String title;
-  final String route;
+  final VoidCallback onTap;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) => ListTile(
     leading: Icon(icon),
     title: Text(title),
     trailing: const Icon(Icons.chevron_right),
-    onTap: () => context.push(route),
+    selected: selected,
+    onTap: onTap,
   );
 }

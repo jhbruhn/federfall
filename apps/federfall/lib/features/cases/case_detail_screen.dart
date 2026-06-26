@@ -44,6 +44,10 @@ class CaseDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // No up arrow when this is the right pane of a two-pane layout — the
+        // list is right there; the arrow only makes sense for a full-screen
+        // (compact / medium) detail.
+        automaticallyImplyLeading: !context.isExpanded,
         title: Text(l10n.caseDetailTitle),
         actions: [
           // Edit / share / status moved into the Overview actions card; the
@@ -105,69 +109,112 @@ class _CaseDetail extends ConsumerWidget {
           ..invalidate(caseSummariesForAnimalProvider(medicalCase.animal));
       });
 
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.md,
-              AppSpacing.md,
-              AppSpacing.sm,
-            ),
-            child: _Header(
-              medicalCase: medicalCase,
-              animal: animal,
-              readOnly: !canEdit,
-            ),
+    final overview = _OverviewTab(
+      medicalCase: medicalCase,
+      animal: animal,
+      onRefresh: () => _refresh(ref),
+    );
+    final history = _HistoryTab(
+      medicalCase: medicalCase,
+      canEdit: canEdit,
+      onRefresh: () => _refresh(ref),
+    );
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.sm,
           ),
-          TabBar(
-            tabs: [
-              Tab(text: l10n.caseTabOverview),
-              Tab(text: l10n.caseTabHistory),
-            ],
+          child: _Header(
+            medicalCase: medicalCase,
+            animal: animal,
+            readOnly: !canEdit,
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _OverviewTab(
-                  medicalCase: medicalCase,
-                  animal: animal,
-                  onRefresh: () => _refresh(ref),
-                ),
-                // The add-entry FAB lives on the History tab only — the
-                // chronology is what it acts on — so it is absent on Overview.
-                Scaffold(
-                  backgroundColor: Colors.transparent,
-                  floatingActionButton: canEdit
-                      ? FloatingActionButton.extended(
-                          onPressed: () => showAddEntrySheet(
-                            context,
-                            medicalCase: medicalCase,
-                          ),
-                          icon: const Icon(Icons.add),
-                          label: Text(l10n.timelineAddEntry),
-                        )
-                      : null,
-                  body: RefreshIndicator(
-                    onRefresh: () => _refresh(ref),
-                    child: ListView(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      children: [
-                        CaseTimeline(
-                          medicalCase: medicalCase,
-                          canEdit: canEdit,
-                          showTitle: false,
-                        ),
+        ),
+        // Wide detail panes show Overview and History side-by-side; narrow
+        // ones keep them behind tabs. Keyed on the pane width (not the window)
+        // so the split only triggers when the detail itself is roomy — a
+        // 840-wide window whose detail pane is ~480 keeps the tabs.
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= kCaseDetailTwoColumnMin) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: overview),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: history),
+                  ],
+                );
+              }
+              return DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    TabBar(
+                      tabs: [
+                        Tab(text: l10n.caseTabOverview),
+                        Tab(text: l10n.caseTabHistory),
                       ],
                     ),
-                  ),
+                    Expanded(
+                      child: TabBarView(children: [overview, history]),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The History tab: the unified chronology with its add-entry FAB. The FAB
+/// lives here (not on Overview) because the timeline is what it acts on. Shared
+/// by the tabbed (compact) and side-by-side (wide) case-detail layouts.
+class _HistoryTab extends StatelessWidget {
+  const _HistoryTab({
+    required this.medicalCase,
+    required this.canEdit,
+    required this.onRefresh,
+  });
+
+  final Case medicalCase;
+  final bool canEdit;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: canEdit
+          ? FloatingActionButton.extended(
+              onPressed: () =>
+                  showAddEntrySheet(context, medicalCase: medicalCase),
+              icon: const Icon(Icons.add),
+              label: Text(l10n.timelineAddEntry),
+            )
+          : null,
+      body: RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            CaseTimeline(
+              medicalCase: medicalCase,
+              canEdit: canEdit,
+              showTitle: false,
+            ),
+          ],
+        ),
       ),
     );
   }

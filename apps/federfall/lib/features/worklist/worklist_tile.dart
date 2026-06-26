@@ -54,7 +54,7 @@ class WorklistTile extends ConsumerWidget {
             : null,
       ),
       trailing: _trailing(context, ref, l10n),
-      onTap: () => context.push(AppRoutes.caseDetail(item.caseId)),
+      onTap: () => context.go(AppRoutes.caseDetail(item.caseId)),
     );
   }
 

@@ -62,6 +62,8 @@ class AnimalDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // No up arrow in the two-pane right pane (see case detail).
+        automaticallyImplyLeading: !context.isExpanded,
         title: Text(l10n.animalDetailTitle),
         actions: [
           if (lifetime.value case final data?)
@@ -244,7 +246,7 @@ class _ExamsSection extends ConsumerWidget {
                   ),
                   subtitle: Text(_vitalsSummary(l10n, exam)),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push(AppRoutes.caseDetail(exam.caseId)),
+                  onTap: () => context.go(AppRoutes.caseDetail(exam.caseId)),
                 ),
           ],
         ),

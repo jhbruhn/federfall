@@ -8,6 +8,7 @@ import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
+import 'package:federfall/routing/route_selection.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +32,7 @@ class AviariesScreen extends ConsumerWidget {
     final canManage = canManageAviaries(
       ref.watch(currentUserProvider).value?.role,
     );
+    final selectedId = selectedDetailId(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -57,7 +59,10 @@ class AviariesScreen extends ConsumerWidget {
                 onRefresh: () => ref.refresh(aviariesProvider.future),
                 child: ListView.builder(
                   itemCount: list.length,
-                  itemBuilder: (context, i) => _AviaryTile(list[i]),
+                  itemBuilder: (context, i) => _AviaryTile(
+                    list[i],
+                    selected: list[i].id == selectedId,
+                  ),
                 ),
               ),
       ),
@@ -66,9 +71,12 @@ class AviariesScreen extends ConsumerWidget {
 }
 
 class _AviaryTile extends ConsumerWidget {
-  const _AviaryTile(this.aviary);
+  const _AviaryTile(this.aviary, {this.selected = false});
 
   final Aviary aviary;
+
+  /// Highlighted when its detail is open in the adjacent pane (two-pane).
+  final bool selected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -85,6 +93,7 @@ class _AviaryTile extends ConsumerWidget {
     ].join(' · ');
 
     return ListTile(
+      selected: selected,
       leading: const Icon(Icons.holiday_village_outlined),
       title: Text(aviary.name),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),

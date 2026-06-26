@@ -35,7 +35,11 @@ class TeamScreen extends ConsumerWidget {
     final members = ref.watch(orgMembersProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.manageTeamTitle)),
+      appBar: AppBar(
+        // No up arrow when shown as the right pane of the admin two-pane.
+        automaticallyImplyLeading: !context.isExpanded,
+        title: Text(l10n.manageTeamTitle),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final invited = await showInviteMemberSheet(context);

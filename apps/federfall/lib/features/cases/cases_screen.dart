@@ -6,6 +6,7 @@ import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
+import 'package:federfall/routing/route_selection.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -70,6 +71,9 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    // The case open in the detail pane (expanded two-pane), so its row reads as
+    // selected. Null on compact / when nothing is open.
+    final selectedId = selectedDetailId(context);
     // 'case_shares' matters because a case shared *with* the signed-in user
     // grants list visibility without touching the case record itself — so only
     // the case_shares create/delete event reflects the change live.
@@ -124,7 +128,11 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
                           itemCount: results.length,
                           itemBuilder: (context, i) {
                             final c = results[i];
-                            return _CaseTile(c, d.animalsById[c.animal]);
+                            return _CaseTile(
+                              c,
+                              d.animalsById[c.animal],
+                              selected: c.id == selectedId,
+                            );
                           },
                         ),
                       ),
@@ -348,10 +356,13 @@ String _fmt(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}';
 
 class _CaseTile extends StatelessWidget {
-  const _CaseTile(this.medicalCase, this.animal);
+  const _CaseTile(this.medicalCase, this.animal, {this.selected = false});
 
   final Case medicalCase;
   final Animal? animal;
+
+  /// Highlighted when its detail is open in the adjacent pane (two-pane).
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -363,6 +374,7 @@ class _CaseTile extends StatelessWidget {
     ].join(' · ');
 
     return ListTile(
+      selected: selected,
       leading: AnimalAvatar(animalId: medicalCase.animal, radius: 20),
       title: Text(medicalCase.caseNumber ?? l10n.caseNewTitle),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),

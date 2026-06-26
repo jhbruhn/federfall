@@ -15,6 +15,14 @@ Future<void> _pump(
   AppUser? user,
   CaseQuery? initialQuery,
 }) async {
+  // Compact width so the account menu sits in the app bar (on wider widths it
+  // moves to the navigation rail, which this standalone screen has no shell to
+  // provide).
+  tester.view.physicalSize = const Size(420, 1400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [

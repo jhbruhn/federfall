@@ -36,6 +36,25 @@ void main() {
     expect(find.text('Team'), findsOneWidget);
     expect(find.text('Organisation settings'), findsOneWidget);
     expect(find.text('Condition code-list'), findsOneWidget);
-    expect(find.text('Statistics'), findsOneWidget);
+    // Statistics is reached from the account menu / rail, not the hub.
+    expect(find.text('Statistics'), findsNothing);
+  });
+
+  testWidgets('wide screens show the hub beside a selection placeholder', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1100, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pump(tester, role: UserRole.supervisor);
+
+    // Hub on the left, empty-selection placeholder on the right, and the
+    // persistent app bar (which carries the back-to-app affordance) on top —
+    // the hub stays a single screen, so that affordance never disappears.
+    expect(find.text('Team'), findsOneWidget);
+    expect(find.text('Select a section to manage'), findsOneWidget);
+    expect(find.text('Administration'), findsOneWidget);
   });
 }

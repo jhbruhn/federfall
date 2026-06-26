@@ -93,6 +93,9 @@ void main() {
 
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
+    // Account actions are listed directly in the rail (not behind a popup) and
+    // not duplicated in the pane's app bar.
+    expect(find.text('Profil'), findsOneWidget);
   });
 
   testWidgets('switching destinations swaps the active tab', (tester) async {

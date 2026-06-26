@@ -35,7 +35,11 @@ class OrgSettingsScreen extends ConsumerWidget {
     final org = ref.watch(currentOrganisationProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.orgSettingsTitle)),
+      appBar: AppBar(
+        // No up arrow when shown as the right pane of the admin two-pane.
+        automaticallyImplyLeading: !context.isExpanded,
+        title: Text(l10n.orgSettingsTitle),
+      ),
       body: AsyncValueView<Organisation>(
         value: org,
         onRetry: () => ref.invalidate(currentOrganisationProvider),

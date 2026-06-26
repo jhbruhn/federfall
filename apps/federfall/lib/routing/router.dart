@@ -22,9 +22,11 @@ import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/features/startup/splash_screen.dart';
 import 'package:federfall/features/statistics/statistics_screen.dart';
 import 'package:federfall/features/worklist/today_screen.dart';
+import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/not_found_screen.dart';
-import 'package:flutter/widgets.dart';
+import 'package:federfall/ui/ui.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -49,9 +51,16 @@ GoRouter router(Ref ref) {
     ..listen(authStatusProvider, (_, _) => refresh.value++)
     ..onDispose(refresh.dispose);
 
-  // Detail/create routes nest under their shell branch but render full-screen
-  // over the shell by living on the root navigator.
+  // Create routes (and the transient browser) live on the root navigator so
+  // they render full-screen over everything.
   final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+
+  // Each canonical list-detail surface owns a nested pane navigator (via a
+  // `ShellRoute`) so the section root and the selected detail can sit side by
+  // side on expanded widths, and stack (with a native push) on compact ones.
+  final casesPaneKey = GlobalKey<NavigatorState>(debugLabel: 'casesPane');
+  final animalsPaneKey = GlobalKey<NavigatorState>(debugLabel: 'animalsPane');
+  final aviariesPaneKey = GlobalKey<NavigatorState>(debugLabel: 'aviariesPane');
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -86,69 +95,118 @@ GoRouter router(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            initialLocation: AppRoutes.cases,
             routes: [
-              GoRoute(
-                path: AppRoutes.cases,
-                builder: (_, _) => const CasesScreen(),
+              ShellRoute(
+                navigatorKey: casesPaneKey,
+                builder: (_, _, child) => ListDetailShell(
+                  list: const CasesScreen(),
+                  detailChild: child,
+                ),
                 routes: [
-                  // `/cases/new` — declared before `:id` so the literal wins.
                   GoRoute(
-                    path: AppRoutes.newCaseSegment,
-                    parentNavigatorKey: rootNavigatorKey,
-                    builder: (_, state) => NewCaseScreen(
-                      animalId: state.uri.queryParameters['animal'],
-                    ),
-                  ),
-                  // `/cases/browse?…` — transient pre-filtered browser pushed
-                  // over the shell from a dashboard KPI; literal before `:id`.
-                  GoRoute(
-                    path: AppRoutes.casesBrowseSegment,
-                    parentNavigatorKey: rootNavigatorKey,
-                    builder: (_, state) => CasesScreen(
-                      initialQuery: CaseQuery.fromParams(
-                        state.uri.queryParameters,
+                    path: AppRoutes.cases,
+                    // Expanded: the list is the shell's left pane, so the pane
+                    // navigator's root is the "nothing selected" placeholder.
+                    // Compact: the pane navigator IS the list.
+                    builder: (context, _) => context.isExpanded
+                        ? DetailPanePlaceholder(
+                            icon: Icons.medical_information_outlined,
+                            message: context.l10n.listDetailSelectCase,
+                          )
+                        : const CasesScreen(),
+                    routes: [
+                      // `/cases/new` — full-screen over the shell; literal
+                      // before `:id` so it wins the match.
+                      GoRoute(
+                        path: AppRoutes.newCaseSegment,
+                        parentNavigatorKey: rootNavigatorKey,
+                        builder: (_, state) => NewCaseScreen(
+                          animalId: state.uri.queryParameters['animal'],
+                        ),
                       ),
-                    ),
-                  ),
-                  GoRoute(
-                    path: AppRoutes.detailSegment,
-                    parentNavigatorKey: rootNavigatorKey,
-                    builder: (_, state) =>
-                        CaseDetailScreen(caseId: state.pathParameters['id']!),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.animals,
-                builder: (_, _) => const AnimalsScreen(),
-                routes: [
-                  GoRoute(
-                    path: AppRoutes.detailSegment,
-                    parentNavigatorKey: rootNavigatorKey,
-                    builder: (_, state) => AnimalDetailScreen(
-                      animalId: state.pathParameters['id']!,
-                    ),
+                      // `/cases/browse?…` — transient pre-filtered browser,
+                      // full-screen over the shell.
+                      GoRoute(
+                        path: AppRoutes.casesBrowseSegment,
+                        parentNavigatorKey: rootNavigatorKey,
+                        builder: (_, state) => CasesScreen(
+                          initialQuery: CaseQuery.fromParams(
+                            state.uri.queryParameters,
+                          ),
+                        ),
+                      ),
+                      // `/cases/:id` — the detail, in the pane navigator: the
+                      // right pane on expanded, a full-screen push on compact.
+                      GoRoute(
+                        path: AppRoutes.detailSegment,
+                        builder: (_, state) => CaseDetailScreen(
+                          caseId: state.pathParameters['id']!,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ],
           ),
           StatefulShellBranch(
+            initialLocation: AppRoutes.animals,
             routes: [
-              GoRoute(
-                path: AppRoutes.aviaries,
-                builder: (_, _) => const AviariesScreen(),
+              ShellRoute(
+                navigatorKey: animalsPaneKey,
+                builder: (_, _, child) => ListDetailShell(
+                  list: const AnimalsScreen(),
+                  detailChild: child,
+                ),
                 routes: [
                   GoRoute(
-                    path: AppRoutes.detailSegment,
-                    parentNavigatorKey: rootNavigatorKey,
-                    builder: (_, state) => AviaryDetailScreen(
-                      aviaryId: state.pathParameters['id']!,
-                    ),
+                    path: AppRoutes.animals,
+                    builder: (context, _) => context.isExpanded
+                        ? DetailPanePlaceholder(
+                            icon: Icons.pets_outlined,
+                            message: context.l10n.listDetailSelectAnimal,
+                          )
+                        : const AnimalsScreen(),
+                    routes: [
+                      GoRoute(
+                        path: AppRoutes.detailSegment,
+                        builder: (_, state) => AnimalDetailScreen(
+                          animalId: state.pathParameters['id']!,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            initialLocation: AppRoutes.aviaries,
+            routes: [
+              ShellRoute(
+                navigatorKey: aviariesPaneKey,
+                builder: (_, _, child) => ListDetailShell(
+                  list: const AviariesScreen(),
+                  detailChild: child,
+                ),
+                routes: [
+                  GoRoute(
+                    path: AppRoutes.aviaries,
+                    builder: (context, _) => context.isExpanded
+                        ? DetailPanePlaceholder(
+                            icon: Icons.holiday_village_outlined,
+                            message: context.l10n.listDetailSelectAviary,
+                          )
+                        : const AviariesScreen(),
+                    routes: [
+                      GoRoute(
+                        path: AppRoutes.detailSegment,
+                        builder: (_, state) => AviaryDetailScreen(
+                          aviaryId: state.pathParameters['id']!,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -160,6 +218,13 @@ GoRouter router(Ref ref) {
         path: AppRoutes.profile,
         builder: (_, _) => const ProfileScreen(),
       ),
+      // Management hub (federfall-zbe): a single full-screen route pushed over
+      // the shell. On wide screens [ManagementScreen] lays out the hub and the
+      // selected section side-by-side itself (internal selection state) — it is
+      // NOT a go_router two-pane, so the hub stays a normal pushed route and
+      // its back-to-app affordance never disappears. On narrow screens it
+      // pushes the section routes below full-screen. Statistics is reached from
+      // the account menu / rail, not the hub.
       GoRoute(
         path: AppRoutes.admin,
         builder: (_, _) => const ManagementScreen(),
