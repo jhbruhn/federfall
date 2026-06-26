@@ -71,6 +71,24 @@ docker compose exec app pocketbase superuser upsert admin@federfall.local <passw
 Note: a PocketBase **superuser** (Admin UI) is not an app-level **Supervisor**. The first
 app Supervisor must be bootstrapped separately (see the deployment guide).
 
+## Configuration (env vars)
+
+PocketBase has no native env-based settings, so operator config is applied on boot by
+hooks that read env vars (PocketBase's own recommended pattern — load settings in an
+`onBootstrap` hook; see PB discussion #1551). Set these in the root `docker-compose.yml`
+(no `.env` is shipped):
+
+- **SMTP** (`pb_hooks/smtp.pb.js`) — stays OFF unless `FEDERFALL_SMTP_HOST` is set, then
+  invite/password-reset mail can be delivered: `FEDERFALL_SMTP_HOST`, `…_PORT` (default
+  587), `…_USERNAME`, `…_PASSWORD`, `…_TLS` (`true` ⇒ implicit TLS / port 465),
+  `…_SENDER_ADDRESS`, `…_SENDER_NAME` (defaults to the app name). Re-applied each start —
+  change the env + restart to update. Secrets never touch the repo.
+- **Geocoding proxy** (`pb_hooks/geocode.pb.js`) — `FEDERFALL_NOMINATIM_URL`,
+  `FEDERFALL_GEOCODER_KEY`, `FEDERFALL_USER_AGENT`.
+
+The app name (`appName`, shown in the Admin UI and the default email templates) is set to
+**Federfall** by migration `1700000029_app_branding.js` (PocketBase's default is "Acme").
+
 ## Migrations & hooks
 
 - **Dev:** both dirs are bind-mounted (via the override) so edits take effect without

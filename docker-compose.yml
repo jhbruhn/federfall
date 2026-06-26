@@ -35,6 +35,15 @@ services:
       # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"
       # FEDERFALL_GEOCODER_KEY: ""
       # FEDERFALL_USER_AGENT: "Federfall/1.0 (admin@yourdomain.tld)"
+      # SMTP — applied on boot by pb_hooks/smtp.pb.js. SMTP stays OFF unless
+      # FEDERFALL_SMTP_HOST is set (then password-reset/invite mail can be sent):
+      # FEDERFALL_SMTP_HOST: "smtp.yourprovider.tld"
+      # FEDERFALL_SMTP_PORT: "587"            # 465 for implicit TLS
+      # FEDERFALL_SMTP_USERNAME: ""
+      # FEDERFALL_SMTP_PASSWORD: ""
+      # FEDERFALL_SMTP_TLS: "false"           # "true" => implicit TLS (port 465)
+      # FEDERFALL_SMTP_SENDER_ADDRESS: "noreply@yourdomain.tld"
+      # FEDERFALL_SMTP_SENDER_NAME: "Federfall"
     ports:
       # host:container — front this with your own TLS-terminating reverse proxy.
       - "8090:8090"
