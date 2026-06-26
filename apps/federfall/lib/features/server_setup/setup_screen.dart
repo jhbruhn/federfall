@@ -1,3 +1,4 @@
+import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_probe.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -6,8 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Native-only first-run screen where the user enters their Federfall server
-/// URL (FED-3.0). The address is normalised, probed against `/api/health` and,
-/// on success, persisted — at which point the router gate moves on to login.
+/// URL (FED-3.0). The address is normalised, probed against
+/// `/api/federfall/info` and, on success, persisted — at which point the router
+/// gate moves on to login.
 ///
 /// On web this screen is never reached: the base URL is the serving origin, so
 /// the config is always resolved and the gate never redirects here.
@@ -20,7 +22,12 @@ class SetupScreen extends ConsumerStatefulWidget {
 
 class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _controller = TextEditingController();
+  // Prefilled with the build-time POCKETBASE_URL override when present, so a
+  // dev build lands on setup with the local backend already typed in (the
+  // override never auto-configures the server — see ServerConfigController).
+  final _controller = TextEditingController(
+    text: AppEnvironment.pocketbaseUrlOverride,
+  );
 
   bool _busy = false;
 

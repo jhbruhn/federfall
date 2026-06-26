@@ -134,6 +134,21 @@ def main():
     notif = [c["label"] for c in listf(T, "conditions", "is_notifiable = true")]
     check("PMV is NOT flagged notifiable", not any("PMV" in x for x in notif), notif)
 
+    # ── federfall-7nf.1: server identity & capabilities discovery ────────────
+    print("\n[federfall info]")
+    s, info = req("GET", "/api/federfall/info")  # no token: must be public
+    check("GET /api/federfall/info is unauthenticated (200)", s == 200, f"status {s}")
+    check("carries the federfall identity marker",
+          bool(info) and info.get("federfall") is True
+          and info.get("service") == "federfall", info)
+    check("reports a version and minClient",
+          bool(info) and bool(info.get("version")) and bool(info.get("minClient")),
+          info)
+    auth = (info or {}).get("auth") or {}
+    check("password auth is enabled", auth.get("password") is True, auth)
+    check("oauth2 is a list", isinstance(auth.get("oauth2"), list), auth)
+    check("self-signup is off (invite-only)", auth.get("selfSignup") is False, auth)
+
     # ── fixtures ────────────────────────────────────────────────────────────
     A = mkuser(T, "a@f.local", "carer")["id"]
     B = mkuser(T, "b@f.local", "carer")["id"]

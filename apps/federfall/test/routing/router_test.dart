@@ -3,6 +3,7 @@ import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
+import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
@@ -45,6 +46,9 @@ Future<ProviderContainer> _pumpAt(
         () => _FakeServerConfig(config),
       ),
       authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: authed)),
+      // Discovery is exercised in its own tests; here it just resolves so the
+      // login gate doesn't reach for the network.
+      serverInfoProvider.overrideWith((ref) async => null),
       casesBrowserDataProvider.overrideWith(
         (ref) async => const CasesBrowserData(
           cases: [],

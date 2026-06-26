@@ -4,6 +4,23 @@ import 'package:federfall/core/server/server_probe.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+/// A minimal valid `/api/federfall/info` body.
+Map<String, Object?> _infoBody({
+  String name = 'Federfall',
+  bool passwordReset = false,
+}) => {
+  'service': 'federfall',
+  'federfall': true,
+  'version': '1.0.0',
+  'name': name,
+  'auth': {
+    'password': true,
+    'oauth2': <String>[],
+    'passwordReset': passwordReset,
+    'selfSignup': false,
+  },
+};
+
 void main() {
   group('normalizeServerUrl', () {
     test('assumes https when no scheme is given', () {
@@ -51,27 +68,31 @@ void main() {
       var probed = false;
       final probe = ServerProbe((_) async {
         probed = true;
-        return HealthCheck(code: 200);
+        return _infoBody();
       });
 
       expect(await probe.probe('https://'), isA<ProbeInvalidUrl>());
       expect(probed, isFalse);
     });
 
-    test('healthy PocketBase (code 200) is reachable with normalised url',
+    test('a Federfall server is reachable with its normalised url + info',
         () async {
-      final probe = ServerProbe((_) async => HealthCheck(code: 200));
+      final probe = ServerProbe(
+        (_) async => _infoBody(name: 'Wildvogelhilfe', passwordReset: true),
+      );
 
       final result = await probe.probe('pigeons.example');
 
-      expect(
-        result,
-        const ServerProbeResult.reachable('https://pigeons.example'),
-      );
+      expect(result, isA<ProbeReachable>());
+      final reachable = result as ProbeReachable;
+      expect(reachable.baseUrl, 'https://pigeons.example');
+      expect(reachable.info.name, 'Wildvogelhilfe');
+      expect(reachable.info.auth.passwordReset, isTrue);
     });
 
-    test('a non-200 health code is treated as not-Federfall', () async {
-      final probe = ServerProbe((_) async => HealthCheck());
+    test('a generic PocketBase (no marker in a 200 body) is not-Federfall',
+        () async {
+      final probe = ServerProbe((_) async => {'message': 'ok'});
 
       expect(await probe.probe('pigeons.example'), isA<ProbeNotFederfall>());
     });
@@ -84,7 +105,8 @@ void main() {
       expect(await probe.probe('pigeons.example'), isA<ProbeUnreachable>());
     });
 
-    test('an HTTP error response is not-Federfall', () async {
+    test('a 404 (route missing on a generic PocketBase) is not-Federfall',
+        () async {
       final probe = ServerProbe(
         (_) async => throw ClientException(statusCode: 404),
       );

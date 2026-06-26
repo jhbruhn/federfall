@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
+import 'package:federfall/core/server/server_info.dart';
+import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -64,10 +66,14 @@ class FakeAuthRepository implements AuthRepository {
 
 Future<ProviderContainer> _pump(
   WidgetTester tester,
-  FakeAuthRepository repo,
-) async {
+  FakeAuthRepository repo, {
+  ServerInfo? info,
+}) async {
   final container = ProviderContainer(
-    overrides: [authRepositoryProvider.overrideWith((ref) async => repo)],
+    overrides: [
+      authRepositoryProvider.overrideWith((ref) async => repo),
+      serverInfoProvider.overrideWith((ref) async => info),
+    ],
   );
   addTearDown(container.dispose);
 
@@ -158,6 +164,56 @@ void main() {
 
     expect(repo.lastEmail, isNull);
     expect(find.text('This field is required'), findsWidgets);
+  });
+
+  testWidgets('submits on Enter in the password field', (tester) async {
+    final repo = FakeAuthRepository();
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'staff@example.org',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 's3cret');
+    await tester.testTextInput.receiveAction(TextInputAction.go);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(repo.lastEmail, 'staff@example.org');
+    expect(repo.lastPassword, 's3cret');
+  });
+
+  testWidgets('reflects the server: shows its name and the reset link',
+      (tester) async {
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      info: const ServerInfo(
+        version: '1.0.0',
+        name: 'Wildvogelhilfe',
+        auth: ServerAuthOptions(passwordReset: true),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign in to Wildvogelhilfe'), findsOneWidget);
+    expect(find.text('Forgot password?'), findsOneWidget);
+  });
+
+  testWidgets('hides the reset link when the server cannot send mail',
+      (tester) async {
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      info: const ServerInfo(
+        version: '1.0.0',
+        name: 'Federfall',
+        auth: ServerAuthOptions(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Forgot password?'), findsNothing);
   });
 
   testWidgets('switch server clears the configured URL back to setup',

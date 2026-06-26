@@ -13,8 +13,10 @@ part 'server_config_controller.g.dart';
 ///   * **web** — always configured; the base URL is the app's serving origin
 ///     (`Uri.base.origin`), since backend and frontend share the domain. A
 ///     build-time `POCKETBASE_URL` override wins (dev convenience).
-///   * **native** — the persisted URL, or [ServerUnconfigured] when unset (a
-///     build-time override seeds it for dev).
+///   * **native** — the persisted URL, or [ServerUnconfigured] when unset, so
+///     first run always lands on the setup screen. The build-time
+///     `POCKETBASE_URL` override never auto-configures here (that would skip
+///     setup); it only *prefills* the setup field for dev — see `SetupScreen`.
 ///
 /// Mutating the URL replaces the state, which transitively rebuilds the
 /// PocketBase client (it is keyed on this config).
@@ -29,12 +31,6 @@ class ServerConfigController extends _$ServerConfigController {
     final stored = await ref.watch(serverUrlStorageProvider).read();
     if (stored != null && stored.isNotEmpty) {
       return ServerConfig.configured(stored);
-    }
-
-    if (AppEnvironment.hasPocketbaseUrlOverride) {
-      return const ServerConfig.configured(
-        AppEnvironment.pocketbaseUrlOverride,
-      );
     }
 
     return const ServerConfig.unconfigured();

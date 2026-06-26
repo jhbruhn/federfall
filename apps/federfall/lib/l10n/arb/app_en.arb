@@ -108,6 +108,31 @@
     "@authInvalidCredentials": {
         "description": "Error shown when sign-in is rejected by the server"
     },
+    "authSignInToServer": "Sign in to {server}",
+    "@authSignInToServer": {
+        "description": "Login heading naming the verified server/instance",
+        "placeholders": { "server": { "type": "String" } }
+    },
+    "authResetLinkAction": "Forgot password?",
+    "@authResetLinkAction": {
+        "description": "Login link that opens the password-reset request dialog"
+    },
+    "authResetTitle": "Reset password",
+    "@authResetTitle": {
+        "description": "Title of the password-reset request dialog"
+    },
+    "authResetDescription": "Enter your email address and we'll send you a link to set a new password.",
+    "@authResetDescription": {
+        "description": "Body text of the password-reset request dialog"
+    },
+    "authResetSendAction": "Send reset link",
+    "@authResetSendAction": {
+        "description": "Button that submits the password-reset request"
+    },
+    "authResetSent": "If an account exists for that address, a reset email is on its way.",
+    "@authResetSent": {
+        "description": "Confirmation after requesting a password reset (does not reveal whether the account exists)"
+    },
     "statsTitle": "Statistics",
     "@statsTitle": { "description": "Title of the statistics/reporting screen" },
     "statsTotalCases": "Total cases",

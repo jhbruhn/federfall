@@ -9,6 +9,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// A minimal valid `/api/federfall/info` body for a probed server.
+Map<String, Object?> _infoBody() => {
+  'service': 'federfall',
+  'federfall': true,
+  'version': '1.0.0',
+  'name': 'Federfall',
+  'auth': {'password': true},
+};
+
 Future<ProviderContainer> _pump(WidgetTester tester, ServerProbe probe) async {
   final container = ProviderContainer(
     overrides: [serverProbeProvider.overrideWithValue(probe)],
@@ -48,7 +57,7 @@ void main() {
   testWidgets('persists the normalised URL on a successful probe',
       (tester) async {
     final container =
-        await _pump(tester, ServerProbe((_) async => HealthCheck(code: 200)));
+        await _pump(tester, ServerProbe((_) async => _infoBody()));
 
     await tester.enterText(find.byType(TextFormField), 'pigeons.example');
     await tester.tap(find.text('Connect'));
@@ -69,7 +78,7 @@ void main() {
       tester,
       ServerProbe((_) async {
         probed = true;
-        return HealthCheck(code: 200);
+        return _infoBody();
       }),
     );
 

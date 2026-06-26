@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
+import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/features/admin/conditions_admin_screen.dart';
 import 'package:federfall/features/admin/management_screen.dart';
 import 'package:federfall/features/admin/org_settings_screen.dart';
@@ -48,6 +49,7 @@ GoRouter router(Ref ref) {
   final refresh = ValueNotifier<int>(0);
   ref
     ..listen(serverConfigControllerProvider, (_, _) => refresh.value++)
+    ..listen(serverInfoProvider, (_, _) => refresh.value++)
     ..listen(authStatusProvider, (_, _) => refresh.value++)
     ..onDispose(refresh.dispose);
 
@@ -287,6 +289,12 @@ String? _gate(Ref ref, String location) {
 
   final authenticated = authAsync.requireValue;
   if (!authenticated) {
+    // The login screen adapts to the server's capabilities, so wait until they
+    // have resolved before rendering it. serverInfo settles to a value (null on
+    // any fetch error), so this only ever pauses on the splash briefly.
+    if (ref.read(serverInfoProvider).isLoading) {
+      return location == AppRoutes.splash ? null : AppRoutes.splash;
+    }
     return location == AppRoutes.login ? null : AppRoutes.login;
   }
 

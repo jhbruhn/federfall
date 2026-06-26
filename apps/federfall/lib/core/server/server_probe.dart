@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall/core/server/server_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -43,8 +44,12 @@ String? normalizeServerUrl(String input) {
 sealed class ServerProbeResult {
   const ServerProbeResult();
 
-  /// A reachable, healthy Federfall server at [baseUrl] (already normalised).
-  const factory ServerProbeResult.reachable(String baseUrl) = ProbeReachable;
+  /// A verified Federfall server at [baseUrl] (already normalised), with the
+  /// capabilities it reported.
+  const factory ServerProbeResult.reachable(
+    String baseUrl,
+    ServerInfo info,
+  ) = ProbeReachable;
 
   /// The input is not a syntactically valid http(s) URL.
   const factory ServerProbeResult.invalidUrl() = ProbeInvalidUrl;
@@ -52,21 +57,25 @@ sealed class ServerProbeResult {
   /// The address could not be reached (DNS/connection failure or timeout).
   const factory ServerProbeResult.unreachable() = ProbeUnreachable;
 
-  /// Something answered, but it is not a healthy PocketBase/Federfall backend.
+  /// Something answered, but it is not a Federfall backend (no identity marker
+  /// — e.g. a generic PocketBase, or an unrelated host returning a 200).
   const factory ServerProbeResult.notFederfall() = ProbeNotFederfall;
 }
 
 final class ProbeReachable extends ServerProbeResult {
-  const ProbeReachable(this.baseUrl);
+  const ProbeReachable(this.baseUrl, this.info);
 
   final String baseUrl;
 
-  @override
-  bool operator ==(Object other) =>
-      other is ProbeReachable && other.baseUrl == baseUrl;
+  /// The server's reported identity + capabilities.
+  final ServerInfo info;
 
   @override
-  int get hashCode => baseUrl.hashCode;
+  bool operator ==(Object other) =>
+      other is ProbeReachable && other.baseUrl == baseUrl && other.info == info;
+
+  @override
+  int get hashCode => Object.hash(baseUrl, info);
 }
 
 final class ProbeInvalidUrl extends ServerProbeResult {
@@ -81,34 +90,40 @@ final class ProbeNotFederfall extends ServerProbeResult {
   const ProbeNotFederfall();
 }
 
-/// Hits a server's `GET /api/health` and returns the parsed health DTO. Pulled
-/// out behind a typedef so tests can supply a fake without real networking.
-typedef HealthProber = Future<HealthCheck> Function(String baseUrl);
+/// Fetches a server's `GET /api/federfall/info` and returns the decoded JSON
+/// body. Pulled out behind a typedef so tests can supply a fake without real
+/// networking.
+typedef ServerInfoProber = Future<Object?> Function(String baseUrl);
 
-Future<HealthCheck> _defaultProber(String baseUrl) =>
-    PocketBase(baseUrl).health.check().timeout(const Duration(seconds: 8));
+Future<Object?> _defaultProber(String baseUrl) =>
+    PocketBase(baseUrl).send('/api/federfall/info').timeout(
+      const Duration(seconds: 8),
+    );
 
-/// Validates a candidate server address before it is persisted (FED-3.0):
-/// normalise → probe `/api/health` → classify the outcome.
+/// Validates a candidate server address before it is persisted (FED-3.0,
+/// federfall-7nf.1): normalise → fetch `/api/federfall/info` → require the
+/// Federfall identity marker → classify the outcome. A generic PocketBase has
+/// no such route (404) and is rejected as not-Federfall.
 class ServerProbe {
   const ServerProbe([this._prober = _defaultProber]);
 
-  final HealthProber _prober;
+  final ServerInfoProber _prober;
 
   Future<ServerProbeResult> probe(String input) async {
     final normalized = normalizeServerUrl(input);
     if (normalized == null) return const ServerProbeResult.invalidUrl();
 
     try {
-      final health = await _prober(normalized);
-      // PocketBase answers a healthy check with code 200; anything else means
-      // we reached *something* that is not a Federfall backend.
-      return health.code == 200
-          ? ServerProbeResult.reachable(normalized)
-          : const ServerProbeResult.notFederfall();
+      final info = ServerInfo.tryParse(await _prober(normalized));
+      // Something answered, but without the Federfall marker it is not our
+      // backend (a bare PocketBase, a reverse proxy, an unrelated 200, ...).
+      return info == null
+          ? const ServerProbeResult.notFederfall()
+          : ServerProbeResult.reachable(normalized, info);
     } on ClientException catch (e) {
       // statusCode 0 == no HTTP response at all (connection refused, DNS,
-      // abort); a real status code means it answered but unhealthily.
+      // abort); any real status (e.g. a 404 for the missing route on a generic
+      // PocketBase) means it answered but is not Federfall.
       return e.statusCode == 0
           ? const ServerProbeResult.unreachable()
           : const ServerProbeResult.notFederfall();
