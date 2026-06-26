@@ -31,11 +31,14 @@ services:
     restart: unless-stopped
     environment:
       TZ: "Europe/Berlin"
+      # Public origin — resolves {APP_URL} in email links (e.g. the password-reset
+      # link). Set this to your instance's URL; applied by pb_hooks/settings.pb.js:
+      # FEDERFALL_APP_URL: "https://federfall.yourdomain.tld"
       # Geocoding proxy — see backend/pocketbase/README.md:
       # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"
       # FEDERFALL_GEOCODER_KEY: ""
       # FEDERFALL_USER_AGENT: "Federfall/1.0 (admin@yourdomain.tld)"
-      # SMTP — applied on boot by pb_hooks/smtp.pb.js. SMTP stays OFF unless
+      # SMTP — applied on boot by pb_hooks/settings.pb.js. SMTP stays OFF unless
       # FEDERFALL_SMTP_HOST is set (then password-reset/invite mail can be sent):
       # FEDERFALL_SMTP_HOST: "smtp.yourprovider.tld"
       # FEDERFALL_SMTP_PORT: "587"            # 465 for implicit TLS

@@ -78,16 +78,23 @@ hooks that read env vars (PocketBase's own recommended pattern — load settings
 `onBootstrap` hook; see PB discussion #1551). Set these in the root `docker-compose.yml`
 (no `.env` is shipped):
 
-- **SMTP** (`pb_hooks/smtp.pb.js`) — stays OFF unless `FEDERFALL_SMTP_HOST` is set, then
-  invite/password-reset mail can be delivered: `FEDERFALL_SMTP_HOST`, `…_PORT` (default
-  587), `…_USERNAME`, `…_PASSWORD`, `…_TLS` (`true` ⇒ implicit TLS / port 465),
-  `…_SENDER_ADDRESS`, `…_SENDER_NAME` (defaults to the app name). Re-applied each start —
-  change the env + restart to update. Secrets never touch the repo.
+- **App URL + SMTP** (`pb_hooks/settings.pb.js`) — `FEDERFALL_APP_URL` sets the public
+  origin used in email links (e.g. the password-reset link). SMTP stays OFF unless
+  `FEDERFALL_SMTP_HOST` is set, then invite/password-reset mail can be delivered:
+  `FEDERFALL_SMTP_HOST`, `…_PORT` (default 587), `…_USERNAME`, `…_PASSWORD`, `…_TLS`
+  (`true` ⇒ implicit TLS / port 465), `…_SENDER_ADDRESS`, `…_SENDER_NAME` (defaults to the
+  app name). Re-applied each start — change the env + restart to update. Secrets never
+  touch the repo.
 - **Geocoding proxy** (`pb_hooks/geocode.pb.js`) — `FEDERFALL_NOMINATIM_URL`,
   `FEDERFALL_GEOCODER_KEY`, `FEDERFALL_USER_AGENT`.
 
-The app name (`appName`, shown in the Admin UI and the default email templates) is set to
-**Federfall** by migration `1700000029_app_branding.js` (PocketBase's default is "Acme").
+Set by migration (committed, reproducible):
+
+- `appName` → **Federfall** (`1700000029_app_branding.js`; PocketBase's default is "Acme").
+  Shown in the Admin UI and the default email templates.
+- The users password-reset email (`1700000030_reset_password_template.js`) — German, with
+  its action URL pointed at the app route `{APP_URL}/auth/confirm-reset?token={TOKEN}`
+  (PocketBase's default links to the Admin UI instead).
 
 ## Migrations & hooks
 
