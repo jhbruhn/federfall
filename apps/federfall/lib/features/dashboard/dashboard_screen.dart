@@ -41,12 +41,10 @@ class DashboardScreen extends ConsumerWidget {
         value: summary,
         onRetry: () => ref.invalidate(dashboardSummaryProvider),
         errorMessage: (e) => errorMessage(l10n, e),
-        data: (s) => RefreshIndicator(
-          onRefresh: () => ref.refresh(dashboardSummaryProvider.future),
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.md),
+        data: (s) {
+          final caseload = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _WorklistPreview(),
               Text(
                 l10n.dashboardCaseloadTitle,
                 style: Theme.of(context).textTheme.titleMedium,
@@ -54,18 +52,50 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               _KpiGrid(s),
             ],
-          ),
-        ),
+          );
+
+          // Wide screens place the actionable Today preview and the caseload
+          // overview side-by-side (federfall-zbe); narrower ones stack them.
+          final body = context.isExpanded
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // showEmptyState so the column is never blank beside the
+                    // caseload when nothing is due.
+                    const Expanded(
+                      child: _WorklistPreview(showEmptyState: true),
+                    ),
+                    const SizedBox(width: AppSpacing.lg),
+                    Expanded(child: caseload),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [const _WorklistPreview(), caseload],
+                );
+
+          return RefreshIndicator(
+            onRefresh: () => ref.refresh(dashboardSummaryProvider.future),
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [body],
+            ),
+          );
+        },
       ),
     );
   }
 }
 
 /// Compact "Today" card at the top of the dashboard: the first few worklist
-/// items with a link to the full screen. Renders nothing when nothing is due,
-/// so it never adds empty chrome.
+/// items with a link to the full screen. Renders nothing when nothing is due
+/// (so it never adds empty chrome) — unless [showEmptyState], used by the wide
+/// two-column layout where a blank column would look broken; there it shows a
+/// small "all caught up" card instead.
 class _WorklistPreview extends ConsumerWidget {
-  const _WorklistPreview();
+  const _WorklistPreview({this.showEmptyState = false});
+
+  final bool showEmptyState;
 
   static const _previewMax = 4;
 
@@ -86,7 +116,17 @@ class _WorklistPreview extends ConsumerWidget {
         .watch(worklistProvider)
         .maybeWhen(
           data: (list) {
-            if (list.isEmpty) return const SizedBox.shrink();
+            if (list.isEmpty) {
+              if (!showEmptyState) return const SizedBox.shrink();
+              return Card(
+                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                child: ListTile(
+                  leading: const Icon(Icons.check_circle_outline),
+                  title: Text(l10n.todayTitle),
+                  subtitle: Text(l10n.worklistEmpty),
+                ),
+              );
+            }
             final now = DateTime.now();
             return Card(
               margin: const EdgeInsets.only(bottom: AppSpacing.lg),

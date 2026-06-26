@@ -73,4 +73,42 @@ void main() {
     // Each of the four tiles carries a chevron affordance.
     expect(find.byIcon(Icons.chevron_right), findsNWidgets(4));
   });
+
+  testWidgets('narrow screens hide the empty Today preview', (tester) async {
+    await _pump(
+      tester,
+      const DashboardSummary(
+        activeCount: 4,
+        intakesThisYear: 7,
+        byStatus: {},
+        quarantineEndingSoon: [],
+      ),
+    );
+
+    // With nothing due, the single-column phone layout adds no Today chrome.
+    expect(find.text('Caseload'), findsOneWidget);
+    expect(find.text("Nothing due — you're all caught up."), findsNothing);
+  });
+
+  testWidgets('wide screens show Today beside the caseload', (tester) async {
+    tester.view.physicalSize = const Size(1100, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pump(
+      tester,
+      const DashboardSummary(
+        activeCount: 4,
+        intakesThisYear: 7,
+        byStatus: {},
+        quarantineEndingSoon: [],
+      ),
+    );
+
+    // Two columns: the caseload and the Today preview (here its empty-state
+    // card, shown so the column isn't blank) are visible at once.
+    expect(find.text('Caseload'), findsOneWidget);
+    expect(find.text("Nothing due — you're all caught up."), findsOneWidget);
+  });
 }
