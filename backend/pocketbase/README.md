@@ -60,16 +60,31 @@ volume. Ship changes by rebuilding + recreating; pending migrations apply on sta
 > (Caddy/Traefik/nginx) in front of host `:8090` to terminate HTTPS and add gzip +
 > cache-control headers.
 
-## First superuser (admin login)
+## First superuser (Admin UI)
 
+A PocketBase **superuser** logs into the Admin UI (`/_/`) to manage schema and settings.
 On first launch, create one (or use the setup screen at `/_/`):
 
 ```bash
 docker compose exec app pocketbase superuser upsert admin@federfall.local <password>
 ```
 
-Note: a PocketBase **superuser** (Admin UI) is not an app-level **Supervisor**. The first
-app Supervisor must be bootstrapped separately (see the deployment guide).
+## First Supervisor (app login)
+
+A superuser is **not** an app-level **Supervisor** — it has no org/role and can't send
+invites or own cases. Registration is invite-only and invites are sent *by* a supervisor,
+so the first one is a chicken-and-egg that must be created out-of-band. Two ways:
+
+- **Recommended — from env.** Set `FEDERFALL_SUPERVISOR_EMAIL` +
+  `FEDERFALL_SUPERVISOR_PASSWORD` (optional `…_NAME`) in `docker-compose.yml`.
+  `pb_hooks/bootstrap_supervisor.pb.js` creates a supervisor (active, attached to the
+  seeded org) on the next start — but only while no active supervisor exists, so it's
+  idempotent and doubles as lockout recovery. Unset the vars once you're in.
+  (The dev compose override sets dev credentials automatically.)
+
+- **Manual runbook.** In the Admin UI → `users` → New record: set `email` + password,
+  `role = supervisor`, `is_active = true`, `org = ` the seeded organisation
+  (`org00000default`), and `verified = true`.
 
 ## Configuration (env vars)
 

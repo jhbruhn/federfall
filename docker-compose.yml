@@ -34,6 +34,12 @@ services:
       # Public origin — resolves {APP_URL} in email links (e.g. the password-reset
       # link). Set this to your instance's URL; applied by pb_hooks/settings.pb.js:
       # FEDERFALL_APP_URL: "https://federfall.yourdomain.tld"
+      # First app Supervisor — created on first run (and only while no active
+      # supervisor exists) by pb_hooks/bootstrap_supervisor.pb.js. Set both to
+      # bootstrap login without the Admin UI; unset once your supervisor exists:
+      # FEDERFALL_SUPERVISOR_EMAIL: "you@yourdomain.tld"
+      # FEDERFALL_SUPERVISOR_PASSWORD: "change-me-strong"
+      # FEDERFALL_SUPERVISOR_NAME: "Your Name"
       # Geocoding proxy — see backend/pocketbase/README.md:
       # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"
       # FEDERFALL_GEOCODER_KEY: ""

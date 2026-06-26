@@ -15,6 +15,13 @@
 
 services:
   app:
+    environment:
+      # Dev-only: auto-create a known app Supervisor on first run (see
+      # pb_hooks/bootstrap_supervisor.pb.js) so you can log in immediately.
+      # NEVER use these credentials in production.
+      FEDERFALL_SUPERVISOR_EMAIL: "supervisor@federfall.local"
+      FEDERFALL_SUPERVISOR_PASSWORD: "supervisor"
+      FEDERFALL_SUPERVISOR_NAME: "Dev Supervisor"
     volumes:
       - ./backend/pocketbase/pb_data:/pb/pb_data
       - ./backend/pocketbase/pb_migrations:/pb/pb_migrations
