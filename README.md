@@ -16,36 +16,33 @@ This is a [Dart pub workspace](https://dart.dev/tools/pub/workspaces) monorepo:
 
 ```
 federfall/
+├─ Dockerfile              # unified single-container image (PocketBase + Flutter web SPA)
+├─ docker-compose.yml      # root stack (+ docker-compose.override.yml for dev)
 ├─ apps/
 │  └─ federfall/            # Flutter app (very_good_cli scaffold)
 ├─ packages/
 │  ├─ federfall_models/     # shared freezed models + RecordModel mappers
 │  └─ federfall_data/       # repository interfaces + PocketBase implementations
 ├─ backend/
-│  └─ pocketbase/           # Dockerfile, docker-compose.yml, pb_migrations/, pb_hooks/, seed data
+│  └─ pocketbase/           # pb_migrations/, pb_hooks/, rule tests (committed schema)
 ├─ docs/
 │  ├─ REQUIREMENTS.md       # source-of-truth specification
 │  └─ IMPLEMENTATION_PLAN.md# phased build plan + dependency graph
 ├─ AGENTS.md / CLAUDE.md    # instructions for AI coding agents
-└─ .beads/                  # bd (beads) issue tracker — run `bd ready`
+└─ .beads/                  # issue tracker (internal)
 ```
-
-> The `apps/` and `packages/*` Dart packages are created in subsequent Phase-0 tasks
-> (FED-0.2 scaffolds the app + pub workspace, FED-0.4 adds core dependencies).
 
 ## Getting started
 
-> Full setup lands incrementally through Phase 0 (see `docs/IMPLEMENTATION_PLAN.md`).
-
 ```bash
-# Issue tracker — what to work on next
-bd ready
+# Whole app, from the repo root — PocketBase serves the API, Admin UI and the
+# Flutter web SPA on http://localhost:8090:
+docker compose up
 
-# Backend (after FED-0.5): run a local PocketBase in Docker
-cd backend/pocketbase && docker compose up
-
-# App (after FED-0.2): run the Flutter app
-cd apps/federfall && flutter run --flavor dev --dart-define-from-file=dart_defines/dev.json
+# Or run the Flutter app on the host for UI hot-reload (against that backend):
+cd apps/federfall && flutter run --flavor development \
+  --target lib/main_development.dart \
+  --dart-define-from-file=dart_defines/development.json
 ```
 
 ## Documentation

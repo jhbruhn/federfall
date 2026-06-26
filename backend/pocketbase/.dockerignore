@@ -1,6 +1,0 @@
-# Keep the build context tiny — never ship runtime state into the image.
-# (pb_migrations/ and pb_hooks/ are intentionally NOT ignored — they are baked in.)
-pb_data/
-README.md
-docker-compose*.yml
-tests/

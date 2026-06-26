@@ -1,24 +1,33 @@
-# Federfall — production stack (BASE). Single public entry: nginx (container :80,
-# published on host :8090) serves the Flutter SPA and reverse-proxies the
-# PocketBase API + Admin under the same origin. PocketBase has NO published port —
-# only nginx reaches it over the compose network.
+# Federfall — production stack (BASE). A SINGLE container: one version-pinned
+# image where PocketBase serves the REST/Realtime API, the Admin UI (/_/) AND the
+# built Flutter web SPA (from /pb/pb_public, with SPA index-fallback) on ONE
+# origin. There is no separate web server.
+#
+# TLS and gzip/caching are the OPERATOR's job: put your own reverse proxy
+# (Caddy/Traefik/nginx) in front of the published host port :8090. The stack
+# itself speaks plain HTTP.
 #
 #   Production:  docker compose -f docker-compose.yml up -d --build
 #   Local dev:   docker compose up --build      # auto-merges docker-compose.override.yml
-#                                               # (bind-mounts migrations/hooks, automigrate on);
-#                                               # SPA + API stay on http://localhost:8090.
+#                                               # (same full image; bind-mounts
+#                                               #  migrations/hooks, automigrate on)
 #
-# Both images are version-pinned and self-contained (migrations/hooks baked into
-# the backend image; automigrate off). Ship changes by rebuilding + recreating.
+# The image is self-contained & version-pinned (migrations, hooks and the web
+# bundle baked in; automigrate off). Ship changes by rebuilding + recreating.
+#
+# OPERATOR CONFIG lives HERE, as env vars in this file (no .env is shipped). Set
+# TZ and the geocoding proxy vars below for your instance.
 
 services:
-  backend:
+  app:
     build:
-      context: ./backend/pocketbase
+      context: .
+      dockerfile: Dockerfile
+      # default target = `full` (backend + web); used by both dev and prod.
       args:
         PB_VERSION: "0.39.4"
-    image: federfall-pocketbase:0.39.4
-    container_name: federfall_backend
+    image: federfall:0.39.4
+    container_name: federfall
     restart: unless-stopped
     environment:
       TZ: "Europe/Berlin"
@@ -26,31 +35,13 @@ services:
       # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"
       # FEDERFALL_GEOCODER_KEY: ""
       # FEDERFALL_USER_AGENT: "Federfall/1.0 (admin@yourdomain.tld)"
-    #expose:
-    #  - "8090"            # internal-only; reachable to nginx, not the host
+    ports:
+      # host:container — front this with your own TLS-terminating reverse proxy.
+      - "8090:8090"
     volumes:
       - pb_data:/pb/pb_data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/api/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-
-  web:
-    build:
-      context: .
-      dockerfile: apps/federfall/web.Dockerfile
-    image: federfall-web:latest
-    container_name: federfall_web
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "8090:80"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
       interval: 10s
       timeout: 3s
       retries: 5

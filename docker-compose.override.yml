@@ -2,22 +2,19 @@
 # docker-compose.yml. NOT used in production (deploy runs an explicit
 # `-f docker-compose.yml`, which skips this file).
 #
-# Dev still goes through nginx on :8090 (the backend is never published directly):
-#   docker compose up --build      # backend + web; SPA + API on http://localhost:8090
-#   flutter run …                  # optional hot-reload UI; its API base is localhost:8090
-#
-# These overrides only relax the BACKEND for dev convenience:
-#   - bind-mount pb_migrations/ + pb_hooks/ so host edits take effect without a rebuild
-#     (hooks hot-reload; new Admin-UI migrations land back on the host to commit),
+# Dev builds the SAME full image as production (PocketBase + the baked Flutter web
+# SPA), so `docker compose up` serves the whole app on http://localhost:8090. The
+# override only relaxes the RUNTIME, not the image:
+#   - bind-mount pb_migrations/ + pb_hooks/ so host edits take effect without a
+#     rebuild (hooks hot-reload; new Admin-UI migrations land back on the host),
 #   - bind-mount the existing local pb_data so dev data persists on the host,
 #   - automigrate ON so Admin-UI schema changes are written as .js migration files.
+#
+# For UI hot-reload, run the app on the host with `flutter run` (the dev flavor
+# points POCKETBASE_URL at localhost:8090) instead of using the baked SPA.
 
 services:
-  backend:
-    # Explicit build context (merges with the base build config) so this file is
-    # self-describing about what `docker compose up backend` builds.
-    build:
-      context: ./backend/pocketbase
+  app:
     volumes:
       - ./backend/pocketbase/pb_data:/pb/pb_data
       - ./backend/pocketbase/pb_migrations:/pb/pb_migrations
@@ -28,4 +25,5 @@ services:
       - "--dir=/pb/pb_data"
       - "--migrationsDir=/pb/pb_migrations"
       - "--hooksDir=/pb/pb_hooks"
+      - "--publicDir=/pb/pb_public"
       - "--automigrate=1"

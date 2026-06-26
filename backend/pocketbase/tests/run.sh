@@ -11,6 +11,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PB_DIR="$(cd "$HERE/.." && pwd)" # backend/pocketbase
+ROOT="$(cd "$PB_DIR/../.." && pwd)" # repo root (holds the unified Dockerfile)
 IMAGE="federfall-pocketbase:0.39.4"
 PORT="${FED_TEST_PORT:-8097}"
 NAME="fed_test_$$"
@@ -25,7 +26,11 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> Ensuring image $IMAGE exists"
-docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build -t "$IMAGE" "$PB_DIR"
+# Lean PocketBase-only image (no Flutter web) — the `backend` target of the
+# repo-root Dockerfile. Context is the repo root so the baked migrations/hooks
+# resolve; BuildKit skips the Flutter stage since this target doesn't need it.
+docker image inspect "$IMAGE" >/dev/null 2>&1 || \
+  docker build --target backend -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"
 
 echo "==> Applying migrations to throwaway data dir"
 docker run --rm \

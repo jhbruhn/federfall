@@ -1,11 +1,10 @@
-# Build context for the web image (apps/federfall/web.Dockerfile) is the repo
-# root — keep it lean. The backend image builds from ./backend/pocketbase with
-# its own .dockerignore, so excluding backend/ here is safe.
+# Build context for the single-container image (root Dockerfile) is the repo
+# root: the Flutter web build needs apps/ + packages/, and the backend stage
+# bakes in backend/pocketbase/pb_migrations + pb_hooks. Keep the context lean.
 .git
 .github
 .beads
 docs
-backend
 deploy
 
 # Generated / build outputs — regenerated inside the image.
@@ -24,3 +23,9 @@ apps/federfall/ios
 **/.vscode
 *.iml
 docker-compose*.yml
+
+# Backend: bake migrations + hooks ONLY. Never ship runtime state or non-image
+# files (the migrations + hooks dirs are intentionally NOT ignored).
+backend/pocketbase/pb_data/
+backend/pocketbase/tests/
+backend/pocketbase/README.md
