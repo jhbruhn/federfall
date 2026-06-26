@@ -14,10 +14,23 @@ import 'package:go_router/go_router.dart';
 /// due gets a "log dose" shortcut that opens the administration sheet prefilled
 /// from the prescription — the carer still confirms the details and saves.
 class WorklistTile extends ConsumerWidget {
-  const WorklistTile({required this.item, required this.now, super.key});
+  const WorklistTile({
+    required this.item,
+    required this.now,
+    this.onTap,
+    this.selected = false,
+    super.key,
+  });
 
   final WorklistItem item;
   final DateTime now;
+
+  /// Overrides the default tap behaviour (deep-link to the case). Supplied by
+  /// the wide-screen Today layout to drive its side detail pane instead.
+  final VoidCallback? onTap;
+
+  /// Highlighted when its case is open in the adjacent pane (two-pane).
+  final bool selected;
 
   Future<void> _logDose(BuildContext context, WidgetRef ref) async {
     final saved = await showAdministrationSheet(
@@ -43,6 +56,7 @@ class WorklistTile extends ConsumerWidget {
     final overdue = item.severity == WorklistSeverity.overdue;
 
     return ListTile(
+      selected: selected,
       leading: Icon(worklistIcon(item.kind)),
       title: Text(worklistItemTitle(l10n, item)),
       subtitle: Text(
@@ -54,7 +68,7 @@ class WorklistTile extends ConsumerWidget {
             : null,
       ),
       trailing: _trailing(context, ref, l10n),
-      onTap: () => context.go(AppRoutes.caseDetail(item.caseId)),
+      onTap: onTap ?? () => context.go(AppRoutes.caseDetail(item.caseId)),
     );
   }
 

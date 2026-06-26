@@ -77,4 +77,28 @@ void main() {
 
     expect(find.byTooltip('Log dose'), findsOneWidget);
   });
+
+  testWidgets('wide screens show the worklist beside a selection placeholder', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1100, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pump(tester, [
+      WorklistItem(
+        kind: WorklistKind.staleCase,
+        caseId: 'c1',
+        caseNumber: '2026-001',
+        dueAt: _now.subtract(const Duration(days: 9)),
+        severity: WorklistSeverity.overdue,
+      ),
+    ]);
+
+    // Worklist on the left and, since nothing is selected yet, the empty
+    // detail-pane placeholder on the right — both visible at once.
+    expect(find.text('2026-001'), findsOneWidget);
+    expect(find.text('Select a case to view its details'), findsOneWidget);
+  });
 }
