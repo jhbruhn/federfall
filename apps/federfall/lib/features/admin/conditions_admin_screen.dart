@@ -56,12 +56,13 @@ class ConditionsAdminScreen extends ConsumerWidget {
                 icon: Icons.checklist_outlined,
                 message: l10n.conditionsAdminEmpty,
               )
-            : ListView(
-                padding: const EdgeInsets.only(bottom: 88),
-                children: [
-                  for (final c in list)
-                    _ConditionTile(condition: c),
-                ],
+            : ContentBounds(
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: 88),
+                  children: [
+                    for (final c in list) _ConditionTile(condition: c),
+                  ],
+                ),
               ),
       ),
     );

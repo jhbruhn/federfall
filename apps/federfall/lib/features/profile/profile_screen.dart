@@ -60,43 +60,45 @@ class _ProfileBody extends StatelessWidget {
     final l10n = context.l10n;
     final role = user.role;
 
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      children: [
-        if (user.name != null && user.name!.isNotEmpty)
+    return ContentBounds(
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        children: [
+          if (user.name != null && user.name!.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: Text(l10n.profileNameLabel),
+              subtitle: Text(user.name!),
+            ),
           ListTile(
-            leading: const Icon(Icons.badge_outlined),
-            title: Text(l10n.profileNameLabel),
-            subtitle: Text(user.name!),
+            leading: const Icon(Icons.alternate_email),
+            title: Text(l10n.profileEmailLabel),
+            subtitle: Text(user.email),
           ),
-        ListTile(
-          leading: const Icon(Icons.alternate_email),
-          title: Text(l10n.profileEmailLabel),
-          subtitle: Text(user.email),
-        ),
-        ListTile(
-          leading: const Icon(Icons.security_outlined),
-          title: Text(l10n.profileRoleLabel),
-          subtitle: Text(role == null ? '—' : userRoleLabel(l10n, role)),
-        ),
-        if (user.phone != null && user.phone!.isNotEmpty)
           ListTile(
-            leading: const Icon(Icons.phone_outlined),
-            title: Text(l10n.profilePhoneLabel),
-            subtitle: Text(user.phone!),
+            leading: const Icon(Icons.security_outlined),
+            title: Text(l10n.profileRoleLabel),
+            subtitle: Text(role == null ? '—' : userRoleLabel(l10n, role)),
           ),
-        const SizedBox(height: AppSpacing.lg),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Consumer(
-            builder: (context, ref, _) => PrimaryButton(
-              label: l10n.authSignOutAction,
-              icon: Icons.logout,
-              onPressed: () => signOut(ref),
+          if (user.phone != null && user.phone!.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.phone_outlined),
+              title: Text(l10n.profilePhoneLabel),
+              subtitle: Text(user.phone!),
+            ),
+          const SizedBox(height: AppSpacing.lg),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Consumer(
+              builder: (context, ref, _) => PrimaryButton(
+                label: l10n.authSignOutAction,
+                icon: Icons.logout,
+                onPressed: () => signOut(ref),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

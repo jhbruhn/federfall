@@ -65,24 +65,26 @@ class AviaryDetailScreen extends ConsumerWidget {
         onRetry: () => ref.invalidate(aviaryByIdProvider(aviaryId)),
         errorMessage: (e) => errorMessage(l10n, e),
         loading: const LinearProgressIndicator(),
-        data: (av) => ListView(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          children: [
-            _Header(aviary: av, residentCount: residents.length),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              l10n.aviaryResidentsTitle,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            if (residents.isEmpty)
-              EmptyView(
-                icon: Icons.pets_outlined,
-                message: l10n.aviaryNoResidents,
-              )
-            else
-              for (final animal in residents) _ResidentTile(animal),
-          ],
+        data: (av) => ContentBounds(
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            children: [
+              _Header(aviary: av, residentCount: residents.length),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                l10n.aviaryResidentsTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (residents.isEmpty)
+                EmptyView(
+                  icon: Icons.pets_outlined,
+                  message: l10n.aviaryNoResidents,
+                )
+              else
+                for (final animal in residents) _ResidentTile(animal),
+            ],
+          ),
         ),
       ),
     );

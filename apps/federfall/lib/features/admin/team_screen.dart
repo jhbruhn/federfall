@@ -57,21 +57,25 @@ class TeamScreen extends ConsumerWidget {
                 icon: Icons.group_outlined,
                 message: l10n.adminNoMembers,
               )
-            : ListView(
-                padding: const EdgeInsets.only(bottom: 88),
-                children: [
-                  for (final m in list)
-                    _MemberTile(
-                      member: m,
-                      onTap: () async {
-                        final changed =
-                            await showMemberManagementSheet(context, m);
-                        if (changed ?? false) {
-                          ref.invalidate(orgMembersProvider);
-                        }
-                      },
-                    ),
-                ],
+            : ContentBounds(
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: 88),
+                  children: [
+                    for (final m in list)
+                      _MemberTile(
+                        member: m,
+                        onTap: () async {
+                          final changed = await showMemberManagementSheet(
+                            context,
+                            m,
+                          );
+                          if (changed ?? false) {
+                            ref.invalidate(orgMembersProvider);
+                          }
+                        },
+                      ),
+                  ],
+                ),
               ),
       ),
     );

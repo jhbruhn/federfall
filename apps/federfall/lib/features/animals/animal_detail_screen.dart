@@ -86,22 +86,27 @@ class AnimalDetailScreen extends ConsumerWidget {
         // Top progress bar rather than a centred spinner, so the header doesn't
         // appear to jump from centre to its final top-left position on load.
         loading: const LinearProgressIndicator(),
-        data: (data) => ListView(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          children: [
-            _Identity(data.animal),
-            const SizedBox(height: AppSpacing.md),
-            _WeightSection(animalId: data.animal.id),
-            const SizedBox(height: AppSpacing.md),
-            _ExamsSection(animalId: data.animal.id),
-            const SizedBox(height: AppSpacing.md),
-            _MarkingsSection(animalId: data.animal.id, markings: data.markings),
-            const SizedBox(height: AppSpacing.md),
-            _CasesSection(
-              cases: data.cases,
-              accessibleIds: data.accessibleCaseIds,
-            ),
-          ],
+        data: (data) => ContentBounds(
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            children: [
+              _Identity(data.animal),
+              const SizedBox(height: AppSpacing.md),
+              _WeightSection(animalId: data.animal.id),
+              const SizedBox(height: AppSpacing.md),
+              _ExamsSection(animalId: data.animal.id),
+              const SizedBox(height: AppSpacing.md),
+              _MarkingsSection(
+                animalId: data.animal.id,
+                markings: data.markings,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _CasesSection(
+                cases: data.cases,
+                accessibleIds: data.accessibleCaseIds,
+              ),
+            ],
+          ),
         ),
       ),
     );

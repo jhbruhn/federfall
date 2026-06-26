@@ -46,44 +46,46 @@ class StatisticsScreen extends ConsumerWidget {
         loading: const LinearProgressIndicator(),
         data: (s) => RefreshIndicator(
           onRefresh: () => ref.refresh(statisticsProvider.future),
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            children: [
-              Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.md,
-                children: [
-                  _Kpi(label: l10n.statsTotalCases, value: '${s.totalCases}'),
-                  _Kpi(label: l10n.statsOpenCases, value: '${s.openCases}'),
-                  _Kpi(
-                    label: l10n.statsAvgTimeInCare,
-                    value: s.avgTimeInCareDays == null
-                        ? '–'
-                        : l10n.statsDaysValue(
-                            s.avgTimeInCareDays!.toStringAsFixed(1),
-                          ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              _Breakdown(
-                title: l10n.statsSectionOutcomes,
-                rows: [
-                  for (final o in s.outcomes)
-                    (dispositionTypeLabel(l10n, o.type), o.count),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _Breakdown(
-                title: l10n.statsSectionSpecies,
-                rows: [for (final c in s.bySpecies) (c.label, c.count)],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _Breakdown(
-                title: l10n.statsSectionConditions,
-                rows: [for (final c in s.byCondition) (c.label, c.count)],
-              ),
-            ],
+          child: ContentBounds(
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.md,
+                  children: [
+                    _Kpi(label: l10n.statsTotalCases, value: '${s.totalCases}'),
+                    _Kpi(label: l10n.statsOpenCases, value: '${s.openCases}'),
+                    _Kpi(
+                      label: l10n.statsAvgTimeInCare,
+                      value: s.avgTimeInCareDays == null
+                          ? '–'
+                          : l10n.statsDaysValue(
+                              s.avgTimeInCareDays!.toStringAsFixed(1),
+                            ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                _Breakdown(
+                  title: l10n.statsSectionOutcomes,
+                  rows: [
+                    for (final o in s.outcomes)
+                      (dispositionTypeLabel(l10n, o.type), o.count),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _Breakdown(
+                  title: l10n.statsSectionSpecies,
+                  rows: [for (final c in s.bySpecies) (c.label, c.count)],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _Breakdown(
+                  title: l10n.statsSectionConditions,
+                  rows: [for (final c in s.byCondition) (c.label, c.count)],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -100,8 +102,9 @@ class StatisticsScreen extends ConsumerWidget {
       // autoDispose provider, which would dispose mid-await on an imperative
       // read. buildCaseReportRows stays the pure, tested core.
       final casesRepo = await ref.read(casesRepositoryProvider.future);
-      final dispositionsRepo =
-          await ref.read(dispositionsRepositoryProvider.future);
+      final dispositionsRepo = await ref.read(
+        dispositionsRepositoryProvider.future,
+      );
       final animalsRepo = await ref.read(animalsRepositoryProvider.future);
       final animals = await animalsRepo.list();
       final rows = buildCaseReportRows(

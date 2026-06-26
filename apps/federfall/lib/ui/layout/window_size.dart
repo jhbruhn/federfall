@@ -31,6 +31,12 @@ const double kExpandedMin = 840;
 /// Fixed width of the list pane in a two-pane (list-detail) layout.
 const double kListPaneWidth = 360;
 
+/// Maximum width for flat, scrolling page content (settings lists, the profile,
+/// statistics, admin sections). Beyond this, content is centred with margins so
+/// rows and bars don't stretch to an unreadable length on wide windows. See
+/// `ContentBounds`.
+const double kContentMaxWidth = 840;
+
 /// Width of the *detail pane* at/above which the case detail lays Overview and
 /// History out side-by-side instead of behind tabs. Keyed on the pane (not the
 /// window) so a 840-wide window — whose detail pane is only ~480 — keeps tabs,
