@@ -1,3 +1,4 @@
+import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
@@ -39,14 +40,25 @@ class CaseSummaryTile extends StatelessWidget {
       ?span,
       if (!accessible) l10n.animalCaseNoAccess,
     ].join(' · ');
+    final carerId = summary.activeCarer;
+    final hasCarer = carerId != null && carerId.isNotEmpty;
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      isThreeLine: hasCarer,
       leading: Icon(
         accessible ? Icons.medical_information_outlined : Icons.lock_outline,
       ),
       title: Text(summary.caseNumber ?? l10n.caseNewTitle),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle),
+      subtitle: subtitle.isEmpty && !hasCarer
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (subtitle.isNotEmpty) Text(subtitle),
+                if (hasCarer) CarerLine(carerId),
+              ],
+            ),
       trailing: accessible ? const Icon(Icons.chevron_right) : null,
       enabled: accessible,
       onTap: accessible

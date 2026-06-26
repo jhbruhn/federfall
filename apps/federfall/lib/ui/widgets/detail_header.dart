@@ -13,6 +13,7 @@ class DetailHeader extends StatelessWidget {
   const DetailHeader({
     required this.title,
     this.subtitle,
+    this.footer,
     this.chipLabel,
     this.leading,
     this.trailing,
@@ -24,6 +25,10 @@ class DetailHeader extends StatelessWidget {
 
   /// Muted secondary line (e.g. "Species · 2026-014"); omitted when null/empty.
   final String? subtitle;
+
+  /// Optional extra line under the subtitle, aligned with the text column (e.g.
+  /// the active carer). Sits above the status chip; omitted when null.
+  final Widget? footer;
 
   /// Status chip text; omitted when null.
   final String? chipLabel;
@@ -52,6 +57,10 @@ class DetailHeader extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
+        ],
+        if (footer != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          footer!,
         ],
         if (chipLabel != null) ...[
           const SizedBox(height: AppSpacing.sm),

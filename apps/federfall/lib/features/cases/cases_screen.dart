@@ -1,6 +1,7 @@
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
+import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/home/account_menu.dart';
@@ -129,6 +130,9 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
                             return _CaseTile(
                               c,
                               d.animalsById[c.animal],
+                              // Redundant in the "mine" scope — every case is
+                              // already the signed-in user's.
+                              showCarer: _query.allScope,
                               selected: c.id == selectedId,
                             );
                           },
@@ -354,10 +358,19 @@ String _fmt(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}';
 
 class _CaseTile extends StatelessWidget {
-  const _CaseTile(this.medicalCase, this.animal, {this.selected = false});
+  const _CaseTile(
+    this.medicalCase,
+    this.animal, {
+    this.showCarer = false,
+    this.selected = false,
+  });
 
   final Case medicalCase;
   final Animal? animal;
+
+  /// Whether to name the active carer (only useful in the all-cases scope; in
+  /// "mine" every case is the signed-in user's, so it would be redundant).
+  final bool showCarer;
 
   /// Highlighted when its detail is open in the adjacent pane (two-pane).
   final bool selected;
@@ -366,16 +379,27 @@ class _CaseTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final status = medicalCase.status;
-    final subtitle = [
+    final summary = [
       ?_animalLabel,
       if (status != null) caseStatusLabel(l10n, status),
     ].join(' · ');
+    final carerId = medicalCase.activeCarer;
+    final hasCarer = showCarer && carerId != null && carerId.isNotEmpty;
 
     return ListTile(
       selected: selected,
+      isThreeLine: hasCarer,
       leading: AnimalAvatar(animalId: medicalCase.animal, radius: 20),
       title: Text(medicalCase.caseNumber ?? l10n.caseNewTitle),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle),
+      subtitle: summary.isEmpty && !hasCarer
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (summary.isNotEmpty) Text(summary),
+                if (hasCarer) CarerLine(carerId),
+              ],
+            ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.go(AppRoutes.caseDetail(medicalCase.id)),
     );

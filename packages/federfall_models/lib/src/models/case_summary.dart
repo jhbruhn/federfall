@@ -21,6 +21,7 @@ abstract class CaseSummary with _$CaseSummary {
     DateTime? foundAt,
     DateTime? endedAt,
     String? org,
+    String? activeCarer,
     DateTime? created,
   }) = _CaseSummary;
 
@@ -35,6 +36,7 @@ abstract class CaseSummary with _$CaseSummary {
       foundAt: pbDate(d['found_at']),
       endedAt: pbDate(d['ended_at']),
       org: pbString(d['org']),
+      activeCarer: pbString(d['active_carer']),
       created: pbDate(d['created']),
     );
   }

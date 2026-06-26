@@ -51,6 +51,14 @@ abstract final class AppTheme {
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
       ),
+      // A selected ListTile (the active row in a list-detail pane) gets a
+      // visible primary tint behind it — but the text/icons stay onSurface
+      // rather than M3's default primary recolouring, which reads as poor
+      // contrast on the tint. The background alone marks the open row.
+      listTileTheme: ListTileThemeData(
+        selectedColor: colorScheme.onSurface,
+        selectedTileColor: colorScheme.primary.withValues(alpha: 0.10),
+      ),
     );
   }
 }

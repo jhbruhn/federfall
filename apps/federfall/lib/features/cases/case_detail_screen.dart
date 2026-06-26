@@ -7,6 +7,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/add_entry_sheet.dart';
+import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/case_realtime.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
@@ -442,10 +443,13 @@ class _Header extends StatelessWidget {
       if (medicalCase.caseNumber != null) medicalCase.caseNumber!,
     ].join(' · ');
     final status = medicalCase.status;
+    final carerId = medicalCase.activeCarer;
+    final hasCarer = carerId != null && carerId.isNotEmpty;
 
     return DetailHeader(
       title: title,
       subtitle: subtitle,
+      footer: hasCarer ? CarerLine(carerId) : null,
       chipLabel: status == null ? null : caseStatusLabel(l10n, status),
       // The avatar only needs the animal id, which the case always carries —
       // rendering it unconditionally keeps the header left-aligned instead of
