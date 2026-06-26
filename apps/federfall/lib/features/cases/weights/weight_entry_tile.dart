@@ -15,12 +15,14 @@ class WeightEntryTile extends ConsumerWidget {
   const WeightEntryTile({
     required this.weight,
     required this.caseId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final Weight weight;
   final String caseId;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _edit(BuildContext context) => showWeightEntrySheet(
@@ -68,22 +70,24 @@ class WeightEntryTile extends ConsumerWidget {
       icon: Icons.monitor_weight_outlined,
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
-      trailing: PopupMenuButton<void>(
-        icon: const Icon(Icons.more_vert),
-        iconSize: 20,
-        padding: EdgeInsets.zero,
-        tooltip: l10n.weightEditAction,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            onTap: () => _edit(context),
-            child: Text(l10n.weightEditAction),
-          ),
-          PopupMenuItem(
-            onTap: () => _delete(context, ref),
-            child: Text(l10n.weightDeleteAction),
-          ),
-        ],
-      ),
+      trailing: canEdit
+          ? PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              tooltip: l10n.weightEditAction,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: () => _edit(context),
+                  child: Text(l10n.weightEditAction),
+                ),
+                PopupMenuItem(
+                  onTap: () => _delete(context, ref),
+                  child: Text(l10n.weightDeleteAction),
+                ),
+              ],
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

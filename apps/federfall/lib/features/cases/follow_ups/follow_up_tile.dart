@@ -16,12 +16,14 @@ class FollowUpTile extends ConsumerWidget {
   const FollowUpTile({
     required this.followUp,
     required this.caseId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final FollowUp followUp;
   final String caseId;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _toggleDone(WidgetRef ref) async {
@@ -79,13 +81,18 @@ class FollowUpTile extends ConsumerWidget {
       icon: done ? Icons.event_available_outlined : Icons.event_repeat_outlined,
       date: formatEventDate(materialL10n, due),
       isLast: isLast,
-      trailing: _Menu(
-        done: done,
-        onEdit: () =>
-            showFollowUpSheet(context, caseId: caseId, followUp: followUp),
-        onToggleDone: () => _toggleDone(ref),
-        onDelete: () => _delete(context, ref),
-      ),
+      trailing: canEdit
+          ? _Menu(
+              done: done,
+              onEdit: () => showFollowUpSheet(
+                context,
+                caseId: caseId,
+                followUp: followUp,
+              ),
+              onToggleDone: () => _toggleDone(ref),
+              onDelete: () => _delete(context, ref),
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -16,12 +16,14 @@ class JournalEntryTile extends ConsumerWidget {
   const JournalEntryTile({
     required this.entry,
     required this.caseId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final JournalEntry entry;
   final String caseId;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _edit(BuildContext context) =>
@@ -63,10 +65,12 @@ class JournalEntryTile extends ConsumerWidget {
       icon: Icons.sticky_note_2_outlined,
       date: formatEventDate(materialL10n, date, withTime: true),
       isLast: isLast,
-      trailing: _EntryMenu(
-        onEdit: () => _edit(context),
-        onDelete: () => _delete(context, ref),
-      ),
+      trailing: canEdit
+          ? _EntryMenu(
+              onEdit: () => _edit(context),
+              onDelete: () => _delete(context, ref),
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

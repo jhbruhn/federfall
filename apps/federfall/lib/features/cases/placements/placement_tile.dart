@@ -15,12 +15,14 @@ class PlacementTile extends ConsumerWidget {
   const PlacementTile({
     required this.placement,
     required this.medicalCase,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final Placement placement;
   final Case medicalCase;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
@@ -78,26 +80,28 @@ class PlacementTile extends ConsumerWidget {
       icon: isHandoff ? Icons.swap_horiz : Icons.move_down_outlined,
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
-      trailing: PopupMenuButton<void>(
-        icon: const Icon(Icons.more_vert),
-        iconSize: 20,
-        padding: EdgeInsets.zero,
-        tooltip: l10n.placementMenuTooltip,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            onTap: () => showPlacementSheet(
-              context,
-              medicalCase: medicalCase,
-              placement: placement,
-            ),
-            child: Text(l10n.placementEditAction),
-          ),
-          PopupMenuItem(
-            onTap: () => _delete(context, ref),
-            child: Text(l10n.placementDeleteAction),
-          ),
-        ],
-      ),
+      trailing: canEdit
+          ? PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              tooltip: l10n.placementMenuTooltip,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: () => showPlacementSheet(
+                    context,
+                    medicalCase: medicalCase,
+                    placement: placement,
+                  ),
+                  child: Text(l10n.placementEditAction),
+                ),
+                PopupMenuItem(
+                  onTap: () => _delete(context, ref),
+                  child: Text(l10n.placementDeleteAction),
+                ),
+              ],
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -55,11 +55,17 @@ void invalidateCaseTimeline(
 class CaseTimeline extends ConsumerWidget {
   const CaseTimeline({
     required this.medicalCase,
+    this.canEdit = true,
     this.showTitle = true,
     super.key,
   });
 
   final Case medicalCase;
+
+  /// Whether the current user may edit this case's records. When false, the
+  /// per-entry edit/delete menus are hidden (read-only view). Supplied by the
+  /// case detail from `canEditCaseProvider`.
+  final bool canEdit;
 
   /// Whether to show the "timeline" heading. Hidden when the timeline already
   /// sits under a "History" tab that names it.
@@ -177,46 +183,55 @@ class CaseTimeline extends ConsumerWidget {
               _JournalEvent(:final entry) => JournalEntryTile(
                 entry: entry,
                 caseId: caseId,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _WeightEvent(:final weight) => WeightEntryTile(
                 weight: weight,
                 caseId: caseId,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _ConditionEvent(:final condition) => ConditionEntryTile(
                 entry: condition,
                 caseId: caseId,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _PrescriptionEvent(:final plan) => PrescriptionTile(
                 plan: plan,
                 caseId: caseId,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _AdministrationEvent(:final dose) => AdministrationTile(
                 administration: dose,
                 caseId: caseId,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _MarkingEvent(:final marking) => MarkingTile(
                 marking: marking,
                 caseId: caseId,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _PlacementEvent(:final placement) => PlacementTile(
                 placement: placement,
                 medicalCase: medicalCase,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _DispositionEvent(:final disposition) => DispositionTile(
                 disposition: disposition,
                 caseId: caseId,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _FollowUpEvent(:final followUp) => FollowUpTile(
                 followUp: followUp,
                 caseId: caseId,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _ExamEvent(:final exam, :final findings) => ExamTile(
@@ -224,6 +239,7 @@ class CaseTimeline extends ConsumerWidget {
                 findings: findings,
                 caseId: caseId,
                 animalId: medicalCase.animal,
+                canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
               _MilestoneEvent(:final icon, :final label, :final at) =>

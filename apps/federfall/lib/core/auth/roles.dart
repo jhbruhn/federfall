@@ -10,6 +10,22 @@ import 'package:federfall_models/federfall_models.dart';
 /// Whether the role may manage team members and invites (supervisor only).
 bool canManageTeam(UserRole? role) => role == UserRole.supervisor;
 
+/// Whether [me] may write to [medicalCase] — edit the case itself and
+/// create/edit/delete its child records (timeline entries, etc.). Mirrors the
+/// server `caseEdit` / `childEdit` access rules (1700000010_access_rules.js):
+/// the active carer, a supervisor, or anyone the case is shared with at `edit`
+/// access. Coordinators can view but not edit. [shares] are the case's shares
+/// (empty is fine — only the share branch needs them). Drives both whether the
+/// UI offers write controls and the read-only badge.
+bool caseEditableBy(Case medicalCase, AppUser? me, List<CaseShare> shares) {
+  if (me == null) return false;
+  if (me.role == UserRole.supervisor) return true;
+  if (medicalCase.activeCarer == me.id) return true;
+  return shares.any(
+    (s) => s.sharedWith == me.id && s.access == ShareAccess.edit,
+  );
+}
+
 /// Whether the role may view org-wide reports/statistics (FED-7.2). Coordinators
 /// and supervisors oversee the whole org; carers only see their own cases, so
 /// org-wide aggregates aren't meaningful (or fully readable) for them.

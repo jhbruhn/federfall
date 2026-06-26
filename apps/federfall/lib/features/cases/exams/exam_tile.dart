@@ -19,6 +19,7 @@ class ExamTile extends ConsumerWidget {
     required this.findings,
     required this.caseId,
     required this.animalId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
@@ -27,6 +28,7 @@ class ExamTile extends ConsumerWidget {
   final List<ExamFinding> findings;
   final String caseId;
   final String animalId;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
@@ -101,16 +103,18 @@ class ExamTile extends ConsumerWidget {
       icon: Icons.monitor_heart_outlined,
       date: formatEventDate(materialL10n, at),
       isLast: isLast,
-      trailing: _Menu(
-        onEdit: () => showExamSheet(
-          context,
-          caseId: caseId,
-          animalId: animalId,
-          exam: exam,
-          findings: findings,
-        ),
-        onDelete: () => _delete(context, ref),
-      ),
+      trailing: canEdit
+          ? _Menu(
+              onEdit: () => showExamSheet(
+                context,
+                caseId: caseId,
+                animalId: animalId,
+                exam: exam,
+                findings: findings,
+              ),
+              onDelete: () => _delete(context, ref),
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

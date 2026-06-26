@@ -17,12 +17,14 @@ class ConditionEntryTile extends ConsumerWidget {
   const ConditionEntryTile({
     required this.entry,
     required this.caseId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final CaseCondition entry;
   final String caseId;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _edit(BuildContext context, Condition? code) =>
@@ -75,22 +77,24 @@ class ConditionEntryTile extends ConsumerWidget {
       icon: Icons.coronavirus_outlined,
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
-      trailing: PopupMenuButton<void>(
-        icon: const Icon(Icons.more_vert),
-        iconSize: 20,
-        padding: EdgeInsets.zero,
-        tooltip: l10n.conditionEditAction,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            onTap: () => _edit(context, code),
-            child: Text(l10n.conditionEditAction),
-          ),
-          PopupMenuItem(
-            onTap: () => _delete(context, ref),
-            child: Text(l10n.conditionDeleteAction),
-          ),
-        ],
-      ),
+      trailing: canEdit
+          ? PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              tooltip: l10n.conditionEditAction,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: () => _edit(context, code),
+                  child: Text(l10n.conditionEditAction),
+                ),
+                PopupMenuItem(
+                  onTap: () => _delete(context, ref),
+                  child: Text(l10n.conditionDeleteAction),
+                ),
+              ],
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -16,12 +16,14 @@ class MarkingTile extends ConsumerWidget {
   const MarkingTile({
     required this.marking,
     required this.caseId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final Marking marking;
   final String caseId;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _markRemoved(BuildContext context, WidgetRef ref) async {
@@ -81,32 +83,34 @@ class MarkingTile extends ConsumerWidget {
       icon: Icons.sell_outlined,
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
-      trailing: PopupMenuButton<void>(
-        icon: const Icon(Icons.more_vert),
-        iconSize: 20,
-        padding: EdgeInsets.zero,
-        tooltip: l10n.markingMenuTooltip,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            onTap: () => showMarkingSheet(
-              context,
-              animalId: marking.animal,
-              caseId: caseId,
-              marking: marking,
-            ),
-            child: Text(l10n.markingEditAction),
-          ),
-          if (marking.isActive)
-            PopupMenuItem(
-              onTap: () => _markRemoved(context, ref),
-              child: Text(l10n.markingRemoveAction),
-            ),
-          PopupMenuItem(
-            onTap: () => _delete(context, ref),
-            child: Text(l10n.markingDeleteAction),
-          ),
-        ],
-      ),
+      trailing: canEdit
+          ? PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              tooltip: l10n.markingMenuTooltip,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: () => showMarkingSheet(
+                    context,
+                    animalId: marking.animal,
+                    caseId: caseId,
+                    marking: marking,
+                  ),
+                  child: Text(l10n.markingEditAction),
+                ),
+                if (marking.isActive)
+                  PopupMenuItem(
+                    onTap: () => _markRemoved(context, ref),
+                    child: Text(l10n.markingRemoveAction),
+                  ),
+                PopupMenuItem(
+                  onTap: () => _delete(context, ref),
+                  child: Text(l10n.markingDeleteAction),
+                ),
+              ],
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

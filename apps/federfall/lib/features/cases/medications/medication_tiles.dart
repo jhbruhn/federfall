@@ -17,12 +17,14 @@ class PrescriptionTile extends ConsumerWidget {
   const PrescriptionTile({
     required this.plan,
     required this.caseId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final Medication plan;
   final String caseId;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
@@ -78,28 +80,36 @@ class PrescriptionTile extends ConsumerWidget {
       icon: Icons.medication_outlined,
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
-      trailing: PopupMenuButton<void>(
-        icon: const Icon(Icons.more_vert),
-        iconSize: 20,
-        padding: EdgeInsets.zero,
-        tooltip: l10n.medMenuTooltip,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            onTap: () =>
-                showAdministrationSheet(context, caseId: caseId, plan: plan),
-            child: Text(l10n.medLogDose),
-          ),
-          PopupMenuItem(
-            onTap: () =>
-                showPrescriptionSheet(context, caseId: caseId, plan: plan),
-            child: Text(l10n.medEditAction),
-          ),
-          PopupMenuItem(
-            onTap: () => _confirmDelete(context, ref),
-            child: Text(l10n.medDeleteAction),
-          ),
-        ],
-      ),
+      trailing: canEdit
+          ? PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              tooltip: l10n.medMenuTooltip,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: () => showAdministrationSheet(
+                    context,
+                    caseId: caseId,
+                    plan: plan,
+                  ),
+                  child: Text(l10n.medLogDose),
+                ),
+                PopupMenuItem(
+                  onTap: () => showPrescriptionSheet(
+                    context,
+                    caseId: caseId,
+                    plan: plan,
+                  ),
+                  child: Text(l10n.medEditAction),
+                ),
+                PopupMenuItem(
+                  onTap: () => _confirmDelete(context, ref),
+                  child: Text(l10n.medDeleteAction),
+                ),
+              ],
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -141,7 +151,7 @@ class PrescriptionTile extends ConsumerWidget {
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
-          if (isActive)
+          if (isActive && canEdit)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
               child: Align(
@@ -168,12 +178,14 @@ class AdministrationTile extends ConsumerWidget {
   const AdministrationTile({
     required this.administration,
     required this.caseId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final MedicationAdministration administration;
   final String caseId;
+  final bool canEdit;
   final bool isLast;
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
@@ -218,26 +230,28 @@ class AdministrationTile extends ConsumerWidget {
       icon: Icons.vaccines_outlined,
       date: formatEventDate(materialL10n, date, withTime: true),
       isLast: isLast,
-      trailing: PopupMenuButton<void>(
-        icon: const Icon(Icons.more_vert),
-        iconSize: 20,
-        padding: EdgeInsets.zero,
-        tooltip: l10n.medMenuTooltip,
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            onTap: () => showAdministrationSheet(
-              context,
-              caseId: caseId,
-              administration: a,
-            ),
-            child: Text(l10n.medEditAction),
-          ),
-          PopupMenuItem(
-            onTap: () => _confirmDelete(context, ref),
-            child: Text(l10n.medDeleteAction),
-          ),
-        ],
-      ),
+      trailing: canEdit
+          ? PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              tooltip: l10n.medMenuTooltip,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: () => showAdministrationSheet(
+                    context,
+                    caseId: caseId,
+                    administration: a,
+                  ),
+                  child: Text(l10n.medEditAction),
+                ),
+                PopupMenuItem(
+                  onTap: () => _confirmDelete(context, ref),
+                  child: Text(l10n.medDeleteAction),
+                ),
+              ],
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

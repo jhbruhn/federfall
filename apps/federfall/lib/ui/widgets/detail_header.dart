@@ -15,6 +15,7 @@ class DetailHeader extends StatelessWidget {
     this.subtitle,
     this.chipLabel,
     this.leading,
+    this.trailing,
     super.key,
   });
 
@@ -29,6 +30,9 @@ class DetailHeader extends StatelessWidget {
 
   /// Optional leading widget (avatar) shown left of the text.
   final Widget? leading;
+
+  /// Optional trailing widget (e.g. a read-only badge), aligned top-end.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -61,15 +65,21 @@ class DetailHeader extends StatelessWidget {
 
     // Fill the width and align left so a shrink-wrapped header is never
     // centred by a parent Column's default cross-axis alignment.
-    if (leading == null) {
+    if (leading == null && trailing == null) {
       return Align(alignment: AlignmentDirectional.centerStart, child: text);
     }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        leading!,
-        const SizedBox(width: AppSpacing.md),
+        if (leading != null) ...[
+          leading!,
+          const SizedBox(width: AppSpacing.md),
+        ],
         Expanded(child: text),
+        if (trailing != null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          trailing!,
+        ],
       ],
     );
   }

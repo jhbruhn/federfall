@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:federfall/config/app_environment.dart';
-import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
@@ -86,12 +85,11 @@ class _CaseDetail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final animal = ref.watch(animalByIdProvider(medicalCase.animal)).value;
-    final me = ref.watch(currentUserProvider).value;
-    // Same write rule as the Overview actions card / server update rules: only
-    // the active carer or a supervisor adds to the chronology.
-    final canAddEntry = me != null &&
-        (medicalCase.activeCarer == me.id ||
-            me.role == UserRole.supervisor);
+    // One source of truth for every write control on this screen (server rule
+    // mirror): the add-entry FAB, the actions card, the timeline edit/delete
+    // menus, and the read-only badge all derive from this.
+    final canEdit =
+        ref.watch(canEditCaseProvider(medicalCase.id)).value ?? false;
     ref
       // Live-sync: re-fetch the timeline when a teammate changes this case.
       ..watch(caseLiveProvider(medicalCase.id, medicalCase.animal))
@@ -118,7 +116,11 @@ class _CaseDetail extends ConsumerWidget {
               AppSpacing.md,
               AppSpacing.sm,
             ),
-            child: _Header(medicalCase: medicalCase, animal: animal),
+            child: _Header(
+              medicalCase: medicalCase,
+              animal: animal,
+              readOnly: !canEdit,
+            ),
           ),
           TabBar(
             tabs: [
@@ -138,7 +140,7 @@ class _CaseDetail extends ConsumerWidget {
                 // chronology is what it acts on — so it is absent on Overview.
                 Scaffold(
                   backgroundColor: Colors.transparent,
-                  floatingActionButton: canAddEntry
+                  floatingActionButton: canEdit
                       ? FloatingActionButton.extended(
                           onPressed: () => showAddEntrySheet(
                             context,
@@ -155,6 +157,7 @@ class _CaseDetail extends ConsumerWidget {
                       children: [
                         CaseTimeline(
                           medicalCase: medicalCase,
+                          canEdit: canEdit,
                           showTitle: false,
                         ),
                       ],
@@ -240,12 +243,10 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final me = ref.watch(currentUserProvider).value;
     final medicalCase = widget.medicalCase;
     final status = medicalCase.status;
     final canEdit =
-        me != null &&
-        (medicalCase.activeCarer == me.id || me.role == UserRole.supervisor);
+        ref.watch(canEditCaseProvider(medicalCase.id)).value ?? false;
 
     if (!canEdit) return const SizedBox.shrink();
 
@@ -368,10 +369,18 @@ class _PriorCasesSection extends ConsumerWidget {
 /// number beneath and the case status as a chip. Built on the shared
 /// [DetailHeader] (also used by the animal lifetime screen).
 class _Header extends StatelessWidget {
-  const _Header({required this.medicalCase, required this.animal});
+  const _Header({
+    required this.medicalCase,
+    required this.animal,
+    this.readOnly = false,
+  });
 
   final Case medicalCase;
   final Animal? animal;
+
+  /// When true the user can only view this case; surfaced as a header badge so
+  /// the absence of write controls is explained rather than mysterious.
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -395,6 +404,16 @@ class _Header extends StatelessWidget {
       // rendering it unconditionally keeps the header left-aligned instead of
       // briefly centring while the Animal record loads.
       leading: AnimalAvatar(animalId: medicalCase.animal, editable: true),
+      trailing: readOnly
+          ? Tooltip(
+              message: l10n.caseReadOnlyTooltip,
+              child: Chip(
+                avatar: const Icon(Icons.lock_outline, size: 16),
+                label: Text(l10n.caseReadOnly),
+                visualDensity: VisualDensity.compact,
+              ),
+            )
+          : null,
     );
   }
 }

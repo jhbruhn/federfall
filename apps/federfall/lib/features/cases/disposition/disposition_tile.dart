@@ -12,6 +12,7 @@ class DispositionTile extends StatelessWidget {
   const DispositionTile({
     required this.disposition,
     this.caseId,
+    this.canEdit = true,
     this.isLast = false,
     super.key,
   });
@@ -21,6 +22,7 @@ class DispositionTile extends StatelessWidget {
   /// When set, the tile offers an edit action that opens the disposition sheet
   /// (where the outcome can be corrected or deleted, re-opening the case).
   final String? caseId;
+  final bool canEdit;
   final bool isLast;
 
   IconData get _icon => switch (disposition.type) {
@@ -52,7 +54,7 @@ class DispositionTile extends StatelessWidget {
       icon: _icon,
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
-      trailing: caseId == null
+      trailing: (caseId == null || !canEdit)
           ? null
           : IconButton(
               icon: const Icon(Icons.edit_outlined),

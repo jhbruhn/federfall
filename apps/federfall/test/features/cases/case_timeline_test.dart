@@ -69,7 +69,11 @@ void main() {
     when(() => examFindings.forCase(any())).thenAnswer((_) async => []);
   });
 
-  Future<void> pump(WidgetTester tester, Case medicalCase) async {
+  Future<void> pump(
+    WidgetTester tester,
+    Case medicalCase, {
+    bool canEdit = true,
+  }) async {
     final container = ProviderContainer(
       overrides: [
         journalRepositoryProvider.overrideWith((ref) async => journal),
@@ -102,7 +106,7 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SingleChildScrollView(
-              child: CaseTimeline(medicalCase: medicalCase),
+              child: CaseTimeline(medicalCase: medicalCase, canEdit: canEdit),
             ),
           ),
         ),
@@ -231,6 +235,44 @@ void main() {
     await pump(tester, const Case(id: 'c1', animal: 'a1'));
 
     expect(find.text('No entries yet'), findsOneWidget);
+  });
+
+  testWidgets('an editable entry carries its overflow menu', (tester) async {
+    when(() => journal.forCase('c1')).thenAnswer(
+      (_) async => [
+        JournalEntry(
+          id: 'j1',
+          caseId: 'c1',
+          text: 'A note',
+          entryAt: DateTime.utc(2026, 6, 21),
+        ),
+      ],
+    );
+
+    await pump(tester, const Case(id: 'c1', animal: 'a1'));
+
+    expect(find.text('A note'), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsOneWidget);
+  });
+
+  testWidgets('hides per-entry edit menus when the case is read-only',
+      (tester) async {
+    when(() => journal.forCase('c1')).thenAnswer(
+      (_) async => [
+        JournalEntry(
+          id: 'j1',
+          caseId: 'c1',
+          text: 'A note',
+          entryAt: DateTime.utc(2026, 6, 21),
+        ),
+      ],
+    );
+
+    await pump(tester, const Case(id: 'c1', animal: 'a1'), canEdit: false);
+
+    // The content stays; only the write affordance is gone.
+    expect(find.text('A note'), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
   });
 }
 

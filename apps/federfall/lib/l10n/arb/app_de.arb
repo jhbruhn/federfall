@@ -175,6 +175,8 @@
     "caseMarkReadyForRelease": "Als auswilderungsbereit markieren",
     "caseMarkBackToCare": "Zurück in Pflege",
     "caseDetailTitle": "Fall",
+    "caseReadOnly": "Nur Lesen",
+    "caseReadOnlyTooltip": "Sie haben nur Lesezugriff auf diesen Fall",
     "caseNumberLabel": "Fallnummer",
     "caseStatusFieldLabel": "Status",
     "caseAnimalLabel": "Tier",
