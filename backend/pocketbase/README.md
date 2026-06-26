@@ -60,14 +60,21 @@ volume. Ship changes by rebuilding + recreating; pending migrations apply on sta
 > (Caddy/Traefik/nginx) in front of host `:8090` to terminate HTTPS and add gzip +
 > cache-control headers.
 
-## First superuser (Admin UI)
+## PocketBase superuser (Admin UI) — optional
 
-A PocketBase **superuser** logs into the Admin UI (`/_/`) to manage schema and settings.
-On first launch, create one (or use the setup screen at `/_/`):
+A PocketBase **superuser** logs into the Admin UI (`/_/`). It is **not** needed for normal
+operation: the schema is migration-driven and settings are env-driven, and the app
+authenticates against the `users` collection (see "First Supervisor" below). Create one
+only when you want the dashboard for maintenance (browse data, logs, manual fixes):
 
 ```bash
-docker compose exec app pocketbase superuser upsert admin@federfall.local <password>
+docker compose exec app pocketbase superuser upsert you@yourdomain.tld <password>
 ```
+
+Leaving zero superusers is safe: first-superuser creation is gated behind a one-time
+installer token PocketBase prints to the server log (`/_/#/pbinstall/<token>`), so an
+exposed `/_/` can't be claimed without it. For extra hardening, block `/_/` at your
+reverse proxy if you never use the Admin UI.
 
 ## First Supervisor (app login)
 
