@@ -17,10 +17,8 @@ Future<void> showCaseShareSheet(
   BuildContext context, {
   required String caseId,
   required String? activeCarer,
-}) => showModalBottomSheet<void>(
-  context: context,
-  showDragHandle: true,
-  isScrollControlled: true,
+}) => showAppSheet<void>(
+  context,
   builder: (_) => _CaseShareSheet(caseId: caseId, activeCarer: activeCarer),
 );
 

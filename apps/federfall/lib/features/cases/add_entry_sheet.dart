@@ -40,10 +40,8 @@ Future<void> showAddEntrySheet(
   BuildContext context, {
   required Case medicalCase,
 }) async {
-  final kind = await showModalBottomSheet<_AddKind>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
+  final kind = await showAppSheet<_AddKind>(
+    context,
     builder: (_) => _AddEntrySheet(medicalCase: medicalCase),
   );
   if (kind == null || !context.mounted) return;

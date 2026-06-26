@@ -16,10 +16,8 @@ Future<bool?> showFollowUpSheet(
   required String caseId,
   FollowUp? followUp,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => FollowUpSheet(caseId: caseId, followUp: followUp),
   );
 }

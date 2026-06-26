@@ -19,10 +19,8 @@ Future<bool?> showMarkingSheet(
   String? caseId,
   Marking? marking,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => MarkingSheet(
       animalId: animalId,
       caseId: caseId,

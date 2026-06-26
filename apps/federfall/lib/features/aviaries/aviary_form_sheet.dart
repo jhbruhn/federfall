@@ -15,10 +15,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 Future<void> showAviaryFormSheet(
   BuildContext context, {
   Aviary? aviary,
-}) => showModalBottomSheet<void>(
-  context: context,
-  showDragHandle: true,
-  isScrollControlled: true,
+}) => showAppSheet<void>(
+  context,
   builder: (_) => _AviaryFormSheet(aviary: aviary),
 );
 

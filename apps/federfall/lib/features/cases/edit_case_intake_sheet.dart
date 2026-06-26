@@ -18,10 +18,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// mistakes. Animal identity, finder PII and photos are edited elsewhere.
 /// Resolves to `true` on save so the caller can refresh.
 Future<bool?> showEditCaseIntakeSheet(BuildContext context, Case medicalCase) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => EditCaseIntakeSheet(medicalCase: medicalCase),
   );
 }

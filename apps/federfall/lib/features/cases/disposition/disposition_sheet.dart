@@ -23,10 +23,8 @@ Future<bool?> showDispositionSheet(
   required String caseId,
   Disposition? disposition,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => DispositionSheet(caseId: caseId, disposition: disposition),
   );
 }

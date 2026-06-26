@@ -20,10 +20,8 @@ Future<bool?> showExamSheet(
   Exam? exam,
   List<ExamFinding> findings = const [],
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => ExamSheet(
       caseId: caseId,
       animalId: animalId,

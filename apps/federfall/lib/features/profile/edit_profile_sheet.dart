@@ -12,10 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// access rule permits self-edit of just these fields. Resolves to `true` on
 /// save so the caller can refresh.
 Future<bool?> showEditProfileSheet(BuildContext context, AppUser user) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => EditProfileSheet(user: user),
   );
 }

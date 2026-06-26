@@ -19,10 +19,8 @@ Future<bool?> showWeightEntrySheet(
   String? caseId,
   Weight? weight,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) =>
         WeightEntrySheet(animalId: animalId, caseId: caseId, weight: weight),
   );

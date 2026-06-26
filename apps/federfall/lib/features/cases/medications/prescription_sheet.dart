@@ -17,10 +17,8 @@ Future<bool?> showPrescriptionSheet(
   required String caseId,
   Medication? plan,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => PrescriptionSheet(caseId: caseId, plan: plan),
   );
 }

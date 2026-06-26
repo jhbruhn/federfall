@@ -21,10 +21,8 @@ Future<bool?> showJournalEntrySheet(
   required String caseId,
   JournalEntry? entry,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => JournalEntrySheet(caseId: caseId, entry: entry),
   );
 }

@@ -18,10 +18,8 @@ Future<bool?> showConditionEntrySheet(
   CaseCondition? entry,
   String? initialLabel,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => ConditionEntrySheet(
       caseId: caseId,
       entry: entry,

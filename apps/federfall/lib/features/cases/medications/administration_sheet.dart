@@ -19,10 +19,8 @@ Future<bool?> showAdministrationSheet(
   Medication? plan,
   MedicationAdministration? administration,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => AdministrationSheet(
       caseId: caseId,
       plan: plan,

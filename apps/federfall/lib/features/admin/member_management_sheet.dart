@@ -18,10 +18,8 @@ Future<bool?> showMemberManagementSheet(
   BuildContext context,
   AppUser member,
 ) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => MemberManagementSheet(member: member),
   );
 }

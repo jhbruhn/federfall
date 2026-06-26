@@ -14,10 +14,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// write-once at intake today; this lets a carer fix a typo'd species or fill
 /// in a name later. Resolves to `true` when saved so the caller can refresh.
 Future<bool?> showEditAnimalSheet(BuildContext context, Animal animal) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => EditAnimalSheet(animal: animal),
   );
 }

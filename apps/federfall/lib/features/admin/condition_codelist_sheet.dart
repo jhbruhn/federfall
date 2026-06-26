@@ -15,10 +15,8 @@ Future<bool?> showConditionCodelistSheet(
   BuildContext context, {
   Condition? condition,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => ConditionCodelistSheet(condition: condition),
   );
 }

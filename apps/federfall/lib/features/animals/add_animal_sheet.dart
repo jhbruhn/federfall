@@ -20,10 +20,8 @@ Future<String?> showAddAnimalSheet(
   BuildContext context, {
   required String aviaryId,
 }) {
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<String>(
+    context,
     builder: (_) => AddAnimalSheet(aviaryId: aviaryId),
   );
 }

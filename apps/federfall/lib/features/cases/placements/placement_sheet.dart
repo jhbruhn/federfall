@@ -31,10 +31,8 @@ Future<bool?> showPlacementSheet(
   PlacementMode mode = PlacementMode.move,
   Placement? placement,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => PlacementSheet(
       medicalCase: medicalCase,
       mode: mode,

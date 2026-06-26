@@ -12,10 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// and PocketBase emails them a password-reset link to activate it. Resolves to
 /// `true` once an invite is sent so the caller can refresh the roster.
 Future<bool?> showInviteMemberSheet(BuildContext context) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showAppSheet<bool>(
+    context,
     builder: (_) => const InviteMemberSheet(),
   );
 }

@@ -4,6 +4,7 @@ library;
 export 'package:federfall/theme/app_spacing.dart';
 export 'package:federfall/theme/app_theme.dart';
 
+export 'app_sheet.dart';
 export 'layout/content_bounds.dart';
 export 'layout/list_detail_scaffold.dart';
 export 'layout/window_size.dart';

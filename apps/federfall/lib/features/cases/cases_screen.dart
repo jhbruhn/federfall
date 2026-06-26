@@ -55,10 +55,8 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   }
 
   Future<void> _openFilters(List<String> speciesOptions) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
+    await showAppSheet<void>(
+      context,
       builder: (_) => _FilterSheet(
         initial: _query,
         speciesOptions: speciesOptions,

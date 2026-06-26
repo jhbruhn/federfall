@@ -37,6 +37,11 @@ const double kListPaneWidth = 360;
 /// `ContentBounds`.
 const double kContentMaxWidth = 840;
 
+/// Maximum width for a modal sheet's content. On wide windows the sheet floats
+/// centred at this width instead of stretching edge-to-edge; below it the sheet
+/// fills the screen as before. See `showAppSheet`.
+const double kSheetMaxWidth = 640;
+
 /// Width of the *detail pane* at/above which the case detail lays Overview and
 /// History out side-by-side instead of behind tabs. Keyed on the pane (not the
 /// window) so a 840-wide window — whose detail pane is only ~480 — keeps tabs,
