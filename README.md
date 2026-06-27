@@ -45,8 +45,14 @@ cd apps/federfall && flutter run --flavor development \
   --dart-define-from-file=dart_defines/development.json
 ```
 
+## Self-hosting
+
+To run your own instance, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — one container,
+a reverse proxy for HTTPS, and configuration via environment variables.
+
 ## Documentation
 
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — self-hosting: setup, configuration, updates, backups.
 - [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) — vision, data model, roles, access control, GDPR.
 - [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — phases, tasks, dependencies, milestones.
 
