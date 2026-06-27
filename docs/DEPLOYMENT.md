@@ -155,7 +155,7 @@ Two extra sign-in features are available beyond email and password.
 
 **Two-factor authentication** is opt-in per user. Anyone can turn it on from their profile in the app; once on, signing in asks for a one-time code sent to their email after the password. It needs SMTP (see [Mail](#mail)) — without it the code can't be delivered. Nothing to configure on the server side; it is on offer to every user out of the box.
 
-**OAuth2** lets people sign in through an external provider instead of a password. The capability is enabled, but no providers are registered by default — that part is yours to set up. Add a provider (its client id and secret) in the admin dashboard under the `users` collection's auth settings. Once registered, it becomes available as a sign-in option.
+**OAuth2** lets people sign in through an external provider instead of a password. The capability is enabled, but no providers are registered by default — that part is yours to set up. List the providers in `FEDERFALL_OAUTH2_PROVIDERS` and give each one its client id and secret (a self-hosted OIDC such as Authentik or Keycloak also needs its authorize/token/userinfo URLs); see the comments in `docker-compose.yml` for the full set of variables. If you would rather not put them in the compose file, you can register providers in the admin dashboard instead, under the `users` collection's auth settings. Either way, once a provider is registered it becomes a sign-in option.
 
 ## Finder data retention
 

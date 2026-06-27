@@ -53,6 +53,19 @@ services:
       # FEDERFALL_SMTP_TLS: "false"           # "true" => implicit TLS (port 465)
       # FEDERFALL_SMTP_SENDER_ADDRESS: "noreply@yourdomain.tld"
       # FEDERFALL_SMTP_SENDER_NAME: "Federfall"
+      # OAuth2 logins — applied by pb_hooks/settings.pb.js. List the providers,
+      # then give each one its client id + secret (a self-hosted OIDC also needs
+      # the endpoint URLs). Leave unset to manage providers in the Admin UI:
+      # FEDERFALL_OAUTH2_PROVIDERS: "google,oidc"
+      # FEDERFALL_OAUTH2_GOOGLE_CLIENT_ID: ""
+      # FEDERFALL_OAUTH2_GOOGLE_CLIENT_SECRET: ""
+      # FEDERFALL_OAUTH2_OIDC_CLIENT_ID: ""
+      # FEDERFALL_OAUTH2_OIDC_CLIENT_SECRET: ""
+      # FEDERFALL_OAUTH2_OIDC_DISPLAY_NAME: "Single sign-on"
+      # FEDERFALL_OAUTH2_OIDC_AUTH_URL: "https://id.yourdomain.tld/authorize"
+      # FEDERFALL_OAUTH2_OIDC_TOKEN_URL: "https://id.yourdomain.tld/token"
+      # FEDERFALL_OAUTH2_OIDC_USERINFO_URL: "https://id.yourdomain.tld/userinfo"
+      # FEDERFALL_OAUTH2_OIDC_PKCE: "true"
     ports:
       # host:container — front this with your own TLS-terminating reverse proxy.
       - "8090:8090"

@@ -107,6 +107,11 @@ hooks that read env vars (PocketBase's own recommended pattern — load settings
   (`true` ⇒ implicit TLS / port 465), `…_SENDER_ADDRESS`, `…_SENDER_NAME` (defaults to the
   app name). Re-applied each start — change the env + restart to update. Secrets never
   touch the repo.
+- **OAuth2 providers** (`pb_hooks/settings.pb.js`) — `FEDERFALL_OAUTH2_PROVIDERS` is a
+  comma list of provider names; each `<NAME>` reads `FEDERFALL_OAUTH2_<NAME>_CLIENT_ID` +
+  `…_CLIENT_SECRET`, and a generic OIDC (`oidc`/`oidc2`/`oidc3`) also reads `…_DISPLAY_NAME`,
+  `…_AUTH_URL`, `…_TOKEN_URL`, `…_USERINFO_URL`, `…_PKCE`. When set, env is the source of
+  truth; leave it unset to manage providers in the Admin UI.
 - **Geocoding proxy** (`pb_hooks/geocode.pb.js`) — `FEDERFALL_NOMINATIM_URL`,
   `FEDERFALL_GEOCODER_KEY`, `FEDERFALL_USER_AGENT`.
 
@@ -117,6 +122,9 @@ Set by migration (committed, reproducible):
 - The users password-reset email (`1700000030_reset_password_template.js`) — German, with
   its action URL pointed at the app route `{APP_URL}/auth/confirm-reset?token={TOKEN}`
   (PocketBase's default links to the Admin UI instead).
+- Optional per-user MFA + OAuth2 enabled on `users` (`1700000032_mfa_otp_oauth2.js`):
+  email-OTP second factor gated by the per-user `mfa_enabled` flag, and OAuth2 turned on so
+  providers (above) can be registered.
 
 ## Migrations & hooks
 

@@ -19,6 +19,15 @@
 //   FEDERFALL_SMTP_SENDER_ADDRESS From address (required for real delivery)
 //   FEDERFALL_SMTP_SENDER_NAME    default: the app name (Federfall)
 //
+//   FEDERFALL_OAUTH2_PROVIDERS    comma list of provider names to register as
+//                                 alternative logins, e.g. "google,oidc". For
+//                                 each NAME, read (NAME upper-cased):
+//                                   FEDERFALL_OAUTH2_<NAME>_CLIENT_ID      (req)
+//                                   FEDERFALL_OAUTH2_<NAME>_CLIENT_SECRET  (req)
+//                                 Generic OIDC (oidc/oidc2/oidc3) also takes:
+//                                   _DISPLAY_NAME / _AUTH_URL / _TOKEN_URL /
+//                                   _USERINFO_URL / _PKCE ("true"/"false").
+//
 // (The static brand name `appName` is set separately, by migration.)
 
 onBootstrap((e) => {
@@ -61,4 +70,57 @@ onBootstrap((e) => {
   }
 
   if (changed) e.app.save(settings);
+
+  // OAuth2 providers live on the users COLLECTION (not app settings). Register
+  // any provider listed in FEDERFALL_OAUTH2_PROVIDERS whose client id + secret
+  // are present. When the env lists providers it is the source of truth; leave
+  // it unset to manage providers from the Admin UI instead.
+  const providerNames = env("FEDERFALL_OAUTH2_PROVIDERS")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
+  if (providerNames.length === 0) {
+    return;
+  }
+
+  const providers = [];
+  for (const name of providerNames) {
+    const up = name.toUpperCase();
+    const clientId = env("FEDERFALL_OAUTH2_" + up + "_CLIENT_ID");
+    const clientSecret = env("FEDERFALL_OAUTH2_" + up + "_CLIENT_SECRET");
+    if (!clientId || !clientSecret) {
+      e.app
+        .logger()
+        .warn("federfall: oauth2 provider missing client id/secret", "provider", name);
+      continue;
+    }
+    const p = { name: name, clientId: clientId, clientSecret: clientSecret };
+    // Generic OIDC providers need the endpoint URLs; well-known ones don't.
+    const authURL = env("FEDERFALL_OAUTH2_" + up + "_AUTH_URL");
+    if (authURL) {
+      p.authURL = authURL;
+      p.tokenURL = env("FEDERFALL_OAUTH2_" + up + "_TOKEN_URL");
+      p.userInfoURL = env("FEDERFALL_OAUTH2_" + up + "_USERINFO_URL");
+      const displayName = env("FEDERFALL_OAUTH2_" + up + "_DISPLAY_NAME");
+      if (displayName) p.displayName = displayName;
+      p.pkce = env("FEDERFALL_OAUTH2_" + up + "_PKCE").toLowerCase() === "true";
+    }
+    providers.push(p);
+  }
+
+  if (providers.length === 0) {
+    return;
+  }
+
+  try {
+    const users = e.app.findCollectionByNameOrId("users");
+    users.oauth2.enabled = true;
+    users.oauth2.providers = providers;
+    e.app.save(users);
+    e.app
+      .logger()
+      .info("federfall: oauth2 providers configured from env", "count", providers.length);
+  } catch (err) {
+    e.app.logger().warn("federfall: oauth2 provider config failed", "err", String(err));
+  }
 });
