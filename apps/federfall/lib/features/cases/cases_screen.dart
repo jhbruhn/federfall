@@ -81,17 +81,23 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
       () => ref.invalidate(casesBrowserDataProvider),
     );
     final data = ref.watch(casesBrowserDataProvider);
+    // When the list is empty its empty-state already offers an "admit a case"
+    // CTA, so suppress the FAB then — two identical primary actions on one
+    // screen is redundant. While loading or on error (no known list) keep it.
+    final showFab = data.value?.cases.isNotEmpty ?? true;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_query.allScope ? l10n.casesAllTitle : l10n.casesTitle),
         actions: const [AccountMenu()],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go(AppRoutes.newCase),
-        tooltip: l10n.caseNewTitle,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: showFab
+          ? FloatingActionButton(
+              onPressed: () => context.go(AppRoutes.newCase),
+              tooltip: l10n.caseNewTitle,
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: AsyncValueView<CasesBrowserData>(
         value: data,
         onRetry: () => ref.invalidate(casesBrowserDataProvider),
@@ -117,7 +123,14 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
               const Divider(height: 1),
               Expanded(
                 child: d.cases.isEmpty
-                    ? EmptyView(message: l10n.casesEmpty)
+                    ? EmptyView(
+                        icon: Icons.medical_information_outlined,
+                        title: l10n.casesEmpty,
+                        message: l10n.casesEmptyBody,
+                        actionLabel: l10n.casesEmptyAction,
+                        actionIcon: Icons.add,
+                        onAction: () => context.go(AppRoutes.newCase),
+                      )
                     : results.isEmpty
                     ? EmptyView(message: l10n.casesNoMatches)
                     : RefreshIndicator(

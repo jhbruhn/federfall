@@ -55,12 +55,28 @@ void main() {
   testWidgets('a carer does not see the create FAB', (tester) async {
     await _pump(
       tester,
+      aviaries: const [Aviary(id: 'av1', name: 'Garden aviary')],
       user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
     );
     expect(find.byType(FloatingActionButton), findsNothing);
   });
 
-  testWidgets('a coordinator sees the create FAB', (tester) async {
+  testWidgets('a coordinator sees the create FAB when aviaries exist',
+      (tester) async {
+    await _pump(
+      tester,
+      aviaries: const [Aviary(id: 'av1', name: 'Garden aviary')],
+      user: const AppUser(
+        id: 'u2',
+        email: 's@x.org',
+        role: UserRole.coordinator,
+      ),
+    );
+    expect(find.byType(FloatingActionButton), findsOneWidget);
+  });
+
+  testWidgets('a coordinator on an empty list gets the CTA, not the FAB',
+      (tester) async {
     await _pump(
       tester,
       user: const AppUser(
@@ -69,6 +85,8 @@ void main() {
         role: UserRole.coordinator,
       ),
     );
-    expect(find.byType(FloatingActionButton), findsOneWidget);
+    // The empty-state CTA replaces the FAB to avoid two identical actions.
+    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'New aviary'), findsOneWidget);
   });
 }

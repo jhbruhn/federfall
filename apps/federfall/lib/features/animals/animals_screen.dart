@@ -71,7 +71,14 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
               const Divider(height: 1),
               Expanded(
                 child: items.isEmpty
-                    ? EmptyView(message: l10n.animalsEmpty)
+                    ? EmptyView(
+                        icon: Icons.pets_outlined,
+                        title: l10n.animalsEmpty,
+                        message: l10n.animalsEmptyBody,
+                        actionLabel: l10n.casesEmptyAction,
+                        actionIcon: Icons.add,
+                        onAction: () => context.go(AppRoutes.newCase),
+                      )
                     : results.isEmpty
                     ? EmptyView(message: l10n.animalsNoMatches)
                     : RefreshIndicator(

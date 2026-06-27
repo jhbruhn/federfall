@@ -33,13 +33,17 @@ class AviariesScreen extends ConsumerWidget {
       ref.watch(currentUserProvider).value?.role,
     );
     final selectedId = selectedDetailId(context);
+    // When the list is empty its empty-state already offers an "add aviary"
+    // CTA (also gated on canManage), so suppress the FAB then to avoid two
+    // identical actions. While loading or on error keep it (for managers).
+    final showFab = canManage && (aviaries.value?.isNotEmpty ?? true);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.aviariesTitle),
         actions: const [AccountMenu()],
       ),
-      floatingActionButton: canManage
+      floatingActionButton: showFab
           ? FloatingActionButton(
               onPressed: () => showAviaryFormSheet(context),
               tooltip: l10n.aviaryNewTitle,
@@ -53,7 +57,13 @@ class AviariesScreen extends ConsumerWidget {
         data: (list) => list.isEmpty
             ? EmptyView(
                 icon: Icons.holiday_village_outlined,
-                message: l10n.aviariesEmpty,
+                title: l10n.aviariesEmpty,
+                message: l10n.aviariesEmptyBody,
+                actionLabel: canManage ? l10n.aviaryNewTitle : null,
+                actionIcon: Icons.add,
+                onAction: canManage
+                    ? () => showAviaryFormSheet(context)
+                    : null,
               )
             : RefreshIndicator(
                 onRefresh: () => ref.refresh(aviariesProvider.future),
