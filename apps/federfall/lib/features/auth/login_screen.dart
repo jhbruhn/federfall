@@ -204,7 +204,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final otpStep = _mfaId != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.authLoginTitle)),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -217,10 +216,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Brand-first header: the app name and a warm tagline lead,
+                    // so the screen reads as considered, not a bare admin form.
+                    // (A proper logo mark is a separate task.)
+                    Text(
+                      l10n.appName,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      l10n.authTagline,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    // The verified server's name, demoted to a subtitle now the
+                    // app name carries the header.
                     if (info != null && info.name.isNotEmpty) ...[
                       Text(
                         l10n.authSignInToServer(info.name),
-                        style: theme.textTheme.titleLarge,
+                        style: theme.textTheme.titleMedium,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: AppSpacing.lg),

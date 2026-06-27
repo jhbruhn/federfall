@@ -25,6 +25,7 @@
     "serverNotFederfall": "Das sieht nicht nach einem Federfall-Server aus.",
     "serverSwitchAction": "Anderen Server verwenden",
     "authLoginTitle": "Anmelden",
+    "authTagline": "Jeder Fall in guten Händen.",
     "authEmailLabel": "E-Mail",
     "authPasswordLabel": "Passwort",
     "authSignInAction": "Anmelden",

@@ -88,6 +88,10 @@
     "@authLoginTitle": {
         "description": "Title of the login screen"
     },
+    "authTagline": "Every case in good hands.",
+    "@authTagline": {
+        "description": "Brand tagline under the app name on the login screen"
+    },
     "authEmailLabel": "Email",
     "@authEmailLabel": {
         "description": "Label for the email field on the login form"
