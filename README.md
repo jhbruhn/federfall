@@ -52,6 +52,16 @@ flutter run --flavor development \
 To run your own instance, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 It is one container with a reverse proxy in front for HTTPS, configured through environment variables.
 
+## Vibe Code Warning
+
+For reasons of fairness and possibly also as a warning, be aware that almost all of the code in this project has been written using LLMs, specifically Claude Code.
+
+That does not mean that the code is untested, bad or dysfunctional.
+The backend access rules have a test suite, and the app has widget and unit tests.
+
+This project wouldn't have happened in its current form without LLMs.
+So, while LLMs are still being heavily oversold and the circular economy of the big AI companies is not exactly a healthy market IMO, they do still offer _some_ benefits.
+
 ## License
 
 Federfall is licensed under the [GNU AGPL-3.0](LICENSE).
