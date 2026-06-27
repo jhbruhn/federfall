@@ -44,6 +44,22 @@ Flutter app on the host with `flutter run` (the dev flavor points `POCKETBASE_UR
 - Health check: <http://localhost:8090/api/health>
 - REST/Realtime API base: <http://localhost:8090/api/>
 
+### Testing OAuth2 / OIDC locally
+
+To exercise the OAuth2 sign-in + self-registration flow without a real identity
+provider, add the dev OIDC profile, which runs a throwaway mock OpenID provider:
+
+```bash
+docker compose -f docker-compose.yml \
+               -f docker-compose.override.yml \
+               -f docker-compose.oidc.yml up --build
+```
+
+Open <http://localhost:8090>, click "Continue with Mock SSO", and at the mock's
+login enter any email — add `{"groups":["federfall-admins"]}` in the optional
+claims to land as a supervisor, or leave it empty to land as a guest on the
+pending screen. See `docker-compose.oidc.yml` for details.
+
 ## Run in production — from the repo root
 
 ```bash

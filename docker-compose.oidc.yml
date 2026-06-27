@@ -1,0 +1,52 @@
+# Federfall — DEV-ONLY OIDC test profile. Adds a throwaway mock OpenID provider
+# so the OAuth2 sign-in flow (federfall-pj3) and self-registration / role mapping
+# (federfall-49l.3) can be exercised end to end without a real identity provider.
+# NEVER use this in production.
+#
+# Run it on top of the dev stack (the override is auto-loaded only without an
+# explicit -f, so list all three files):
+#
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.override.yml \
+#                  -f docker-compose.oidc.yml up --build
+#
+# Then open http://localhost:8090 and click "Continue with Mock SSO". At the
+# mock's login page enter any email, and in the optional "claims" box:
+#   - {"groups":["federfall-admins"]}  → mapped to the supervisor role
+#   - leave it empty                   → lands as a guest on the pending screen
+# (The very FIRST sign-in, when no supervisor exists yet, always becomes the
+# supervisor regardless of groups — that's the bootstrap path. Sign in once to
+# create that supervisor, then again without groups to see the guest flow.)
+#
+# Why network_mode: the mock derives its issuer from the request Host header, so
+# the browser (on the host) and PocketBase (in its container) must reach it at
+# the SAME address. Sharing the app's network namespace makes both use
+# localhost:9080, giving one consistent issuer.
+
+services:
+  app:
+    # Publish the mock's port from the app's namespace (the mock shares it), so
+    # localhost:9080 resolves to the mock for both the browser and PocketBase.
+    ports:
+      - "9080:9080"
+    environment:
+      FEDERFALL_OAUTH2_PROVIDERS: "oidc"
+      FEDERFALL_OAUTH2_OIDC_CLIENT_ID: "federfall"
+      FEDERFALL_OAUTH2_OIDC_CLIENT_SECRET: "dev-secret"
+      FEDERFALL_OAUTH2_OIDC_DISPLAY_NAME: "Mock SSO"
+      FEDERFALL_OAUTH2_OIDC_AUTH_URL: "http://localhost:9080/federfall/authorize"
+      FEDERFALL_OAUTH2_OIDC_TOKEN_URL: "http://localhost:9080/federfall/token"
+      FEDERFALL_OAUTH2_OIDC_USERINFO_URL: "http://localhost:9080/federfall/userinfo"
+      FEDERFALL_OAUTH2_OIDC_PKCE: "true"
+      # Optional: gate registration / map other roles by group, e.g.
+      # FEDERFALL_OIDC_COORDINATOR_GROUP: "federfall-coordinators"
+
+  oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    container_name: federfall_oidc
+    # Share the app's network namespace so the issuer is the same localhost:9080
+    # everywhere (see header). The port is published by `app` above.
+    network_mode: "service:app"
+    environment:
+      SERVER_PORT: "9080"
+    restart: unless-stopped
