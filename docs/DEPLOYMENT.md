@@ -149,6 +149,15 @@ docker compose -f docker-compose.yml up -d --build
 Database migrations are applied automatically when the new container starts.
 To move to a newer PocketBase, bump `PB_VERSION` in the root `Dockerfile` and the image tag in `docker-compose.yml`, then run the same command.
 
+## Finder data retention
+
+A finder — the person who brought a bird in — is stored with their contact details so a carer can follow up.
+Once their cases are closed there is no longer a reason to keep that personal data, so a daily job anonymises finders whose cases all ended longer ago than a retention window.
+It clears the identifying fields (name, organisation, phone, email and the free-text notes) and keeps the rest, including the location, so you still know where birds tend to come from without holding anyone's personal data.
+
+The window defaults to two years.
+You can change it per organisation by setting `finder_retention_years` in the organisation's settings.
+
 ## Backups
 
 All persistent state — the SQLite database and uploaded photos — lives in the `pb_data` Docker volume.
