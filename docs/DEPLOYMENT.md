@@ -190,9 +190,35 @@ The full set of per-provider variables:
 | `FEDERFALL_OAUTH2_<NAME>_USERINFO_URL` | OIDC | Userinfo endpoint |
 | `FEDERFALL_OAUTH2_<NAME>_PKCE` | OIDC | `"true"` or `"false"` |
 
-The redirect/callback URL to register with your provider is `<your app URL>/api/oauth2-redirect`.
+The redirect/callback URL to register with your provider is `<your app URL>/api/oauth2-redirect`. After the provider sends the user back there, PocketBase hands control to the app so it lands signed in — on the web that is your instance's own origin, and the mobile apps complete the flow through their registered redirect and reopen automatically. Register that callback URL with every provider; if the provider also asks for allowed origins or post-login redirects, add your app URL there too.
 
 When `FEDERFALL_OAUTH2_PROVIDERS` is set, the environment is the source of truth and is re-applied on every start. If you would rather not keep the credentials in the compose file, leave it unset and register providers in the admin dashboard instead, under the `users` collection's auth settings. Either way, once a provider is registered it becomes a sign-in option.
+
+### OAuth2 as the only sign-in method
+
+If you want everyone to sign in through your provider and not with a password at all, turn password auth off:
+
+```yaml
+FEDERFALL_PASSWORD_AUTH: "false"
+```
+
+The server then advertises that password login is disabled and the app hides the password form, showing only the provider buttons. Configure at least one OAuth2 provider first, or no one will be able to sign in.
+
+### Who may register, and as what
+
+With OAuth2, people can sign in without being invited first. By default a new sign-in creates a walled-off **guest** account: they are signed in but can't see or do anything until a supervisor grants them a real role. This also sidesteps the invite chicken-and-egg — the very first person to sign in, while no supervisor exists yet, is made a supervisor automatically, so you can bootstrap the instance just by signing in.
+
+If your identity provider sends group memberships, you can do better than guest-by-default — map groups to roles, and optionally restrict who may register at all:
+
+```yaml
+FEDERFALL_OIDC_GROUPS_CLAIM: "groups"                 # the claim that holds the groups
+FEDERFALL_OIDC_SUPERVISOR_GROUP: "federfall-admins"
+FEDERFALL_OIDC_COORDINATOR_GROUP: "federfall-coordinators"
+FEDERFALL_OIDC_CARER_GROUP: "federfall-carers"
+FEDERFALL_OIDC_ALLOWED_GROUPS: ""                     # if set, only members of these may register at all
+```
+
+With a supervisor group configured, putting yourself in it at the provider is the cleanest bootstrap: your first sign-in lands you straight in as a supervisor. Anyone matching no group becomes a guest for a supervisor to promote. Plain social logins (Google, GitHub) don't carry groups, so there everyone falls back to guest.
 
 ## Finder data retention
 

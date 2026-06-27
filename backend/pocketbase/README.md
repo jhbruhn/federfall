@@ -107,11 +107,18 @@ hooks that read env vars (PocketBase's own recommended pattern — load settings
   (`true` ⇒ implicit TLS / port 465), `…_SENDER_ADDRESS`, `…_SENDER_NAME` (defaults to the
   app name). Re-applied each start — change the env + restart to update. Secrets never
   touch the repo.
-- **OAuth2 providers** (`pb_hooks/settings.pb.js`) — `FEDERFALL_OAUTH2_PROVIDERS` is a
-  comma list of provider names; each `<NAME>` reads `FEDERFALL_OAUTH2_<NAME>_CLIENT_ID` +
-  `…_CLIENT_SECRET`, and a generic OIDC (`oidc`/`oidc2`/`oidc3`) also reads `…_DISPLAY_NAME`,
-  `…_AUTH_URL`, `…_TOKEN_URL`, `…_USERINFO_URL`, `…_PKCE`. When set, env is the source of
-  truth; leave it unset to manage providers in the Admin UI.
+- **OAuth2 providers + password toggle** (`pb_hooks/settings.pb.js`) —
+  `FEDERFALL_OAUTH2_PROVIDERS` is a comma list of provider names; each `<NAME>` reads
+  `FEDERFALL_OAUTH2_<NAME>_CLIENT_ID` + `…_CLIENT_SECRET`, and a generic OIDC
+  (`oidc`/`oidc2`/`oidc3`) also reads `…_DISPLAY_NAME`, `…_AUTH_URL`, `…_TOKEN_URL`,
+  `…_USERINFO_URL`, `…_PKCE`. When set, env is the source of truth; leave it unset to manage
+  providers in the Admin UI. `FEDERFALL_PASSWORD_AUTH=false` disables password sign-in
+  (OAuth2-only).
+- **OAuth2 self-registration** (`pb_hooks/oauth2_provisioning.pb.js`) — new OAuth2 users
+  default to a walled-off `guest` role; the first user (no supervisor yet) becomes
+  supervisor. With IdP groups, map them to roles via `FEDERFALL_OIDC_SUPERVISOR_GROUP` /
+  `…_COORDINATOR_GROUP` / `…_CARER_GROUP` (claim name `FEDERFALL_OIDC_GROUPS_CLAIM`, default
+  `groups`), and gate registration with `FEDERFALL_OIDC_ALLOWED_GROUPS`.
 - **Geocoding proxy** (`pb_hooks/geocode.pb.js`) — `FEDERFALL_NOMINATIM_URL`,
   `FEDERFALL_GEOCODER_KEY`, `FEDERFALL_USER_AGENT`.
 
@@ -125,6 +132,9 @@ Set by migration (committed, reproducible):
 - Optional per-user MFA + OAuth2 enabled on `users` (`1700000032_mfa_otp_oauth2.js`):
   email-OTP second factor gated by the per-user `mfa_enabled` flag, and OAuth2 turned on so
   providers (above) can be registered.
+- `guest` role + access-rule wall-off (`1700000033_guest_role.js`): a guest can authenticate
+  but every collection rule excludes `role = "guest"`, so self-registered OAuth2 users have
+  no access until a supervisor promotes them.
 
 ## Migrations & hooks
 

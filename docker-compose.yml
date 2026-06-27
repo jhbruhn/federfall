@@ -66,6 +66,18 @@ services:
       # FEDERFALL_OAUTH2_OIDC_TOKEN_URL: "https://id.yourdomain.tld/token"
       # FEDERFALL_OAUTH2_OIDC_USERINFO_URL: "https://id.yourdomain.tld/userinfo"
       # FEDERFALL_OAUTH2_OIDC_PKCE: "true"
+      # Make OAuth2 the ONLY sign-in method by turning password auth off (the app
+      # then hides the password form). Default is on; only set to disable:
+      # FEDERFALL_PASSWORD_AUTH: "false"
+      # OAuth2 self-registration (pb_hooks/oauth2_provisioning.pb.js). New users
+      # default to a walled-off "guest" role; the first user (when no supervisor
+      # exists yet) becomes supervisor. If your IdP sends groups, map them to
+      # roles and/or gate who may register at all:
+      # FEDERFALL_OIDC_GROUPS_CLAIM: "groups"          # claim holding the groups
+      # FEDERFALL_OIDC_SUPERVISOR_GROUP: "federfall-admins"
+      # FEDERFALL_OIDC_COORDINATOR_GROUP: "federfall-coordinators"
+      # FEDERFALL_OIDC_CARER_GROUP: "federfall-carers"
+      # FEDERFALL_OIDC_ALLOWED_GROUPS: ""              # if set, only these may register
     ports:
       # host:container — front this with your own TLS-terminating reverse proxy.
       - "8090:8090"

@@ -544,6 +544,25 @@ def main():
     s, _ = req("GET", f"/api/collections/exam_findings/records/{ef['id']}", te)
     check("other-org member CANNOT read the finding", s != 200, f"status {s}")
 
+    # ── guest role: can authenticate, but walled off from all data ──────────
+    print("\n[guest role]")
+    mkuser(T, "guest@f.local", "guest")
+    gs, gtok = login("guest@f.local")
+    check("guest can authenticate", gs == 200 and bool(gtok), f"status {gs}")
+    s, _ = req("POST", "/api/collections/animals/records", gtok,
+               {"species": "Stadttaube", "org": ORG})
+    check("guest CANNOT create an animal", s != 200, f"status {s}")
+    s, _ = req("POST", "/api/collections/finders/records", gtok,
+               {"first_name": "X", "org": ORG})
+    check("guest CANNOT create a finder (PII)", s != 200, f"status {s}")
+    s, _ = req("POST", "/api/collections/cases/records", gtok,
+               {"animal": animal, "active_carer": A, "org": ORG})
+    check("guest CANNOT create a case", s != 200, f"status {s}")
+    check("guest sees no animals (list filtered)",
+          len(listf(gtok, "animals", "id != ''")) == 0, "non-empty")
+    check("guest sees no cases (list filtered)",
+          len(listf(gtok, "cases", "id != ''")) == 0, "non-empty")
+
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)

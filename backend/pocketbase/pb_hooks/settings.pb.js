@@ -79,9 +79,6 @@ onBootstrap((e) => {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s !== "");
-  if (providerNames.length === 0) {
-    return;
-  }
 
   const providers = [];
   for (const name of providerNames) {
@@ -108,19 +105,37 @@ onBootstrap((e) => {
     providers.push(p);
   }
 
-  if (providers.length === 0) {
-    return;
+  // Password auth can be turned OFF so OAuth2 is the only sign-in method (the
+  // info endpoint then reports auth.password:false and the app hides the password
+  // form). Default ON; only act when explicitly set, so we never silently lock an
+  // operator out.
+  const pwEnv = env("FEDERFALL_PASSWORD_AUTH").toLowerCase();
+  const togglePassword = pwEnv === "true" || pwEnv === "false";
+
+  if (providers.length === 0 && !togglePassword) {
+    return; // nothing collection-level to apply
   }
 
   try {
     const users = e.app.findCollectionByNameOrId("users");
-    users.oauth2.enabled = true;
-    users.oauth2.providers = providers;
+    if (providers.length > 0) {
+      users.oauth2.enabled = true;
+      users.oauth2.providers = providers;
+    }
+    if (togglePassword) {
+      users.passwordAuth.enabled = pwEnv === "true";
+    }
     e.app.save(users);
     e.app
       .logger()
-      .info("federfall: oauth2 providers configured from env", "count", providers.length);
+      .info(
+        "federfall: users auth configured from env",
+        "oauth2Providers",
+        providers.length,
+        "passwordAuth",
+        togglePassword ? pwEnv : "unchanged",
+      );
   } catch (err) {
-    e.app.logger().warn("federfall: oauth2 provider config failed", "err", String(err));
+    e.app.logger().warn("federfall: users auth config failed", "err", String(err));
   }
 });
