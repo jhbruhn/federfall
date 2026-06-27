@@ -106,9 +106,9 @@ onRecordAuthWithOAuth2Request((e) => {
   // Seed the to-be-created record. Let PocketBase build + persist it (and link
   // the external identity) — we only add the fields it can't infer from OAuth2.
   // createData may be undefined here, so assign a fresh object (merging anything
-  // the client already supplied).
-  // (verified is a protected system field — PocketBase rejects setting it via
-  // createData; login is gated on is_active, not verified, so we don't need it.)
+  // the client already supplied). `verified` is NOT set here — it's a protected
+  // system field PocketBase rejects via createData — it's set after creation
+  // below instead.
   const data = { role: role, is_active: true };
   if (orgId) data.org = orgId;
   // Expose the email to fellow org members so the team roster shows it.
@@ -122,5 +122,20 @@ onRecordAuthWithOAuth2Request((e) => {
     .logger()
     .info("federfall: provisioning oauth2 user", "role", role, "firstUser", firstUser);
 
-  e.next();
+  e.next(); // PocketBase creates + links the record here
+
+  // The IdP already verified the email, so mark the new account verified — this
+  // clears the "invite pending" state (which keys off `verified`). It can't go
+  // through createData (protected there); a programmatic save from a hook is
+  // allowed and doesn't trip the API-only field guard in main.pb.js.
+  try {
+    if (e.record && !e.record.getBool("verified")) {
+      e.record.set("verified", true);
+      e.app.save(e.record);
+    }
+  } catch (err) {
+    e.app
+      .logger()
+      .warn("federfall: could not mark oauth user verified", "err", String(err));
+  }
 });
