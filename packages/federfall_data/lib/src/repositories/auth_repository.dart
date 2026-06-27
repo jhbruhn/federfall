@@ -258,6 +258,8 @@ class PbAuthRepository implements AuthRepository {
       final record = await _users.create(
         body: {
           'email': email,
+          // Visible to fellow org members so the team roster shows it.
+          'emailVisibility': true,
           if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
           'role': role.wire,
           'org': org,

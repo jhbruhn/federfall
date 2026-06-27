@@ -73,6 +73,7 @@ onBootstrap((e) => {
     const users = e.app.findCollectionByNameOrId("users");
     const rec = new Record(users);
     rec.set("email", email);
+    rec.set("emailVisibility", true); // visible to fellow org members in the roster
     rec.setPassword(password);
     rec.set("role", "supervisor");
     rec.set("org", org.id);

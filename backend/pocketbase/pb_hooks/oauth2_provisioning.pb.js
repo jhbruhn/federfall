@@ -111,7 +111,11 @@ onRecordAuthWithOAuth2Request((e) => {
   // createData; login is gated on is_active, not verified, so we don't need it.)
   const data = { role: role, is_active: true };
   if (orgId) data.org = orgId;
-  if (email) data.email = email;
+  // Expose the email to fellow org members so the team roster shows it.
+  if (email) {
+    data.email = email;
+    data.emailVisibility = true;
+  }
   e.createData = Object.assign({}, e.createData, data);
 
   e.app
