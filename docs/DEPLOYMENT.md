@@ -155,7 +155,44 @@ Two extra sign-in features are available beyond email and password.
 
 **Two-factor authentication** is opt-in per user. Anyone can turn it on from their profile in the app; once on, signing in asks for a one-time code sent to their email after the password. It needs SMTP (see [Mail](#mail)) — without it the code can't be delivered. Nothing to configure on the server side; it is on offer to every user out of the box.
 
-**OAuth2** lets people sign in through an external provider instead of a password. The capability is enabled, but no providers are registered by default — that part is yours to set up. List the providers in `FEDERFALL_OAUTH2_PROVIDERS` and give each one its client id and secret (a self-hosted OIDC such as Authentik or Keycloak also needs its authorize/token/userinfo URLs); see the comments in `docker-compose.yml` for the full set of variables. If you would rather not put them in the compose file, you can register providers in the admin dashboard instead, under the `users` collection's auth settings. Either way, once a provider is registered it becomes a sign-in option.
+**OAuth2** lets people sign in through an external provider instead of a password. The capability is enabled, but no providers are registered by default — that part is yours to set up.
+
+List the providers you want in `FEDERFALL_OAUTH2_PROVIDERS` (comma-separated), then give each one its credentials. The variable names are `FEDERFALL_OAUTH2_<NAME>_…`, where `<NAME>` is the provider name upper-cased. For a well-known provider — `google`, `github`, `microsoft`, `apple`, `gitlab`, `discord` and the like — the client id and secret are all that's needed; PocketBase already knows that provider's endpoints:
+
+```yaml
+FEDERFALL_OAUTH2_PROVIDERS: "google"
+FEDERFALL_OAUTH2_GOOGLE_CLIENT_ID: "..."
+FEDERFALL_OAUTH2_GOOGLE_CLIENT_SECRET: "..."
+```
+
+For a self-hosted identity provider — Authentik, Keycloak, Authelia, Zitadel and so on — use the generic OIDC provider name `oidc` (or `oidc2`, `oidc3` for a second and third) and give it the endpoints as well:
+
+```yaml
+FEDERFALL_OAUTH2_PROVIDERS: "oidc"
+FEDERFALL_OAUTH2_OIDC_CLIENT_ID: "..."
+FEDERFALL_OAUTH2_OIDC_CLIENT_SECRET: "..."
+FEDERFALL_OAUTH2_OIDC_DISPLAY_NAME: "Single sign-on"           # the button label
+FEDERFALL_OAUTH2_OIDC_AUTH_URL: "https://id.yourdomain.tld/application/o/authorize/"
+FEDERFALL_OAUTH2_OIDC_TOKEN_URL: "https://id.yourdomain.tld/application/o/token/"
+FEDERFALL_OAUTH2_OIDC_USERINFO_URL: "https://id.yourdomain.tld/application/o/userinfo/"
+FEDERFALL_OAUTH2_OIDC_PKCE: "true"                             # most OIDC providers want this
+```
+
+The full set of per-provider variables:
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `FEDERFALL_OAUTH2_<NAME>_CLIENT_ID` | yes | OAuth2 client id from the provider |
+| `FEDERFALL_OAUTH2_<NAME>_CLIENT_SECRET` | yes | OAuth2 client secret |
+| `FEDERFALL_OAUTH2_<NAME>_DISPLAY_NAME` | OIDC | Label shown on the sign-in button |
+| `FEDERFALL_OAUTH2_<NAME>_AUTH_URL` | OIDC | Authorization endpoint; setting it marks the provider as a custom OIDC |
+| `FEDERFALL_OAUTH2_<NAME>_TOKEN_URL` | OIDC | Token endpoint |
+| `FEDERFALL_OAUTH2_<NAME>_USERINFO_URL` | OIDC | Userinfo endpoint |
+| `FEDERFALL_OAUTH2_<NAME>_PKCE` | OIDC | `"true"` or `"false"` |
+
+The redirect/callback URL to register with your provider is `<your app URL>/api/oauth2-redirect`.
+
+When `FEDERFALL_OAUTH2_PROVIDERS` is set, the environment is the source of truth and is re-applied on every start. If you would rather not keep the credentials in the compose file, leave it unset and register providers in the admin dashboard instead, under the `users` collection's auth settings. Either way, once a provider is registered it becomes a sign-in option.
 
 ## Finder data retention
 
