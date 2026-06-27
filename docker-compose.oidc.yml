@@ -38,8 +38,12 @@ services:
       FEDERFALL_OAUTH2_OIDC_TOKEN_URL: "http://localhost:9080/federfall/token"
       FEDERFALL_OAUTH2_OIDC_USERINFO_URL: "http://localhost:9080/federfall/userinfo"
       FEDERFALL_OAUTH2_OIDC_PKCE: "true"
-      # Optional: gate registration / map other roles by group, e.g.
+      # Map an IdP group to the supervisor role — matches the claims example in
+      # the header so {"groups":["federfall-admins"]} lands as supervisor.
+      FEDERFALL_OIDC_SUPERVISOR_GROUP: "federfall-admins"
+      # Optional: more mappings / a registration gate, e.g.
       # FEDERFALL_OIDC_COORDINATOR_GROUP: "federfall-coordinators"
+      # FEDERFALL_OIDC_ALLOWED_GROUPS: "federfall-admins,federfall-coordinators"
 
   oidc:
     image: ghcr.io/navikt/mock-oauth2-server:2.1.10

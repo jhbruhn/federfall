@@ -562,6 +562,13 @@ def main():
           len(listf(gtok, "animals", "id != ''")) == 0, "non-empty")
     check("guest sees no cases (list filtered)",
           len(listf(gtok, "cases", "id != ''")) == 0, "non-empty")
+    # The OAuth2 createRule (@request.context = "oauth2") must NOT let an
+    # anonymous API client create users directly (that path is context default).
+    s, _ = req("POST", "/api/collections/users/records", None, {
+        "email": "intruder@f.local", "password": "Pass12345!",
+        "passwordConfirm": "Pass12345!", "role": "supervisor", "org": ORG,
+    })
+    check("anonymous direct user creation is denied", s != 200, f"status {s}")
 
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")
