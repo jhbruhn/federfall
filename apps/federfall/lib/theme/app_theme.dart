@@ -40,12 +40,15 @@ abstract final class AppTheme {
           minimumSize: const Size.fromHeight(48),
         ),
       ),
+      // Filled rather than outlined: a subtle tonal surface that stays present
+      // on busy scroll views without the fussiness of a hairline border. One
+      // change lifts every card (KPIs, the Today card, sheets) at once.
       cardTheme: CardThemeData(
         elevation: 0,
         clipBehavior: Clip.antiAlias,
+        color: colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
       snackBarTheme: const SnackBarThemeData(

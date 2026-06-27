@@ -241,6 +241,7 @@ class _KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -251,19 +252,47 @@ class _KpiCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Icon seated in a soft tonal square: gives the grid a colour
+              // rhythm and echoes the empty-state disc language.
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(kpi.icon, color: colors.onPrimaryContainer),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              // The metric is the hero: large, semibold, tabular figures so
+              // stacked tiles align digit-for-digit and don't reflow.
+              Text(
+                '${kpi.value}',
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              // The label recedes; the chevron moves down beside it so the top
+              // row is a single confident icon, not a tug-of-war.
               Row(
                 children: [
-                  Icon(kpi.icon, color: theme.colorScheme.primary),
-                  const Spacer(),
+                  Expanded(
+                    child: Text(
+                      kpi.label,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
                   Icon(
                     Icons.chevron_right,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 18,
+                    color: colors.onSurfaceVariant,
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text('${kpi.value}', style: theme.textTheme.headlineMedium),
-              Text(kpi.label, style: theme.textTheme.bodyMedium),
             ],
           ),
         ),
