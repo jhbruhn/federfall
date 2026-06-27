@@ -151,3 +151,5 @@
 {"id":"int-2ddb304d","kind":"field_change","created_at":"2026-06-27T06:26:10.841617483Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-49l.2","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-f08fa8bd","kind":"field_change","created_at":"2026-06-27T06:34:11.564364687Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-apv","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
 {"id":"int-4f00f0b2","kind":"field_change","created_at":"2026-06-27T06:48:59.6927537Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-69p","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
+{"id":"int-55673583","kind":"field_change","created_at":"2026-06-27T06:51:48.479870208Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-bmg","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
+{"id":"int-52582fba","kind":"field_change","created_at":"2026-06-27T07:11:48.869905889Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-uvf","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}

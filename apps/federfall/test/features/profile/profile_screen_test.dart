@@ -55,6 +55,25 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> confirmPasswordReset(String token, String password) async {}
+
+  @override
+  Future<String> requestOtp(String email) async => throw UnimplementedError();
+
+  @override
+  Future<AppUser> authWithOtp({
+    required String otpId,
+    required String code,
+    required String mfaId,
+  }) async => throw UnimplementedError();
+
+  bool? mfaEnabledSetTo;
+
+  @override
+  Future<AppUser> setMfaEnabled({required bool enabled}) async {
+    mfaEnabledSetTo = enabled;
+    final u = currentUser!;
+    return AppUser(id: u.id, email: u.email, mfaEnabled: enabled);
+  }
 }
 
 Future<void> _pump(WidgetTester tester, FakeAuthRepository repo,

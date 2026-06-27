@@ -48,6 +48,20 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> requestPasswordReset(String email) async {}
   @override
   Future<void> confirmPasswordReset(String token, String password) async {}
+
+  @override
+  Future<String> requestOtp(String email) async => throw UnimplementedError();
+
+  @override
+  Future<AppUser> authWithOtp({
+    required String otpId,
+    required String code,
+    required String mfaId,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<AppUser> setMfaEnabled({required bool enabled}) async =>
+      throw UnimplementedError();
 }
 
 Future<void> _pump(

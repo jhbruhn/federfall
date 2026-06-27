@@ -86,6 +86,8 @@ class _ProfileBody extends StatelessWidget {
               title: Text(l10n.profilePhoneLabel),
               subtitle: Text(user.phone!),
             ),
+          const Divider(height: AppSpacing.lg),
+          _MfaToggle(enabled: user.mfaEnabled),
           const SizedBox(height: AppSpacing.lg),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -99,6 +101,53 @@ class _ProfileBody extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Opt-in MFA switch (email one-time code as a second factor). Toggles the
+/// signed-in user's `mfa_enabled`; the auth-store refresh re-renders the
+/// profile with the new value, so the switch reflects [enabled], not local
+/// state.
+class _MfaToggle extends ConsumerStatefulWidget {
+  const _MfaToggle({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  ConsumerState<_MfaToggle> createState() => _MfaToggleState();
+}
+
+class _MfaToggleState extends ConsumerState<_MfaToggle> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool value) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final repo = await ref.read(authRepositoryProvider.future);
+      await repo.setMfaEnabled(enabled: value);
+    } on Object {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.profileMfaUpdateFailed)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return SwitchListTile(
+      secondary: const Icon(Icons.shield_outlined),
+      title: Text(l10n.profileMfaTitle),
+      subtitle: Text(l10n.profileMfaSubtitle),
+      value: widget.enabled,
+      onChanged: _busy ? null : _toggle,
     );
   }
 }

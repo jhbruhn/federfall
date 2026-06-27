@@ -32,14 +32,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _otpController = TextEditingController();
 
   bool _busy = false;
   String? _error;
+
+  // MFA second step: set once a password succeeds on an MFA-enabled account.
+  // While non-null the form shows the one-time-code field instead of password.
+  String? _mfaId;
+  String? _otpId;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
@@ -60,11 +67,65 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
       // Success: the auth-store change drives the router gate to /home; leave
       // the spinner up while we are redirected away.
+    } on MfaRequiredException catch (e) {
+      // Password was correct but the account needs a second factor: send the
+      // one-time code and switch the form to the OTP step.
+      try {
+        final repo = await ref.read(authRepositoryProvider.future);
+        final otpId = await repo.requestOtp(_emailController.text.trim());
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _mfaId = e.mfaId;
+          _otpId = otpId;
+        });
+      } on Object {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _error = l10n.errorGenericTitle;
+        });
+      }
     } on RepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
         _busy = false;
         _error = _messageFor(l10n, e);
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = l10n.errorGenericTitle;
+      });
+    }
+  }
+
+  Future<void> _verifyOtp() async {
+    final l10n = context.l10n;
+    final otpId = _otpId;
+    final mfaId = _mfaId;
+    if (otpId == null || mfaId == null) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    try {
+      final repo = await ref.read(authRepositoryProvider.future);
+      await repo.authWithOtp(
+        otpId: otpId,
+        code: _otpController.text.trim(),
+        mfaId: mfaId,
+      );
+      // Success: the auth-store change drives the router gate to /home.
+    } on RepositoryException {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = l10n.authOtpInvalid;
       });
     } on Object {
       if (!mounted) return;
@@ -112,6 +173,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // failed.
     final info = ref.watch(serverInfoProvider).value;
     final auth = info?.auth ?? const ServerAuthOptions();
+    // Once a password has cleared on an MFA account, the form becomes the
+    // one-time-code step and the password/email/reset controls step aside.
+    final otpStep = _mfaId != null;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.authLoginTitle)),
@@ -135,7 +199,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: AppSpacing.lg),
                     ],
-                    if (auth.password) ...[
+                    if (otpStep) ...[
+                      Text(
+                        l10n.authOtpTitle,
+                        style: theme.textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        l10n.authOtpDescription,
+                        style: theme.textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppTextField(
+                        controller: _otpController,
+                        label: l10n.authOtpLabel,
+                        prefixIcon: Icons.pin_outlined,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.go,
+                        autofocus: true,
+                        enabled: !_busy,
+                        validator: Validators.required(l10n),
+                        onSubmitted: (_) => _busy ? null : _verifyOtp(),
+                      ),
+                    ],
+                    if (!otpStep && auth.password) ...[
                       AppTextField(
                         controller: _emailController,
                         label: l10n.authEmailLabel,
@@ -170,7 +259,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ?.copyWith(color: theme.colorScheme.error),
                       ),
                     ],
-                    if (auth.password) ...[
+                    if (otpStep) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      PrimaryButton(
+                        label: l10n.authOtpVerifyAction,
+                        isLoading: _busy,
+                        onPressed: _verifyOtp,
+                      ),
+                    ] else if (auth.password) ...[
                       const SizedBox(height: AppSpacing.lg),
                       PrimaryButton(
                         label: l10n.authSignInAction,
@@ -179,7 +275,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ],
                     // Only offered when the server can actually send the email.
-                    if (auth.passwordReset) ...[
+                    if (!otpStep && auth.passwordReset) ...[
                       const SizedBox(height: AppSpacing.xs),
                       TextButton(
                         onPressed: _busy ? null : _requestReset,

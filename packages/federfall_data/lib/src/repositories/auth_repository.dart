@@ -16,7 +16,27 @@ abstract interface class AuthRepository {
   Stream<AppUser?> get changes;
 
   /// Signs in with email + password, returning the authenticated user.
+  ///
+  /// When the account has MFA enabled the password is only the first factor:
+  /// PocketBase withholds the token and this throws [MfaRequiredException]
+  /// carrying an `mfaId`. Complete the login with [requestOtp] + [authWithOtp].
   Future<AppUser> signIn(String email, String password);
+
+  /// Sends a one-time password to [email] (the MFA second factor) and returns
+  /// the `otpId` to pair with the emailed code in [authWithOtp].
+  Future<String> requestOtp(String email);
+
+  /// Completes an MFA login with the emailed [code]: [otpId] from [requestOtp]
+  /// and [mfaId] from the [MfaRequiredException] thrown by [signIn].
+  Future<AppUser> authWithOtp({
+    required String otpId,
+    required String code,
+    required String mfaId,
+  });
+
+  /// Toggles MFA (email-OTP second factor) for the signed-in user, refreshing
+  /// the session so [currentUser]/[changes] reflect it immediately.
+  Future<AppUser> setMfaEnabled({required bool enabled});
 
   /// Refreshes the session token; returns the user, or `null` if it could not
   /// be refreshed (e.g. expired/revoked).
@@ -47,6 +67,16 @@ abstract interface class AuthRepository {
   Future<void> confirmPasswordReset(String token, String password);
 }
 
+/// Thrown by [AuthRepository.signIn] when the password was correct but the
+/// account has MFA enabled, so a second factor is still required. Carries the
+/// [mfaId] that links the password step to the OTP step.
+class MfaRequiredException implements Exception {
+  const MfaRequiredException(this.mfaId);
+
+  /// PocketBase's identifier for this in-progress MFA attempt.
+  final String mfaId;
+}
+
 /// PocketBase-backed [AuthRepository].
 class PbAuthRepository implements AuthRepository {
   PbAuthRepository(this.pb);
@@ -74,6 +104,59 @@ class PbAuthRepository implements AuthRepository {
     try {
       final auth = await _users.authWithPassword(email, password);
       return AppUser.fromRecord(auth.record);
+    } on ClientException catch (e) {
+      // A correct password on an MFA account returns 401 with an mfaId rather
+      // than a token: surface that as a distinct control-flow signal.
+      final mfaId = e.response['mfaId'];
+      if (mfaId is String && mfaId.isNotEmpty) {
+        throw MfaRequiredException(mfaId);
+      }
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<String> requestOtp(String email) async {
+    try {
+      final res = await _users.requestOTP(email);
+      return res.otpId;
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<AppUser> authWithOtp({
+    required String otpId,
+    required String code,
+    required String mfaId,
+  }) async {
+    try {
+      // The mfaId links this OTP (second factor) to the earlier password step.
+      final auth = await _users.authWithOTP(
+        otpId,
+        code,
+        body: {'mfaId': mfaId},
+      );
+      return AppUser.fromRecord(auth.record);
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<AppUser> setMfaEnabled({required bool enabled}) async {
+    final record = pb.authStore.record;
+    if (record == null) {
+      throw const RepositoryException('not signed in');
+    }
+    try {
+      final updated = await _users.update(
+        record.id,
+        body: {'mfa_enabled': enabled},
+      );
+      pb.authStore.save(pb.authStore.token, updated);
+      return AppUser.fromRecord(updated);
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
     }

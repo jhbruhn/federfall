@@ -21,6 +21,7 @@ abstract class AppUser with _$AppUser {
     String? invitedBy,
     String? phone,
     @Default(false) bool verified,
+    @Default(false) bool mfaEnabled,
     DateTime? created,
     DateTime? updated,
   }) = _AppUser;
@@ -37,6 +38,7 @@ abstract class AppUser with _$AppUser {
       invitedBy: pbString(d['invited_by']),
       phone: pbString(d['phone']),
       verified: pbBool(d['verified']),
+      mfaEnabled: pbBool(d['mfa_enabled']),
       created: pbDate(d['created']),
       updated: pbDate(d['updated']),
     );

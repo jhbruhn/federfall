@@ -15,12 +15,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FakeAuthRepository implements AuthRepository {
-  FakeAuthRepository({this.onSignIn});
+  FakeAuthRepository({this.onSignIn, this.onRequestOtp, this.onAuthWithOtp});
 
   final Future<AppUser> Function(String email, String password)? onSignIn;
+  final Future<String> Function(String email)? onRequestOtp;
+  final Future<AppUser> Function(String otpId, String code, String mfaId)?
+      onAuthWithOtp;
 
   String? lastEmail;
   String? lastPassword;
+  String? lastOtpCode;
   final _changes = StreamController<AppUser?>.broadcast();
 
   @override
@@ -62,6 +66,25 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> confirmPasswordReset(String token, String password) async {}
+
+  @override
+  Future<String> requestOtp(String email) async =>
+      onRequestOtp != null ? onRequestOtp!(email) : 'otp1';
+
+  @override
+  Future<AppUser> authWithOtp({
+    required String otpId,
+    required String code,
+    required String mfaId,
+  }) async {
+    lastOtpCode = code;
+    if (onAuthWithOtp != null) return onAuthWithOtp!(otpId, code, mfaId);
+    return const AppUser(id: 'u1', email: 'staff@example.org');
+  }
+
+  @override
+  Future<AppUser> setMfaEnabled({required bool enabled}) async =>
+      throw UnimplementedError();
 }
 
 Future<ProviderContainer> _pump(
@@ -133,6 +156,63 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Email or password is incorrect.'), findsOneWidget);
+  });
+
+  testWidgets('MFA: password step asks for the one-time code, then completes',
+      (tester) async {
+    final repo = FakeAuthRepository(
+      onSignIn: (_, _) async => throw const MfaRequiredException('mfa-123'),
+      onAuthWithOtp: (otpId, code, mfaId) async {
+        expect(otpId, 'otp1');
+        expect(mfaId, 'mfa-123');
+        return const AppUser(id: 'u1', email: 'staff@example.org');
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'staff@example.org',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 's3cret');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    // The form has switched to the OTP step.
+    expect(find.text('Enter the code'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).first, '12345678');
+    await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(repo.lastOtpCode, '12345678');
+  });
+
+  testWidgets('MFA: a wrong code shows the invalid-code error', (tester) async {
+    final repo = FakeAuthRepository(
+      onSignIn: (_, _) async => throw const MfaRequiredException('mfa-123'),
+      onAuthWithOtp: (_, _, _) async => throw const RepositoryException(
+        'bad',
+        kind: RepositoryErrorKind.validation,
+        statusCode: 400,
+      ),
+    );
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'staff@example.org',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 's3cret');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).first, '00000000');
+    await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('That code is incorrect or has expired.'), findsOneWidget);
   });
 
   testWidgets('shows the offline error on a network failure', (tester) async {
