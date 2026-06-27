@@ -190,7 +190,7 @@ The full set of per-provider variables:
 | `FEDERFALL_OAUTH2_<NAME>_USERINFO_URL` | OIDC | Userinfo endpoint |
 | `FEDERFALL_OAUTH2_<NAME>_PKCE` | OIDC | `"true"` or `"false"` |
 
-The redirect/callback URL to register with your provider is `<your app URL>/api/oauth2-redirect`. After the provider sends the user back there, PocketBase hands control to the app so it lands signed in — on the web that is your instance's own origin, and the mobile apps complete the flow through their registered redirect and reopen automatically. Register that callback URL with every provider; if the provider also asks for allowed origins or post-login redirects, add your app URL there too.
+The one URL to register with your provider is the redirect/callback `<your app URL>/api/oauth2-redirect`. You don't need to register anything app-specific beyond that: when someone taps a provider button the app opens the provider in a browser, and after the user approves, the provider returns to that callback on your own server, which hands the result back to the waiting app over its realtime connection. The app then lands signed in on its own — on web in the same tab, on mobile back in the app — with no custom URL scheme or deep-link setup on your side. If the provider also asks for allowed origins, add your app URL there too.
 
 When `FEDERFALL_OAUTH2_PROVIDERS` is set, the environment is the source of truth and is re-applied on every start. If you would rather not keep the credentials in the compose file, leave it unset and register providers in the admin dashboard instead, under the `users` collection's auth settings. Either way, once a provider is registered it becomes a sign-in option.
 

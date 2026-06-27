@@ -85,6 +85,21 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<AppUser> setMfaEnabled({required bool enabled}) async =>
       throw UnimplementedError();
+
+  List<OAuthProvider> providers = const [];
+  String? oauthProviderUsed;
+
+  @override
+  Future<List<OAuthProvider>> oauthProviders() async => providers;
+
+  @override
+  Future<AppUser> signInWithOAuth2(
+    String provider,
+    Future<void> Function(Uri url) openUrl,
+  ) async {
+    oauthProviderUsed = provider;
+    return const AppUser(id: 'u1', email: 'staff@example.org');
+  }
 }
 
 Future<ProviderContainer> _pump(
@@ -294,6 +309,53 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Forgot password?'), findsNothing);
+  });
+
+  testWidgets('renders a provider button and signs in via OAuth2',
+      (tester) async {
+    final repo = FakeAuthRepository()
+      ..providers = const [
+        OAuthProvider(name: 'google', displayName: 'Google'),
+      ];
+    await _pump(
+      tester,
+      repo,
+      info: const ServerInfo(
+        version: '1.0.0',
+        name: 'Federfall',
+        auth: ServerAuthOptions(oauth2: ['google']),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Continue with Google'), findsOneWidget);
+    await tester.tap(find.text('Continue with Google'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(repo.oauthProviderUsed, 'google');
+  });
+
+  testWidgets('passwordless server shows only the provider button',
+      (tester) async {
+    final repo = FakeAuthRepository()
+      ..providers = const [
+        OAuthProvider(name: 'oidc', displayName: 'Single sign-on'),
+      ];
+    await _pump(
+      tester,
+      repo,
+      info: const ServerInfo(
+        version: '1.0.0',
+        name: 'Federfall',
+        auth: ServerAuthOptions(password: false, oauth2: ['oidc']),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // No password sign-in, just the provider button.
+    expect(find.widgetWithText(FilledButton, 'Sign in'), findsNothing);
+    expect(find.text('Continue with Single sign-on'), findsOneWidget);
   });
 
   testWidgets('switch server clears the configured URL back to setup',

@@ -2,12 +2,14 @@ import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/auth/oauth_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Email + password sign-in against the configured server (FED-3.1).
 ///
@@ -97,6 +99,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _busy = false;
         _error = l10n.errorGenericTitle;
+      });
+    }
+  }
+
+  Future<void> _signInWithProvider(OAuthProvider provider) async {
+    final l10n = context.l10n;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final repo = await ref.read(authRepositoryProvider.future);
+      // Opens the provider URL externally; the flow completes over PocketBase's
+      // realtime channel and the auth-store change drives the router gate (to
+      // /home, or /pending for a freshly self-registered guest).
+      await repo.signInWithOAuth2(
+        provider.name,
+        (url) => launchUrl(url, mode: LaunchMode.externalApplication),
+      );
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = l10n.authOauthFailed;
       });
     }
   }
@@ -282,6 +308,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: Text(l10n.authResetLinkAction),
                       ),
                     ],
+                    // OAuth2: one button per configured provider. Shown outside
+                    // the OTP step; the divider appears only when password
+                    // sign-in is also on (else these are the only options).
+                    if (!otpStep && auth.oauth2.isNotEmpty) ...[
+                      if (auth.password) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        _OrDivider(label: l10n.authOrSeparator),
+                      ],
+                      ..._oauthButtons(),
+                    ],
                     // Native only: web is pinned to its serving origin, so
                     // there is no server to switch.
                     if (!kIsWeb) ...[
@@ -298,6 +334,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// One sign-in button per configured OAuth2 provider. The provider list loads
+  /// asynchronously; while it resolves (or if it fails) nothing is shown — the
+  /// server has already told us providers exist via serverInfo, so this only
+  /// fills in their labels.
+  List<Widget> _oauthButtons() {
+    final l10n = context.l10n;
+    final providers = ref.watch(oauthProvidersProvider).value ?? const [];
+    return [
+      for (final p in providers) ...[
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : () => _signInWithProvider(p),
+          icon: const Icon(Icons.login),
+          label: Text(l10n.authContinueWith(p.displayName)),
+        ),
+      ],
+    ];
+  }
+}
+
+/// A horizontal rule with a centered label ("or"), separating password sign-in
+/// from the OAuth2 provider buttons.
+class _OrDivider extends StatelessWidget {
+  const _OrDivider({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        const Expanded(child: Divider()),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const Expanded(child: Divider()),
+      ],
     );
   }
 }

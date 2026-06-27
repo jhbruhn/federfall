@@ -10,6 +10,10 @@ abstract final class AppRoutes {
   /// Sign-in screen (FED-3.1).
   static const login = '/login';
 
+  /// Awaiting-access screen for self-registered guests, shown until a
+  /// supervisor grants them a role (federfall-49l.3 / pj3).
+  static const pending = '/pending';
+
   /// Dashboard tab of the navigation shell (FED-7.0 / FED-7.1).
   static const dashboard = '/dashboard';
 

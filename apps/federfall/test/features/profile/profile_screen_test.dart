@@ -74,6 +74,15 @@ class FakeAuthRepository implements AuthRepository {
     final u = currentUser!;
     return AppUser(id: u.id, email: u.email, mfaEnabled: enabled);
   }
+
+  @override
+  Future<List<OAuthProvider>> oauthProviders() async => const [];
+
+  @override
+  Future<AppUser> signInWithOAuth2(
+    String provider,
+    Future<void> Function(Uri url) openUrl,
+  ) async => throw UnimplementedError();
 }
 
 Future<void> _pump(WidgetTester tester, FakeAuthRepository repo,

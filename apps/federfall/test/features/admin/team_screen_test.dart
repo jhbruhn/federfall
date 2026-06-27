@@ -62,6 +62,15 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<AppUser> setMfaEnabled({required bool enabled}) async =>
       throw UnimplementedError();
+
+  @override
+  Future<List<OAuthProvider>> oauthProviders() async => const [];
+
+  @override
+  Future<AppUser> signInWithOAuth2(
+    String provider,
+    Future<void> Function(Uri url) openUrl,
+  ) async => throw UnimplementedError();
 }
 
 Future<void> _pump(

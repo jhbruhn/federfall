@@ -22,6 +22,18 @@ abstract interface class AuthRepository {
   /// carrying an `mfaId`. Complete the login with [requestOtp] + [authWithOtp].
   Future<AppUser> signIn(String email, String password);
 
+  /// The OAuth2 providers the server offers, in the order to present them.
+  Future<List<OAuthProvider>> oauthProviders();
+
+  /// Signs in via the OAuth2 [provider]. [openUrl] receives the provider's
+  /// authorization URL — the caller opens it (a browser tab / external app); the
+  /// flow then completes over PocketBase's realtime channel and the auth store
+  /// is updated, so no app-side deep-link wiring is needed.
+  Future<AppUser> signInWithOAuth2(
+    String provider,
+    Future<void> Function(Uri url) openUrl,
+  );
+
   /// Sends a one-time password to [email] (the MFA second factor) and returns
   /// the `otpId` to pair with the emailed code in [authWithOtp].
   Future<String> requestOtp(String email);
@@ -77,6 +89,19 @@ class MfaRequiredException implements Exception {
   final String mfaId;
 }
 
+/// An OAuth2 provider the server offers, for rendering a sign-in button.
+class OAuthProvider {
+  const OAuthProvider({required this.name, required this.displayName});
+
+  /// The PocketBase provider name (e.g. `google`, `oidc`) — pass to
+  /// [AuthRepository.signInWithOAuth2].
+  final String name;
+
+  /// The human label for the button (e.g. `Google`, or the configured OIDC
+  /// display name); falls back to [name] when the server gives none.
+  final String displayName;
+}
+
 /// PocketBase-backed [AuthRepository].
 class PbAuthRepository implements AuthRepository {
   PbAuthRepository(this.pb);
@@ -111,6 +136,39 @@ class PbAuthRepository implements AuthRepository {
       if (mfaId is String && mfaId.isNotEmpty) {
         throw MfaRequiredException(mfaId);
       }
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<List<OAuthProvider>> oauthProviders() async {
+    try {
+      final methods = await _users.listAuthMethods();
+      return methods.oauth2.providers
+          .map(
+            (p) => OAuthProvider(
+              name: p.name,
+              displayName: p.displayName.isNotEmpty ? p.displayName : p.name,
+            ),
+          )
+          .toList(growable: false);
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<AppUser> signInWithOAuth2(
+    String provider,
+    Future<void> Function(Uri url) openUrl,
+  ) async {
+    try {
+      final auth = await _users.authWithOAuth2(
+        provider,
+        (url) => openUrl(url),
+      );
+      return AppUser.fromRecord(auth.record);
+    } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
     }
   }

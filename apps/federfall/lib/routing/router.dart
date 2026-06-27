@@ -1,4 +1,6 @@
 import 'package:federfall/core/auth/auth_status.dart';
+import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
@@ -10,6 +12,7 @@ import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
+import 'package:federfall/features/auth/pending_approval_screen.dart';
 import 'package:federfall/features/aviaries/aviaries_screen.dart';
 import 'package:federfall/features/aviaries/aviary_detail_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
@@ -51,6 +54,7 @@ GoRouter router(Ref ref) {
     ..listen(serverConfigControllerProvider, (_, _) => refresh.value++)
     ..listen(serverInfoProvider, (_, _) => refresh.value++)
     ..listen(authStatusProvider, (_, _) => refresh.value++)
+    ..listen(currentUserProvider, (_, _) => refresh.value++)
     ..onDispose(refresh.dispose);
 
   // Create routes (and the transient browser) live on the root navigator so
@@ -81,6 +85,10 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: AppRoutes.login,
         builder: (_, _) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.pending,
+        builder: (_, _) => const PendingApprovalScreen(),
       ),
       // Adaptive top-level navigation shell (FED-7.0): Dashboard, Cases,
       // Animals. Each destination is a branch so its state survives switching.
@@ -298,8 +306,24 @@ String? _gate(Ref ref, String location) {
     return location == AppRoutes.login ? null : AppRoutes.login;
   }
 
-  // Authenticated: bounce away from the gate-only routes and the bare root
-  // (the old home path, now unmatched) onto the default landing destination.
-  const gateRoutes = {AppRoutes.splash, AppRoutes.login, AppRoutes.setup, '/'};
+  // Authenticated: a self-registered guest has no role yet and is walled off
+  // server-side, so keep them on the pending screen until they are promoted.
+  final userAsync = ref.read(currentUserProvider);
+  if (!userAsync.hasValue) {
+    return location == AppRoutes.splash ? null : AppRoutes.splash;
+  }
+  if (isGuest(userAsync.value?.role)) {
+    return location == AppRoutes.pending ? null : AppRoutes.pending;
+  }
+
+  // Authenticated with a real role: bounce away from the gate-only routes and
+  // the bare root (the old home path, now unmatched) onto the default landing.
+  const gateRoutes = {
+    AppRoutes.splash,
+    AppRoutes.login,
+    AppRoutes.setup,
+    AppRoutes.pending,
+    '/',
+  };
   return gateRoutes.contains(location) ? AppRoutes.home : null;
 }

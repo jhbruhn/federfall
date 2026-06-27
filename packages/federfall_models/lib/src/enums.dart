@@ -8,7 +8,12 @@ import 'package:federfall_models/src/converters.dart';
 enum UserRole {
   carer('carer'),
   coordinator('coordinator'),
-  supervisor('supervisor');
+  supervisor('supervisor'),
+
+  /// A self-registered (OAuth2) account that has not yet been granted a real
+  /// role. Guests can authenticate but the API access rules wall them off from
+  /// all data until a supervisor promotes them.
+  guest('guest');
 
   const UserRole(this.wire);
 

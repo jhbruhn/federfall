@@ -38,9 +38,15 @@ bool canViewReports(UserRole? role) =>
 bool canManageAviaries(UserRole? role) =>
     role == UserRole.coordinator || role == UserRole.supervisor;
 
+/// Whether [role] is a not-yet-provisioned guest (self-registered via OAuth2,
+/// awaiting a supervisor's promotion). Such users are routed to the pending
+/// screen rather than the app shell, and walled off server-side regardless.
+bool isGuest(UserRole? role) => role == UserRole.guest;
+
 /// Localized display name for a staff role (same pattern as the case labels).
 String userRoleLabel(AppLocalizations l10n, UserRole role) => switch (role) {
   UserRole.carer => l10n.userRoleCarer,
   UserRole.coordinator => l10n.userRoleCoordinator,
   UserRole.supervisor => l10n.userRoleSupervisor,
+  UserRole.guest => l10n.userRoleGuest,
 };
