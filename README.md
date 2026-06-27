@@ -4,10 +4,10 @@ Federfall is a case-management app for a feral-pigeon rehabilitation association
 When the association takes in an injured or orphaned pigeon there is a fair amount to keep track of: where the bird was found, its weight and condition over time, treatments and medication, markings so it can be recognised again, handoffs between carers, and how the case ends — released back to the wild or placed in an aviary.
 Federfall keeps all of that in one place.
 
-It is meant to be self-hosted and has no Big-Tech dependencies.
+It is meant to be self-hosted.
 The app is written in Flutter and runs on the web, Android and iOS.
 The backend is [PocketBase](https://pocketbase.io) — a single Go binary with a SQLite database — and the whole thing runs as one Docker container.
-Maps and address lookup use OpenStreetMap rather than Google.
+Maps and address lookup use OpenStreetMap.
 
 ## Repository layout
 
