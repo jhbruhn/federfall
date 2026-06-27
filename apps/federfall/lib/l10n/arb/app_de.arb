@@ -114,6 +114,7 @@
     "todayTitle": "Heute",
     "worklistEmpty": "Nichts zu erledigen – alles im Griff.",
     "worklistSeeAll": "Alle anzeigen",
+    "worklistDueCount": "{count, plural, =1{1 Aufgabe fällig} other{{count} Aufgaben fällig}}",
     "worklistGroupMeds": "Fällige Medikamente",
     "worklistGroupFollowUps": "Fällige Nachkontrollen",
     "worklistGroupQuarantine": "Quarantäne endet",

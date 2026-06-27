@@ -1,8 +1,11 @@
 import 'package:federfall/core/connectivity/offline_banner.dart';
+import 'package:federfall/features/cases/cases_browser.dart';
+import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Adaptive top-level navigation shell (FED-7.0).
@@ -18,20 +21,33 @@ import 'package:go_router/go_router.dart';
 /// open (see [isDetailLocation]) so a phone detail stays full-screen — the
 /// detail now resolves inside the shell to enable the two-pane layouts that
 /// the wider widths use.
-class NavShell extends StatelessWidget {
+class NavShell extends ConsumerWidget {
   const NavShell({required this.navigationShell, super.key});
 
   /// The branch navigator state provided by [StatefulShellRoute].
   final StatefulNavigationShell navigationShell;
 
-  void _go(int index) => navigationShell.goBranch(
-    index,
-    // Re-tapping the active tab returns it to its initial route.
-    initialLocation: index == navigationShell.currentIndex,
-  );
+  /// Branch index of the Cases tab (order matches the shell's branches:
+  /// dashboard, cases, animals, aviaries).
+  static const _casesBranch = 1;
+
+  void _go(WidgetRef ref, int index) {
+    // Entering the Cases tab from the nav menu always gives a clean default
+    // view: queue the default filter so any filter a KPI deep-link applied (or
+    // one set by hand) is reset. A KPI tap navigates directly (not via here),
+    // so its own queued filter is unaffected.
+    if (index == _casesBranch) {
+      ref.read(pendingCaseQueryProvider.notifier).queue(const CaseQuery());
+    }
+    navigationShell.goBranch(
+      index,
+      // Re-tapping the active tab returns it to its initial route.
+      initialLocation: index == navigationShell.currentIndex,
+    );
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final destinations = [
       (
@@ -65,7 +81,7 @@ class NavShell extends StatelessWidget {
             NavigationRail(
               extended: extended,
               selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: _go,
+              onDestinationSelected: (i) => _go(ref, i),
               labelType: extended
                   ? NavigationRailLabelType.none
                   : NavigationRailLabelType.all,
@@ -121,7 +137,7 @@ class NavShell extends StatelessWidget {
       bottomNavigationBar: showBottomBar
           ? NavigationBar(
               selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: _go,
+              onDestinationSelected: (i) => _go(ref, i),
               destinations: [
                 for (final d in destinations)
                   NavigationDestination(

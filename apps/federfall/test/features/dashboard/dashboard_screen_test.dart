@@ -74,7 +74,9 @@ void main() {
     expect(find.byIcon(Icons.chevron_right), findsNWidgets(4));
   });
 
-  testWidgets('narrow screens hide the empty Today preview', (tester) async {
+  testWidgets('narrow screens lead with the all-caught-up Today card', (
+    tester,
+  ) async {
     await _pump(
       tester,
       const DashboardSummary(
@@ -85,9 +87,10 @@ void main() {
       ),
     );
 
-    // With nothing due, the single-column phone layout adds no Today chrome.
+    // Today always leads (federfall-6ds): even with nothing due the phone
+    // layout shows the compact "all caught up" card above the caseload.
     expect(find.text('Caseload'), findsOneWidget);
-    expect(find.text("Nothing due — you're all caught up."), findsNothing);
+    expect(find.text("Nothing due — you're all caught up."), findsOneWidget);
   });
 
   testWidgets('wide screens show Today beside the caseload', (tester) async {

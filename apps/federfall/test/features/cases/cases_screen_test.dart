@@ -1,11 +1,23 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
+import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Seeds [pendingCaseQueryProvider] with a value, as if a dashboard KPI had
+/// queued a filter before switching to the Cases tab.
+class _SeededPending extends PendingCaseQuery {
+  _SeededPending(this._initial);
+
+  final CaseQuery? _initial;
+
+  @override
+  CaseQuery? build() => _initial;
+}
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -14,6 +26,7 @@ Future<void> _pump(
   String myUserId = 'me',
   AppUser? user,
   CaseQuery? initialQuery,
+  CaseQuery? pending,
 }) async {
   // Compact width so the account menu sits in the app bar (on wider widths it
   // moves to the navigation rail, which this standalone screen has no shell to
@@ -34,6 +47,7 @@ Future<void> _pump(
           ),
         ),
         currentUserProvider.overrideWith((ref) async => user),
+        pendingCaseQueryProvider.overrideWith(() => _SeededPending(pending)),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
@@ -67,6 +81,26 @@ void main() {
         ),
       ],
       initialQuery: const CaseQuery(allScope: true),
+    );
+
+    expect(find.text('2026-099'), findsOneWidget);
+  });
+
+  testWidgets('applies a pending KPI filter on mount', (tester) async {
+    await _pump(
+      tester,
+      // Another carer's case: hidden under the default "mine" scope, revealed
+      // by the pending scope=all filter a dashboard KPI queued.
+      cases: const [
+        Case(
+          id: 'c1',
+          animal: 'a1',
+          caseNumber: '2026-099',
+          activeCarer: 'other',
+          status: CaseStatus.inCare,
+        ),
+      ],
+      pending: const CaseQuery(allScope: true),
     );
 
     expect(find.text('2026-099'), findsOneWidget);

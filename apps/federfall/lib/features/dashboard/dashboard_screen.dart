@@ -1,6 +1,8 @@
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
+import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
@@ -71,7 +73,14 @@ class DashboardScreen extends ConsumerWidget {
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [const _WorklistPreview(), caseload],
+                  // Today always leads — even when nothing is due it shows a
+                  // compact "all caught up" card, so the actionable section is
+                  // the consistent lead and the caseload reads as reference
+                  // below it (federfall-6ds).
+                  children: [
+                    const _WorklistPreview(showEmptyState: true),
+                    caseload,
+                  ],
                 );
 
           return RefreshIndicator(
@@ -121,8 +130,11 @@ class _WorklistPreview extends ConsumerWidget {
               return Card(
                 margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                 child: ListTile(
-                  leading: const Icon(Icons.check_circle_outline),
-                  title: Text(l10n.todayTitle),
+                  leading: const _IconChip(Icons.check_circle_outline),
+                  title: Text(
+                    l10n.todayTitle,
+                    style: theme.textTheme.titleMedium,
+                  ),
                   subtitle: Text(l10n.worklistEmpty),
                 ),
               );
@@ -133,10 +145,12 @@ class _WorklistPreview extends ConsumerWidget {
               child: Column(
                 children: [
                   ListTile(
+                    leading: const _IconChip(Icons.today_outlined),
                     title: Text(
                       l10n.todayTitle,
                       style: theme.textTheme.titleMedium,
                     ),
+                    subtitle: Text(l10n.worklistDueCount(list.length)),
                     trailing: TextButton(
                       onPressed: () => context.push(AppRoutes.today),
                       child: Text(l10n.worklistSeeAll),
@@ -144,6 +158,7 @@ class _WorklistPreview extends ConsumerWidget {
                   ),
                   for (final item in list.take(_previewMax))
                     WorklistTile(item: item, now: now),
+                  const SizedBox(height: AppSpacing.xs),
                 ],
               ),
             );
@@ -153,8 +168,9 @@ class _WorklistPreview extends ConsumerWidget {
   }
 }
 
-/// The caseload KPI grid: a 2-column grid of tappable metric tiles. Each tile
-/// deep-links to the matching pre-filtered case browser, or the aviaries list.
+/// The caseload KPI grid: a 2-column grid of tappable metric tiles. Each case
+/// tile jumps to the Cases tab with its filter applied; the aviary tile
+/// switches to the Aviaries tab.
 class _KpiGrid extends StatelessWidget {
   const _KpiGrid(this.summary);
 
@@ -165,35 +181,43 @@ class _KpiGrid extends StatelessWidget {
     final l10n = context.l10n;
     final year = DateTime.now().year;
     final ready = summary.byStatus[CaseStatus.readyForRelease] ?? 0;
-    final readyWire = CaseStatus.readyForRelease.wire;
 
     final tiles = <_Kpi>[
       _Kpi(
         icon: Icons.medical_information_outlined,
         label: l10n.dashboardActiveCases,
         value: summary.activeCount,
-        route: AppRoutes.casesBrowse('scope=all&activity=active'),
+        query: const CaseQuery(allScope: true),
       ),
       _Kpi(
         icon: Icons.input_outlined,
         label: l10n.dashboardIntakesThisYear,
         value: summary.intakesThisYear,
-        route: AppRoutes.casesBrowse('scope=all&activity=all&year=$year'),
+        query: CaseQuery(
+          allScope: true,
+          activity: CaseActivity.all,
+          admittedRange: DateTimeRange(
+            start: DateTime(year),
+            end: DateTime(year, 12, 31),
+          ),
+        ),
       ),
       _Kpi(
         icon: Icons.task_alt_outlined,
         label: caseStatusLabel(l10n, CaseStatus.readyForRelease),
         value: ready,
-        route: AppRoutes.casesBrowse('scope=all&status=$readyWire'),
+        query: const CaseQuery(
+          allScope: true,
+          status: CaseStatus.readyForRelease,
+        ),
       ),
-      // The aviary tile switches to the Aviaries tab rather than a filtered
-      // case list, so it navigates (go) instead of pushing a transient view.
+      // The aviary tile switches to the Aviaries tab rather than filtering the
+      // case list.
       _Kpi(
         icon: Icons.holiday_village_outlined,
         label: l10n.dashboardInAviary,
         value: summary.inAviaryCount,
         route: AppRoutes.aviaries,
-        push: false,
       ),
     ];
 
@@ -213,40 +237,56 @@ class _KpiGrid extends StatelessWidget {
   }
 }
 
-/// Data for one KPI tile.
+/// Data for one KPI tile. Exactly one of [query] (jump to the Cases tab with a
+/// filter) or [route] (switch to another tab) is set.
 class _Kpi {
   const _Kpi({
     required this.icon,
     required this.label,
     required this.value,
-    required this.route,
-    this.push = true,
-  });
+    this.query,
+    this.route,
+  }) : assert(
+         (query == null) != (route == null),
+         'a KPI needs exactly one of query / route',
+       );
 
   final IconData icon;
   final String label;
   final int value;
-  final String route;
 
-  /// Push a transient screen over the shell (filtered case browser) vs. switch
-  /// to a top-level tab (the aviaries list).
-  final bool push;
+  /// Filter to apply on the Cases tab. The tap seeds [pendingCaseQueryProvider]
+  /// and switches to the tab — staying inside the shell rather than pushing a
+  /// full-screen browser over it.
+  final CaseQuery? query;
+
+  /// A top-level tab route to switch to instead (the aviaries tile).
+  final String? route;
 }
 
-class _KpiCard extends StatelessWidget {
+class _KpiCard extends ConsumerWidget {
   const _KpiCard(this.kpi);
 
   final _Kpi kpi;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () =>
-            kpi.push ? context.push(kpi.route) : context.go(kpi.route),
+        onTap: () {
+          final query = kpi.query;
+          if (query != null) {
+            // Seed the Cases tab's filter, then switch to it (go, not push) so
+            // the bottom nav stays and we don't open a full-screen browser.
+            ref.read(pendingCaseQueryProvider.notifier).queue(query);
+            context.go(AppRoutes.cases);
+          } else {
+            context.go(kpi.route!);
+          }
+        },
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
@@ -254,14 +294,7 @@ class _KpiCard extends StatelessWidget {
             children: [
               // Icon seated in a soft tonal square: gives the grid a colour
               // rhythm and echoes the empty-state disc language.
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: colors.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(kpi.icon, color: colors.onPrimaryContainer),
-              ),
+              _IconChip(kpi.icon),
               const SizedBox(height: AppSpacing.md),
               // The metric is the hero: large, semibold, tabular figures so
               // stacked tiles align digit-for-digit and don't reflow.
@@ -297,6 +330,27 @@ class _KpiCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A small icon in a soft tonal square — the shared "section icon" language
+/// used by the KPI tiles and the Today card (and echoing the empty-state disc).
+class _IconChip extends StatelessWidget {
+  const _IconChip(this.icon);
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: colors.primaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, color: colors.onPrimaryContainer),
     );
   }
 }

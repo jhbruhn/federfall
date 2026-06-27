@@ -4,6 +4,7 @@ import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
@@ -34,12 +35,36 @@ class CasesScreen extends ConsumerStatefulWidget {
 
 class _CasesScreenState extends ConsumerState<CasesScreen> {
   final _searchController = TextEditingController();
-  late CaseQuery _query = widget.initialQuery ?? const CaseQuery();
+  late CaseQuery _query;
 
   @override
   void initState() {
     super.initState();
+    // A dashboard KPI (or the nav menu) hands a filter off via the
+    // pending-query provider when switching to this tab (the tab's state
+    // survives, so a route query can't re-seed a live screen). Consume it once
+    // on mount; it wins over the (deep-link) initialQuery and the default.
+    // Providers can't be modified during initState, so clear after first frame.
+    final pending = ref.read(pendingCaseQueryProvider);
+    _query = pending ?? widget.initialQuery ?? const CaseQuery();
     _searchController.text = _query.text;
+    if (pending != null) _clearPendingAfterFrame();
+  }
+
+  /// Apply a filter handed in via [pendingCaseQueryProvider] while this screen
+  /// is already alive (the cases tab was visited before), then clear it.
+  void _applyPending(CaseQuery query) {
+    _searchController.text = query.text;
+    _update(query);
+    _clearPendingAfterFrame();
+  }
+
+  /// Clear the pending filter once consumed — deferred so it never mutates the
+  /// provider during a build / listener pass.
+  void _clearPendingAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(pendingCaseQueryProvider.notifier).clear();
+    });
   }
 
   @override
@@ -70,6 +95,10 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    // If a KPI sets a pending filter while this tab is already alive, apply it.
+    ref.listen(pendingCaseQueryProvider, (_, next) {
+      if (next != null) _applyPending(next);
+    });
     // The case open in the detail pane (expanded two-pane), so its row reads as
     // selected. Null on compact / when nothing is open.
     final selectedId = selectedDetailId(context);

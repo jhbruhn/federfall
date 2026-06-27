@@ -280,6 +280,11 @@
     "@worklistEmpty": { "description": "Empty state when the carer has no worklist items" },
     "worklistSeeAll": "See all",
     "@worklistSeeAll": { "description": "Link from the dashboard worklist preview to the full Today screen" },
+    "worklistDueCount": "{count, plural, =1{1 task due} other{{count} tasks due}}",
+    "@worklistDueCount": {
+      "description": "Subtitle on the dashboard Today card: how many worklist items are due",
+      "placeholders": { "count": { "type": "int" } }
+    },
     "worklistGroupMeds": "Medications due",
     "@worklistGroupMeds": { "description": "Worklist group heading for due medications" },
     "worklistGroupFollowUps": "Rechecks due",
