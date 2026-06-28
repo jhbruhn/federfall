@@ -34,8 +34,8 @@ class MemberManagementSheet extends ConsumerStatefulWidget {
       _MemberManagementSheetState();
 }
 
-class _MemberManagementSheetState
-    extends ConsumerState<MemberManagementSheet> {
+class _MemberManagementSheetState extends ConsumerState<MemberManagementSheet>
+    with DiscardGuard {
   late UserRole _role;
   late bool _active;
   bool _busy = false;
@@ -141,92 +141,100 @@ class _MemberManagementSheetState
     final theme = Theme.of(context);
     final disabled = _busy || _isSelf;
 
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: AppSpacing.lg,
-          right: AppSpacing.lg,
-          top: AppSpacing.sm,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(_label(), style: theme.textTheme.titleMedium),
-            Text(
-              widget.member.email,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            if (_isSelf) ...[
-              const SizedBox(height: AppSpacing.md),
+    return guardUnsavedChanges(
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            top: AppSpacing.sm,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(_label(), style: theme.textTheme.titleMedium),
               Text(
-                l10n.memberSelfNote,
+                widget.member.email,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            ],
-            const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<UserRole>(
-              initialValue: _role,
-              decoration: InputDecoration(
-                labelText: l10n.profileRoleLabel,
-                prefixIcon: const Icon(Icons.security_outlined),
-              ),
-              items: [
-                for (final r in UserRole.values)
-                  DropdownMenuItem(
-                    value: r,
-                    child: Text(userRoleLabel(l10n, r)),
+              if (_isSelf) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  l10n.memberSelfNote,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
+                ),
               ],
-              onChanged: disabled
-                  ? null
-                  : (r) => setState(() => _role = r ?? _role),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l10n.memberActiveLabel),
-              value: _active,
-              onChanged: disabled
-                  ? null
-                  : (v) => setState(() => _active = v),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                _error!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<UserRole>(
+                initialValue: _role,
+                decoration: InputDecoration(
+                  labelText: l10n.profileRoleLabel,
+                  prefixIcon: const Icon(Icons.security_outlined),
                 ),
+                items: [
+                  for (final r in UserRole.values)
+                    DropdownMenuItem(
+                      value: r,
+                      child: Text(userRoleLabel(l10n, r)),
+                    ),
+                ],
+                onChanged: disabled
+                    ? null
+                    : (r) {
+                        setState(() => _role = r ?? _role);
+                        markDirty();
+                      },
               ),
-            ],
-            const SizedBox(height: AppSpacing.md),
-            PrimaryButton(
-              label: l10n.actionSave,
-              icon: Icons.check,
-              isLoading: _busy,
-              onPressed: disabled ? null : _save,
-            ),
-            if (!_isSelf) ...[
               const SizedBox(height: AppSpacing.sm),
-              TextButton.icon(
-                onPressed: _busy ? null : _remove,
-                icon: Icon(
-                  Icons.person_remove_outlined,
-                  color: theme.colorScheme.error,
-                ),
-                label: Text(
-                  l10n.memberRemoveAction,
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l10n.memberActiveLabel),
+                value: _active,
+                onChanged: disabled
+                    ? null
+                    : (v) {
+                        setState(() => _active = v);
+                        markDirty();
+                      },
               ),
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              PrimaryButton(
+                label: l10n.actionSave,
+                icon: Icons.check,
+                isLoading: _busy,
+                onPressed: disabled ? null : _save,
+              ),
+              if (!_isSelf) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextButton.icon(
+                  onPressed: _busy ? null : _remove,
+                  icon: Icon(
+                    Icons.person_remove_outlined,
+                    color: theme.colorScheme.error,
+                  ),
+                  label: Text(
+                    l10n.memberRemoveAction,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

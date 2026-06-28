@@ -47,7 +47,7 @@ class MarkingSheet extends ConsumerStatefulWidget {
   ConsumerState<MarkingSheet> createState() => _MarkingSheetState();
 }
 
-class _MarkingSheetState extends ConsumerState<MarkingSheet> {
+class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _code;
   late final TextEditingController _colour;
@@ -90,7 +90,10 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> {
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
-    if (picked != null) setState(() => _appliedAt = picked);
+    if (picked != null) {
+      setState(() => _appliedAt = picked);
+      markDirty();
+    }
   }
 
   Future<void> _save() async {
@@ -153,85 +156,90 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> {
     final theme = Theme.of(context);
     final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.lg + viewInsets,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditing ? l10n.markingEditTitle : l10n.markingNewTitle,
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DropdownButtonFormField<MarkingType>(
-                initialValue: _type,
-                decoration: InputDecoration(
-                  labelText: l10n.markingFieldType,
-                  prefixIcon: const Icon(Icons.sell_outlined),
-                ),
-                items: [
-                  for (final t in MarkingType.values)
-                    DropdownMenuItem(
-                      value: t,
-                      child: Text(markingTypeLabel(l10n, t)),
-                    ),
-                ],
-                onChanged:
-                    _busy ? null : (t) => setState(() => _type = t ?? _type),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _code,
-                label: l10n.markingFieldCode,
-                prefixIcon: Icons.tag,
-                enabled: !_busy,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _colour,
-                label: l10n.markingFieldColour,
-                prefixIcon: Icons.palette_outlined,
-                enabled: !_busy,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _scheme,
-                label: l10n.markingFieldScheme,
-                prefixIcon: Icons.business_outlined,
-                enabled: !_busy,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DateField(
-                label: l10n.markingFieldApplied,
-                value: _appliedAt,
-                enabled: !_busy,
-                onPick: _pickDate,
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
+    return guardUnsavedChanges(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg + viewInsets,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.error),
+                  _isEditing ? l10n.markingEditTitle : l10n.markingNewTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<MarkingType>(
+                  initialValue: _type,
+                  decoration: InputDecoration(
+                    labelText: l10n.markingFieldType,
+                    prefixIcon: const Icon(Icons.sell_outlined),
+                  ),
+                  items: [
+                    for (final t in MarkingType.values)
+                      DropdownMenuItem(
+                        value: t,
+                        child: Text(markingTypeLabel(l10n, t)),
+                      ),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (t) => setState(() => _type = t ?? _type),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _code,
+                  label: l10n.markingFieldCode,
+                  prefixIcon: Icons.tag,
+                  enabled: !_busy,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _colour,
+                  label: l10n.markingFieldColour,
+                  prefixIcon: Icons.palette_outlined,
+                  enabled: !_busy,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _scheme,
+                  label: l10n.markingFieldScheme,
+                  prefixIcon: Icons.business_outlined,
+                  enabled: !_busy,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DateField(
+                  label: l10n.markingFieldApplied,
+                  value: _appliedAt,
+                  enabled: !_busy,
+                  onPick: _pickDate,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: l10n.actionSave,
+                  icon: Icons.check,
+                  isLoading: _busy,
+                  onPressed: _save,
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              PrimaryButton(
-                label: l10n.actionSave,
-                icon: Icons.check,
-                isLoading: _busy,
-                onPressed: _save,
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -607,5 +607,10 @@
     "bodySystemVent": "Kloake",
 
     "findingStatusNormal": "o. B.",
-    "findingStatusAbnormal": "Auffällig"
+    "findingStatusAbnormal": "Auffällig",
+
+    "discardChangesTitle": "Änderungen verwerfen?",
+    "discardChangesMessage": "Deine ungespeicherten Änderungen gehen verloren.",
+    "discardKeepEditing": "Weiter bearbeiten",
+    "discardConfirm": "Verwerfen"
 }

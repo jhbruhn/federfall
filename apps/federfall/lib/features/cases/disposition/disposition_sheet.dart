@@ -54,7 +54,8 @@ class DispositionSheet extends ConsumerStatefulWidget {
   ConsumerState<DispositionSheet> createState() => _DispositionSheetState();
 }
 
-class _DispositionSheetState extends ConsumerState<DispositionSheet> {
+class _DispositionSheetState extends ConsumerState<DispositionSheet>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   final _reason = TextEditingController();
   final _releaseLocation = TextEditingController();
@@ -126,7 +127,10 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
-    if (picked != null) setState(() => _disposedAt = picked);
+    if (picked != null) {
+      setState(() => _disposedAt = picked);
+      markDirty();
+    }
   }
 
   Future<void> _pickReleaseLocation() async {
@@ -140,6 +144,7 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
       _releaseGeo = picked.geo;
       if (picked.address.isNotEmpty) _releaseLocation.text = picked.address;
     });
+    markDirty();
   }
 
   Future<void> _save() async {
@@ -270,166 +275,173 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet> {
     final theme = Theme.of(context);
     final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.lg + viewInsets,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditing
-                    ? l10n.dispositionEditTitle
-                    : l10n.dispositionNewTitle,
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DropdownButtonFormField<DispositionType>(
-                initialValue: _type,
-                decoration: InputDecoration(
-                  labelText: l10n.dispositionFieldType,
-                  prefixIcon: const Icon(Icons.outbound_outlined),
+    return guardUnsavedChanges(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg + viewInsets,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _isEditing
+                      ? l10n.dispositionEditTitle
+                      : l10n.dispositionNewTitle,
+                  style: theme.textTheme.titleLarge,
                 ),
-                items: [
-                  for (final t in DispositionSheet._selectableTypes)
-                    DropdownMenuItem(
-                      value: t,
-                      child: Text(dispositionTypeLabel(l10n, t)),
-                    ),
-                ],
-                onChanged: _busy
-                    ? null
-                    : (t) => setState(() => _type = t ?? _type),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DateField(
-                label: l10n.dispositionFieldDate,
-                value: _disposedAt,
-                enabled: !_busy,
-                onPick: _pickDate,
-              ),
-              if (_isRelease) ...[
                 const SizedBox(height: AppSpacing.md),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        controller: _releaseLocation,
-                        label: l10n.dispositionFieldReleaseLocation,
-                        prefixIcon: Icons.place_outlined,
-                        enabled: !_busy,
+                DropdownButtonFormField<DispositionType>(
+                  initialValue: _type,
+                  decoration: InputDecoration(
+                    labelText: l10n.dispositionFieldType,
+                    prefixIcon: const Icon(Icons.outbound_outlined),
+                  ),
+                  items: [
+                    for (final t in DispositionSheet._selectableTypes)
+                      DropdownMenuItem(
+                        value: t,
+                        child: Text(dispositionTypeLabel(l10n, t)),
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    IconButton.filledTonal(
-                      icon: Icon(
-                        _releaseGeo == null
-                            ? Icons.add_location_alt_outlined
-                            : Icons.edit_location_alt,
-                      ),
-                      tooltip: l10n.locationPickAction,
-                      onPressed: _busy ? null : _pickReleaseLocation,
-                    ),
                   ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _releaseType,
-                  label: l10n.dispositionFieldReleaseType,
-                  hintText: l10n.dispositionReleaseTypeHint,
-                  prefixIcon: Icons.flight_takeoff_outlined,
-                  enabled: !_busy,
-                ),
-              ],
-              if (_isTransfer) ...[
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _transferDestination,
-                  label: l10n.dispositionFieldTransferTo,
-                  prefixIcon: Icons.local_shipping_outlined,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _transferType,
-                  label: l10n.dispositionFieldTransferType,
-                  prefixIcon: Icons.category_outlined,
-                  enabled: !_busy,
-                ),
-              ],
-              if (_isAviary) ...[
-                const SizedBox(height: AppSpacing.md),
-                _AviaryPicker(
-                  value: _aviaryId,
-                  enabled: !_busy,
-                  onChanged: (id) => setState(() => _aviaryId = id),
-                ),
-              ],
-              if (_isEuthanized) ...[
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _vet,
-                  label: l10n.dispositionFieldVet,
-                  prefixIcon: Icons.local_hospital_outlined,
-                  enabled: !_busy,
-                ),
-              ],
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _reason,
-                label: l10n.dispositionFieldReason,
-                prefixIcon: Icons.notes_outlined,
-                enabled: !_busy,
-              ),
-              if (_showVetSignoff) ...[
-                const SizedBox(height: AppSpacing.sm),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.dispositionVetSignedOff),
-                  value: _vetSignedOff,
                   onChanged: _busy
                       ? null
-                      : (v) => setState(() => _vetSignedOff = v),
+                      : (t) => setState(() => _type = t ?? _type),
                 ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.error),
+                const SizedBox(height: AppSpacing.md),
+                DateField(
+                  label: l10n.dispositionFieldDate,
+                  value: _disposedAt,
+                  enabled: !_busy,
+                  onPick: _pickDate,
                 ),
-              ],
-              const SizedBox(height: AppSpacing.lg),
-              PrimaryButton(
-                label: l10n.dispositionSaveAction,
-                icon: Icons.check,
-                isLoading: _busy,
-                onPressed: _save,
-              ),
-              if (_isEditing) ...[
-                const SizedBox(height: AppSpacing.sm),
-                TextButton.icon(
-                  onPressed: _busy ? null : _delete,
-                  icon: Icon(
-                    Icons.delete_outline,
-                    color: theme.colorScheme.error,
+                if (_isRelease) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          controller: _releaseLocation,
+                          label: l10n.dispositionFieldReleaseLocation,
+                          prefixIcon: Icons.place_outlined,
+                          enabled: !_busy,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      IconButton.filledTonal(
+                        icon: Icon(
+                          _releaseGeo == null
+                              ? Icons.add_location_alt_outlined
+                              : Icons.edit_location_alt,
+                        ),
+                        tooltip: l10n.locationPickAction,
+                        onPressed: _busy ? null : _pickReleaseLocation,
+                      ),
+                    ],
                   ),
-                  label: Text(
-                    l10n.dispositionDeleteAction,
-                    style: TextStyle(color: theme.colorScheme.error),
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _releaseType,
+                    label: l10n.dispositionFieldReleaseType,
+                    hintText: l10n.dispositionReleaseTypeHint,
+                    prefixIcon: Icons.flight_takeoff_outlined,
+                    enabled: !_busy,
                   ),
+                ],
+                if (_isTransfer) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _transferDestination,
+                    label: l10n.dispositionFieldTransferTo,
+                    prefixIcon: Icons.local_shipping_outlined,
+                    enabled: !_busy,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _transferType,
+                    label: l10n.dispositionFieldTransferType,
+                    prefixIcon: Icons.category_outlined,
+                    enabled: !_busy,
+                  ),
+                ],
+                if (_isAviary) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _AviaryPicker(
+                    value: _aviaryId,
+                    enabled: !_busy,
+                    onChanged: (id) => setState(() => _aviaryId = id),
+                  ),
+                ],
+                if (_isEuthanized) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _vet,
+                    label: l10n.dispositionFieldVet,
+                    prefixIcon: Icons.local_hospital_outlined,
+                    enabled: !_busy,
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _reason,
+                  label: l10n.dispositionFieldReason,
+                  prefixIcon: Icons.notes_outlined,
+                  enabled: !_busy,
                 ),
+                if (_showVetSignoff) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(l10n.dispositionVetSignedOff),
+                    value: _vetSignedOff,
+                    onChanged: _busy
+                        ? null
+                        : (v) {
+                            setState(() => _vetSignedOff = v);
+                            markDirty();
+                          },
+                  ),
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: l10n.dispositionSaveAction,
+                  icon: Icons.check,
+                  isLoading: _busy,
+                  onPressed: _save,
+                ),
+                if (_isEditing) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  TextButton.icon(
+                    onPressed: _busy ? null : _delete,
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: theme.colorScheme.error,
+                    ),
+                    label: Text(
+                      l10n.dispositionDeleteAction,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

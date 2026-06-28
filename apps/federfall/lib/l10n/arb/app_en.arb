@@ -1267,5 +1267,14 @@
     "findingStatusNormal": "Normal",
     "@findingStatusNormal": { "description": "A body system assessed as normal" },
     "findingStatusAbnormal": "Abnormal",
-    "@findingStatusAbnormal": { "description": "A body system assessed as abnormal" }
+    "@findingStatusAbnormal": { "description": "A body system assessed as abnormal" },
+
+    "discardChangesTitle": "Discard changes?",
+    "@discardChangesTitle": { "description": "Title of the dialog shown when leaving a form with unsaved input" },
+    "discardChangesMessage": "Your unsaved changes will be lost.",
+    "@discardChangesMessage": { "description": "Body of the discard-changes confirmation dialog" },
+    "discardKeepEditing": "Keep editing",
+    "@discardKeepEditing": { "description": "Button that dismisses the discard dialog and returns to the form" },
+    "discardConfirm": "Discard",
+    "@discardConfirm": { "description": "Button that confirms discarding unsaved form input" }
 }

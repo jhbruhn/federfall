@@ -45,7 +45,8 @@ class WeightEntrySheet extends ConsumerStatefulWidget {
   ConsumerState<WeightEntrySheet> createState() => _WeightEntrySheetState();
 }
 
-class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet> {
+class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _weightController;
   late final TextEditingController _notesController;
@@ -92,7 +93,10 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet> {
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
-    if (picked != null) setState(() => _measuredAt = picked);
+    if (picked != null) {
+      setState(() => _measuredAt = picked);
+      markDirty();
+    }
   }
 
   Future<void> _save() async {
@@ -162,71 +166,76 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet> {
     final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
     final materialL10n = MaterialLocalizations.of(context);
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.lg + viewInsets,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditing ? l10n.weightEditTitle : l10n.weightNewTitle,
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _weightController,
-                label: l10n.weightFieldGrams,
-                prefixIcon: Icons.monitor_weight_outlined,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
-                ],
-                enabled: !_busy,
-                validator: _validateGrams,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              InkWell(
-                onTap: _busy ? null : _pickDate,
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: l10n.weightFieldDate,
-                    prefixIcon: const Icon(Icons.event_outlined),
-                  ),
-                  child: Text(materialL10n.formatMediumDate(_measuredAt)),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _notesController,
-                label: l10n.weightFieldNotes,
-                prefixIcon: Icons.notes_outlined,
-                enabled: !_busy,
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
+    return guardUnsavedChanges(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg + viewInsets,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.error),
+                  _isEditing ? l10n.weightEditTitle : l10n.weightNewTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _weightController,
+                  label: l10n.weightFieldGrams,
+                  prefixIcon: Icons.monitor_weight_outlined,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+                  ],
+                  enabled: !_busy,
+                  validator: _validateGrams,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                InkWell(
+                  onTap: _busy ? null : _pickDate,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: l10n.weightFieldDate,
+                      prefixIcon: const Icon(Icons.event_outlined),
+                    ),
+                    child: Text(materialL10n.formatMediumDate(_measuredAt)),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _notesController,
+                  label: l10n.weightFieldNotes,
+                  prefixIcon: Icons.notes_outlined,
+                  enabled: !_busy,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: l10n.actionSave,
+                  icon: Icons.check,
+                  isLoading: _busy,
+                  onPressed: _save,
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              PrimaryButton(
-                label: l10n.actionSave,
-                icon: Icons.check,
-                isLoading: _busy,
-                onPressed: _save,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -235,7 +244,6 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet> {
 }
 
 /// Pre-fills the grams field without a forced decimal (e.g. `248`, `248.5`).
-String formatGramsInput(double grams) =>
-    grams == grams.roundToDouble()
-        ? grams.toStringAsFixed(0)
-        : grams.toString();
+String formatGramsInput(double grams) => grams == grams.roundToDouble()
+    ? grams.toStringAsFixed(0)
+    : grams.toString();

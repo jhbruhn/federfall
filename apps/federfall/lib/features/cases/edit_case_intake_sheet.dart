@@ -34,7 +34,8 @@ class EditCaseIntakeSheet extends ConsumerStatefulWidget {
       _EditCaseIntakeSheetState();
 }
 
-class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
+class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _findLocation;
   late final TextEditingController _notes;
@@ -88,6 +89,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
       _findRegion = picked.region.isEmpty ? null : picked.region;
       if (picked.address.isNotEmpty) _findLocation.text = picked.address;
     });
+    markDirty();
   }
 
   Future<void> _pickDate({
@@ -101,9 +103,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
       initialDate: current ?? now,
       firstDate: DateTime(2000),
       // Quarantine ends in the future; intake dates can't be after today.
-      lastDate: allowFuture
-          ? DateTime(now.year + 3, now.month, now.day)
-          : now,
+      lastDate: allowFuture ? DateTime(now.year + 3, now.month, now.day) : now,
     );
     if (picked != null) onPicked(picked);
   }
@@ -126,8 +126,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
         'age_class': _ageClass?.wire ?? '',
         'found_at': _foundAt?.toUtc().toIso8601String() ?? '',
         'admitted_at': _admittedAt?.toUtc().toIso8601String() ?? '',
-        'quarantine_until':
-            _quarantineUntil?.toUtc().toIso8601String() ?? '',
+        'quarantine_until': _quarantineUntil?.toUtc().toIso8601String() ?? '',
         'find_location': _findLocation.text.trim(),
         'find_geo': _findGeo == null
             ? {'lon': 0, 'lat': 0}
@@ -163,162 +162,186 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet> {
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
 
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: AppSpacing.lg,
-          right: AppSpacing.lg,
-          top: AppSpacing.sm,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
-        ),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  l10n.caseEditIntakeTitle,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  l10n.caseReasonsFieldLabel,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    for (final r in AdmissionReason.values)
-                      FilterChip(
-                        label: Text(admissionReasonLabel(l10n, r)),
-                        selected: _reasons.contains(r),
-                        onSelected: _busy
-                            ? null
-                            : (sel) => setState(() {
-                                sel ? _reasons.add(r) : _reasons.remove(r);
-                                _reasonsError = false;
-                              }),
+    return guardUnsavedChanges(
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            top: AppSpacing.sm,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+          ),
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    l10n.caseEditIntakeTitle,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    l10n.caseReasonsFieldLabel,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (final r in AdmissionReason.values)
+                        FilterChip(
+                          label: Text(admissionReasonLabel(l10n, r)),
+                          selected: _reasons.contains(r),
+                          onSelected: _busy
+                              ? null
+                              : (sel) {
+                                  setState(() {
+                                    sel ? _reasons.add(r) : _reasons.remove(r);
+                                    _reasonsError = false;
+                                  });
+                                  markDirty();
+                                },
+                        ),
+                    ],
+                  ),
+                  if (_reasonsError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.xs),
+                      child: Text(
+                        l10n.fieldRequired,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
                       ),
-                  ],
-                ),
-                if (_reasonsError)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xs),
-                    child: Text(
-                      l10n.fieldRequired,
+                    ),
+                  const SizedBox(height: AppSpacing.md),
+                  DropdownButtonFormField<AgeClass>(
+                    initialValue: _ageClass,
+                    decoration: InputDecoration(
+                      labelText: l10n.caseFieldAgeClass,
+                      prefixIcon: const Icon(Icons.cake_outlined),
+                    ),
+                    items: [
+                      for (final a in AgeClass.values)
+                        DropdownMenuItem(
+                          value: a,
+                          child: Text(ageClassLabel(l10n, a)),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (a) => setState(() => _ageClass = a),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _DateRow(
+                    label: l10n.caseFieldFoundAt,
+                    value: _foundAt,
+                    formatted: _foundAt == null
+                        ? null
+                        : materialL10n.formatMediumDate(_foundAt!),
+                    enabled: !_busy,
+                    onPick: () => _pickDate(
+                      current: _foundAt,
+                      onPicked: (d) {
+                        setState(() => _foundAt = d);
+                        markDirty();
+                      },
+                    ),
+                    onClear: () {
+                      setState(() => _foundAt = null);
+                      markDirty();
+                    },
+                  ),
+                  _DateRow(
+                    label: l10n.caseFieldAdmittedAt,
+                    value: _admittedAt,
+                    formatted: _admittedAt == null
+                        ? null
+                        : materialL10n.formatMediumDate(_admittedAt!),
+                    enabled: !_busy,
+                    onPick: () => _pickDate(
+                      current: _admittedAt,
+                      onPicked: (d) {
+                        setState(() => _admittedAt = d);
+                        markDirty();
+                      },
+                    ),
+                    onClear: () {
+                      setState(() => _admittedAt = null);
+                      markDirty();
+                    },
+                  ),
+                  _DateRow(
+                    label: l10n.caseFieldQuarantineUntil,
+                    value: _quarantineUntil,
+                    formatted: _quarantineUntil == null
+                        ? null
+                        : materialL10n.formatMediumDate(_quarantineUntil!),
+                    // Clearing lifts quarantine.
+                    clearTooltip: l10n.caseQuarantineLift,
+                    enabled: !_busy,
+                    onPick: () => _pickDate(
+                      current: _quarantineUntil,
+                      allowFuture: true,
+                      onPicked: (d) {
+                        setState(() => _quarantineUntil = d);
+                        markDirty();
+                      },
+                    ),
+                    onClear: () {
+                      setState(() => _quarantineUntil = null);
+                      markDirty();
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          controller: _findLocation,
+                          label: l10n.caseFieldFindLocation,
+                          prefixIcon: Icons.place_outlined,
+                          enabled: !_busy,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.map_outlined),
+                        tooltip: l10n.caseFieldFindLocation,
+                        onPressed: _busy ? null : _pickLocation,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _notes,
+                    label: l10n.caseFieldIntakeNotes,
+                    prefixIcon: Icons.notes_outlined,
+                    enabled: !_busy,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      _error!,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.error,
                       ),
                     ),
-                  ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<AgeClass>(
-                  initialValue: _ageClass,
-                  decoration: InputDecoration(
-                    labelText: l10n.caseFieldAgeClass,
-                    prefixIcon: const Icon(Icons.cake_outlined),
-                  ),
-                  items: [
-                    for (final a in AgeClass.values)
-                      DropdownMenuItem(
-                        value: a,
-                        child: Text(ageClassLabel(l10n, a)),
-                      ),
                   ],
-                  onChanged: _busy
-                      ? null
-                      : (a) => setState(() => _ageClass = a),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                _DateRow(
-                  label: l10n.caseFieldFoundAt,
-                  value: _foundAt,
-                  formatted: _foundAt == null
-                      ? null
-                      : materialL10n.formatMediumDate(_foundAt!),
-                  enabled: !_busy,
-                  onPick: () => _pickDate(
-                    current: _foundAt,
-                    onPicked: (d) => setState(() => _foundAt = d),
-                  ),
-                  onClear: () => setState(() => _foundAt = null),
-                ),
-                _DateRow(
-                  label: l10n.caseFieldAdmittedAt,
-                  value: _admittedAt,
-                  formatted: _admittedAt == null
-                      ? null
-                      : materialL10n.formatMediumDate(_admittedAt!),
-                  enabled: !_busy,
-                  onPick: () => _pickDate(
-                    current: _admittedAt,
-                    onPicked: (d) => setState(() => _admittedAt = d),
-                  ),
-                  onClear: () => setState(() => _admittedAt = null),
-                ),
-                _DateRow(
-                  label: l10n.caseFieldQuarantineUntil,
-                  value: _quarantineUntil,
-                  formatted: _quarantineUntil == null
-                      ? null
-                      : materialL10n.formatMediumDate(_quarantineUntil!),
-                  // Clearing lifts quarantine.
-                  clearTooltip: l10n.caseQuarantineLift,
-                  enabled: !_busy,
-                  onPick: () => _pickDate(
-                    current: _quarantineUntil,
-                    allowFuture: true,
-                    onPicked: (d) => setState(() => _quarantineUntil = d),
-                  ),
-                  onClear: () => setState(() => _quarantineUntil = null),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        controller: _findLocation,
-                        label: l10n.caseFieldFindLocation,
-                        prefixIcon: Icons.place_outlined,
-                        enabled: !_busy,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.map_outlined),
-                      tooltip: l10n.caseFieldFindLocation,
-                      onPressed: _busy ? null : _pickLocation,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _notes,
-                  label: l10n.caseFieldIntakeNotes,
-                  prefixIcon: Icons.notes_outlined,
-                  enabled: !_busy,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
+                  const SizedBox(height: AppSpacing.md),
+                  PrimaryButton(
+                    label: l10n.actionSave,
+                    icon: Icons.check,
+                    isLoading: _busy,
+                    onPressed: _save,
                   ),
                 ],
-                const SizedBox(height: AppSpacing.md),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
-              ],
+              ),
             ),
           ),
         ),

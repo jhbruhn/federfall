@@ -27,7 +27,8 @@ class EditProfileSheet extends ConsumerStatefulWidget {
   ConsumerState<EditProfileSheet> createState() => _EditProfileSheetState();
 }
 
-class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
+class _EditProfileSheetState extends ConsumerState<EditProfileSheet>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _phone;
@@ -83,54 +84,57 @@ class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
 
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: AppSpacing.lg,
-          right: AppSpacing.lg,
-          top: AppSpacing.sm,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
-        ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(l10n.profileEditTitle, style: theme.textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _name,
-                label: l10n.profileNameLabel,
-                prefixIcon: Icons.badge_outlined,
-                textInputAction: TextInputAction.next,
-                enabled: !_busy,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _phone,
-                label: l10n.profilePhoneLabel,
-                prefixIcon: Icons.phone_outlined,
-                keyboardType: TextInputType.phone,
-                enabled: !_busy,
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
+    return guardUnsavedChanges(
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            top: AppSpacing.sm,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+          ),
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(l10n.profileEditTitle, style: theme.textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _name,
+                  label: l10n.profileNameLabel,
+                  prefixIcon: Icons.badge_outlined,
+                  textInputAction: TextInputAction.next,
+                  enabled: !_busy,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _phone,
+                  label: l10n.profilePhoneLabel,
+                  prefixIcon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
+                  enabled: !_busy,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                PrimaryButton(
+                  label: l10n.actionSave,
+                  icon: Icons.check,
+                  isLoading: _busy,
+                  onPressed: _save,
                 ),
               ],
-              const SizedBox(height: AppSpacing.md),
-              PrimaryButton(
-                label: l10n.actionSave,
-                icon: Icons.check,
-                isLoading: _busy,
-                onPressed: _save,
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -34,7 +34,8 @@ class FollowUpSheet extends ConsumerStatefulWidget {
   ConsumerState<FollowUpSheet> createState() => _FollowUpSheetState();
 }
 
-class _FollowUpSheetState extends ConsumerState<FollowUpSheet> {
+class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _note;
   late DateTime _dueAt;
@@ -64,7 +65,10 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet> {
       firstDate: DateTime(2000),
       lastDate: DateTime(DateTime.now().year + 5),
     );
-    if (picked != null) setState(() => _dueAt = picked);
+    if (picked != null) {
+      setState(() => _dueAt = picked);
+      markDirty();
+    }
   }
 
   Future<void> _save() async {
@@ -125,55 +129,58 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet> {
     final theme = Theme.of(context);
     final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.lg + viewInsets,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditing ? l10n.followUpEditTitle : l10n.followUpNewTitle,
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DateField(
-                label: l10n.followUpDueLabel,
-                value: _dueAt,
-                enabled: !_busy,
-                onPick: _pickDate,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _note,
-                label: l10n.followUpNoteLabel,
-                prefixIcon: Icons.notes_outlined,
-                enabled: !_busy,
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
+    return guardUnsavedChanges(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg + viewInsets,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
+                  _isEditing ? l10n.followUpEditTitle : l10n.followUpNewTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DateField(
+                  label: l10n.followUpDueLabel,
+                  value: _dueAt,
+                  enabled: !_busy,
+                  onPick: _pickDate,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _note,
+                  label: l10n.followUpNoteLabel,
+                  prefixIcon: Icons.notes_outlined,
+                  enabled: !_busy,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: l10n.actionSave,
+                  icon: Icons.check,
+                  isLoading: _busy,
+                  onPressed: _save,
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              PrimaryButton(
-                label: l10n.actionSave,
-                icon: Icons.check,
-                isLoading: _busy,
-                onPressed: _save,
-              ),
-            ],
+            ),
           ),
         ),
       ),

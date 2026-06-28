@@ -49,7 +49,8 @@ class AdministrationSheet extends ConsumerStatefulWidget {
       _AdministrationSheetState();
 }
 
-class _AdministrationSheetState extends ConsumerState<AdministrationSheet> {
+class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _drug;
   late final TextEditingController _dose;
@@ -94,7 +95,10 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet> {
 
   Future<void> _pickDate() async {
     final picked = await pickDateTime(context, initial: _administeredAt);
-    if (picked != null) setState(() => _administeredAt = picked);
+    if (picked != null) {
+      setState(() => _administeredAt = picked);
+      markDirty();
+    }
   }
 
   Future<void> _save() async {
@@ -111,8 +115,9 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet> {
       if (user == null || org == null) {
         throw const RepositoryException('no org for current user');
       }
-      final repo =
-          await ref.read(medicationAdministrationsRepositoryProvider.future);
+      final repo = await ref.read(
+        medicationAdministrationsRepositoryProvider.future,
+      );
       final dose = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
       final administration = widget.administration;
 
@@ -160,96 +165,103 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet> {
     final theme = Theme.of(context);
     final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.lg + viewInsets,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditing ? l10n.doseEditTitle : l10n.doseNewTitle,
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _drug,
-                label: l10n.medDrug,
-                prefixIcon: Icons.medication_outlined,
-                enabled: !_busy,
-                validator: Validators.required(l10n),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: AppTextField(
-                      controller: _dose,
-                      label: l10n.medDose,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+    return guardUnsavedChanges(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg + viewInsets,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _isEditing ? l10n.doseEditTitle : l10n.doseNewTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _drug,
+                  label: l10n.medDrug,
+                  prefixIcon: Icons.medication_outlined,
+                  enabled: !_busy,
+                  validator: Validators.required(l10n),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: AppTextField(
+                        controller: _dose,
+                        label: l10n.medDose,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+                        ],
+                        enabled: !_busy,
                       ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
-                      ],
-                      enabled: !_busy,
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: AppTextField(
-                      controller: _unit,
-                      label: l10n.medUnit,
-                      enabled: !_busy,
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: AppTextField(
+                        controller: _unit,
+                        label: l10n.medUnit,
+                        enabled: !_busy,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                MedicationRouteDropdown(
+                  value: _route,
+                  enabled: !_busy,
+                  onChanged: (r) {
+                    setState(() => _route = r);
+                    markDirty();
+                  },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DateField(
+                  label: l10n.doseGivenAt,
+                  value: _administeredAt,
+                  enabled: !_busy,
+                  showTime: true,
+                  onPick: _pickDate,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _notes,
+                  label: l10n.medNotes,
+                  prefixIcon: Icons.notes_outlined,
+                  enabled: !_busy,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              MedicationRouteDropdown(
-                value: _route,
-                enabled: !_busy,
-                onChanged: (r) => setState(() => _route = r),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DateField(
-                label: l10n.doseGivenAt,
-                value: _administeredAt,
-                enabled: !_busy,
-                showTime: true,
-                onPick: _pickDate,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _notes,
-                label: l10n.medNotes,
-                prefixIcon: Icons.notes_outlined,
-                enabled: !_busy,
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.error),
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: l10n.actionSave,
+                  icon: Icons.check,
+                  isLoading: _busy,
+                  onPressed: _save,
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              PrimaryButton(
-                label: l10n.actionSave,
-                icon: Icons.check,
-                isLoading: _busy,
-                onPressed: _save,
-              ),
-            ],
+            ),
           ),
         ),
       ),

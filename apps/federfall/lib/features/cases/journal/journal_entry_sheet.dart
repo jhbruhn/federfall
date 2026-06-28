@@ -40,7 +40,8 @@ class JournalEntrySheet extends ConsumerStatefulWidget {
   ConsumerState<JournalEntrySheet> createState() => _JournalEntrySheetState();
 }
 
-class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet> {
+class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _textController;
   late DateTime _entryAt;
@@ -77,18 +78,27 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet> {
   Future<void> _pickPhotos() async {
     final picker = ref.read(imagePickerProvider);
     final picked = await picker.pickMultiImage();
-    if (picked.isNotEmpty) setState(() => _newPhotos.addAll(picked));
+    if (picked.isNotEmpty) {
+      setState(() => _newPhotos.addAll(picked));
+      markDirty();
+    }
   }
 
   Future<void> _takePhoto() async {
     final picker = ref.read(imagePickerProvider);
     final shot = await picker.pickImage(source: ImageSource.camera);
-    if (shot != null) setState(() => _newPhotos.add(shot));
+    if (shot != null) {
+      setState(() => _newPhotos.add(shot));
+      markDirty();
+    }
   }
 
   Future<void> _pickDate() async {
     final picked = await pickDateTime(context, initial: _entryAt);
-    if (picked != null) setState(() => _entryAt = picked);
+    if (picked != null) {
+      setState(() => _entryAt = picked);
+      markDirty();
+    }
   }
 
   Future<List<http.MultipartFile>> _multipartPhotos() async {
@@ -166,85 +176,95 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet> {
     final theme = Theme.of(context);
     final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.lg + viewInsets,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditing ? l10n.journalEditTitle : l10n.journalNewTitle,
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _textController,
-                label: l10n.journalFieldText,
-                prefixIcon: Icons.notes_outlined,
-                enabled: !_busy,
-                validator: Validators.required(l10n),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DateField(
-                label: l10n.journalFieldDate,
-                value: _entryAt,
-                enabled: !_busy,
-                showTime: true,
-                onPick: _pickDate,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              if (_existingPhotos.isNotEmpty || _newPhotos.isNotEmpty)
-                _PhotoStrip(
-                  entryId: widget.entry?.id,
-                  existing: _existingPhotos,
-                  newPhotos: _newPhotos,
-                  onRemoveExisting: _busy
-                      ? null
-                      : (i) => setState(() => _existingPhotos.removeAt(i)),
-                  onRemoveNew: _busy
-                      ? null
-                      : (i) => setState(() => _newPhotos.removeAt(i)),
+    return guardUnsavedChanges(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg + viewInsets,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _isEditing ? l10n.journalEditTitle : l10n.journalNewTitle,
+                  style: theme.textTheme.titleLarge,
                 ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _pickPhotos,
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: Text(l10n.journalAddPhotos),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _textController,
+                  label: l10n.journalFieldText,
+                  prefixIcon: Icons.notes_outlined,
+                  enabled: !_busy,
+                  validator: Validators.required(l10n),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DateField(
+                  label: l10n.journalFieldDate,
+                  value: _entryAt,
+                  enabled: !_busy,
+                  showTime: true,
+                  onPick: _pickDate,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (_existingPhotos.isNotEmpty || _newPhotos.isNotEmpty)
+                  _PhotoStrip(
+                    entryId: widget.entry?.id,
+                    existing: _existingPhotos,
+                    newPhotos: _newPhotos,
+                    onRemoveExisting: _busy
+                        ? null
+                        : (i) {
+                            setState(() => _existingPhotos.removeAt(i));
+                            markDirty();
+                          },
+                    onRemoveNew: _busy
+                        ? null
+                        : (i) {
+                            setState(() => _newPhotos.removeAt(i));
+                            markDirty();
+                          },
                   ),
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _takePhoto,
-                    icon: const Icon(Icons.photo_camera_outlined),
-                    label: Text(l10n.journalTakePhoto),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _pickPhotos,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: Text(l10n.journalAddPhotos),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _takePhoto,
+                      icon: const Icon(Icons.photo_camera_outlined),
+                      label: Text(l10n.journalTakePhoto),
+                    ),
+                  ],
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
                 ],
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.error),
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: l10n.actionSave,
+                  icon: Icons.check,
+                  isLoading: _busy,
+                  onPressed: _save,
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              PrimaryButton(
-                label: l10n.actionSave,
-                icon: Icons.check,
-                isLoading: _busy,
-                onPressed: _save,
-              ),
-            ],
+            ),
           ),
         ),
       ),

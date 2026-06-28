@@ -25,7 +25,8 @@ class InviteMemberSheet extends ConsumerStatefulWidget {
   ConsumerState<InviteMemberSheet> createState() => _InviteMemberSheetState();
 }
 
-class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet> {
+class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _nameController = TextEditingController();
@@ -83,77 +84,83 @@ class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
 
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: AppSpacing.lg,
-          right: AppSpacing.lg,
-          top: AppSpacing.sm,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
-        ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(l10n.inviteSectionTitle, style: theme.textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _emailController,
-                label: l10n.authEmailLabel,
-                prefixIcon: Icons.alternate_email,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                enabled: !_busy,
-                validator: Validators.compose([
-                  Validators.required(l10n),
-                  Validators.email(l10n),
-                ]),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _nameController,
-                label: l10n.inviteNameLabel,
-                prefixIcon: Icons.badge_outlined,
-                textInputAction: TextInputAction.done,
-                enabled: !_busy,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DropdownButtonFormField<UserRole>(
-                initialValue: _role,
-                decoration: InputDecoration(
-                  labelText: l10n.profileRoleLabel,
-                  prefixIcon: const Icon(Icons.security_outlined),
-                ),
-                items: [
-                  for (final r in UserRole.values)
-                    DropdownMenuItem(
-                      value: r,
-                      child: Text(userRoleLabel(l10n, r)),
-                    ),
-                ],
-                onChanged: _busy
-                    ? null
-                    : (r) => setState(() => _role = r ?? _role),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
+    return guardUnsavedChanges(
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            top: AppSpacing.sm,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+          ),
+          child: Form(
+            key: _formKey,
+            onChanged: markDirty,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
+                  l10n.inviteSectionTitle,
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _emailController,
+                  label: l10n.authEmailLabel,
+                  prefixIcon: Icons.alternate_email,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  enabled: !_busy,
+                  validator: Validators.compose([
+                    Validators.required(l10n),
+                    Validators.email(l10n),
+                  ]),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _nameController,
+                  label: l10n.inviteNameLabel,
+                  prefixIcon: Icons.badge_outlined,
+                  textInputAction: TextInputAction.done,
+                  enabled: !_busy,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<UserRole>(
+                  initialValue: _role,
+                  decoration: InputDecoration(
+                    labelText: l10n.profileRoleLabel,
+                    prefixIcon: const Icon(Icons.security_outlined),
                   ),
+                  items: [
+                    for (final r in UserRole.values)
+                      DropdownMenuItem(
+                        value: r,
+                        child: Text(userRoleLabel(l10n, r)),
+                      ),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (r) => setState(() => _role = r ?? _role),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: l10n.inviteAction,
+                  icon: Icons.send,
+                  isLoading: _busy,
+                  onPressed: _invite,
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              PrimaryButton(
-                label: l10n.inviteAction,
-                icon: Icons.send,
-                isLoading: _busy,
-                onPressed: _invite,
-              ),
-            ],
+            ),
           ),
         ),
       ),
