@@ -279,7 +279,8 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
         ..invalidate(caseByIdProvider(widget.medicalCase.id))
         ..invalidate(casesBrowserDataProvider)
         ..invalidate(dashboardSummaryProvider);
-    } on Object catch (e) {
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
     } finally {

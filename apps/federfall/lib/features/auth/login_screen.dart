@@ -1,3 +1,4 @@
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
@@ -81,7 +82,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _mfaId = e.mfaId;
           _otpId = otpId;
         });
-      } on Object {
+      } on Object catch (error, stackTrace) {
+        reportCaughtError(error, stackTrace);
         if (!mounted) return;
         setState(() {
           _busy = false;
@@ -94,7 +96,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _busy = false;
         _error = _messageFor(l10n, e);
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (!mounted) return;
       setState(() {
         _busy = false;
@@ -118,7 +121,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         provider.name,
         (url) => launchUrl(url, mode: LaunchMode.externalApplication),
       );
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (!mounted) return;
       setState(() {
         _busy = false;
@@ -153,7 +157,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _busy = false;
         _error = l10n.authOtpInvalid;
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (!mounted) return;
       setState(() {
         _busy = false;
@@ -439,7 +444,8 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
     try {
       final repo = await ref.read(authRepositoryProvider.future);
       await repo.requestPasswordReset(_controller.text.trim());
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       // Swallowed deliberately (see above).
     }
     if (mounted) Navigator.of(context).pop(true);

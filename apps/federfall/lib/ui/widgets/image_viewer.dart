@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/widgets/cached_file_image.dart';
 import 'package:flutter/material.dart';
@@ -109,7 +110,8 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
           fileNameOverrides: [name],
         ),
       );
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       messenger.showSnackBar(SnackBar(content: Text(l10n.imageShareFailed)));
     } finally {
       if (mounted) setState(() => _sharing = false);

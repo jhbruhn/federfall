@@ -153,7 +153,8 @@ class StatisticsScreen extends ConsumerWidget {
           fileNameOverrides: [filename],
         ),
       );
-    } on Object catch (e) {
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
       messenger.showSnackBar(SnackBar(content: Text('$e')));
     }
   }

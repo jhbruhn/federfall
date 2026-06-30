@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:federfall/core/connectivity/connectivity.dart';
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/pocketbase/pocketbase_provider.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -34,7 +35,8 @@ Stream<RecordSubscriptionEvent> collectionEvents(
     unsubscribe = await pb
         .collection(collection)
         .subscribe('*', controller.add);
-  } on Object {
+  } on Object catch (error, stackTrace) {
+    reportCaughtError(error, stackTrace);
     await controller.close();
     return;
   }

@@ -57,7 +57,8 @@ class _CaseShareSheetState extends ConsumerState<_CaseShareSheet> {
         _memberId = null;
         _access = ShareAccess.read;
       });
-    } on Object catch (e) {
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
       messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -71,7 +72,8 @@ class _CaseShareSheetState extends ConsumerState<_CaseShareSheet> {
       final repo = await ref.read(caseSharesRepositoryProvider.future);
       await repo.delete(shareId);
       ref.invalidate(caseSharesProvider(widget.caseId));
-    } on Object catch (e) {
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
       messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
     }
   }

@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -31,7 +32,8 @@ class _PendingApprovalScreenState extends ConsumerState<PendingApprovalScreen> {
       ref
         ..invalidate(currentUserProvider)
         ..invalidate(authStatusProvider);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       // Stay put; the message already explains the state.
     } finally {
       if (mounted) setState(() => _busy = false);

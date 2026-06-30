@@ -128,7 +128,8 @@ class AnimalAvatar extends ConsumerWidget {
     } on RepositoryException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
       return;
-    } on Object catch (e) {
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
       messenger.showSnackBar(SnackBar(content: Text('$e')));
       return;
     }

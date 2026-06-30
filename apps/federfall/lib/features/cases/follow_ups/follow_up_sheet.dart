@@ -114,7 +114,8 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
         _busy = false;
         _error = errorMessage(l10n, e);
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (!mounted) return;
       setState(() {
         _busy = false;

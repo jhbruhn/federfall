@@ -131,7 +131,8 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
           _region = r.region;
         }
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (!mounted) return;
       setState(() => _reversing = false);
     }
@@ -155,7 +156,8 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
         _results = results;
         _searching = false;
       });
-    } on Object catch (e) {
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
       if (!mounted) return;
       setState(() {
         _searching = false;
@@ -215,7 +217,8 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
       setState(() => _locating = false);
       _mapController.move(_centre, 16);
       await _resolveCentre();
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (!mounted) return;
       setState(() {
         _locating = false;

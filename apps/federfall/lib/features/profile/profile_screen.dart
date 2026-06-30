@@ -128,7 +128,8 @@ class _MfaToggleState extends ConsumerState<_MfaToggle> {
     try {
       final repo = await ref.read(authRepositoryProvider.future);
       await repo.setMfaEnabled(enabled: value);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (mounted) {
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.profileMfaUpdateFailed)),

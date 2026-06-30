@@ -93,7 +93,8 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
         ..invalidate(aviariesProvider)
         ..invalidate(activeAviariesProvider);
       if (mounted) Navigator.of(context).pop();
-    } on Object catch (e) {
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
       if (!mounted) return;
       setState(() {
         _busy = false;

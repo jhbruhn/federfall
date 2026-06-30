@@ -200,7 +200,8 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
         _busy = false;
         _error = errorMessage(l10n, e);
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (!mounted) return;
       setState(() {
         _busy = false;
@@ -260,7 +261,8 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
         _busy = false;
         _error = errorMessage(l10n, e);
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
       if (!mounted) return;
       setState(() {
         _busy = false;

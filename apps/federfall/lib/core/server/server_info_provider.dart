@@ -1,3 +1,4 @@
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/pocketbase/pocketbase_provider.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
@@ -21,7 +22,8 @@ Future<ServerInfo?> serverInfo(Ref ref) async {
   final pb = await ref.watch(pocketBaseProvider.future);
   try {
     return ServerInfo.tryParse(await pb.send('/api/federfall/info'));
-  } on Object {
+  } on Object catch (error, stackTrace) {
+    reportCaughtError(error, stackTrace);
     return null;
   }
 }
