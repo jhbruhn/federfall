@@ -1,4 +1,3 @@
-import 'package:federfall/core/connectivity/offline_banner.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/home/account_menu.dart';
@@ -108,14 +107,7 @@ class NavShell extends ConsumerWidget {
               ],
             ),
             const VerticalDivider(width: 1),
-            Expanded(
-              child: Column(
-                children: [
-                  const OfflineBanner(),
-                  Expanded(child: navigationShell),
-                ],
-              ),
-            ),
+            Expanded(child: navigationShell),
           ],
         ),
       );
@@ -128,12 +120,7 @@ class NavShell extends ConsumerWidget {
     final showBottomBar = !isDetailLocation(location);
 
     return Scaffold(
-      body: Column(
-        children: [
-          const OfflineBanner(),
-          Expanded(child: navigationShell),
-        ],
-      ),
+      body: navigationShell,
       bottomNavigationBar: showBottomBar
           ? NavigationBar(
               selectedIndex: navigationShell.currentIndex,
