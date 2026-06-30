@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
@@ -569,10 +568,7 @@ class _FindMap extends StatelessWidget {
                 const InteractionOptions(flags: InteractiveFlag.none),
           ),
           children: [
-            TileLayer(
-              urlTemplate: AppEnvironment.mapTileUrl,
-              userAgentPackageName: 'de.jhbruhn.federfall',
-            ),
+            const MapTileLayer(),
             MarkerLayer(
               markers: [
                 Marker(

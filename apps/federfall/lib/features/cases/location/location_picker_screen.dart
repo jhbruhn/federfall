@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -48,8 +47,8 @@ Future<PickedLocation?> showLocationPicker(
 /// Find-location picker (FED-4.2, refined in 2fa): an OSM map with a pin fixed
 /// at screen centre — the carer drags the map so the target sits under the pin
 /// (reverse geocode on settle), searches for an address (forward geocode), or
-/// taps "my location" (GPS). Tiles are configurable via
-/// [AppEnvironment.mapTileUrl]; geocoding goes through the backend proxy.
+/// taps "my location" (GPS). Tiles come from the shared [MapTileLayer];
+/// geocoding goes through the backend proxy.
 class LocationPickerScreen extends ConsumerStatefulWidget {
   const LocationPickerScreen({this.initial, this.initialAddress, super.key});
 
@@ -255,12 +254,9 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
               onMapEvent: _onMapEvent,
               onTap: (_, point) => _mapController.move(point, 16),
             ),
-            children: [
-              TileLayer(
-                urlTemplate: AppEnvironment.mapTileUrl,
-                userAgentPackageName: 'de.jhbruhn.federfall',
-              ),
-              const MapAttribution(),
+            children: const [
+              MapTileLayer(),
+              MapAttribution(),
             ],
           ),
           // Pin fixed at screen centre, lifted by a shadow dot beneath it.
