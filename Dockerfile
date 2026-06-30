@@ -60,10 +60,15 @@ RUN set -eux; \
     cd /src/packages/federfall_models && dart run build_runner build; \
     cd /src/apps/federfall && dart run build_runner build && flutter gen-l10n
 
-# 4) Production web bundle. POCKETBASE_URL is empty in production.json so the app
-#    resolves the API from its own serving origin (Uri.base.origin) — which, in
-#    the single-container stack, is the very PocketBase that serves this bundle.
-RUN cd /src/apps/federfall && flutter build web --release \
+# 4) Production web bundle, compiled to WebAssembly (dart2wasm + skwasm, with the
+#    JS/CanvasKit fallback the build emits automatically). POCKETBASE_URL is empty
+#    in production.json so the app resolves the API from its own serving origin
+#    (Uri.base.origin) — which, in the single-container stack, is the very
+#    PocketBase that serves this bundle.
+#    NOTE: the skwasm renderer wants cross-origin isolation (COOP/COEP headers) to
+#    use threads; PocketBase doesn't send those, so it falls back gracefully — set
+#    them at a reverse proxy if you want the threaded fast path.
+RUN cd /src/apps/federfall && flutter build web --wasm --release \
         --target lib/main_production.dart \
         --dart-define-from-file=dart_defines/production.json
 
