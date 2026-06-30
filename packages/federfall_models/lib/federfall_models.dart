@@ -28,3 +28,4 @@ export 'src/models/geo_point.dart';
 export 'src/models/marking.dart';
 export 'src/models/medical_case.dart';
 export 'src/models/organisation.dart';
+export 'src/models/quarantine.dart';

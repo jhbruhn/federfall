@@ -38,7 +38,6 @@ abstract class Case with _$Case {
     String? intakeNotes,
     @Default(<String>[]) List<String> intakePhotos,
 
-    DateTime? quarantineUntil,
     CaseStatus? status,
     @Default(false) bool isReleasable,
     String? activeCarer,
@@ -69,7 +68,6 @@ abstract class Case with _$Case {
       intakeWeightG: pbInt(d['intake_weight_g']),
       intakeNotes: pbString(d['intake_notes']),
       intakePhotos: pbStringList(d['intake_photos']),
-      quarantineUntil: pbDate(d['quarantine_until']),
       status: CaseStatus.fromWire(d['status']),
       isReleasable: pbBool(d['is_releasable']),
       activeCarer: pbString(d['active_carer']),

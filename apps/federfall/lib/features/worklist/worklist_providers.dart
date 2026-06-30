@@ -18,12 +18,14 @@ part 'worklist_providers.g.dart';
 /// concurrently and folded into the pure [buildWorklist]. Returns an empty list
 /// when signed out.
 /// The base collections feeding the worklist, for live-sync. The
-/// `medication_due` source is a DB *view* (no realtime), so we watch the base
-/// collections it derives from. Screens pass this to `WidgetRef.liveRefresh`.
+/// `medication_due` and `case_quarantine` sources are DB *views* (no realtime),
+/// so we watch the base collections they derive from. Screens pass this to
+/// `WidgetRef.liveRefresh`.
 const worklistLiveCollections = [
   'follow_ups',
   'medications',
   'medication_administrations',
+  'quarantine_records',
   'cases',
 ];
 
@@ -55,12 +57,14 @@ Future<List<WorklistItem>> worklist(Ref ref) async {
     activityRepo,
     animalsRepo,
     followUpsRepo,
+    quarantineRepo,
   ) = await (
     ref.watch(casesRepositoryProvider.future),
     ref.watch(medicationDueRepositoryProvider.future),
     ref.watch(caseActivityRepositoryProvider.future),
     ref.watch(animalsRepositoryProvider.future),
     ref.watch(followUpsRepositoryProvider.future),
+    ref.watch(caseQuarantineRepositoryProvider.future),
   ).wait;
 
   final allCases = await casesRepo.list(sort: '-created');
@@ -71,12 +75,13 @@ Future<List<WorklistItem>> worklist(Ref ref) async {
 
   final animalIds = {for (final c in myActive) c.animal};
 
-  // Five fixed queries, all independent — fire them at once and await together.
-  final (medicationsDue, followUps, activity, animals) = await (
+  // Independent queries, all fired at once and awaited together.
+  final (medicationsDue, followUps, activity, animals, quarantine) = await (
     medDueRepo.mine(me),
     followUpsRepo.openForCarer(me),
     activityRepo.all(),
     animalsRepo.byIds(animalIds),
+    quarantineRepo.all(),
   ).wait;
 
   return buildWorklist(
@@ -84,6 +89,7 @@ Future<List<WorklistItem>> worklist(Ref ref) async {
     medicationsDue: medicationsDue,
     followUps: followUps,
     lastActivityByCase: {for (final a in activity) a.id: a.lastActivity},
+    quarantineUntilByCase: {for (final q in quarantine) q.id: q.until},
     animalNameById: {for (final a in animals) a.id: a.name},
     now: DateTime.now(),
   );

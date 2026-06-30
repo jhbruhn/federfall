@@ -49,6 +49,7 @@ const List<CaseStatus> _activeStatuses = [
 DashboardSummary buildDashboardSummary(
   List<Case> cases,
   DateTime now, {
+  Map<String, DateTime?> quarantineUntilByCase = const {},
   Duration soonWindow = quarantineSoonWindow,
   int inAviaryCount = 0,
 }) {
@@ -66,16 +67,19 @@ DashboardSummary buildDashboardSummary(
       if (status != null && byStatus.containsKey(status)) {
         byStatus[status] = byStatus[status]! + 1;
       }
-      final q = c.quarantineUntil;
+      final q = quarantineUntilByCase[c.id];
       if (q != null && q.isBefore(soonThreshold)) quarantineSoon.add(c);
     }
     final admitted = c.admittedAt;
     if (admitted != null && admitted.year == now.year) intakes++;
   }
 
-  quarantineSoon.sort(
-    (a, b) => a.quarantineUntil!.compareTo(b.quarantineUntil!),
-  );
+  quarantineSoon.sort((a, b) {
+    final qa = quarantineUntilByCase[a.id];
+    final qb = quarantineUntilByCase[b.id];
+    if (qa == null || qb == null) return 0;
+    return qa.compareTo(qb);
+  });
 
   return DashboardSummary(
     activeCount: active,
@@ -90,13 +94,15 @@ DashboardSummary buildDashboardSummary(
 /// expose, then aggregates client-side.
 @riverpod
 Future<DashboardSummary> dashboardSummary(Ref ref) async {
-  final (casesRepo, animalsRepo) = await (
+  final (casesRepo, animalsRepo, quarantineRepo) = await (
     ref.watch(casesRepositoryProvider.future),
     ref.watch(animalsRepositoryProvider.future),
+    ref.watch(caseQuarantineRepositoryProvider.future),
   ).wait;
-  final (cases, animals) = await (
+  final (cases, animals, quarantine) = await (
     casesRepo.list(sort: '-created'),
     animalsRepo.list(),
+    quarantineRepo.all(),
   ).wait;
   final inAviary = animals
       .where((a) => a.lifetimeStatus == LifetimeStatus.inAviary)
@@ -104,6 +110,7 @@ Future<DashboardSummary> dashboardSummary(Ref ref) async {
   return buildDashboardSummary(
     cases,
     DateTime.now(),
+    quarantineUntilByCase: {for (final q in quarantine) q.id: q.until},
     inAviaryCount: inAviary,
   );
 }

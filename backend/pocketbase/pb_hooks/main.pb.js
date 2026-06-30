@@ -2,8 +2,8 @@
 
 // FED-1.12 — server-side hooks (the backend logic layer).
 //
-//   1. cases on create: auto per-year `case_number` (e.g. "2026-014"),
-//      default `quarantine_until` (admitted_at + 14 days), default `status`.
+//   1. cases on create: auto per-year `case_number` (e.g. "2026-014") and
+//      default `status`; after create, a default 14-day quarantine_records row.
 //   2. dispositions on create: maintain the parent case `status` and the
 //      animal `lifetime_status` / `current_aviary`.
 //   3. cases on update: share-on-handoff — when `active_carer` changes, the
@@ -15,15 +15,12 @@
 // top-level helpers/constants are NOT in scope inside a handler — any shared
 // logic must be defined inside the callback that uses it.
 
-// ── 1. cases: case_number + quarantine_until + status on create ────────────────
+// ── 1. cases: case_number + status on create ───────────────────────────────────
 onRecordCreate((e) => {
   const rec = e.record;
   const orgId = rec.get("org");
   const admittedStr = rec.getString("admitted_at");
   const pad3 = (n) => String(n).padStart(3, "0");
-  // PocketBase returns datetimes space-separated ("2026-03-10 09:00:00.000Z");
-  // normalise to ISO 8601 so the JS Date constructor can parse them.
-  const parseDate = (s) => new Date(String(s).replace(" ", "T"));
 
   // Auto per-year case number, scoped to the org. The unique index on
   // case_number is the final guard against the rare concurrent-create race.
@@ -45,14 +42,40 @@ onRecordCreate((e) => {
     rec.set("case_number", year + "-" + pad3(seq));
   }
 
-  // Quarantine defaults to admission + 14 days.
-  if (!rec.getString("quarantine_until")) {
-    const base = admittedStr ? parseDate(admittedStr) : new Date();
-    rec.set("quarantine_until", new Date(base.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString());
-  }
-
   if (!rec.getString("status")) {
     rec.set("status", "in_care");
+  }
+
+  e.next();
+}, "cases");
+
+// ── 1b. cases: default 14-day quarantine as a timeline record ───────────────────
+// Quarantine is a timeline kind (quarantine_records), not a case field, so the
+// default initial quarantine is a real row created after the case exists —
+// mirroring how the intake weight is a real `weights` row. Backdated to
+// admission so it sits at the admission point on the chronology. Idempotent: a
+// case that somehow already has a quarantine row gets no second default.
+onRecordAfterCreateSuccess((e) => {
+  const caseRec = e.record;
+  const existing = e.app.findRecordsByFilter(
+    "quarantine_records", "case = {:c}", "", 1, 0, { c: caseRec.id },
+  );
+  if (existing.length === 0) {
+    // PocketBase returns datetimes space-separated ("2026-03-10 09:00:00.000Z");
+    // normalise to ISO 8601 so the JS Date constructor can parse them.
+    const parseDate = (s) => new Date(String(s).replace(" ", "T"));
+    const admittedStr = caseRec.getString("admitted_at");
+    const base = admittedStr ? parseDate(admittedStr) : new Date();
+    const until = new Date(base.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    const rec = new Record(e.app.findCollectionByNameOrId("quarantine_records"));
+    rec.set("case", caseRec.id);
+    rec.set("quarantine_until", until.toISOString());
+    rec.set("set_at", base.toISOString());
+    const carer = caseRec.get("active_carer");
+    if (carer) rec.set("set_by", carer);
+    rec.set("org", caseRec.get("org"));
+    e.app.save(rec);
   }
 
   e.next();

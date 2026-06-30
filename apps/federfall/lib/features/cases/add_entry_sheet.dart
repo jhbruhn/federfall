@@ -8,6 +8,7 @@ import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
 import 'package:federfall/features/cases/placements/placement_sheet.dart';
+import 'package:federfall/features/cases/quarantine/quarantine_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -23,6 +24,7 @@ enum _AddKind {
   weight,
   exam,
   condition,
+  quarantine,
   prescription,
   dose,
   marking,
@@ -57,6 +59,8 @@ Future<void> showAddEntrySheet(
       await showExamSheet(context, caseId: caseId, animalId: animalId);
     case _AddKind.condition:
       await showConditionEntrySheet(context, caseId: caseId);
+    case _AddKind.quarantine:
+      await showQuarantineSheet(context, caseId: caseId);
     case _AddKind.prescription:
       await showPrescriptionSheet(context, caseId: caseId);
     case _AddKind.dose:
@@ -127,6 +131,11 @@ class _AddEntrySheet extends ConsumerWidget {
           _AddKind.condition,
           Icons.coronavirus_outlined,
           l10n.timelineAddCondition,
+        ),
+        _Entry(
+          _AddKind.quarantine,
+          Icons.shield_outlined,
+          l10n.timelineAddQuarantine,
         ),
       ]),
       (l10n.timelineGroupMedication, [

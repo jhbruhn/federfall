@@ -6,13 +6,11 @@ Case _case({
   required String id,
   CaseStatus? status,
   DateTime? admittedAt,
-  DateTime? quarantineUntil,
 }) => Case(
   id: id,
   animal: 'a-$id',
   status: status,
   admittedAt: admittedAt,
-  quarantineUntil: quarantineUntil,
 );
 
 void main() {
@@ -58,28 +56,17 @@ void main() {
 
   test('quarantine ending soon: within window or overdue, soonest first', () {
     final s = buildDashboardSummary([
-      _case(
-        id: 'far',
-        status: CaseStatus.inCare,
-        quarantineUntil: now.add(const Duration(days: 30)),
-      ),
-      _case(
-        id: 'soon',
-        status: CaseStatus.inCare,
-        quarantineUntil: now.add(const Duration(days: 3)),
-      ),
-      _case(
-        id: 'overdue',
-        status: CaseStatus.inCare,
-        quarantineUntil: now.subtract(const Duration(days: 2)),
-      ),
+      _case(id: 'far', status: CaseStatus.inCare),
+      _case(id: 'soon', status: CaseStatus.inCare),
+      _case(id: 'overdue', status: CaseStatus.inCare),
       // Disposed cases never surface even if their quarantine is near.
-      _case(
-        id: 'disposed',
-        status: CaseStatus.disposed,
-        quarantineUntil: now.add(const Duration(days: 1)),
-      ),
-    ], now);
+      _case(id: 'disposed', status: CaseStatus.disposed),
+    ], now, quarantineUntilByCase: {
+      'far': now.add(const Duration(days: 30)),
+      'soon': now.add(const Duration(days: 3)),
+      'overdue': now.subtract(const Duration(days: 2)),
+      'disposed': now.add(const Duration(days: 1)),
+    });
 
     expect(
       s.quarantineEndingSoon.map((c) => c.id).toList(),

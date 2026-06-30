@@ -5,11 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// 2026-06-24 12:00 local — the reference "now" for every case below.
 final _now = DateTime(2026, 6, 24, 12);
 
-Case _case(String id, {DateTime? quarantineUntil}) => Case(
+Case _case(String id) => Case(
   id: id,
   animal: 'a-$id',
   status: CaseStatus.inCare,
-  quarantineUntil: quarantineUntil,
 );
 
 /// A `medication_due` row with its next-due already computed (server-side in
@@ -80,8 +79,9 @@ void main() {
     test('quarantine ending within the window is upcoming', () {
       final until = _now.add(const Duration(days: 2));
       final items = buildWorklist(
-        cases: [_case('c1', quarantineUntil: until)],
+        cases: [_case('c1')],
         medicationsDue: const [],
+        quarantineUntilByCase: {'c1': until},
         now: _now,
       );
       expect(items.single.kind, WorklistKind.quarantineEnding);
@@ -91,10 +91,11 @@ void main() {
 
     test('quarantine in the past is overdue', () {
       final items = buildWorklist(
-        cases: [
-          _case('c1', quarantineUntil: _now.subtract(const Duration(days: 1))),
-        ],
+        cases: [_case('c1')],
         medicationsDue: const [],
+        quarantineUntilByCase: {
+          'c1': _now.subtract(const Duration(days: 1)),
+        },
         now: _now,
       );
       expect(items.single.severity, WorklistSeverity.overdue);
@@ -102,10 +103,9 @@ void main() {
 
     test('quarantine far in the future does not appear', () {
       final items = buildWorklist(
-        cases: [
-          _case('c1', quarantineUntil: _now.add(const Duration(days: 30))),
-        ],
+        cases: [_case('c1')],
         medicationsDue: const [],
+        quarantineUntilByCase: {'c1': _now.add(const Duration(days: 30))},
         now: _now,
       );
       expect(items, isEmpty);
@@ -202,10 +202,11 @@ void main() {
 
   test('items are sorted soonest-due first', () {
     final items = buildWorklist(
-      cases: [_case('c1', quarantineUntil: _now.add(const Duration(days: 1)))],
+      cases: [_case('c1')],
       medicationsDue: [
         _due('m1', nextDue: _now.subtract(const Duration(hours: 5))),
       ],
+      quarantineUntilByCase: {'c1': _now.add(const Duration(days: 1))},
       now: _now,
     );
 

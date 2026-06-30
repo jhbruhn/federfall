@@ -40,6 +40,8 @@ class MockExamsRepo extends Mock implements PbExamsRepository {}
 
 class MockExamFindingsRepo extends Mock implements PbExamFindingsRepository {}
 
+class MockQuarantineRepo extends Mock implements PbQuarantineRepository {}
+
 void main() {
   setUpAll(() => registerFallbackValue(<String, dynamic>{}));
 
@@ -57,6 +59,7 @@ void main() {
   late MockFollowUpsRepo followUps;
   late MockExamsRepo exams;
   late MockExamFindingsRepo examFindings;
+  late MockQuarantineRepo quarantine;
 
   final medicalCase = Case(
     id: 'c1',
@@ -71,7 +74,6 @@ void main() {
     finder: 'f1',
     foundAt: DateTime.utc(2026, 6, 20),
     admittedAt: DateTime.utc(2026, 6, 21),
-    quarantineUntil: DateTime.utc(2026, 7, 5),
     created: DateTime.utc(2026, 6, 21, 9),
   );
 
@@ -90,6 +92,8 @@ void main() {
     followUps = MockFollowUpsRepo();
     exams = MockExamsRepo();
     examFindings = MockExamFindingsRepo();
+    quarantine = MockQuarantineRepo();
+    when(() => quarantine.forCase(any())).thenAnswer((_) async => []);
     when(() => followUps.forCase(any())).thenAnswer((_) async => []);
     when(() => exams.forCase(any())).thenAnswer((_) async => []);
     when(() => examFindings.forCase(any())).thenAnswer((_) async => []);
@@ -147,6 +151,8 @@ void main() {
         examsRepositoryProvider.overrideWith((ref) async => exams),
         examFindingsRepositoryProvider
             .overrideWith((ref) async => examFindings),
+        quarantineRepositoryProvider
+            .overrideWith((ref) async => quarantine),
         if (lifetime != null)
           animalLifetimeProvider('a1').overrideWith((ref) async => lifetime),
         if (currentUser != null)
@@ -183,7 +189,9 @@ void main() {
     await pump(tester);
 
     expect(find.text('Domplatz'), findsOneWidget);
-    expect(find.text('Quarantine until'), findsOneWidget);
+    // Quarantine is no longer a static Overview row — it lives on the timeline
+    // (History) as its own record kind (federfall-uvm).
+    expect(find.text('Quarantine until'), findsNothing);
     expect(find.text('thin but alert'), findsOneWidget);
     expect(find.text('Klein · 0151'), findsOneWidget);
   });

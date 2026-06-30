@@ -32,6 +32,8 @@ class MockExamsRepo extends Mock implements PbExamsRepository {}
 
 class MockExamFindingsRepo extends Mock implements PbExamFindingsRepository {}
 
+class MockQuarantineRepo extends Mock implements PbQuarantineRepository {}
+
 void main() {
   late MockJournalRepo journal;
   late MockWeightsRepo weights;
@@ -44,6 +46,7 @@ void main() {
   late MockFollowUpsRepo followUps;
   late MockExamsRepo exams;
   late MockExamFindingsRepo examFindings;
+  late MockQuarantineRepo quarantine;
 
   setUp(() {
     journal = MockJournalRepo();
@@ -57,6 +60,8 @@ void main() {
     followUps = MockFollowUpsRepo();
     exams = MockExamsRepo();
     examFindings = MockExamFindingsRepo();
+    quarantine = MockQuarantineRepo();
+    when(() => quarantine.forCase(any())).thenAnswer((_) async => []);
     when(() => weights.forCase(any())).thenAnswer((_) async => []);
     when(() => caseConditions.forCase(any())).thenAnswer((_) async => []);
     when(() => medications.forCase(any())).thenAnswer((_) async => []);
@@ -93,6 +98,8 @@ void main() {
         examsRepositoryProvider.overrideWith((ref) async => exams),
         examFindingsRepositoryProvider
             .overrideWith((ref) async => examFindings),
+        quarantineRepositoryProvider
+            .overrideWith((ref) async => quarantine),
       ],
     );
     addTearDown(container.dispose);

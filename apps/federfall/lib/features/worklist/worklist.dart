@@ -107,6 +107,7 @@ List<WorklistItem> buildWorklist({
   required DateTime now,
   List<FollowUp> followUps = const [],
   Map<String, DateTime?> lastActivityByCase = const {},
+  Map<String, DateTime?> quarantineUntilByCase = const {},
   Map<String, String?> animalNameById = const {},
   Duration quarantineWindow = quarantineDueWindow,
   Duration medicationWindow = medicationDueWindow,
@@ -119,7 +120,7 @@ List<WorklistItem> buildWorklist({
   // Quarantines ending within the window (or already overdue).
   final quarantineThreshold = now.add(quarantineWindow);
   for (final c in cases) {
-    final until = c.quarantineUntil;
+    final until = quarantineUntilByCase[c.id];
     if (until == null || !until.isBefore(quarantineThreshold)) continue;
     items.add(
       WorklistItem(

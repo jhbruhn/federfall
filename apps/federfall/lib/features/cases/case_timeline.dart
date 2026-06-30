@@ -15,6 +15,8 @@ import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/placements/placement_tile.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
+import 'package:federfall/features/cases/quarantine/quarantine_providers.dart';
+import 'package:federfall/features/cases/quarantine/quarantine_tile.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/features/cases/weights/weight_entry_tile.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
@@ -45,7 +47,8 @@ void invalidateCaseTimeline(
     ..invalidate(dispositionsForCaseProvider(caseId))
     ..invalidate(followUpsForCaseProvider(caseId))
     ..invalidate(examsForCaseProvider(caseId))
-    ..invalidate(examFindingsForCaseProvider(caseId));
+    ..invalidate(examFindingsForCaseProvider(caseId))
+    ..invalidate(quarantineForCaseProvider(caseId));
 }
 
 /// The case's single, unified chronology (FED-4.3 + FED-4.7): intake milestones
@@ -87,6 +90,7 @@ class CaseTimeline extends ConsumerWidget {
     final followUps = ref.watch(followUpsForCaseProvider(caseId));
     final exams = ref.watch(examsForCaseProvider(caseId));
     final examFindings = ref.watch(examFindingsForCaseProvider(caseId));
+    final quarantines = ref.watch(quarantineForCaseProvider(caseId));
     final isLoading = journal.isLoading ||
         weights.isLoading ||
         conditions.isLoading ||
@@ -97,7 +101,8 @@ class CaseTimeline extends ConsumerWidget {
         dispositions.isLoading ||
         followUps.isLoading ||
         exams.isLoading ||
-        examFindings.isLoading;
+        examFindings.isLoading ||
+        quarantines.isLoading;
     final error = journal.error ??
         weights.error ??
         conditions.error ??
@@ -108,7 +113,8 @@ class CaseTimeline extends ConsumerWidget {
         dispositions.error ??
         followUps.error ??
         exams.error ??
-        examFindings.error;
+        examFindings.error ??
+        quarantines.error;
 
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
@@ -140,6 +146,8 @@ class CaseTimeline extends ConsumerWidget {
         _FollowUpEvent(followUp),
       for (final exam in exams.value ?? const <Exam>[])
         _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
+      for (final quarantine in quarantines.value ?? const <Quarantine>[])
+        _QuarantineEvent(quarantine),
     ]..sort((a, b) {
       final byTime = b.at.compareTo(a.at);
       if (byTime != 0) return byTime;
@@ -239,6 +247,12 @@ class CaseTimeline extends ConsumerWidget {
                 findings: findings,
                 caseId: caseId,
                 animalId: medicalCase.animal,
+                canEdit: canEdit,
+                isLast: i == events.length - 1,
+              ),
+              _QuarantineEvent(:final quarantine) => QuarantineTile(
+                entry: quarantine,
+                caseId: caseId,
                 canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
@@ -401,5 +415,18 @@ class _DispositionEvent extends _Event {
   DateTime get at =>
       disposition.disposedAt ??
       disposition.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A quarantine period placed on the timeline by when it was imposed.
+class _QuarantineEvent extends _Event {
+  const _QuarantineEvent(this.quarantine);
+
+  final Quarantine quarantine;
+
+  @override
+  DateTime get at =>
+      quarantine.setAt ??
+      quarantine.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }
