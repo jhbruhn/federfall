@@ -34,3 +34,4 @@ services:
       - "--hooksDir=/pb/pb_hooks"
       - "--publicDir=/pb/pb_public"
       - "--automigrate=1"
+      - "--dev"
