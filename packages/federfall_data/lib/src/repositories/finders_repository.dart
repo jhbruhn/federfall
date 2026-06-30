@@ -4,7 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `finders` collection (external rescuer PII).
 class PbFindersRepository extends PbRepository<Finder> {
-  PbFindersRepository(PocketBase pb, {super.cache, super.isOffline})
+  PbFindersRepository(PocketBase pb)
     : super(
         pb: pb,
         collection: 'finders',

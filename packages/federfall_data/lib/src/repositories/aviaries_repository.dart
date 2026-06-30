@@ -4,7 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `aviaries` collection (permanent-care enclosures).
 class PbAviariesRepository extends PbRepository<Aviary> {
-  PbAviariesRepository(PocketBase pb, {super.cache, super.isOffline})
+  PbAviariesRepository(PocketBase pb)
     : super(
         pb: pb,
         collection: 'aviaries',

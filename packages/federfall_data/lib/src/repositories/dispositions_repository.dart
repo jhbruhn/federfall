@@ -4,7 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `dispositions` collection (case outcomes).
 class PbDispositionsRepository extends PbRepository<Disposition> {
-  PbDispositionsRepository(PocketBase pb, {super.cache, super.isOffline})
+  PbDispositionsRepository(PocketBase pb)
     : super(
         pb: pb,
         collection: 'dispositions',

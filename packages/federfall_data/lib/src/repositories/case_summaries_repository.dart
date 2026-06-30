@@ -6,7 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 /// clinical-detail-free projection of `cases`, so an animal's whole case
 /// history can be listed even when individual cases aren't readable in full.
 class PbCaseSummariesRepository extends PbRepository<CaseSummary> {
-  PbCaseSummariesRepository(PocketBase pb, {super.cache, super.isOffline})
+  PbCaseSummariesRepository(PocketBase pb)
     : super(
         pb: pb,
         collection: 'case_summaries',

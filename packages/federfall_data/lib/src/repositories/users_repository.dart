@@ -5,7 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 /// Repository over the `users` collection (staff members). Read access is
 /// org-scoped by the access rules; used to pick carers for handoffs (FED-4.9).
 class PbUsersRepository extends PbRepository<AppUser> {
-  PbUsersRepository(PocketBase pb, {super.cache, super.isOffline})
+  PbUsersRepository(PocketBase pb)
     : super(
         pb: pb,
         collection: 'users',

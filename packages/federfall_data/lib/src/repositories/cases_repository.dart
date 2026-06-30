@@ -21,7 +21,7 @@ abstract interface class CasesRepository implements Repository<Case> {
 }
 
 class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
-  PbCasesRepository(PocketBase pb, {super.cache, super.isOffline})
+  PbCasesRepository(PocketBase pb)
     : super(
         pb: pb,
         collection: 'cases',

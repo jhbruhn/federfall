@@ -589,7 +589,7 @@
     "@imagePrevious": { "description": "Tooltip for the previous-image button" },
     "imageNext": "Next image",
     "@imageNext": { "description": "Tooltip for the next-image button" },
-    "offlineBanner": "You're offline — showing saved data.",
+    "offlineBanner": "Offline — can't reach the server.",
     "@offlineBanner": { "description": "App-wide banner shown when the server is unreachable" },
     "caseFieldIntakeWeight": "Intake weight (g)",
     "@caseFieldIntakeWeight": { "description": "Label for the intake weight field, in grams" },

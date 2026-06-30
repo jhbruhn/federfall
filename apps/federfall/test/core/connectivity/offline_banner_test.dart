@@ -25,7 +25,7 @@ void main() {
 
   testWidgets('shows the banner when offline', (tester) async {
     await pump(tester, OnlineStatus.offline);
-    expect(find.text("You're offline — showing saved data."), findsOneWidget);
+    expect(find.text("Offline — can't reach the server."), findsOneWidget);
   });
 
   testWidgets('hides the banner when online', (tester) async {

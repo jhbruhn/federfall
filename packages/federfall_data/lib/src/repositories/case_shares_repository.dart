@@ -4,7 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `case_shares` collection (opt-in access grants).
 class PbCaseSharesRepository extends PbRepository<CaseShare> {
-  PbCaseSharesRepository(PocketBase pb, {super.cache, super.isOffline})
+  PbCaseSharesRepository(PocketBase pb)
     : super(
         pb: pb,
         collection: 'case_shares',

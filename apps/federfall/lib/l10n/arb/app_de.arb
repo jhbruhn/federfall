@@ -257,7 +257,7 @@
     "imageShareFailed": "Bild konnte nicht geteilt werden.",
     "imagePrevious": "Vorheriges Bild",
     "imageNext": "Nächstes Bild",
-    "offlineBanner": "Offline – gespeicherte Daten werden angezeigt.",
+    "offlineBanner": "Offline – Server nicht erreichbar.",
     "caseFieldIntakeWeight": "Aufnahmegewicht (g)",
     "caseFieldIntakeNotes": "Aufnahmenotizen",
     "caseDateNotSet": "Nicht angegeben",

@@ -13,49 +13,8 @@ class _MockService extends Mock implements RecordService {}
 class _AnimalsRepo extends PbRepository<Animal> {
   _AnimalsRepo(
     PocketBase pb, {
-    super.cache,
-    super.isOffline,
     super.networkTimeout = const Duration(seconds: 5),
   }) : super(pb: pb, collection: 'animals', fromRecord: Animal.fromRecord);
-}
-
-/// In-memory [RecordCache] for exercising the offline read paths.
-class _MemoryCache implements RecordCache {
-  final _records = <String, Map<String, dynamic>>{};
-  final _lists = <String, List<Map<String, dynamic>>>{};
-
-  @override
-  Future<void> putRecord(String c, String id, Map<String, dynamic> r) async =>
-      _records['$c/$id'] = r;
-
-  @override
-  Future<Map<String, dynamic>?> getRecord(String c, String id) async =>
-      _records['$c/$id'];
-
-  @override
-  Future<void> putList(
-    String c,
-    String k,
-    List<Map<String, dynamic>> r,
-  ) async => _lists['$c/$k'] = r;
-
-  @override
-  Future<List<Map<String, dynamic>>?> getList(String c, String k) async =>
-      _lists['$c/$k'];
-
-  @override
-  Future<void> evictRecord(String c, String id) async =>
-      _records.remove('$c/$id');
-
-  @override
-  Future<void> evictLists(String c) async =>
-      _lists.removeWhere((key, _) => key.startsWith('$c/'));
-
-  @override
-  Future<void> clear() async {
-    _records.clear();
-    _lists.clear();
-  }
 }
 
 void main() {
@@ -228,75 +187,30 @@ void main() {
     expect(await repo.firstWhere('name = "nope"'), isNull);
   });
 
-  group('offline behaviour', () {
-    test(
-      'known-offline serves the cached list without hitting the network',
-      () async {
-        final cache = _MemoryCache();
-        await cache.putList('animals', '|name|', [
-          {'id': 'a1', 'name': 'Lotte', 'species': 'Stadttaube'},
-        ]);
-        final offlineRepo = _AnimalsRepo(
-          pb,
-          cache: cache,
-          isOffline: () => true,
-        );
-
-        final animals = await offlineRepo.list(sort: 'name');
-
-        expect(animals.single.name, 'Lotte');
-        verifyNever(
-          () => service.getFullList(
-            filter: any(named: 'filter'),
-            sort: any(named: 'sort'),
-            expand: any(named: 'expand'),
-          ),
-        );
-      },
+  test('a hung request times out as a network error (online-only)', () async {
+    final timeoutRepo = _AnimalsRepo(
+      pb,
+      networkTimeout: const Duration(milliseconds: 50),
+    );
+    when(
+      () => service.getFullList(
+        filter: any(named: 'filter'),
+        sort: any(named: 'sort'),
+        expand: any(named: 'expand'),
+      ),
+    ).thenAnswer(
+      (_) => Future.delayed(const Duration(seconds: 5), () => []),
     );
 
-    test('known-offline throws a network error on a cache miss', () async {
-      final offlineRepo = _AnimalsRepo(
-        pb,
-        cache: _MemoryCache(),
-        isOffline: () => true,
-      );
-
-      expect(
-        () => offlineRepo.list(sort: 'name'),
-        throwsA(
-          isA<RepositoryException>().having(
-            (e) => e.isNetwork,
-            'isNetwork',
-            true,
-          ),
+    expect(
+      () => timeoutRepo.list(sort: 'name'),
+      throwsA(
+        isA<RepositoryException>().having(
+          (e) => e.isNetwork,
+          'isNetwork',
+          true,
         ),
-      );
-    });
-
-    test('a hung request times out and falls back to the cache', () async {
-      final cache = _MemoryCache();
-      await cache.putList('animals', '|name|', [
-        {'id': 'a1', 'name': 'Lotte', 'species': 'Stadttaube'},
-      ]);
-      final timeoutRepo = _AnimalsRepo(
-        pb,
-        cache: cache,
-        networkTimeout: const Duration(milliseconds: 50),
-      );
-      when(
-        () => service.getFullList(
-          filter: any(named: 'filter'),
-          sort: any(named: 'sort'),
-          expand: any(named: 'expand'),
-        ),
-      ).thenAnswer(
-        (_) => Future.delayed(const Duration(seconds: 5), () => []),
-      );
-
-      final animals = await timeoutRepo.list(sort: 'name');
-
-      expect(animals.single.name, 'Lotte');
-    });
+      ),
+    );
   });
 }

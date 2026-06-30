@@ -5,7 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 /// Repository over the `markings` collection — drives re-identification of
 /// returning animals from a scanned/entered code (FED-4.10).
 class PbMarkingsRepository extends PbRepository<Marking> {
-  PbMarkingsRepository(PocketBase pb, {super.cache, super.isOffline})
+  PbMarkingsRepository(PocketBase pb)
     : super(
         pb: pb,
         collection: 'markings',
