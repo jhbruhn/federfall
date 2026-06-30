@@ -57,11 +57,11 @@ void main() {
     test('multi-select skips unknowns', () {
       expect(
         pbEnumList(
-          MarkingType.values,
+          Sex.values,
           (e) => e.wire,
-          ['finder_ring', 'bogus', 'microchip'],
+          ['male', 'bogus', 'unknown'],
         ),
-        [MarkingType.finderRing, MarkingType.microchip],
+        [Sex.male, Sex.unknown],
       );
     });
   });

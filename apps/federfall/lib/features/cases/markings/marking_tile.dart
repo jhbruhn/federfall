@@ -1,6 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
-import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
+import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -72,6 +72,8 @@ class MarkingTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
     final date = marking.appliedAt ?? marking.created;
+    final typeLabel =
+        ref.watch(markingTypesByIdProvider).value?[marking.type]?.label ?? '';
 
     final detail = [
       if (marking.colour case final c? when c.isNotEmpty) c,
@@ -115,7 +117,7 @@ class MarkingTile extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            markingTypeLabel(l10n, marking.type),
+            typeLabel,
             style: theme.textTheme.bodyLarge,
           ),
           if (detail.isNotEmpty)

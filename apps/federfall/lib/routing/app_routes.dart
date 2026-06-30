@@ -86,6 +86,9 @@ abstract final class AppRoutes {
   /// Supervisor-only admission-reason code-list editor (federfall-l12).
   static const admissionReasonsAdmin = '/admin/admission-reasons';
 
+  /// Supervisor-only marking-type code-list editor (federfall-28a).
+  static const markingTypesAdmin = '/admin/marking-types';
+
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 

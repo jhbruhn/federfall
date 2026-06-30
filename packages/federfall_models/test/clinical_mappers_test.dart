@@ -426,7 +426,7 @@ void main() {
       });
       final m = Marking.fromRecord(r);
       expect(m.animal, 'anml0000000001');
-      expect(m.type, MarkingType.associationRing);
+      expect(m.type, 'association_ring');
       expect(m.code, 'DE-1234');
       expect(m.schemeOrg, 'Vogelwarte');
       expect(m.colour, 'red');
@@ -437,11 +437,11 @@ void main() {
       expect(m.isActive, isTrue);
     });
 
-    test('defaults an unknown type to a temporary marker', () {
+    test('maps an empty type relation to an empty id', () {
       final m = Marking.fromRecord(
         RecordModel({'id': 'm', 'animal': 'a', 'type': ''}),
       );
-      expect(m.type, MarkingType.temporaryMarker);
+      expect(m.type, '');
       expect(m.isActive, isFalse);
     });
   });

@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_tile.dart';
+import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -29,6 +30,10 @@ void main() {
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
         ),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
+        markingTypesProvider.overrideWith(
+          (ref) async =>
+              const [MarkingType(id: 'mktp_finder', label: "Finder's ring")],
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -53,7 +58,7 @@ void main() {
       (_) async => const Marking(
         id: 'm1',
         animal: 'a1',
-        type: MarkingType.finderRing,
+        type: 'mktp_finder',
       ),
     );
 
@@ -70,7 +75,7 @@ void main() {
             as Map<String, dynamic>;
     expect(body['animal'], 'a1');
     expect(body['applied_in_case'], 'c1');
-    expect(body['type'], 'finder_ring');
+    expect(body['type'], 'mktp_finder');
     expect(body['code'], 'AT-123');
     expect(body['is_active'], true);
   });
@@ -81,7 +86,7 @@ void main() {
       (_) async => const Marking(
         id: 'm1',
         animal: 'a1',
-        type: MarkingType.finderRing,
+        type: 'mktp_finder',
       ),
     );
 
@@ -91,7 +96,7 @@ void main() {
         marking: Marking(
           id: 'm1',
           animal: 'a1',
-          type: MarkingType.finderRing,
+          type: 'mktp_finder',
           code: 'AT-123',
           colour: 'blue',
           isActive: true,

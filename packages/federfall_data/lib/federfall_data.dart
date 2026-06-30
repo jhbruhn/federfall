@@ -16,6 +16,7 @@ export 'src/repositories/conditions_repository.dart';
 export 'src/repositories/dispositions_repository.dart';
 export 'src/repositories/finders_repository.dart';
 export 'src/repositories/geocoding_repository.dart';
+export 'src/repositories/marking_types_repository.dart';
 export 'src/repositories/markings_repository.dart';
 export 'src/repositories/organisations_repository.dart';
 export 'src/repositories/quarantine_repository.dart';

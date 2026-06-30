@@ -78,21 +78,6 @@ enum CaseStatus {
   static CaseStatus? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
 }
 
-/// Kind of marking carried by an animal (`markings.type`).
-enum MarkingType {
-  finderRing('finder_ring'),
-  temporaryMarker('temporary_marker'),
-  releaseRing('release_ring'),
-  associationRing('association_ring'),
-  microchip('microchip');
-
-  const MarkingType(this.wire);
-
-  final String wire;
-
-  static MarkingType? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
-}
-
 /// Diagnostic certainty of a recorded condition (`case_conditions.certainty`).
 enum Certainty {
   suspected('suspected'),

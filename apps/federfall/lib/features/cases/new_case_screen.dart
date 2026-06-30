@@ -9,6 +9,7 @@ import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/exams/exam_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/location/location_picker_screen.dart';
+import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -1007,7 +1008,16 @@ class _ReidSearchField extends ConsumerWidget {
                               ListTile(
                                 leading: const Icon(Icons.pets_outlined),
                                 title: Text(_animalTitle(m.animal)),
-                                subtitle: Text(_markingsLine(l10n, m)),
+                                subtitle: Text(
+                                  _markingsLine(
+                                    l10n,
+                                    ref
+                                            .watch(markingTypesByIdProvider)
+                                            .value ??
+                                        const {},
+                                    m,
+                                  ),
+                                ),
                                 onTap:
                                     enabled ? () => onLink(m.animal) : null,
                               ),
@@ -1024,12 +1034,16 @@ class _ReidSearchField extends ConsumerWidget {
     return name == null || name.isEmpty ? a.species : '$name · ${a.species}';
   }
 
-  String _markingsLine(AppLocalizations l10n, ReidMatch m) {
+  String _markingsLine(
+    AppLocalizations l10n,
+    Map<String, MarkingType> typesById,
+    ReidMatch m,
+  ) {
     if (m.markings.isEmpty) return l10n.reidNoMarkings;
     return m.markings
         .map((mk) {
           final code = mk.code;
-          final type = markingTypeLabel(l10n, mk.type);
+          final type = typesById[mk.type]?.label ?? '';
           return code == null || code.isEmpty ? type : '$type $code';
         })
         .join(' · ');

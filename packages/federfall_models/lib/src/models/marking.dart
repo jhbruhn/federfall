@@ -1,5 +1,4 @@
 import 'package:federfall_models/src/converters.dart';
-import 'package:federfall_models/src/enums.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -12,7 +11,10 @@ abstract class Marking with _$Marking {
   const factory Marking({
     required String id,
     required String animal,
-    required MarkingType type,
+
+    /// Id into the `marking_types` code list (resolve the label via the
+    /// `markingTypesById` provider). Replaces the former inline enum.
+    required String type,
     String? code,
     String? schemeOrg,
     String? colour,
@@ -32,7 +34,7 @@ abstract class Marking with _$Marking {
     return Marking(
       id: r.id,
       animal: pbString(d['animal']) ?? '',
-      type: MarkingType.fromWire(d['type']) ?? MarkingType.temporaryMarker,
+      type: pbString(d['type']) ?? '',
       code: pbString(d['code']),
       schemeOrg: pbString(d['scheme_org']),
       colour: pbString(d['colour']),

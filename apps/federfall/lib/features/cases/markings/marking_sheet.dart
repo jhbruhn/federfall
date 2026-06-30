@@ -1,7 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
-import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -52,7 +52,9 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
   late final TextEditingController _code;
   late final TextEditingController _colour;
   late final TextEditingController _scheme;
-  late MarkingType _type;
+
+  /// Selected marking-type id, or null until the picker is populated / chosen.
+  late String? _type;
   late DateTime _appliedAt;
   bool _busy = false;
   String? _error;
@@ -66,7 +68,9 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
     _code = TextEditingController(text: m?.code ?? '');
     _colour = TextEditingController(text: m?.colour ?? '');
     _scheme = TextEditingController(text: m?.schemeOrg ?? '');
-    _type = m?.type ?? MarkingType.finderRing;
+    // Editing keeps the marking's current type; new markings default once the
+    // active code list loads (see build).
+    _type = m?.type;
     _appliedAt = m?.appliedAt ?? m?.created ?? DateTime.now();
   }
 
@@ -112,7 +116,7 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
       }
       final repo = await ref.read(markingsRepositoryProvider.future);
       final body = <String, dynamic>{
-        'type': _type.wire,
+        'type': _type,
         'code': _trim(_code) ?? '',
         'colour': _trim(_colour) ?? '',
         'scheme_org': _trim(_scheme) ?? '',
@@ -178,22 +182,10 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
                   style: theme.textTheme.titleLarge,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<MarkingType>(
-                  initialValue: _type,
-                  decoration: InputDecoration(
-                    labelText: l10n.markingFieldType,
-                    prefixIcon: const Icon(Icons.sell_outlined),
-                  ),
-                  items: [
-                    for (final t in MarkingType.values)
-                      DropdownMenuItem(
-                        value: t,
-                        child: Text(markingTypeLabel(l10n, t)),
-                      ),
-                  ],
-                  onChanged: _busy
-                      ? null
-                      : (t) => setState(() => _type = t ?? _type),
+                _MarkingTypeField(
+                  selected: _type,
+                  enabled: !_busy,
+                  onChanged: (id) => setState(() => _type = id),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
@@ -245,5 +237,66 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
         ),
       ),
     );
+  }
+}
+
+/// The marking-type picker, populated from the live `marking_types` code list.
+/// New markings auto-select the first active type; editing keeps the marking's
+/// current type even if it has since been deactivated.
+class _MarkingTypeField extends ConsumerWidget {
+  const _MarkingTypeField({
+    required this.selected,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String? selected;
+  final bool enabled;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final decoration = InputDecoration(
+      labelText: l10n.markingFieldType,
+      prefixIcon: const Icon(Icons.sell_outlined),
+    );
+
+    return switch (ref.watch(markingTypesProvider)) {
+      AsyncData(:final value) => Builder(
+        builder: (context) {
+          final options = value
+              .where((t) => t.active || t.id == selected)
+              .toList(growable: false);
+          // Auto-select the first active type for a new marking once loaded.
+          if (selected == null && options.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              onChanged(options.first.id);
+            });
+          }
+          return DropdownButtonFormField<String>(
+            initialValue: options.any((t) => t.id == selected)
+                ? selected
+                : null,
+            decoration: decoration,
+            items: [
+              for (final t in options)
+                DropdownMenuItem(value: t.id, child: Text(t.label)),
+            ],
+            validator: (v) => v == null ? l10n.fieldRequired : null,
+            onChanged: enabled ? onChanged : null,
+          );
+        },
+      ),
+      AsyncError() => InputDecorator(
+        decoration: decoration,
+        child: Text(l10n.errorGenericTitle),
+      ),
+      _ => DropdownButtonFormField<String>(
+        decoration: decoration,
+        items: const [],
+        onChanged: null,
+      ),
+    };
   }
 }

@@ -2,6 +2,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
+import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -28,6 +29,10 @@ Future<void> _pump(
         ).overrideWith((ref) async => lifetime),
         weightsForAnimalProvider('a1').overrideWith((ref) async => weights),
         examsForAnimalProvider('a1').overrideWith((ref) async => exams),
+        markingTypesProvider.overrideWith(
+          (ref) async =>
+              const [MarkingType(id: 'mktp_assoc', label: 'Association ring')],
+        ),
         if (animals != null)
           animalsRepositoryProvider.overrideWith((ref) async => animals),
       ],
@@ -95,7 +100,7 @@ void main() {
           Marking(
             id: 'm1',
             animal: 'a1',
-            type: MarkingType.associationRing,
+            type: 'mktp_assoc',
             code: 'DE-1234',
             isActive: true,
           ),

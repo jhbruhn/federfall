@@ -9,6 +9,7 @@ import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
+import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
@@ -315,6 +316,8 @@ class _MarkingsSection extends ConsumerWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
+    final typesById =
+        ref.watch(markingTypesByIdProvider).value ?? const {};
 
     return Card(
       child: Padding(
@@ -353,7 +356,7 @@ class _MarkingsSection extends ConsumerWidget {
                     Icons.sell_outlined,
                     color: m.isActive ? null : theme.colorScheme.outline,
                   ),
-                  title: Text(_markingTitle(l10n, m)),
+                  title: Text(_markingTitle(typesById, m)),
                   subtitle: m.isActive
                       ? null
                       : Text(
@@ -393,9 +396,9 @@ class _MarkingsSection extends ConsumerWidget {
     );
   }
 
-  String _markingTitle(AppLocalizations l10n, Marking m) {
+  String _markingTitle(Map<String, MarkingType> typesById, Marking m) {
     final code = m.code;
-    final label = markingTypeLabel(l10n, m.type);
+    final label = typesById[m.type]?.label ?? '';
     return code != null && code.isNotEmpty ? '$label · $code' : label;
   }
 }

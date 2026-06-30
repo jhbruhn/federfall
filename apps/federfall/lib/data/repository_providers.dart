@@ -93,6 +93,10 @@ Future<PbMarkingsRepository> markingsRepository(Ref ref) async =>
     PbMarkingsRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbMarkingTypesRepository> markingTypesRepository(Ref ref) async =>
+    PbMarkingTypesRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbDispositionsRepository> dispositionsRepository(Ref ref) async =>
     PbDispositionsRepository(await _client(ref));
 
