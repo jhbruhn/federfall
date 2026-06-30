@@ -349,6 +349,7 @@
         "placeholders": { "date": { "type": "String" } }
     },
     "quarantineEndNowAction": "Quarantäne beenden",
+    "quarantineEndedEvent": "Quarantäne beendet",
     "quarantineEditAction": "Bearbeiten",
     "quarantineDeleteAction": "Löschen",
     "quarantineDeleteTitle": "Quarantäne löschen?",

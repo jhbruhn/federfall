@@ -281,6 +281,55 @@ void main() {
     expect(find.text('A note'), findsOneWidget);
     expect(find.byIcon(Icons.more_vert), findsNothing);
   });
+
+  testWidgets('an ended quarantine shows both a started and an ended entry',
+      (tester) async {
+    when(() => journal.forCase('c1')).thenAnswer((_) async => []);
+    // Imposed two months ago, ended one month ago — both dates are in the past.
+    when(() => quarantine.forCase('c1')).thenAnswer(
+      (_) async => [
+        Quarantine(
+          id: 'q1',
+          caseId: 'c1',
+          setAt: DateTime.utc(2026, 4, 20),
+          until: DateTime.utc(2026, 5, 4),
+        ),
+      ],
+    );
+
+    await pump(tester, const Case(id: 'c1', animal: 'a1'));
+
+    // Two entries: the imposition and a separate "ended" marker at its end.
+    expect(find.textContaining('Quarantine until'), findsOneWidget);
+    expect(find.text('Quarantine ended'), findsOneWidget);
+
+    // The started entry sits above the ended marker (newest-first: the end date
+    // is more recent than the start).
+    final ended = tester.getTopLeft(find.text('Quarantine ended')).dy;
+    final started =
+        tester.getTopLeft(find.textContaining('Quarantine until')).dy;
+    expect(ended, lessThan(started));
+  });
+
+  testWidgets('an active quarantine shows only the started entry',
+      (tester) async {
+    when(() => journal.forCase('c1')).thenAnswer((_) async => []);
+    when(() => quarantine.forCase('c1')).thenAnswer(
+      (_) async => [
+        Quarantine(
+          id: 'q1',
+          caseId: 'c1',
+          setAt: DateTime.utc(2026, 6, 20),
+          until: DateTime.utc(2099, 6, 20), // far future — not yet ended
+        ),
+      ],
+    );
+
+    await pump(tester, const Case(id: 'c1', animal: 'a1'));
+
+    expect(find.textContaining('Quarantine until'), findsOneWidget);
+    expect(find.text('Quarantine ended'), findsNothing);
+  });
 }
 
 /// Matches a `Text.rich` labelled fact whose combined plain text contains both

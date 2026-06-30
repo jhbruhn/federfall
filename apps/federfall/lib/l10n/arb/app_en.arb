@@ -764,6 +764,8 @@
     },
     "quarantineEndNowAction": "End quarantine",
     "@quarantineEndNowAction": { "description": "Inline button that ends the active quarantine today" },
+    "quarantineEndedEvent": "Quarantine ended",
+    "@quarantineEndedEvent": { "description": "Timeline marker shown at the date a quarantine lapsed" },
     "quarantineEditAction": "Edit",
     "@quarantineEditAction": { "description": "Menu action that edits a quarantine" },
     "quarantineDeleteAction": "Delete",

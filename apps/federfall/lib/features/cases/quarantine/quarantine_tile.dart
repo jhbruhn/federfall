@@ -8,13 +8,20 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// One quarantine period as a chronology event (federfall-uvm): a
-/// [TimelineItem] showing the end date, an "ended" badge once it has passed,
-/// an optional reason and an edit/delete menu.
+/// Which end of a quarantine period a tile renders. One [Quarantine] record
+/// shows as two timeline entries: its [started] imposition (at `set_at`) and,
+/// once the end date has passed, a separate [ended] marker (at `until`).
+enum QuarantinePhase { started, ended }
+
+/// One end of a quarantine period as a chronology event (federfall-uvm). The
+/// [QuarantinePhase.started] tile carries the period detail, the reason, the
+/// edit/delete menu and the inline "end now" shortcut; the
+/// [QuarantinePhase.ended] tile is a plain marker at the date it lapsed.
 class QuarantineTile extends ConsumerWidget {
   const QuarantineTile({
     required this.entry,
     required this.caseId,
+    this.phase = QuarantinePhase.started,
     this.canEdit = true,
     this.isCurrent = false,
     this.isLast = false,
@@ -23,6 +30,7 @@ class QuarantineTile extends ConsumerWidget {
 
   final Quarantine entry;
   final String caseId;
+  final QuarantinePhase phase;
   final bool canEdit;
 
   /// Whether this is the case's active quarantine (the latest record). Only the
@@ -77,6 +85,19 @@ class QuarantineTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
 
+    // The "ended" entry is a plain marker at the date quarantine lapsed.
+    if (phase == QuarantinePhase.ended) {
+      return TimelineItem(
+        icon: Icons.health_and_safety_outlined,
+        date: formatEventDate(materialL10n, entry.until ?? entry.created),
+        isLast: isLast,
+        child: Text(
+          l10n.quarantineEndedEvent,
+          style: theme.textTheme.bodyLarge,
+        ),
+      );
+    }
+
     final date = entry.setAt ?? entry.created;
     final until = entry.until;
     final ended = until != null && !until.isAfter(DateTime.now());
@@ -115,10 +136,6 @@ class QuarantineTile extends ConsumerWidget {
                   ),
             style: theme.textTheme.bodyLarge,
           ),
-          if (ended) ...[
-            const SizedBox(height: AppSpacing.xs),
-            _Tag(label: l10n.caseQuarantineEnded),
-          ],
           if (reason != null && reason.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(reason, style: theme.textTheme.bodyMedium),
@@ -138,34 +155,6 @@ class QuarantineTile extends ConsumerWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-/// A small rounded tag (the "ended" badge).
-class _Tag extends StatelessWidget {
-  const _Tag({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSecondaryContainer,
-        ),
       ),
     );
   }

@@ -151,11 +151,22 @@ class CaseTimeline extends ConsumerWidget {
         _FollowUpEvent(followUp),
       for (final exam in exams.value ?? const <Exam>[])
         _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
-      for (final quarantine in quarantines.value ?? const <Quarantine>[])
+      for (final quarantine in quarantines.value ?? const <Quarantine>[]) ...[
+        // Every quarantine shows as a "started" entry; once it has lapsed it
+        // also gets a separate "ended" marker at its end date.
         _QuarantineEvent(
           quarantine,
+          phase: QuarantinePhase.started,
           isCurrent: quarantine.id == currentQuarantineId,
         ),
+        if (quarantine.until case final until?
+            when !until.isAfter(DateTime.now()))
+          _QuarantineEvent(
+            quarantine,
+            phase: QuarantinePhase.ended,
+            isCurrent: quarantine.id == currentQuarantineId,
+          ),
+      ],
     ]..sort((a, b) {
       final byTime = b.at.compareTo(a.at);
       if (byTime != 0) return byTime;
@@ -258,10 +269,15 @@ class CaseTimeline extends ConsumerWidget {
                 canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
-              _QuarantineEvent(:final quarantine, :final isCurrent) =>
+              _QuarantineEvent(
+                :final quarantine,
+                :final phase,
+                :final isCurrent,
+              ) =>
                 QuarantineTile(
                   entry: quarantine,
                   caseId: caseId,
+                  phase: phase,
                   canEdit: canEdit,
                   isCurrent: isCurrent,
                   isLast: i == events.length - 1,
@@ -428,17 +444,29 @@ class _DispositionEvent extends _Event {
       DateTime.fromMillisecondsSinceEpoch(0);
 }
 
-/// A quarantine period placed on the timeline by when it was imposed.
+/// One end of a quarantine period on the timeline: the started imposition
+/// (placed at `set_at`) or, once lapsed, the ended marker (placed at `until`).
 /// [isCurrent] marks the active record (the latest), which offers "end now".
 class _QuarantineEvent extends _Event {
-  const _QuarantineEvent(this.quarantine, {required this.isCurrent});
+  const _QuarantineEvent(
+    this.quarantine, {
+    required this.phase,
+    required this.isCurrent,
+  });
 
   final Quarantine quarantine;
+  final QuarantinePhase phase;
   final bool isCurrent;
 
   @override
-  DateTime get at =>
+  DateTime get at => switch (phase) {
+    QuarantinePhase.started =>
       quarantine.setAt ??
-      quarantine.created ??
-      DateTime.fromMillisecondsSinceEpoch(0);
+          quarantine.created ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+    QuarantinePhase.ended =>
+      quarantine.until ??
+          quarantine.created ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+  };
 }
