@@ -295,6 +295,8 @@
     "@worklistGroupFollowUps": { "description": "Worklist group heading for due rechecks / follow-ups" },
     "worklistGroupQuarantine": "Quarantine ending",
     "@worklistGroupQuarantine": { "description": "Worklist group heading for ending quarantines" },
+    "worklistQuarantineEndsToday": "Ends today",
+    "@worklistQuarantineEndsToday": { "description": "Worklist detail line for a quarantine ending today (the only day it appears)" },
     "worklistGroupStale": "Inactive cases",
     "@worklistGroupStale": { "description": "Worklist group heading for cases without recent activity" },
     "worklistUnnumberedCase": "Unnumbered case",

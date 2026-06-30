@@ -76,8 +76,8 @@ void main() {
   });
 
   group('buildWorklist — quarantine', () {
-    test('quarantine ending within the window is upcoming', () {
-      final until = _now.add(const Duration(days: 2));
+    test('quarantine ending today appears as a neutral, non-overdue note', () {
+      final until = _now.add(const Duration(hours: 6)); // still 2026-06-24
       final items = buildWorklist(
         cases: [_case('c1')],
         medicationsDue: const [],
@@ -89,7 +89,21 @@ void main() {
       expect(items.single.dueAt, until);
     });
 
-    test('quarantine in the past is overdue', () {
+    test('a quarantine that ended earlier today is still only a note', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medicationsDue: const [],
+        quarantineUntilByCase: {
+          // Lifted via "end now" a few hours ago — same day, not overdue.
+          'c1': _now.subtract(const Duration(hours: 3)),
+        },
+        now: _now,
+      );
+      expect(items.single.kind, WorklistKind.quarantineEnding);
+      expect(items.single.severity, WorklistSeverity.upcoming);
+    });
+
+    test('a quarantine whose end was a prior day does not appear', () {
       final items = buildWorklist(
         cases: [_case('c1')],
         medicationsDue: const [],
@@ -98,14 +112,14 @@ void main() {
         },
         now: _now,
       );
-      expect(items.single.severity, WorklistSeverity.overdue);
+      expect(items, isEmpty);
     });
 
-    test('quarantine far in the future does not appear', () {
+    test('quarantine ending on a future day does not appear', () {
       final items = buildWorklist(
         cases: [_case('c1')],
         medicationsDue: const [],
-        quarantineUntilByCase: {'c1': _now.add(const Duration(days: 30))},
+        quarantineUntilByCase: {'c1': _now.add(const Duration(days: 2))},
         now: _now,
       );
       expect(items, isEmpty);
@@ -206,12 +220,12 @@ void main() {
       medicationsDue: [
         _due('m1', nextDue: _now.subtract(const Duration(hours: 5))),
       ],
-      quarantineUntilByCase: {'c1': _now.add(const Duration(days: 1))},
+      quarantineUntilByCase: {'c1': _now.add(const Duration(hours: 6))},
       now: _now,
     );
 
     expect(items, hasLength(2));
-    // Med due 5h ago sorts before the quarantine ending tomorrow.
+    // Med due 5h ago sorts before the quarantine ending later today.
     expect(items.first.kind, WorklistKind.medicationDue);
     expect(items.last.kind, WorklistKind.quarantineEnding);
   });

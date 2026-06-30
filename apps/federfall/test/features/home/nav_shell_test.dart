@@ -56,7 +56,6 @@ Future<void> _pump(WidgetTester tester, {required Size size}) async {
           activeCount: 0,
           intakesThisYear: 0,
           byStatus: {},
-          quarantineEndingSoon: [],
         ),
       ),
     ],

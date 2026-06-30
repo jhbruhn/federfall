@@ -80,9 +80,6 @@ class WorklistItem {
   );
 }
 
-/// How far ahead a quarantine end counts as "soon" (mirrors the dashboard).
-const quarantineDueWindow = Duration(days: 7);
-
 /// How far ahead a scheduled dose counts as "due" on the worklist — a dose
 /// landing later today should show; one days out should not.
 const medicationDueWindow = Duration(hours: 24);
@@ -109,7 +106,6 @@ List<WorklistItem> buildWorklist({
   Map<String, DateTime?> lastActivityByCase = const {},
   Map<String, DateTime?> quarantineUntilByCase = const {},
   Map<String, String?> animalNameById = const {},
-  Duration quarantineWindow = quarantineDueWindow,
   Duration medicationWindow = medicationDueWindow,
   Duration followUpWindow = followUpDueWindow,
   Duration staleAfter = staleThreshold,
@@ -117,19 +113,20 @@ List<WorklistItem> buildWorklist({
   final items = <WorklistItem>[];
   final casesById = {for (final c in cases) c.id: c};
 
-  // Quarantines ending within the window (or already overdue).
-  final quarantineThreshold = now.add(quarantineWindow);
+  // Quarantines ending *today* only — a neutral same-day note, never overdue.
+  // A quarantine simply concludes; it isn't an obligation you fall behind on,
+  // and "end now" just moves the end to today, so it should leave a gentle
+  // "ends today" marker rather than flip to a red "overdue" item the moment it
+  // passes (and then nag indefinitely, since a past end never leaves a window).
   for (final c in cases) {
     final until = quarantineUntilByCase[c.id];
-    if (until == null || !until.isBefore(quarantineThreshold)) continue;
+    if (until == null || !_isSameDay(until, now)) continue;
     items.add(
       WorklistItem(
         kind: WorklistKind.quarantineEnding,
         caseId: c.id,
         dueAt: until,
-        severity: until.isAfter(now)
-            ? WorklistSeverity.upcoming
-            : WorklistSeverity.overdue,
+        severity: WorklistSeverity.upcoming,
         caseNumber: c.caseNumber,
         animalName: animalNameById[c.animal],
       ),
@@ -213,4 +210,12 @@ List<WorklistItem> buildWorklist({
 
   items.sort((a, b) => a.dueAt.compareTo(b.dueAt));
   return items;
+}
+
+/// Whether [a] and [b] fall on the same calendar day in local time. Quarantine
+/// ends are stored UTC; the carer thinks in their own day, so compare locally.
+bool _isSameDay(DateTime a, DateTime b) {
+  final la = a.toLocal();
+  final lb = b.toLocal();
+  return la.year == lb.year && la.month == lb.month && la.day == lb.day;
 }

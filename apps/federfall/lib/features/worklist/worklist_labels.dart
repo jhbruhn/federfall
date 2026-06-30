@@ -50,7 +50,7 @@ String worklistItemDetail(
     item.followUp?.note,
     _relativeDue(l10n, item.dueAt, now),
   ),
-  WorklistKind.quarantineEnding => _relativeDue(l10n, item.dueAt, now),
+  WorklistKind.quarantineEnding => l10n.worklistQuarantineEndsToday,
 };
 
 /// "{note} · {relative}" when a note is present, else just the relative phrase.

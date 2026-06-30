@@ -119,6 +119,7 @@
     "worklistGroupMeds": "Fällige Medikamente",
     "worklistGroupFollowUps": "Fällige Nachkontrollen",
     "worklistGroupQuarantine": "Quarantäne endet",
+    "worklistQuarantineEndsToday": "Endet heute",
     "worklistGroupStale": "Inaktive Fälle",
     "worklistUnnumberedCase": "Fall ohne Nummer",
     "worklistOverdueHours": "{hours, plural, one{1 Std. überfällig} other{{hours} Std. überfällig}}",

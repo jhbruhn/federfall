@@ -38,7 +38,6 @@ void main() {
           CaseStatus.inCare: 3,
           CaseStatus.readyForRelease: 1,
         },
-        quarantineEndingSoon: [],
         inAviaryCount: 5,
       ),
     );
@@ -65,7 +64,6 @@ void main() {
         activeCount: 4,
         intakesThisYear: 7,
         byStatus: {CaseStatus.inCare: 3, CaseStatus.readyForRelease: 1},
-        quarantineEndingSoon: [],
         inAviaryCount: 5,
       ),
     );
@@ -83,7 +81,6 @@ void main() {
         activeCount: 4,
         intakesThisYear: 7,
         byStatus: {},
-        quarantineEndingSoon: [],
       ),
     );
 
@@ -105,7 +102,6 @@ void main() {
         activeCount: 4,
         intakesThisYear: 7,
         byStatus: {},
-        quarantineEndingSoon: [],
       ),
     );
 
