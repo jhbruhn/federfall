@@ -4,6 +4,7 @@ library;
 
 export 'src/pb_repository.dart';
 export 'src/repositories/admission_reasons_repository.dart';
+export 'src/repositories/animal_species_repository.dart';
 export 'src/repositories/animals_repository.dart';
 export 'src/repositories/auth_repository.dart';
 export 'src/repositories/aviaries_repository.dart';
