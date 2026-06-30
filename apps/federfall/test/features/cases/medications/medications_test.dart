@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
+import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -38,6 +39,10 @@ void main() {
             .overrideWith((ref) async => medications),
         medicationAdministrationsRepositoryProvider
             .overrideWith((ref) async => administrations),
+        medicationRoutesProvider.overrideWith(
+          (ref) async =>
+              const [MedicationRoute(id: 'mr_subcut', label: 'Subcutaneous')],
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -124,7 +129,7 @@ void main() {
         drug: 'Baytril',
         dose: 0.3,
         doseUnit: 'ml',
-        route: MedicationRoute.subcutaneous,
+        route: 'mr_subcut',
       );
       await pump(
         tester,
@@ -141,7 +146,7 @@ void main() {
       expect(body['drug'], 'Baytril');
       expect(body['medication'], 'm1');
       expect(body['administered_by'], 'u1');
-      expect(body['route'], 'subcutaneous');
+      expect(body['route'], 'mr_subcut');
     });
   });
 
@@ -157,7 +162,7 @@ void main() {
             drug: 'Baytril',
             dose: 0.3,
             doseUnit: 'ml',
-            route: MedicationRoute.subcutaneous,
+            route: 'mr_subcut',
             frequencyKind: MedicationFrequencyKind.scheduled,
             intervalHours: 12,
             isControlled: true,

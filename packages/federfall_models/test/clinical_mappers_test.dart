@@ -70,7 +70,7 @@ void main() {
       expect(m.frequency, 'twice daily');
       expect(m.frequencyKind, MedicationFrequencyKind.scheduled);
       expect(m.intervalHours, 12);
-      expect(m.route, MedicationRoute.oral);
+      expect(m.route, 'oral');
       expect(m.startedAt?.day, 12);
       expect(m.endedAt?.day, 19);
       expect(m.isControlled, isTrue);
@@ -111,7 +111,7 @@ void main() {
       expect(m.caseId, 'case0000000001');
       expect(m.drug, 'Enrofloxacin');
       expect(m.dose, 5);
-      expect(m.route, MedicationRoute.subcutaneous);
+      expect(m.route, 'subcutaneous');
       expect(m.frequencyKind, MedicationFrequencyKind.scheduled);
       expect(m.intervalHours, 24);
       expect(m.startedAt?.day, 12);
@@ -227,7 +227,7 @@ void main() {
       expect(a.medication, 'medi0000000001');
       expect(a.dose, 0.2);
       expect(a.doseUnit, 'mg');
-      expect(a.route, MedicationRoute.oral);
+      expect(a.route, 'oral');
       expect(a.administeredAt?.minute, 5);
       expect(a.administeredBy, 'user0000000001');
       expect(a.notes, 'no spit-up');

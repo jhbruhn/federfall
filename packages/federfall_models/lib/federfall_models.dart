@@ -29,5 +29,6 @@ export 'src/models/geo_point.dart';
 export 'src/models/marking.dart';
 export 'src/models/marking_type.dart';
 export 'src/models/medical_case.dart';
+export 'src/models/medication_route.dart';
 export 'src/models/organisation.dart';
 export 'src/models/quarantine.dart';

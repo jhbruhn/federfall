@@ -8,6 +8,7 @@ import 'package:federfall/features/admin/admission_reasons_admin_screen.dart';
 import 'package:federfall/features/admin/conditions_admin_screen.dart';
 import 'package:federfall/features/admin/management_screen.dart';
 import 'package:federfall/features/admin/marking_types_admin_screen.dart';
+import 'package:federfall/features/admin/medication_routes_admin_screen.dart';
 import 'package:federfall/features/admin/org_settings_screen.dart';
 import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
@@ -260,6 +261,10 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: AppRoutes.markingTypesAdmin,
         builder: (_, _) => const MarkingTypesAdminScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.medicationRoutesAdmin,
+        builder: (_, _) => const MedicationRoutesAdminScreen(),
       ),
       GoRoute(
         path: AppRoutes.statistics,

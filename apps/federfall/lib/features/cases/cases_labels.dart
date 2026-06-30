@@ -82,17 +82,6 @@ String dispositionTypeLabel(AppLocalizations l10n, DispositionType t) =>
       DispositionType.returnedToOwner => l10n.dispositionReturnedToOwner,
     };
 
-String medicationRouteLabel(AppLocalizations l10n, MedicationRoute r) =>
-    switch (r) {
-      MedicationRoute.oral => l10n.routeOral,
-      MedicationRoute.subcutaneous => l10n.routeSubcutaneous,
-      MedicationRoute.intramuscular => l10n.routeIntramuscular,
-      MedicationRoute.intravenous => l10n.routeIntravenous,
-      MedicationRoute.topical => l10n.routeTopical,
-      MedicationRoute.nebulized => l10n.routeNebulized,
-      MedicationRoute.other => l10n.routeOther,
-    };
-
 String hydrationLabel(AppLocalizations l10n, Hydration h) => switch (h) {
   Hydration.normal => l10n.hydrationNormal,
   Hydration.mild => l10n.hydrationMild,

@@ -1,7 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
-import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -45,7 +45,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   late final TextEditingController _customHours;
   late final TextEditingController _instructions;
   late final TextEditingController _prescribedBy;
-  MedicationRoute? _route;
+  String? _route;
   late _FreqPreset _preset;
   late DateTime _startedAt;
   DateTime? _endedAt;
@@ -125,7 +125,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
         'frequency': _trim(_frequency) ?? '',
         'frequency_kind': _preset.kind.wire,
         'interval_hours': intervalHours,
-        'route': _route?.wire ?? '',
+        'route': _route ?? '',
         'started_at': _startedAt.toUtc().toIso8601String(),
         'ended_at': _endedAt?.toUtc().toIso8601String() ?? '',
         'is_controlled': _controlled,
@@ -412,8 +412,9 @@ enum _FreqPreset {
   };
 }
 
-/// Optional route picker shared by the prescription and dose forms.
-class MedicationRouteDropdown extends StatelessWidget {
+/// Optional route picker shared by the prescription and dose forms, populated
+/// from the live `medication_routes` code list. [value] is a route id, or null.
+class MedicationRouteDropdown extends ConsumerWidget {
   const MedicationRouteDropdown({
     required this.value,
     required this.enabled,
@@ -421,25 +422,28 @@ class MedicationRouteDropdown extends StatelessWidget {
     super.key,
   });
 
-  final MedicationRoute? value;
+  final String? value;
   final bool enabled;
-  final ValueChanged<MedicationRoute?> onChanged;
+  final ValueChanged<String?> onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    return DropdownButtonFormField<MedicationRoute>(
-      initialValue: value,
-      decoration: InputDecoration(
-        labelText: l10n.medRoute,
-        prefixIcon: const Icon(Icons.vaccines_outlined),
-      ),
+    final decoration = InputDecoration(
+      labelText: l10n.medRoute,
+      prefixIcon: const Icon(Icons.vaccines_outlined),
+    );
+    // Active routes, plus the current selection even if it has been
+    // deactivated, so an existing record's route stays visible.
+    final options = (ref.watch(medicationRoutesProvider).value ?? const [])
+        .where((r) => r.active || r.id == value)
+        .toList(growable: false);
+    return DropdownButtonFormField<String>(
+      initialValue: options.any((r) => r.id == value) ? value : null,
+      decoration: decoration,
       items: [
-        for (final r in MedicationRoute.values)
-          DropdownMenuItem(
-            value: r,
-            child: Text(medicationRouteLabel(l10n, r)),
-          ),
+        for (final r in options)
+          DropdownMenuItem(value: r.id, child: Text(r.label)),
       ],
       onChanged: enabled ? onChanged : null,
     );

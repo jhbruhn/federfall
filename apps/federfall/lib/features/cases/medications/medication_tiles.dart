@@ -1,6 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
+import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
@@ -68,10 +69,12 @@ class PrescriptionTile extends ConsumerWidget {
       plan.frequencyKind,
       plan.intervalHours,
     );
+    final routesById =
+        ref.watch(medicationRoutesByIdProvider).value ?? const {};
     final detail = [
       if (formatDose(plan.dose, plan.doseUnit) case final d when d.isNotEmpty)
         d,
-      if (plan.route case final r?) medicationRouteLabel(l10n, r),
+      ?routesById[plan.route]?.label,
       if (frequency.isNotEmpty) frequency,
       if (plan.frequency case final f? when f.isNotEmpty) f,
     ].join(' · ');
@@ -224,7 +227,9 @@ class AdministrationTile extends ConsumerWidget {
 
     final dose = formatDose(a.dose, a.doseUnit);
     final drugDose = dose.isEmpty ? a.drug : '${a.drug} $dose';
-    final route = a.route == null ? null : medicationRouteLabel(l10n, a.route!);
+    final routesById =
+        ref.watch(medicationRoutesByIdProvider).value ?? const {};
+    final route = routesById[a.route]?.label;
 
     return TimelineItem(
       icon: Icons.vaccines_outlined,

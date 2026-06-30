@@ -56,7 +56,7 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
   late final TextEditingController _dose;
   late final TextEditingController _unit;
   late final TextEditingController _notes;
-  MedicationRoute? _route;
+  String? _route;
   late DateTime _administeredAt;
   bool _busy = false;
   String? _error;
@@ -125,7 +125,7 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
         'drug': _drug.text.trim(),
         'dose': dose,
         'dose_unit': _trim(_unit) ?? '',
-        'route': _route?.wire ?? '',
+        'route': _route ?? '',
         'administered_at': _administeredAt.toUtc().toIso8601String(),
         'notes': _trim(_notes) ?? '',
       };

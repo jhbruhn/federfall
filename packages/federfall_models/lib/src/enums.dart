@@ -106,24 +106,6 @@ enum MedicationFrequencyKind {
       pbEnum(values, (e) => e.wire, v);
 }
 
-/// Route of administration for a medication (`medications.route`).
-enum MedicationRoute {
-  oral('oral'),
-  subcutaneous('subcutaneous'),
-  intramuscular('intramuscular'),
-  intravenous('intravenous'),
-  topical('topical'),
-  nebulized('nebulized'),
-  other('other');
-
-  const MedicationRoute(this.wire);
-
-  final String wire;
-
-  static MedicationRoute? fromWire(Object? v) =>
-      pbEnum(values, (e) => e.wire, v);
-}
-
 /// Outcome of a case (`dispositions.type`).
 enum DispositionType {
   released('released'),

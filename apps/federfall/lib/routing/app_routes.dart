@@ -89,6 +89,9 @@ abstract final class AppRoutes {
   /// Supervisor-only marking-type code-list editor (federfall-28a).
   static const markingTypesAdmin = '/admin/marking-types';
 
+  /// Supervisor-only medication-route code-list editor (federfall-7k9).
+  static const medicationRoutesAdmin = '/admin/medication-routes';
+
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 
