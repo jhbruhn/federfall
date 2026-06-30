@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/admin/org_settings_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -60,7 +61,13 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   // Case intake.
   final _findLocationController = TextEditingController();
   final _intakeWeightController = TextEditingController();
+  final _quarantineDaysController = TextEditingController();
   final _intakeNotesController = TextEditingController();
+
+  // The org-wide default quarantine duration, prefilled into the field above
+  // once loaded. Kept so submit can skip the per-case update when the carer
+  // left the default untouched (the backend hook already applies it).
+  int? _orgDefaultQuarantineDays;
   final _intakePhotos = <XFile>[];
   final Set<AdmissionReason> _reasons = {};
   AgeClass? _ageClass;
@@ -105,6 +112,20 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           })
           .ignore();
     }
+    // Prefill the quarantine duration from the org-wide default; the carer can
+    // override it for this case (empty falls back to the same default).
+    ref
+        .read(orgQuarantineDefaultDaysProvider.future)
+        .then((days) {
+          if (!mounted) return;
+          setState(() {
+            _orgDefaultQuarantineDays = days;
+            if (_quarantineDaysController.text.trim().isEmpty) {
+              _quarantineDaysController.text = '$days';
+            }
+          });
+        })
+        .ignore();
   }
 
   @override
@@ -115,6 +136,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       _reidController,
       _findLocationController,
       _intakeWeightController,
+      _quarantineDaysController,
       _intakeNotesController,
       _finderFirstName,
       _finderLastName,
@@ -284,6 +306,30 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           'author': user.id,
           'org': org,
         });
+      }
+
+      // Quarantine: the create hook already made the org-default record. If the
+      // carer set a different duration, update that record's end rather than
+      // adding a second one (one record per quarantine period).
+      final quarantineDays = int.tryParse(
+        _quarantineDaysController.text.trim(),
+      );
+      if (quarantineDays != null &&
+          quarantineDays > 0 &&
+          quarantineDays != _orgDefaultQuarantineDays) {
+        final quarantineRepo =
+            await ref.read(quarantineRepositoryProvider.future);
+        final records = await quarantineRepo.forCase(created.id);
+        if (records.isNotEmpty) {
+          final base = _admittedAt ?? DateTime.now();
+          await quarantineRepo.update(records.first.id, {
+            'set_at': base.toUtc().toIso8601String(),
+            'quarantine_until': base
+                .add(Duration(days: quarantineDays))
+                .toUtc()
+                .toIso8601String(),
+          });
+        }
       }
 
       ref
@@ -528,6 +574,16 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           textInputAction: TextInputAction.next,
+          enabled: !_busy,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        AppTextField(
+          controller: _quarantineDaysController,
+          label: l10n.caseFieldQuarantineDays,
+          hintText: l10n.caseFieldQuarantineDaysHint,
+          prefixIcon: Icons.shield_outlined,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           enabled: !_busy,
         ),
       ],

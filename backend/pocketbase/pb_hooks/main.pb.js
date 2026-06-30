@@ -66,7 +66,25 @@ onRecordAfterCreateSuccess((e) => {
     const parseDate = (s) => new Date(String(s).replace(" ", "T"));
     const admittedStr = caseRec.getString("admitted_at");
     const base = admittedStr ? parseDate(admittedStr) : new Date();
-    const until = new Date(base.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    // Default duration is org-configurable (org.settings.quarantineDefaultDays);
+    // fall back to 14 days when unset or invalid. The app overrides this per
+    // case by updating this record after intake, so this also covers cases
+    // created outside the app (Admin UI / import).
+    let days = 14;
+    const orgId = caseRec.get("org");
+    if (orgId) {
+      try {
+        const org = e.app.findRecordById("organisations", orgId);
+        const settings = org.get("settings");
+        const v = settings && settings.quarantineDefaultDays;
+        const n = parseInt(v, 10);
+        if (!isNaN(n) && n > 0) days = n;
+      } catch (_) {
+        // No org / no settings — keep the 14-day fallback.
+      }
+    }
+    const until = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
 
     const rec = new Record(e.app.findCollectionByNameOrId("quarantine_records"));
     rec.set("case", caseRec.id);

@@ -82,7 +82,10 @@ void main() {
       find.widgetWithText(TextFormField, 'Contact email'),
       'help@x.org',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    final save = find.widgetWithText(FilledButton, 'Save');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
     await tester.pumpAndSettle();
 
     final data =
@@ -92,5 +95,6 @@ void main() {
     final settings = data['settings'] as Map<String, dynamic>;
     expect(settings['keepMe'], true); // pre-existing keys preserved
     expect(settings[finderRetentionMonthsKey], 24);
+    expect(settings[quarantineDefaultDaysKey], 14);
   });
 }

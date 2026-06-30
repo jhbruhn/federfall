@@ -116,6 +116,11 @@ class CaseTimeline extends ConsumerWidget {
         examFindings.error ??
         quarantines.error;
 
+    // The active quarantine is the latest record (forCase sorts newest-first),
+    // so only it gets the inline "end now" shortcut.
+    final currentQuarantineId =
+        (quarantines.value ?? const <Quarantine>[]).firstOrNull?.id;
+
     final events = <_Event>[
       if (medicalCase.admittedAt case final d?)
         _MilestoneEvent(
@@ -147,7 +152,10 @@ class CaseTimeline extends ConsumerWidget {
       for (final exam in exams.value ?? const <Exam>[])
         _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
       for (final quarantine in quarantines.value ?? const <Quarantine>[])
-        _QuarantineEvent(quarantine),
+        _QuarantineEvent(
+          quarantine,
+          isCurrent: quarantine.id == currentQuarantineId,
+        ),
     ]..sort((a, b) {
       final byTime = b.at.compareTo(a.at);
       if (byTime != 0) return byTime;
@@ -250,12 +258,14 @@ class CaseTimeline extends ConsumerWidget {
                 canEdit: canEdit,
                 isLast: i == events.length - 1,
               ),
-              _QuarantineEvent(:final quarantine) => QuarantineTile(
-                entry: quarantine,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
+              _QuarantineEvent(:final quarantine, :final isCurrent) =>
+                QuarantineTile(
+                  entry: quarantine,
+                  caseId: caseId,
+                  canEdit: canEdit,
+                  isCurrent: isCurrent,
+                  isLast: i == events.length - 1,
+                ),
               _MilestoneEvent(:final icon, :final label, :final at) =>
                 TimelineItem(
                   icon: icon,
@@ -419,10 +429,12 @@ class _DispositionEvent extends _Event {
 }
 
 /// A quarantine period placed on the timeline by when it was imposed.
+/// [isCurrent] marks the active record (the latest), which offers "end now".
 class _QuarantineEvent extends _Event {
-  const _QuarantineEvent(this.quarantine);
+  const _QuarantineEvent(this.quarantine, {required this.isCurrent});
 
   final Quarantine quarantine;
+  final bool isCurrent;
 
   @override
   DateTime get at =>

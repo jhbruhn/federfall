@@ -65,6 +65,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
   late final TextEditingController _email;
   late final TextEditingController _phone;
   late final TextEditingController _retention;
+  late final TextEditingController _quarantineDays;
   bool _busy = false;
   String? _error;
 
@@ -81,6 +82,9 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
       _ => defaultFinderRetentionMonths,
     };
     _retention = TextEditingController(text: '$months');
+    _quarantineDays = TextEditingController(
+      text: '${quarantineDefaultDaysOf(o.settings)}',
+    );
   }
 
   @override
@@ -89,6 +93,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
     _email.dispose();
     _phone.dispose();
     _retention.dispose();
+    _quarantineDays.dispose();
     super.dispose();
   }
 
@@ -104,6 +109,8 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
 
     final months =
         int.tryParse(_retention.text.trim()) ?? defaultFinderRetentionMonths;
+    final quarantineDays =
+        int.tryParse(_quarantineDays.text.trim()) ?? defaultQuarantineDays;
     try {
       final repo = await ref.read(organisationsRepositoryProvider.future);
       await repo.update(widget.org.id, {
@@ -113,6 +120,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
         'settings': {
           ...widget.org.settings,
           finderRetentionMonthsKey: months,
+          quarantineDefaultDaysKey: quarantineDays,
         },
       });
       ref.invalidate(currentOrganisationProvider);
@@ -194,6 +202,31 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                     padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: Text(
                       l10n.orgRetentionHelp,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    l10n.orgQuarantineSectionTitle,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  AppTextField(
+                    controller: _quarantineDays,
+                    label: l10n.orgQuarantineDefaultDaysLabel,
+                    prefixIcon: Icons.shield_outlined,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    enabled: !_busy,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(
+                      l10n.orgQuarantineDefaultDaysHelp,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

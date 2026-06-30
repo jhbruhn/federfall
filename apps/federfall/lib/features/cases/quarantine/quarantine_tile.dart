@@ -16,6 +16,7 @@ class QuarantineTile extends ConsumerWidget {
     required this.entry,
     required this.caseId,
     this.canEdit = true,
+    this.isCurrent = false,
     this.isLast = false,
     super.key,
   });
@@ -23,10 +24,24 @@ class QuarantineTile extends ConsumerWidget {
   final Quarantine entry;
   final String caseId;
   final bool canEdit;
+
+  /// Whether this is the case's active quarantine (the latest record). Only the
+  /// current one offers the inline "end now" shortcut.
+  final bool isCurrent;
   final bool isLast;
 
   Future<void> _edit(BuildContext context) =>
       showQuarantineSheet(context, caseId: caseId, entry: entry);
+
+  Future<void> _endNow(WidgetRef ref) async {
+    final repo = await ref.read(quarantineRepositoryProvider.future);
+    await repo.update(entry.id, {
+      'quarantine_until': DateTime.now().toUtc().toIso8601String(),
+    });
+    ref
+      ..invalidate(quarantineForCaseProvider(caseId))
+      ..invalidate(caseQuarantineUntilProvider);
+  }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
@@ -108,6 +123,20 @@ class QuarantineTile extends ConsumerWidget {
             const SizedBox(height: AppSpacing.xs),
             Text(reason, style: theme.textTheme.bodyMedium),
           ],
+          // Quick "end now" shortcut on the active quarantine (mirrors the
+          // medication "log dose" button) — sets the end to today.
+          if (isCurrent && canEdit && !ended)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _endNow(ref),
+                  icon: const Icon(Icons.event_busy_outlined, size: 18),
+                  label: Text(l10n.quarantineEndNowAction),
+                ),
+              ),
+            ),
         ],
       ),
     );

@@ -257,6 +257,8 @@
     "imagePrevious": "Vorheriges Bild",
     "imageNext": "Nächstes Bild",
     "caseFieldIntakeWeight": "Aufnahmegewicht (g)",
+    "caseFieldQuarantineDays": "Quarantäne (Tage)",
+    "caseFieldQuarantineDaysHint": "Standard aus den Einstellungen",
     "caseFieldIntakeNotes": "Aufnahmenotizen",
     "caseDateNotSet": "Nicht angegeben",
     "sexMale": "Männlich",
@@ -346,6 +348,7 @@
     "@quarantineTileUntil": {
         "placeholders": { "date": { "type": "String" } }
     },
+    "quarantineEndNowAction": "Quarantäne beenden",
     "quarantineEditAction": "Bearbeiten",
     "quarantineDeleteAction": "Löschen",
     "quarantineDeleteTitle": "Quarantäne löschen?",
@@ -533,6 +536,9 @@
     "orgRetentionSectionTitle": "Datenschutz",
     "orgRetentionMonthsLabel": "Aufbewahrung Finderdaten (Monate)",
     "orgRetentionHelp": "Wie lange Finder-Kontaktdaten nach Abschluss eines Falls aufbewahrt und dann gelöscht werden (DSGVO). Standard: 24 Monate.",
+    "orgQuarantineSectionTitle": "Quarantäne",
+    "orgQuarantineDefaultDaysLabel": "Standard-Quarantäne (Tage)",
+    "orgQuarantineDefaultDaysHelp": "Anfängliche Quarantäne für einen neuen Fall, in Tagen. Bei der Aufnahme pro Fall überschreibbar. Standard: 14 Tage.",
     "conditionsAdminTitle": "Diagnoseliste",
     "conditionsAdminEmpty": "Noch keine Diagnosen. Lege die von deinem Team genutzten Diagnosen an.",
     "conditionCodelistNewTitle": "Neue Diagnose",
