@@ -3,5 +3,6 @@
   "APP_NAME": "[DEV] Federfall",
   "POCKETBASE_URL": "http://localhost:8090",
   "MAP_TILE_URL": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-  "MAP_ATTRIBUTION": "© OpenStreetMap contributors"
+  "MAP_ATTRIBUTION": "© OpenStreetMap contributors",
+  "MAP_ATTRIBUTION_URL": "https://www.openstreetmap.org/copyright"
 }

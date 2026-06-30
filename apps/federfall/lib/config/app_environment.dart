@@ -55,5 +55,14 @@ abstract final class AppEnvironment {
     defaultValue: '© OpenStreetMap contributors',
   );
 
+  /// Copyright/licence page the map attribution links to. Defaults to the OSM
+  /// copyright page, which the OSMF attribution guidelines ask interactive maps
+  /// to link to. Change it alongside [mapTileUrl]/[mapAttribution] when pointing
+  /// at another tile provider.
+  static const String mapAttributionUrl = String.fromEnvironment(
+    'MAP_ATTRIBUTION_URL',
+    defaultValue: 'https://www.openstreetmap.org/copyright',
+  );
+
   static bool get isProduction => flavor == AppFlavor.production;
 }

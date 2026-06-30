@@ -588,6 +588,7 @@ class _FindMap extends StatelessWidget {
                 ),
               ],
             ),
+            const MapAttribution(),
           ],
         ),
       ),

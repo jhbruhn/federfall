@@ -260,7 +260,7 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
                 urlTemplate: AppEnvironment.mapTileUrl,
                 userAgentPackageName: 'de.jhbruhn.federfall',
               ),
-              const _Attribution(text: AppEnvironment.mapAttribution),
+              const MapAttribution(),
             ],
           ),
           // Pin fixed at screen centre, lifted by a shadow dot beneath it.
@@ -351,26 +351,6 @@ class _CentrePin extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Bottom-left tile attribution, styled to stay legible over the map.
-class _Attribution extends StatelessWidget {
-  const _Attribution({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Align(
-      alignment: Alignment.bottomLeft,
-      child: Container(
-        color: theme.colorScheme.surface.withValues(alpha: 0.7),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Text(text, style: theme.textTheme.labelSmall),
       ),
     );
   }
