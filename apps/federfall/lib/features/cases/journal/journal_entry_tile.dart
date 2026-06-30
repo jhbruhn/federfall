@@ -117,15 +117,16 @@ class _AttachmentStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(journalRepositoryProvider).value;
-    // Attachments are a Protected file field (FED-8.1): URLs need a token.
-    final token = ref.watch(fileTokenProvider).value;
-    if (repo == null || token == null) {
+    if (repo == null) {
       return const SizedBox(
         height: 96,
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
+    // Attachments are a Protected file field (FED-8.1), but the access token is
+    // appended at download time (ProtectedFileCacheManager), so the URLs here
+    // stay token-free and cached thumbnails render without a token mint.
     return SizedBox(
       height: 96,
       child: ListView.separated(
@@ -134,19 +135,14 @@ class _AttachmentStrip extends ConsumerWidget {
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, i) {
           final filename = entry.attachments[i];
-          final thumb = repo.fileUrl(
-            entry.id,
-            filename,
-            thumb: '200x200',
-            token: token,
-          );
+          final thumb = repo.fileUrl(entry.id, filename, thumb: '200x200');
           return GestureDetector(
             onTap: () => unawaited(
               showImageViewer(
                 context,
                 imageUrls: [
                   for (final f in entry.attachments)
-                    repo.fileUrl(entry.id, f, token: token).toString(),
+                    repo.fileUrl(entry.id, f).toString(),
                 ],
                 initialIndex: i,
               ),

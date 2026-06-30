@@ -1,11 +1,16 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image_platform_interface/'
+    'cached_network_image_platform_interface.dart'
+    show ImageRenderMethodForWeb;
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/widgets/cached_file_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 
@@ -30,7 +35,7 @@ Future<void> showImageViewer(
 
 /// Full-screen, swipeable image viewer with pinch + double-tap zoom and a share
 /// action. Used wherever a record's photos are shown as thumbnails.
-class ImageViewerScreen extends StatefulWidget {
+class ImageViewerScreen extends ConsumerStatefulWidget {
   const ImageViewerScreen({
     required this.imageUrls,
     this.initialIndex = 0,
@@ -41,10 +46,10 @@ class ImageViewerScreen extends StatefulWidget {
   final int initialIndex;
 
   @override
-  State<ImageViewerScreen> createState() => _ImageViewerScreenState();
+  ConsumerState<ImageViewerScreen> createState() => _ImageViewerScreenState();
 }
 
-class _ImageViewerScreenState extends State<ImageViewerScreen> {
+class _ImageViewerScreenState extends ConsumerState<ImageViewerScreen> {
   late final PageController _controller;
   late int _index;
   bool _sharing = false;
@@ -97,7 +102,14 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _sharing = true);
     try {
-      final res = await http.get(Uri.parse(widget.imageUrls[_index]));
+      // The viewer's URLs are token-free; this raw download (outside the cache
+      // manager) needs the Protected-file token appended (FED-8.1).
+      final token = await ref.read(fileTokenProvider.future);
+      final base = Uri.parse(widget.imageUrls[_index]);
+      final url = base.replace(
+        queryParameters: {...base.queryParameters, 'token': token},
+      );
+      final res = await http.get(url);
       if (res.statusCode != 200) {
         throw http.ClientException('status ${res.statusCode}');
       }
@@ -236,16 +248,16 @@ class _NavArrow extends StatelessWidget {
 
 /// One page: an image that pinch-zooms (via [InteractiveViewer]) and toggles a
 /// 2.5× zoom centred on the tapped point on double-tap.
-class _ZoomableImage extends StatefulWidget {
+class _ZoomableImage extends ConsumerStatefulWidget {
   const _ZoomableImage({required this.url});
 
   final String url;
 
   @override
-  State<_ZoomableImage> createState() => _ZoomableImageState();
+  ConsumerState<_ZoomableImage> createState() => _ZoomableImageState();
 }
 
-class _ZoomableImageState extends State<_ZoomableImage>
+class _ZoomableImageState extends ConsumerState<_ZoomableImage>
     with SingleTickerProviderStateMixin {
   static const double _zoomScale = 2.5;
 
@@ -312,8 +324,16 @@ class _ZoomableImageState extends State<_ZoomableImage>
         maxScale: 5,
         child: Center(
           child: CachedNetworkImage(
+            cacheManager: ref.watch(protectedFileCacheManagerProvider),
+            // Route web fetches through the cache manager so the access token
+            // is appended (the default HtmlImage path bypasses it → 403).
+            imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
             imageUrl: widget.url,
             cacheKey: fileCacheKey(Uri.parse(widget.url)),
+            // A short fade for genuine downloads, not the laggy 500ms/1s
+            // default that also plays on cache hits.
+            fadeInDuration: const Duration(milliseconds: 150),
+            fadeOutDuration: Duration.zero,
             fit: BoxFit.contain,
             placeholder: (context, _) => const Center(
               child: CircularProgressIndicator(color: Colors.white),

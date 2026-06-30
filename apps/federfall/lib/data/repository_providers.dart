@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:federfall/core/pocketbase/pocketbase_provider.dart';
+import 'package:federfall/data/protected_file_cache.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -142,3 +143,19 @@ Future<String> fileToken(Ref ref) async {
   ref.onDispose(timer.cancel);
   return token;
 }
+
+/// The shared cache manager for Protected file fields (FED-8.1).
+///
+/// See [ProtectedFileCacheManager]: it appends the file token lazily, at
+/// download time, so cached images render without first waiting on a token
+/// mint. Synchronous and kept alive for the app's lifetime, so image widgets
+/// can read it without gating on an async resolve. The token itself is still
+/// fetched via [fileTokenProvider], but only when a real download happens.
+///
+/// Not disposed: like `DefaultCacheManager`, it is an app-lifetime singleton
+/// (disposing an unused cache manager also trips a flutter_cache_manager bug).
+@Riverpod(keepAlive: true)
+ProtectedFileCacheManager protectedFileCacheManager(Ref ref) =>
+    ProtectedFileCacheManager(
+      tokenProvider: () => ref.read(fileTokenProvider.future),
+    );

@@ -1,16 +1,18 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image_platform_interface/'
+    'cached_network_image_platform_interface.dart'
+    show ImageRenderMethodForWeb;
+import 'package:federfall/data/repository_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Cache key for a PocketBase file URL, with the short-lived `token` query
-/// param stripped (FED-8.1 / 49l.1).
+/// Cache key for a PocketBase file URL, with any `token` query param stripped
+/// (FED-8.1 / 49l.1).
 ///
-/// Protected file URLs carry a `?token=` that rotates every ~90s (see
-/// `fileTokenProvider`); keying the image cache on the full URL would make
-/// every rotation look like a brand-new image and re-download it. Keying on the
-/// token-free identity instead lets the cache (memory + disk) reuse the bytes
-/// across rotations, while the server's own `Cache-Control` still governs
-/// freshness (PocketBase sends a long `max-age`, so we honour it rather than
-/// refetching on open).
+/// Callers pass token-free URLs (the token is appended lazily at download time
+/// by the protected-file cache manager), but this defends against a token
+/// leaking into the URL: keying the cache on the token-free identity lets the
+/// cache (memory + disk) reuse the bytes across token rotations.
 String fileCacheKey(Uri url) {
   final params = {...url.queryParameters}..remove('token');
   final base = '${url.origin}${url.path}';
@@ -25,9 +27,13 @@ String fileCacheKey(Uri url) {
   return '$base?$query';
 }
 
-/// A cached image for a protected PocketBase file [url] (already carrying its
-/// access token). Caches by [fileCacheKey] so a rotated token reuses the bytes,
-/// and falls back to a broken-image placeholder on error.
+/// A cached image for a protected PocketBase file at the token-free [url].
+///
+/// Downloads go through [protectedFileCacheManagerProvider], which appends the
+/// access token only when bytes are actually fetched — so a previously cached
+/// image renders instantly, with no token round-trip. Caches by [fileCacheKey]
+/// so a rotated token reuses the bytes, and falls back to a broken-image
+/// placeholder on error.
 ///
 /// Retries a failed load a few times before giving up (federfall-q4d):
 /// PocketBase generates a `?thumb=` lazily on the first request, so the very
@@ -36,7 +42,7 @@ String fileCacheKey(Uri url) {
 /// until it happens to rebuild (e.g. a manual pull-to-refresh). On error we
 /// evict the entry and re-request with a short backoff, only showing the
 /// broken-image placeholder once the retries are exhausted.
-class CachedFileImage extends StatefulWidget {
+class CachedFileImage extends ConsumerStatefulWidget {
   const CachedFileImage({
     required this.url,
     this.width,
@@ -56,10 +62,10 @@ class CachedFileImage extends StatefulWidget {
   final Widget? errorWidget;
 
   @override
-  State<CachedFileImage> createState() => _CachedFileImageState();
+  ConsumerState<CachedFileImage> createState() => _CachedFileImageState();
 }
 
-class _CachedFileImageState extends State<CachedFileImage> {
+class _CachedFileImageState extends ConsumerState<CachedFileImage> {
   /// How many times to re-request before showing the error placeholder.
   static const _maxRetries = 3;
 
@@ -86,10 +92,9 @@ class _CachedFileImageState extends State<CachedFileImage> {
     Future.delayed(Duration(milliseconds: 500 * next), () async {
       // Drop the failed entry so the rebuild re-requests it rather than
       // replaying the cached error.
-      await CachedNetworkImage.evictFromCache(
-        widget.url.toString(),
-        cacheKey: fileCacheKey(widget.url),
-      );
+      await ref
+          .read(protectedFileCacheManagerProvider)
+          .removeFile(fileCacheKey(widget.url));
       if (!mounted) return;
       setState(() {
         _attempt = next;
@@ -101,11 +106,35 @@ class _CachedFileImageState extends State<CachedFileImage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Decode at display resolution, not the source's. These are small tiles
+    // (avatars/thumbnails), but the cached file is a 200x200 thumb; decoding it
+    // full-size wastes ~25x the RAM, so Flutter's decoded-image cache evicts
+    // sooner and an already-on-disk image has to re-read + re-decode (a visible
+    // "tiny bit to load" with no fade). Sizing the decode to the box keeps far
+    // more tiles resident, so they render instantly.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    int? decodePx(double? logical) =>
+        logical == null ? null : (logical * dpr).round();
+
     return CachedNetworkImage(
       // Bump the key on each retry so the widget re-resolves the image.
       key: ValueKey(_attempt),
+      cacheManager: ref.watch(protectedFileCacheManagerProvider),
+      // On web, the default HtmlImage render path loads via the browser with
+      // the raw URL, bypassing the cache manager (and our token-appending file
+      // service) — so Protected files 403. HttpGet routes the fetch through the
+      // cache manager on web too, which is also what appends the access token.
+      imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
       imageUrl: widget.url.toString(),
       cacheKey: fileCacheKey(widget.url),
+      memCacheWidth: decodePx(widget.width),
+      memCacheHeight: decodePx(widget.height),
+      // CachedNetworkImage plays its placeholder cross-fade (default 500ms in /
+      // 1s out) even on a cache hit, so an already-cached thumbnail visibly
+      // "loads" for half a second. Zero the fades so cached images appear at
+      // once; the brief fade adds nothing for these small tiles.
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
       width: widget.width,
       height: widget.height,
       fit: widget.fit,

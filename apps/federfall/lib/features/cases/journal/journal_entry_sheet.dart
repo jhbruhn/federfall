@@ -294,8 +294,6 @@ class _PhotoStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(journalRepositoryProvider).value;
-    // Attachments are a Protected file field (FED-8.1): URLs need a token.
-    final token = ref.watch(fileTokenProvider).value;
 
     return SizedBox(
       height: 88,
@@ -309,14 +307,13 @@ class _PhotoStrip extends ConsumerWidget {
                 onRemove: onRemoveExisting == null
                     ? null
                     : () => onRemoveExisting!(i),
-                child: (repo == null || entryId == null || token == null)
+                child: (repo == null || entryId == null)
                     ? const SizedBox(width: 88, height: 88)
                     : CachedFileImage(
                         url: repo.fileUrl(
                           entryId!,
                           existing[i],
                           thumb: '200x200',
-                          token: token,
                         ),
                         width: 88,
                         height: 88,

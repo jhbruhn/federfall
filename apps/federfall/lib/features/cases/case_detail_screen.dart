@@ -602,15 +602,16 @@ class _IntakePhotos extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(casesRepositoryProvider).value;
-    // Intake photos are a Protected file field (FED-8.1): URLs need a token.
-    final token = ref.watch(fileTokenProvider).value;
-    if (repo == null || token == null) {
+    if (repo == null) {
       return const SizedBox(
         height: 96,
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
+    // Intake photos are a Protected file field (FED-8.1), but the access token
+    // is appended at download time (ProtectedFileCacheManager), so the URLs
+    // here stay token-free and cached thumbnails render without a token mint.
     return SizedBox(
       height: 96,
       child: ListView.separated(
@@ -618,19 +619,14 @@ class _IntakePhotos extends ConsumerWidget {
         itemCount: filenames.length,
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, i) {
-          final thumb = repo.fileUrl(
-            caseId,
-            filenames[i],
-            thumb: '200x200',
-            token: token,
-          );
+          final thumb = repo.fileUrl(caseId, filenames[i], thumb: '200x200');
           return GestureDetector(
             onTap: () => unawaited(
               showImageViewer(
                 context,
                 imageUrls: [
                   for (final f in filenames)
-                    repo.fileUrl(caseId, f, token: token).toString(),
+                    repo.fileUrl(caseId, f).toString(),
                 ],
                 initialIndex: i,
               ),
