@@ -6,6 +6,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/add_entry_sheet.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/case_realtime.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
@@ -485,8 +486,11 @@ class _IntakeSection extends ConsumerWidget {
     String? date(DateTime? d) =>
         d == null ? null : materialL10n.formatMediumDate(d);
 
-    final reasons = medicalCase.reasonsForAdmission
-        .map((r) => admissionReasonLabel(l10n, r))
+    final reasonsById =
+        ref.watch(admissionReasonsByIdProvider).value ?? const {};
+    final reasons = medicalCase.admissionReasons
+        .map((id) => reasonsById[id]?.label)
+        .nonNulls
         .join(', ');
     final sex = animal?.sex;
     final ageClass = medicalCase.ageClass;

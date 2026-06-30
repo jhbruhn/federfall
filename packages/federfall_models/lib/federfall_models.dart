@@ -13,6 +13,7 @@ export 'src/converters.dart'
         pbString,
         pbStringList;
 export 'src/enums.dart';
+export 'src/models/admission_reason.dart';
 export 'src/models/animal.dart';
 export 'src/models/app_user.dart';
 export 'src/models/aviary.dart';

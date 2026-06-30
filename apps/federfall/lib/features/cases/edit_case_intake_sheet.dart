@@ -1,5 +1,6 @@
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -39,7 +40,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _findLocation;
   late final TextEditingController _notes;
-  late final Set<AdmissionReason> _reasons;
+  late final Set<String> _reasons;
   late AgeClass? _ageClass;
   late DateTime? _foundAt;
   late DateTime? _admittedAt;
@@ -56,7 +57,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
     final c = widget.medicalCase;
     _findLocation = TextEditingController(text: c.findLocation ?? '');
     _notes = TextEditingController(text: c.intakeNotes ?? '');
-    _reasons = {...c.reasonsForAdmission};
+    _reasons = {...c.admissionReasons};
     _ageClass = c.ageClass;
     _foundAt = c.foundAt;
     _admittedAt = c.admittedAt;
@@ -120,7 +121,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
     try {
       final repo = await ref.read(casesRepositoryProvider.future);
       await repo.update(widget.medicalCase.id, {
-        'reasons_for_admission': [for (final r in _reasons) r.wire],
+        'admission_reasons': _reasons.toList(),
         'age_class': _ageClass?.wire ?? '',
         'found_at': _foundAt?.toUtc().toIso8601String() ?? '',
         'admitted_at': _admittedAt?.toUtc().toIso8601String() ?? '',
@@ -187,26 +188,39 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.xs,
-                    children: [
-                      for (final r in AdmissionReason.values)
-                        FilterChip(
-                          label: Text(admissionReasonLabel(l10n, r)),
-                          selected: _reasons.contains(r),
-                          onSelected: _busy
-                              ? null
-                              : (sel) {
-                                  setState(() {
-                                    sel ? _reasons.add(r) : _reasons.remove(r);
-                                    _reasonsError = false;
-                                  });
-                                  markDirty();
-                                },
-                        ),
-                    ],
-                  ),
+                  switch (ref.watch(admissionReasonsProvider)) {
+                    AsyncData(:final value) => Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        // Active entries, plus any deactivated one still set on
+                        // this case (so the carer can see/remove it).
+                        for (final r in value.where(
+                          (r) => r.active || _reasons.contains(r.id),
+                        ))
+                          FilterChip(
+                            label: Text(r.label),
+                            selected: _reasons.contains(r.id),
+                            onSelected: _busy
+                                ? null
+                                : (sel) {
+                                    setState(() {
+                                      sel
+                                          ? _reasons.add(r.id)
+                                          : _reasons.remove(r.id);
+                                      _reasonsError = false;
+                                    });
+                                    markDirty();
+                                  },
+                          ),
+                      ],
+                    ),
+                    AsyncError() => Text(l10n.errorGenericTitle),
+                    _ => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      child: LinearProgressIndicator(),
+                    ),
+                  },
                   if (_reasonsError)
                     Padding(
                       padding: const EdgeInsets.only(top: AppSpacing.xs),

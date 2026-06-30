@@ -34,7 +34,10 @@ class CaseReportRow {
   final int? daysInCare;
   final String? city;
   final String? region;
-  final List<AdmissionReason> reasons;
+
+  /// Resolved admission-reason labels (the `admission_reasons` code list is
+  /// user-authored, so the labels are stored data — not localized here).
+  final List<String> reasons;
 }
 
 /// Builds report rows from the raw records, newest-first by admission. Pure, so
@@ -43,6 +46,7 @@ List<CaseReportRow> buildCaseReportRows({
   required List<Case> cases,
   required List<Disposition> dispositions,
   required Map<String, Animal> animalsById,
+  required Map<String, AdmissionReason> admissionReasonsById,
 }) {
   final terminal = terminalDispositionByCase(dispositions);
   final rows = <CaseReportRow>[];
@@ -67,7 +71,10 @@ List<CaseReportRow> buildCaseReportRows({
         daysInCare: days,
         city: c.city,
         region: c.region,
-        reasons: c.reasonsForAdmission,
+        reasons: c.admissionReasons
+            .map((id) => admissionReasonsById[id]?.label)
+            .nonNulls
+            .toList(growable: false),
       ),
     );
   }
@@ -84,14 +91,14 @@ List<CaseReportRow> buildCaseReportRows({
 
 /// Encodes [rows] as a CSV document. [header] supplies the localized column
 /// titles (must match the 12-column order below); the label callbacks localize
-/// enum values and dates. A UTF-8 BOM is prepended so spreadsheet apps render
-/// German umlauts correctly.
+/// enum values and dates. Admission reasons are already resolved to their
+/// (user-authored) labels on the row. A UTF-8 BOM is prepended so spreadsheet
+/// apps render German umlauts correctly.
 String encodeCaseReportCsv({
   required List<CaseReportRow> rows,
   required List<String> header,
   required String Function(CaseStatus) status,
   required String Function(DispositionType) outcome,
-  required String Function(AdmissionReason) reason,
   required String Function(DateTime) date,
 }) {
   String d(DateTime? v) => v == null ? '' : date(v);
@@ -112,7 +119,7 @@ String encodeCaseReportCsv({
       r.daysInCare?.toString() ?? '',
       r.city ?? '',
       r.region ?? '',
-      r.reasons.map(reason).join('; '),
+      r.reasons.join('; '),
     ]);
   }
   // BOM so spreadsheet apps render German umlauts as UTF-8.

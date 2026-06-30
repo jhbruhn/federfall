@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/features/admin/admission_reasons_admin_screen.dart';
 import 'package:federfall/features/admin/conditions_admin_screen.dart';
 import 'package:federfall/features/admin/org_settings_screen.dart';
 import 'package:federfall/features/admin/team_screen.dart';
@@ -16,7 +17,8 @@ import 'package:go_router/go_router.dart';
 enum _AdminSection {
   team(Icons.group_outlined, AppRoutes.manageTeam),
   orgSettings(Icons.business_outlined, AppRoutes.orgSettings),
-  conditions(Icons.checklist_outlined, AppRoutes.conditionsAdmin);
+  conditions(Icons.checklist_outlined, AppRoutes.conditionsAdmin),
+  admissionReasons(Icons.flight_land_outlined, AppRoutes.admissionReasonsAdmin);
 
   const _AdminSection(this.icon, this.route);
 
@@ -27,12 +29,14 @@ enum _AdminSection {
     _AdminSection.team => l10n.manageTeamTitle,
     _AdminSection.orgSettings => l10n.orgSettingsTitle,
     _AdminSection.conditions => l10n.conditionsAdminTitle,
+    _AdminSection.admissionReasons => l10n.admissionReasonsAdminTitle,
   };
 
   Widget screen() => switch (this) {
     _AdminSection.team => const TeamScreen(),
     _AdminSection.orgSettings => const OrgSettingsScreen(),
     _AdminSection.conditions => const ConditionsAdminScreen(),
+    _AdminSection.admissionReasons => const AdmissionReasonsAdminScreen(),
   };
 }
 

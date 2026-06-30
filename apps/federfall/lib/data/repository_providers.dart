@@ -43,6 +43,11 @@ Future<PbConditionsRepository> conditionsRepository(Ref ref) async =>
     PbConditionsRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbAdmissionReasonsRepository> admissionReasonsRepository(
+  Ref ref,
+) async => PbAdmissionReasonsRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbCaseConditionsRepository> caseConditionsRepository(Ref ref) async =>
     PbCaseConditionsRepository(await _client(ref));
 

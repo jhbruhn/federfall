@@ -65,32 +65,6 @@ enum AgeClass {
   static AgeClass? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
 }
 
-/// Reason(s) a bird was admitted (`cases.reasons_for_admission`, multi-select).
-enum AdmissionReason {
-  injury('injury'),
-  illness('illness'),
-  orphaned('orphaned'),
-  trauma('trauma'),
-  poisoning('poisoning'),
-  trapped('trapped'),
-  catAttack('cat_attack'),
-  collision('collision'),
-  oiled('oiled'),
-  entangled('entangled'),
-  weakEmaciated('weak_emaciated'),
-  other('other');
-
-  const AdmissionReason(this.wire);
-
-  final String wire;
-
-  static AdmissionReason? fromWire(Object? v) =>
-      pbEnum(values, (e) => e.wire, v);
-
-  static List<AdmissionReason> listFromWire(Object? v) =>
-      pbEnumList(values, (e) => e.wire, v);
-}
-
 /// Lifecycle status of a case (`cases.status`).
 enum CaseStatus {
   inCare('in_care'),

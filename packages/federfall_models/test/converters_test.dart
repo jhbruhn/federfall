@@ -56,8 +56,12 @@ void main() {
 
     test('multi-select skips unknowns', () {
       expect(
-        AdmissionReason.listFromWire(['injury', 'bogus', 'cat_attack']),
-        [AdmissionReason.injury, AdmissionReason.catAttack],
+        pbEnumList(
+          MarkingType.values,
+          (e) => e.wire,
+          ['finder_ring', 'bogus', 'microchip'],
+        ),
+        [MarkingType.finderRing, MarkingType.microchip],
       );
     });
   });

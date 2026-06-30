@@ -14,7 +14,7 @@ void main() {
         'found_at': '',
         'finder': '',
         'find_geo': {'lon': 9.99, 'lat': 53.55},
-        'reasons_for_admission': ['injury', 'cat_attack'],
+        'admission_reasons': ['adre0000000001', 'adre0000000002'],
         'intake_weight_g': 320,
         'status': 'in_care',
         'is_releasable': true,
@@ -30,8 +30,7 @@ void main() {
       expect(c.foundAt, isNull, reason: 'empty date → null');
       expect(c.finder, isNull, reason: 'empty relation → null');
       expect(c.findGeo, const GeoPoint(lon: 9.99, lat: 53.55));
-      expect(c.reasonsForAdmission,
-          [AdmissionReason.injury, AdmissionReason.catAttack]);
+      expect(c.admissionReasons, ['adre0000000001', 'adre0000000002']);
       expect(c.intakeWeightG, 320);
       expect(c.status, CaseStatus.inCare);
       expect(c.isReleasable, isTrue);

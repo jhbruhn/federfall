@@ -32,6 +32,7 @@ void main() {
           'a1': Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
           'a2': Animal(id: 'a2', species: 'Streptopelia decaocto'),
         },
+        admissionReasonsById: const {},
       );
 
       // Sorted by admission, newest first: c2 (May) before c1 (Feb).
@@ -58,7 +59,6 @@ void main() {
         'Outcome', 'Closed', 'Days', 'City', 'Region', 'Reasons'],
       status: (s) => s.name,
       outcome: (o) => o.name,
-      reason: (r) => r.name,
       date: (d) => '${d.year}-${d.month}-${d.day}',
     );
 
@@ -82,12 +82,12 @@ void main() {
           daysInCare: null,
           city: null,
           region: null,
-          reasons: [AdmissionReason.injury, AdmissionReason.catAttack],
+          reasons: ['Injury', 'Cat attack'],
         ),
       ]);
       // The comma-bearing name is wrapped in quotes; reasons join with "; ".
       expect(csv, contains('"Pip, the brave"'));
-      expect(csv, contains('injury; catAttack'));
+      expect(csv, contains('Injury; Cat attack'));
       expect(csv, contains('inCare'));
     });
   });

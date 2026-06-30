@@ -382,7 +382,7 @@ def main():
     # Summary carries no clinical fields (notes/exam/weight/photos/reasons).
     _, srec = req("GET", f"/api/collections/case_summaries/records/{sumcase}", td)
     leaked = [k for k in ("intake_notes", "intake_weight_g", "exam_bcs",
-                          "intake_photos", "reasons_for_admission") if k in srec]
+                          "intake_photos", "admission_reasons") if k in srec]
     check("summary exposes no clinical fields", not leaked, leaked)
     # Org isolation: another org's member sees no summary.
     check("other-org member CANNOT view case summary", not summary(te, sumcase))

@@ -33,7 +33,9 @@ abstract class Case with _$Case {
     String? city,
     String? region,
 
-    @Default(<AdmissionReason>[]) List<AdmissionReason> reasonsForAdmission,
+    /// Ids into the `admission_reasons` code list (resolve labels via the
+    /// `admissionReasonsById` provider). Replaces the former inline enum.
+    @Default(<String>[]) List<String> admissionReasons,
     int? intakeWeightG,
     String? intakeNotes,
     @Default(<String>[]) List<String> intakePhotos,
@@ -63,8 +65,7 @@ abstract class Case with _$Case {
       findGeo: GeoPoint.fromPb(d['find_geo']),
       city: pbString(d['city']),
       region: pbString(d['region']),
-      reasonsForAdmission:
-          AdmissionReason.listFromWire(d['reasons_for_admission']),
+      admissionReasons: pbStringList(d['admission_reasons']),
       intakeWeightG: pbInt(d['intake_weight_g']),
       intakeNotes: pbString(d['intake_notes']),
       intakePhotos: pbStringList(d['intake_photos']),

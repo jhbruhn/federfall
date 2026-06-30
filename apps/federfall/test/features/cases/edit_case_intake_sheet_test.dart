@@ -1,4 +1,5 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/edit_case_intake_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -13,7 +14,7 @@ class MockCasesRepo extends Mock implements PbCasesRepository {}
 const _testCase = Case(
   id: 'c1',
   animal: 'a1',
-  reasonsForAdmission: [AdmissionReason.injury],
+  admissionReasons: ['adre1'],
   intakeWeightG: 250,
 );
 
@@ -26,6 +27,9 @@ Future<void> _open(
     ProviderScope(
       overrides: [
         casesRepositoryProvider.overrideWith((ref) async => repo),
+        admissionReasonsProvider.overrideWith(
+          (ref) async => const [AdmissionReason(id: 'adre1', label: 'Injury')],
+        ),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
@@ -77,7 +81,7 @@ void main() {
         verify(() => repo.update('c1', captureAny())).captured.single
             as Map<String, dynamic>;
     expect(data.containsKey('intake_weight_g'), isFalse);
-    expect(data['reasons_for_admission'], ['injury']);
+    expect(data['admission_reasons'], ['adre1']);
   });
 
   testWidgets('blocks saving when no admission reason is selected',

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/new_case_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -97,6 +98,9 @@ void main() {
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
         ),
         animalsRepositoryProvider.overrideWith((ref) async => animals),
+        admissionReasonsProvider.overrideWith(
+          (ref) async => const [AdmissionReason(id: 'adre1', label: 'Injury')],
+        ),
         casesRepositoryProvider.overrideWith((ref) async => cases),
         findersRepositoryProvider.overrideWith((ref) async => finders),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
@@ -167,7 +171,7 @@ void main() {
     expect(caseBody['animal'], 'a1');
     expect(caseBody['org'], 'org1');
     expect(caseBody['active_carer'], 'u1');
-    expect(caseBody['reasons_for_admission'], ['injury']);
+    expect(caseBody['admission_reasons'], ['adre1']);
 
     // Popped back to the list.
     expect(find.text('HOME'), findsOneWidget);

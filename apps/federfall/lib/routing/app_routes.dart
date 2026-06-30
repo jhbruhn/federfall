@@ -83,6 +83,9 @@ abstract final class AppRoutes {
   /// Supervisor-only condition code-list editor (UX Phase A).
   static const conditionsAdmin = '/admin/conditions';
 
+  /// Supervisor-only admission-reason code-list editor (federfall-l12).
+  static const admissionReasonsAdmin = '/admin/admission-reasons';
+
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 

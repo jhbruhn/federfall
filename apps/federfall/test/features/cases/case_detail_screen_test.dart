@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -67,7 +68,7 @@ void main() {
     caseNumber: '2026-001',
     status: CaseStatus.inCare,
     ageClass: AgeClass.adult,
-    reasonsForAdmission: const [AdmissionReason.injury],
+    admissionReasons: const ['adre1'],
     findLocation: 'Domplatz',
     intakeWeightG: 250,
     intakeNotes: 'thin but alert',
@@ -132,6 +133,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         casesRepositoryProvider.overrideWith((ref) async => cases),
+        admissionReasonsProvider.overrideWith(
+          (ref) async => const [AdmissionReason(id: 'adre1', label: 'Injury')],
+        ),
         animalsRepositoryProvider.overrideWith((ref) async => animals),
         findersRepositoryProvider.overrideWith((ref) async => finders),
         journalRepositoryProvider.overrideWith((ref) async => journal),

@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/org_settings_providers.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -69,7 +70,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   // left the default untouched (the backend hook already applies it).
   int? _orgDefaultQuarantineDays;
   final _intakePhotos = <XFile>[];
-  final Set<AdmissionReason> _reasons = {};
+  final Set<String> _reasons = {};
   AgeClass? _ageClass;
   // Default both intake dates to today (the common case); still editable and
   // clearable for a bird found earlier or an unknown find date.
@@ -274,7 +275,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
         'animal': animalId,
         'org': org,
         'active_carer': user.id,
-        'reasons_for_admission': [for (final r in _reasons) r.wire],
+        'admission_reasons': _reasons.toList(),
         if (_ageClass != null) 'age_class': _ageClass!.wire,
         if (_foundAt != null) 'found_at': _foundAt!.toUtc().toIso8601String(),
         if (_admittedAt != null)
@@ -502,13 +503,18 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ReasonsField(
+          reasons: ref
+              .watch(admissionReasonsProvider)
+              .value
+              ?.where((r) => r.active)
+              .toList(growable: false),
           selected: _reasons,
           enabled: !_busy,
           error: _reasonsTouched && _reasons.isEmpty
               ? l10n.fieldRequired
               : null,
-          onToggle: (r) => setState(() {
-            if (!_reasons.remove(r)) _reasons.add(r);
+          onToggle: (id) => setState(() {
+            if (!_reasons.remove(id)) _reasons.add(id);
           }),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -753,38 +759,48 @@ class _WizardNav extends StatelessWidget {
 /// so "at least one" can be enforced alongside the [Form].
 class _ReasonsField extends StatelessWidget {
   const _ReasonsField({
+    required this.reasons,
     required this.selected,
     required this.enabled,
     required this.onToggle,
     this.error,
   });
 
-  final Set<AdmissionReason> selected;
+  /// The active code-list entries to offer; null while still loading.
+  final List<AdmissionReason>? reasons;
+  final Set<String> selected;
   final bool enabled;
   final String? error;
-  final void Function(AdmissionReason reason) onToggle;
+  final void Function(String id) onToggle;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final list = reasons;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(l10n.caseReasonsFieldLabel, style: theme.textTheme.bodyMedium),
         const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.xs,
-          children: [
-            for (final r in AdmissionReason.values)
-              FilterChip(
-                label: Text(admissionReasonLabel(l10n, r)),
-                selected: selected.contains(r),
-                onSelected: enabled ? (_) => onToggle(r) : null,
-              ),
-          ],
-        ),
+        if (list == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: LinearProgressIndicator(),
+          )
+        else
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              for (final r in list)
+                FilterChip(
+                  label: Text(r.label),
+                  selected: selected.contains(r.id),
+                  onSelected: enabled ? (_) => onToggle(r.id) : null,
+                ),
+            ],
+          ),
         if (error != null)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.xs),

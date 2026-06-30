@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/statistics/case_report.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
@@ -107,10 +108,12 @@ class StatisticsScreen extends ConsumerWidget {
       );
       final animalsRepo = await ref.read(animalsRepositoryProvider.future);
       final animals = await animalsRepo.list();
+      final reasonsById = await ref.read(admissionReasonsByIdProvider.future);
       final rows = buildCaseReportRows(
         cases: await casesRepo.list(),
         dispositions: await dispositionsRepo.list(),
         animalsById: {for (final a in animals) a.id: a},
+        admissionReasonsById: reasonsById,
       );
       if (rows.isEmpty) {
         messenger.showSnackBar(SnackBar(content: Text(l10n.statsExportEmpty)));
@@ -137,7 +140,6 @@ class StatisticsScreen extends ConsumerWidget {
         ],
         status: (s) => caseStatusLabel(l10n, s),
         outcome: (o) => dispositionTypeLabel(l10n, o),
-        reason: (r) => admissionReasonLabel(l10n, r),
         date: isoDate,
       );
       final filename = 'federfall-cases-${DateTime.now().year}.csv';
