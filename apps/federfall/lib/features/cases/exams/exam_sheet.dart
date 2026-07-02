@@ -413,6 +413,9 @@ class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
                   label: l10n.examNotesLabel,
                   prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
+                  minLines: 3,
+                  maxLines: 6,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: AppSpacing.sm),
@@ -542,6 +545,8 @@ class _FindingRow extends StatelessWidget {
                 controller: noteController,
                 label: l10n.examFindingNoteLabel,
                 enabled: enabled,
+                maxLines: 3,
+                textCapitalization: TextCapitalization.sentences,
               ),
             ),
         ],

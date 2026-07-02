@@ -275,6 +275,9 @@ class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
                   label: l10n.conditionFieldNotes,
                   prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
+                  minLines: 2,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: AppSpacing.sm),

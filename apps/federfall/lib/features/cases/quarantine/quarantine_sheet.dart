@@ -191,6 +191,9 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
                 prefixIcon: Icons.notes_outlined,
                 enabled: !_busy,
                 onChanged: (_) => markDirty(),
+                minLines: 2,
+                maxLines: 5,
+                textCapitalization: TextCapitalization.sentences,
               ),
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.sm),

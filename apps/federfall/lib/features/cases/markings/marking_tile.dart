@@ -170,6 +170,8 @@ class _RemoveDialogState extends State<_RemoveDialog> {
         controller: _controller,
         label: l10n.markingRemoveReason,
         autofocus: true,
+        maxLines: 3,
+        textCapitalization: TextCapitalization.sentences,
       ),
       actions: [
         TextButton(

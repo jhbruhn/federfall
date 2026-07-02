@@ -175,6 +175,9 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
                 AppTextField(
                   label: l10n.aviaryFieldNotes,
                   controller: _notes,
+                  minLines: 2,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,

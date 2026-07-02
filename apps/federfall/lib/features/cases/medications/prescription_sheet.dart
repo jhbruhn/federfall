@@ -329,6 +329,9 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                   label: l10n.medInstructions,
                   prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
+                  minLines: 2,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(

@@ -665,6 +665,9 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           label: l10n.caseFieldIntakeNotes,
           prefixIcon: Icons.notes_outlined,
           enabled: !_busy,
+          minLines: 3,
+          maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
         ),
         const SizedBox(height: AppSpacing.lg),
         _FinderSection(

@@ -313,6 +313,9 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
                     label: l10n.caseFieldIntakeNotes,
                     prefixIcon: Icons.notes_outlined,
                     enabled: !_busy,
+                    minLines: 3,
+                    maxLines: 6,
+                    textCapitalization: TextCapitalization.sentences,
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: AppSpacing.sm),

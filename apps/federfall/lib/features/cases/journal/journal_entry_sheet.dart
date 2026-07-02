@@ -204,6 +204,9 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
                   prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   validator: Validators.required(l10n),
+                  minLines: 3,
+                  maxLines: 6,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 DateField(

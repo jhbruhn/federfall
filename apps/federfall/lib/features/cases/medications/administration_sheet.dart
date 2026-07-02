@@ -244,6 +244,9 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
                   label: l10n.medNotes,
                   prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
+                  minLines: 2,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: AppSpacing.sm),

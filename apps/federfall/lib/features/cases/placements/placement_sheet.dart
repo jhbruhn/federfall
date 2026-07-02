@@ -310,6 +310,9 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
                   label: l10n.placementFieldComments,
                   prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
+                  minLines: 2,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: AppSpacing.sm),

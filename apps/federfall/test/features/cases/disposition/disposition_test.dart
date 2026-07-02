@@ -134,6 +134,9 @@ void main() {
         ),
       );
 
+      await tester.ensureVisible(
+        find.widgetWithText(TextButton, 'Delete outcome'),
+      );
       await tester.tap(find.widgetWithText(TextButton, 'Delete outcome'));
       await tester.pumpAndSettle();
       // Confirm in the dialog.

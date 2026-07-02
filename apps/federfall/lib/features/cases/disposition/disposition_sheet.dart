@@ -397,6 +397,9 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
                   label: l10n.dispositionFieldReason,
                   prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
+                  minLines: 2,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 if (_showVetSignoff) ...[
                   const SizedBox(height: AppSpacing.sm),

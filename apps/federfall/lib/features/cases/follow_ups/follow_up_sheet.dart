@@ -163,6 +163,9 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
                   label: l10n.followUpNoteLabel,
                   prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
+                  minLines: 2,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: AppSpacing.sm),

@@ -20,6 +20,9 @@ class AppTextField extends StatelessWidget {
     this.prefixIcon,
     this.textInputAction,
     this.inputFormatters,
+    this.maxLines = 1,
+    this.minLines,
+    this.textCapitalization = TextCapitalization.none,
     super.key,
   });
 
@@ -39,6 +42,11 @@ class AppTextField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
 
+  /// `null` grows without limit; pair with [minLines] for prose fields.
+  final int? maxLines;
+  final int? minLines;
+  final TextCapitalization textCapitalization;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
@@ -54,6 +62,9 @@ class AppTextField extends StatelessWidget {
       enabled: enabled,
       textInputAction: textInputAction,
       inputFormatters: inputFormatters,
+      maxLines: maxLines,
+      minLines: minLines,
+      textCapitalization: textCapitalization,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       decoration: InputDecoration(
         labelText: label,
