@@ -201,7 +201,6 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
                 AppTextField(
                   controller: _textController,
                   label: l10n.journalFieldText,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   validator: Validators.required(l10n),
                   minLines: 3,

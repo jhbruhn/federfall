@@ -161,7 +161,6 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
                 AppTextField(
                   controller: _note,
                   label: l10n.followUpNoteLabel,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 2,
                   maxLines: 5,

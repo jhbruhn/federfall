@@ -311,7 +311,6 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
                   AppTextField(
                     controller: _notes,
                     label: l10n.caseFieldIntakeNotes,
-                    prefixIcon: Icons.notes_outlined,
                     enabled: !_busy,
                     minLines: 3,
                     maxLines: 6,

@@ -273,7 +273,6 @@ class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
                 AppTextField(
                   controller: _notesController,
                   label: l10n.conditionFieldNotes,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 2,
                   maxLines: 5,

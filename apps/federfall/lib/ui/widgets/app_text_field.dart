@@ -70,6 +70,9 @@ class AppTextField extends StatelessWidget {
         labelText: label,
         hintText: hintText,
         prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
+        // Keep the resting label at the top of multiline fields instead of
+        // vertically centered.
+        alignLabelWithHint: maxLines != 1,
       ),
     );
   }

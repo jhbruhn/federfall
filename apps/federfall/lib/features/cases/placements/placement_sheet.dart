@@ -308,7 +308,6 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
                 AppTextField(
                   controller: _comments,
                   label: l10n.placementFieldComments,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 2,
                   maxLines: 5,

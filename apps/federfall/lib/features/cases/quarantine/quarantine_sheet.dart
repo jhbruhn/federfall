@@ -188,7 +188,6 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
               AppTextField(
                 controller: _reasonController,
                 label: l10n.quarantineFieldReason,
-                prefixIcon: Icons.notes_outlined,
                 enabled: !_busy,
                 onChanged: (_) => markDirty(),
                 minLines: 2,

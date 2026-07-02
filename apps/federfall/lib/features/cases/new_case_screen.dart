@@ -663,7 +663,6 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
         AppTextField(
           controller: _intakeNotesController,
           label: l10n.caseFieldIntakeNotes,
-          prefixIcon: Icons.notes_outlined,
           enabled: !_busy,
           minLines: 3,
           maxLines: 6,

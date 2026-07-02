@@ -327,7 +327,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                 AppTextField(
                   controller: _instructions,
                   label: l10n.medInstructions,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 2,
                   maxLines: 5,

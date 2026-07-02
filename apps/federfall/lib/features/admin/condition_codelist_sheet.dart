@@ -142,7 +142,6 @@ class _ConditionCodelistSheetState extends ConsumerState<ConditionCodelistSheet>
                 AppTextField(
                   controller: _description,
                   label: l10n.conditionDescriptionLabel,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 2,
                   maxLines: 5,

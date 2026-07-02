@@ -395,7 +395,6 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
                 AppTextField(
                   controller: _reason,
                   label: l10n.dispositionFieldReason,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 2,
                   maxLines: 5,

@@ -216,7 +216,6 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
                 AppTextField(
                   controller: _notesController,
                   label: l10n.weightFieldNotes,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 2,
                   maxLines: 5,

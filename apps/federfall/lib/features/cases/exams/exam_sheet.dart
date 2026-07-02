@@ -411,7 +411,6 @@ class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
                 AppTextField(
                   controller: _notes,
                   label: l10n.examNotesLabel,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 3,
                   maxLines: 6,

@@ -242,7 +242,6 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
                 AppTextField(
                   controller: _notes,
                   label: l10n.medNotes,
-                  prefixIcon: Icons.notes_outlined,
                   enabled: !_busy,
                   minLines: 2,
                   maxLines: 5,
