@@ -1,3 +1,4 @@
+import 'package:federfall/core/auth/sign_out.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info.dart';
@@ -180,8 +181,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     };
   }
 
-  Future<void> _switchServer() =>
-      ref.read(serverConfigControllerProvider.notifier).clearServerUrl();
+  /// Also purges the protected-file cache: the cached images belong to the
+  /// server (and account) being left behind — same rationale as [signOut].
+  Future<void> _switchServer() {
+    purgeProtectedFileCache(
+      ref.read(protectedFileCacheManagerProvider).emptyCache,
+    );
+    return ref.read(serverConfigControllerProvider.notifier).clearServerUrl();
+  }
 
   Future<void> _requestReset() async {
     final messenger = ScaffoldMessenger.of(context);

@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/core/auth/sign_out.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/profile/edit_profile_sheet.dart';
@@ -8,13 +9,6 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-/// Signs the user out. Clearing the store flips authStatus → the router gate
-/// routes back to /login.
-Future<void> signOut(WidgetRef ref) async {
-  final repo = await ref.read(authRepositoryProvider.future);
-  repo.signOut();
-}
 
 /// Minimal profile screen (FED-3.3): shows the signed-in user's details and
 /// hosts the sign-out action.

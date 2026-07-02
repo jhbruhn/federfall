@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/sign_out.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -40,10 +41,7 @@ class _PendingApprovalScreenState extends ConsumerState<PendingApprovalScreen> {
     }
   }
 
-  Future<void> _signOut() async {
-    final repo = await ref.read(authRepositoryProvider.future);
-    repo.signOut();
-  }
+  Future<void> _signOut() => signOut(ref);
 
   @override
   Widget build(BuildContext context) {
