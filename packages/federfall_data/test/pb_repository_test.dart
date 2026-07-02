@@ -246,4 +246,29 @@ void main() {
       ),
     );
   });
+
+  test('a hung WRITE times out as unknownOutcome — the server may still '
+      'commit it, so it must not read as "not reached, retry"', () async {
+    final timeoutRepo = _AnimalsRepo(
+      pb,
+      networkTimeout: const Duration(milliseconds: 50),
+    );
+    when(() => service.create(body: any(named: 'body'))).thenAnswer(
+      (_) => Future.delayed(
+        const Duration(seconds: 5),
+        () => rec('a9', 'Late'),
+      ),
+    );
+    when(() => service.delete(any())).thenAnswer(
+      (_) => Future.delayed(const Duration(seconds: 5)),
+    );
+
+    final matcher = throwsA(
+      isA<RepositoryException>()
+          .having((e) => e.kind, 'kind', RepositoryErrorKind.unknownOutcome)
+          .having((e) => e.isNetwork, 'isNetwork', false),
+    );
+    expect(() => timeoutRepo.create({'name': 'Late'}), matcher);
+    expect(() => timeoutRepo.delete('a9'), matcher);
+  });
 }

@@ -10,6 +10,7 @@
     "errorUnauthorized": "Dazu bist du nicht berechtigt",
     "errorNotFound": "Nicht gefunden",
     "errorValidation": "Die Daten konnten nicht gespeichert werden",
+    "errorUnknownOutcome": "Der Server hat nicht rechtzeitig geantwortet – deine Änderung wurde möglicherweise trotzdem gespeichert. Prüfe die Liste, bevor du es erneut versuchst, um Duplikate zu vermeiden.",
     "actionRetry": "Erneut versuchen",
     "actionSave": "Speichern",
     "actionCancel": "Abbrechen",

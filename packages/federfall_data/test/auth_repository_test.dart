@@ -266,6 +266,70 @@ void main() {
     verify(() => store.save('tok', updated)).called(1);
   });
 
+  test('updateProfile omits fields that were not passed — a partial update '
+      'never clears the other field', () async {
+    when(() => store.record)
+        .thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
+    when(() => store.token).thenReturn('tok');
+    when(() => store.save(any(), any())).thenReturn(null);
+    when(() => users.update('usr1', body: any(named: 'body'))).thenAnswer(
+      (_) async => RecordModel(
+        {'id': 'usr1', 'email': 'a@b.de', 'name': 'Mara', 'phone': '456'},
+      ),
+    );
+
+    await repo.updateProfile(phone: '456');
+
+    final body = verify(
+      () => users.update('usr1', body: captureAny(named: 'body')),
+    ).captured.single as Map<String, dynamic>;
+    expect(body, isNot(contains('name')));
+    expect(body['phone'], '456');
+  });
+
+  test('updateProfile clears a field only via an explicit empty string',
+      () async {
+    when(() => store.record)
+        .thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
+    when(() => store.token).thenReturn('tok');
+    when(() => store.save(any(), any())).thenReturn(null);
+    when(() => users.update('usr1', body: any(named: 'body'))).thenAnswer(
+      (_) async => RecordModel({'id': 'usr1', 'email': 'a@b.de'}),
+    );
+
+    await repo.updateProfile(name: '', phone: '1');
+
+    final body = verify(
+      () => users.update('usr1', body: captureAny(named: 'body')),
+    ).captured.single as Map<String, dynamic>;
+    expect(body['name'], '');
+  });
+
+  test('a hung sign-in fails fast with a network error instead of waiting '
+      'for the OS TCP timeout', () async {
+    final slowRepo = PbAuthRepository(
+      pb,
+      networkTimeout: const Duration(milliseconds: 50),
+    );
+    when(() => users.authWithPassword(any(), any())).thenAnswer(
+      (_) => Future.delayed(
+        const Duration(seconds: 5),
+        () => RecordAuth(token: 't', record: RecordModel({'id': 'u'})),
+      ),
+    );
+
+    expect(
+      () => slowRepo.signIn('a@b.de', 'pw'),
+      throwsA(
+        isA<RepositoryException>().having(
+          (e) => e.isNetwork,
+          'isNetwork',
+          true,
+        ),
+      ),
+    );
+  });
+
   test('updateProfile rejects when nobody is signed in', () async {
     when(() => store.record).thenReturn(null);
 

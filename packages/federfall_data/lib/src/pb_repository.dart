@@ -89,8 +89,10 @@ abstract class PbRepository<T> implements Repository<T> {
   }
 
   @override
-  Future<T> create(Map<String, dynamic> body) =>
-      _guard(() async => fromRecord(await service.create(body: body)));
+  Future<T> create(Map<String, dynamic> body) => _guard(
+    () async => fromRecord(await service.create(body: body)),
+    write: true,
+  );
 
   /// Creates a record from [body] with multipart [files] attached to its file
   /// field(s). Each [http.MultipartFile.field] names the target file field
@@ -102,6 +104,7 @@ abstract class PbRepository<T> implements Repository<T> {
   ) =>
       _guard(
         () async => fromRecord(await service.create(body: body, files: files)),
+        write: true,
       );
 
   /// Updates record [id] from [body] with new multipart [files] appended to its
@@ -116,6 +119,7 @@ abstract class PbRepository<T> implements Repository<T> {
       _guard(
         () async =>
             fromRecord(await service.update(id, body: body, files: files)),
+        write: true,
       );
 
   /// Absolute URL for a [filename] stored on record [recordId]'s file field.
@@ -139,19 +143,34 @@ abstract class PbRepository<T> implements Repository<T> {
   });
 
   @override
-  Future<T> update(String id, Map<String, dynamic> body) =>
-      _guard(() async => fromRecord(await service.update(id, body: body)));
+  Future<T> update(String id, Map<String, dynamic> body) => _guard(
+    () async => fromRecord(await service.update(id, body: body)),
+    write: true,
+  );
 
   @override
   Future<void> delete(String id) =>
-      _guard(() async => service.delete(id));
+      _guard(() async => service.delete(id), write: true);
 
   /// Runs a server [op], capping it at [networkTimeout] and translating SDK
   /// failures into a stable [RepositoryException].
-  Future<R> _guard<R>(Future<R> Function() op) async {
+  ///
+  /// [write] flags ops that mutate server state: `Future.timeout` abandons the
+  /// request client-side but cannot cancel it, so a slow (not dead) server may
+  /// still commit the write after the timeout fires. Such timeouts surface as
+  /// [RepositoryErrorKind.unknownOutcome] — not `network` — so the UI never
+  /// tells the user "not reached, retry" when a retry could duplicate data.
+  Future<R> _guard<R>(Future<R> Function() op, {bool write = false}) async {
     try {
       return await op().timeout(networkTimeout);
     } on TimeoutException {
+      if (write) {
+        throw const RepositoryException(
+          'The server did not respond in time — the change may or may not '
+          'have been saved',
+          kind: RepositoryErrorKind.unknownOutcome,
+        );
+      }
       throw const RepositoryException(
         'Could not reach the server',
         kind: RepositoryErrorKind.network,

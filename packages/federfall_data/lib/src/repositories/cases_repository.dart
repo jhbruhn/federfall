@@ -38,12 +38,14 @@ abstract interface class CasesRepository implements Repository<Case> {
 }
 
 class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
-  PbCasesRepository(PocketBase pb)
-    : super(
-        pb: pb,
-        collection: 'cases',
-        fromRecord: Case.fromRecord,
-      );
+  PbCasesRepository(
+    PocketBase pb, {
+    super.networkTimeout,
+  }) : super(
+         pb: pb,
+         collection: 'cases',
+         fromRecord: Case.fromRecord,
+       );
 
   @override
   Future<List<Case>> active() => list(
@@ -82,14 +84,29 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
             files: photos,
           )
           .timeout(networkTimeout);
-      return (
-        caseId: (res['id'] as String?) ?? '',
-        animalId: (res['animal'] as String?) ?? '',
-      );
+      final caseId = res['id'];
+      final animalId = res['animal'];
+      if (caseId is! String ||
+          caseId.isEmpty ||
+          animalId is! String ||
+          animalId.isEmpty) {
+        // The transaction committed (2xx) but the response lacks the ids the
+        // caller navigates with — surface that instead of empty-string ids
+        // that route to a confusing 404. `unknownOutcome` because a retry
+        // would create a second animal+case.
+        throw const RepositoryException(
+          'Intake response is missing the created record ids',
+          kind: RepositoryErrorKind.unknownOutcome,
+        );
+      }
+      return (caseId: caseId, animalId: animalId);
     } on TimeoutException {
+      // The request left the device; a slow server may still commit the
+      // intake, so a retry can duplicate the animal+case.
       throw const RepositoryException(
-        'Could not reach the server',
-        kind: RepositoryErrorKind.network,
+        'The server did not respond in time — the intake may or may not '
+        'have been saved',
+        kind: RepositoryErrorKind.unknownOutcome,
       );
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);

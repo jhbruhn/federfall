@@ -28,6 +28,10 @@
     "@errorValidation": {
         "description": "Shown on a 400/422 validation response"
     },
+    "errorUnknownOutcome": "The server did not respond in time — your change may still have been saved. Check the list before retrying to avoid duplicates.",
+    "@errorUnknownOutcome": {
+        "description": "Shown when a write timed out client-side but may have been committed server-side, so a blind retry could duplicate it"
+    },
     "actionRetry": "Retry",
     "@actionRetry": {
         "description": "Button that retries a failed action"

@@ -34,6 +34,7 @@ String errorMessage(AppLocalizations l10n, Object error) {
       RepositoryErrorKind.unauthorized => l10n.errorUnauthorized,
       RepositoryErrorKind.notFound => l10n.errorNotFound,
       RepositoryErrorKind.validation => l10n.errorValidation,
+      RepositoryErrorKind.unknownOutcome => l10n.errorUnknownOutcome,
       RepositoryErrorKind.unknown => l10n.errorGenericTitle,
     };
   }

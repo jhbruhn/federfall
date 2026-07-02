@@ -55,6 +55,10 @@ class RepositoryException implements Exception {
       RepositoryErrorKind.unauthorized => 'Not authorized',
       RepositoryErrorKind.notFound => 'Not found',
       RepositoryErrorKind.validation => 'Invalid request',
+      // Never produced by fromClient (a ClientException means the server
+      // answered); listed for exhaustiveness.
+      RepositoryErrorKind.unknownOutcome =>
+        'The request outcome could not be determined',
       RepositoryErrorKind.unknown => e.toString(),
     };
   }
@@ -77,6 +81,11 @@ enum RepositoryErrorKind {
 
   /// The server rejected the payload (400/422).
   validation,
+
+  /// A write timed out client-side after the request left the device — the
+  /// server may still have committed it, so blindly retrying can duplicate
+  /// the change (e.g. a second animal+case from one intake).
+  unknownOutcome,
 
   /// Anything else.
   unknown,

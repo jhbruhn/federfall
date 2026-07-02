@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:federfall_data/src/repository_exception.dart';
@@ -69,6 +70,9 @@ abstract interface class AuthRepository {
 
   /// Updates the signed-in user's own profile (name/phone) and refreshes the
   /// session so [currentUser]/[changes] reflect the new values immediately.
+  ///
+  /// Partial update: a `null` argument leaves that field unchanged; pass an
+  /// empty string to clear it.
   Future<AppUser> updateProfile({String? name, String? phone});
 
   /// Requests a password-reset email for [email] (used by the invite flow and
@@ -104,11 +108,34 @@ class OAuthProvider {
 
 /// PocketBase-backed [AuthRepository].
 class PbAuthRepository implements AuthRepository {
-  PbAuthRepository(this.pb);
+  PbAuthRepository(
+    this.pb, {
+    this.networkTimeout = const Duration(seconds: 15),
+  });
 
   final PocketBase pb;
 
+  /// Caps each request so an unreachable server fails fast with a network
+  /// error instead of hanging on the OS TCP timeout (minutes). Sign-in is the
+  /// very first call a user makes against a possibly-wrong server URL, so it
+  /// must fail fast like every other repository call. Not applied to the
+  /// OAuth2 flow, which legitimately waits on user interaction.
+  final Duration networkTimeout;
+
   RecordService get _users => pb.collection('users');
+
+  /// Caps [op] at [networkTimeout], mapping a timeout to the same network
+  /// [RepositoryException] the other repositories throw.
+  Future<R> _withTimeout<R>(Future<R> Function() op) async {
+    try {
+      return await op().timeout(networkTimeout);
+    } on TimeoutException {
+      throw const RepositoryException(
+        'Could not reach the server',
+        kind: RepositoryErrorKind.network,
+      );
+    }
+  }
 
   @override
   bool get isSignedIn => pb.authStore.isValid;
@@ -127,7 +154,9 @@ class PbAuthRepository implements AuthRepository {
   @override
   Future<AppUser> signIn(String email, String password) async {
     try {
-      final auth = await _users.authWithPassword(email, password);
+      final auth = await _withTimeout(
+        () => _users.authWithPassword(email, password),
+      );
       return AppUser.fromRecord(auth.record);
     } on ClientException catch (e) {
       // A correct password on an MFA account returns 401 with an mfaId rather
@@ -143,7 +172,7 @@ class PbAuthRepository implements AuthRepository {
   @override
   Future<List<OAuthProvider>> oauthProviders() async {
     try {
-      final methods = await _users.listAuthMethods();
+      final methods = await _withTimeout(_users.listAuthMethods);
       return methods.oauth2.providers
           .map(
             (p) => OAuthProvider(
@@ -163,6 +192,8 @@ class PbAuthRepository implements AuthRepository {
     Future<void> Function(Uri url) openUrl,
   ) async {
     try {
+      // Deliberately NOT capped at networkTimeout: this waits for the user to
+      // complete the provider's flow in a browser, which can take minutes.
       final auth = await _users.authWithOAuth2(
         provider,
         (url) => openUrl(url),
@@ -176,7 +207,7 @@ class PbAuthRepository implements AuthRepository {
   @override
   Future<String> requestOtp(String email) async {
     try {
-      final res = await _users.requestOTP(email);
+      final res = await _withTimeout(() => _users.requestOTP(email));
       return res.otpId;
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
@@ -191,10 +222,8 @@ class PbAuthRepository implements AuthRepository {
   }) async {
     try {
       // The mfaId links this OTP (second factor) to the earlier password step.
-      final auth = await _users.authWithOTP(
-        otpId,
-        code,
-        body: {'mfaId': mfaId},
+      final auth = await _withTimeout(
+        () => _users.authWithOTP(otpId, code, body: {'mfaId': mfaId}),
       );
       return AppUser.fromRecord(auth.record);
     } on ClientException catch (e) {
@@ -209,9 +238,8 @@ class PbAuthRepository implements AuthRepository {
       throw const RepositoryException('not signed in');
     }
     try {
-      final updated = await _users.update(
-        record.id,
-        body: {'mfa_enabled': enabled},
+      final updated = await _withTimeout(
+        () => _users.update(record.id, body: {'mfa_enabled': enabled}),
       );
       pb.authStore.save(pb.authStore.token, updated);
       return AppUser.fromRecord(updated);
@@ -224,7 +252,7 @@ class PbAuthRepository implements AuthRepository {
   Future<AppUser?> refresh() async {
     if (!pb.authStore.isValid) return null;
     try {
-      final auth = await _users.authRefresh();
+      final auth = await _withTimeout(_users.authRefresh);
       return AppUser.fromRecord(auth.record);
     } on ClientException catch (e) {
       // An invalid/expired token clears the store; treat as signed out.
@@ -255,21 +283,23 @@ class PbAuthRepository implements AuthRepository {
     // invitee sets their own via the reset email below.
     final tempPassword = _randomPassword();
     try {
-      final record = await _users.create(
-        body: {
-          'email': email,
-          // Visible to fellow org members so the team roster shows it.
-          'emailVisibility': true,
-          if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
-          'role': role.wire,
-          'org': org,
-          'is_active': true,
-          'password': tempPassword,
-          'passwordConfirm': tempPassword,
-          if (inviter != null) 'invited_by': inviter.id,
-        },
+      final record = await _withTimeout(
+        () => _users.create(
+          body: {
+            'email': email,
+            // Visible to fellow org members so the team roster shows it.
+            'emailVisibility': true,
+            if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+            'role': role.wire,
+            'org': org,
+            'is_active': true,
+            'password': tempPassword,
+            'passwordConfirm': tempPassword,
+            if (inviter != null) 'invited_by': inviter.id,
+          },
+        ),
       );
-      await _users.requestPasswordReset(email);
+      await _withTimeout(() => _users.requestPasswordReset(email));
       return AppUser.fromRecord(record);
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
@@ -283,12 +313,16 @@ class PbAuthRepository implements AuthRepository {
       throw const RepositoryException('not signed in');
     }
     try {
-      final updated = await _users.update(
-        record.id,
-        body: {
-          'name': name?.trim() ?? '',
-          'phone': phone?.trim() ?? '',
-        },
+      final updated = await _withTimeout(
+        () => _users.update(
+          record.id,
+          // Null-aware elements: an omitted argument means "leave unchanged",
+          // never "clear" — an empty string is how a caller clears a field.
+          body: {
+            'name': ?name?.trim(),
+            'phone': ?phone?.trim(),
+          },
+        ),
       );
       // Persist the refreshed record into the auth store so currentUser and
       // the changes stream emit the new values without a re-login.
@@ -302,7 +336,7 @@ class PbAuthRepository implements AuthRepository {
   @override
   Future<void> requestPasswordReset(String email) async {
     try {
-      await _users.requestPasswordReset(email);
+      await _withTimeout(() => _users.requestPasswordReset(email));
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
     }
@@ -311,7 +345,9 @@ class PbAuthRepository implements AuthRepository {
   @override
   Future<void> confirmPasswordReset(String token, String password) async {
     try {
-      await _users.confirmPasswordReset(token, password, password);
+      await _withTimeout(
+        () => _users.confirmPasswordReset(token, password, password),
+      );
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
     }

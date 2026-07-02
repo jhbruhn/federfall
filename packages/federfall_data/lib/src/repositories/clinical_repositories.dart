@@ -166,9 +166,12 @@ class PbExamsRepository extends PbRepository<Exam> {
       }
       return id;
     } on TimeoutException {
+      // The request left the device; a slow server may still commit the
+      // exam, so a blind retry of a create can duplicate it.
       throw const RepositoryException(
-        'Could not reach the server',
-        kind: RepositoryErrorKind.network,
+        'The server did not respond in time — the exam may or may not '
+        'have been saved',
+        kind: RepositoryErrorKind.unknownOutcome,
       );
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
