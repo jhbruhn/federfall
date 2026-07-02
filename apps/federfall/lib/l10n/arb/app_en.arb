@@ -532,6 +532,17 @@
     "@caseShareNoMembers": { "description": "Shown when there are no eligible members to share with" },
     "caseShareRevoke": "Revoke access",
     "@caseShareRevoke": { "description": "Tooltip on the revoke-share button" },
+    "caseShareRevokeTitle": "Revoke access?",
+    "@caseShareRevokeTitle": { "description": "Title of the revoke-share confirmation dialog" },
+    "caseShareRevokeConfirm": "{name} will lose access to this case.",
+    "@caseShareRevokeConfirm": {
+        "description": "Body of the revoke-share confirmation dialog",
+        "placeholders": { "name": { "type": "String" } }
+    },
+    "caseShareRevokeAction": "Revoke",
+    "@caseShareRevokeAction": { "description": "Confirming action in the revoke-share dialog" },
+    "caseShareChangeAccess": "Change access",
+    "@caseShareChangeAccess": { "description": "Tooltip on the change-access menu of an existing share" },
     "caseReasonsFieldLabel": "Reasons for admission",
     "@caseReasonsFieldLabel": { "description": "Label for the reasons list on detail" },
     "caseStatusInCare": "In care",

@@ -25,18 +25,10 @@ class AnimalListItem {
 @riverpod
 Future<List<AnimalListItem>> animalsRegistry(Ref ref) async {
   final animalsRepo = await ref.watch(animalsRepositoryProvider.future);
-  final markingsRepo = await ref.watch(markingsRepositoryProvider.future);
-
   final animals = await animalsRepo.list();
-  final activeMarkings = await markingsRepo.list(filter: 'is_active = true');
-
-  final codesByAnimal = <String, List<String>>{};
-  for (final m in activeMarkings) {
-    final code = m.code;
-    if (code != null && code.isNotEmpty) {
-      (codesByAnimal[m.animal] ??= []).add(code);
-    }
-  }
+  final codesByAnimal = await ref.watch(
+    activeMarkingCodesByAnimalProvider.future,
+  );
 
   final items = [
     for (final a in animals)

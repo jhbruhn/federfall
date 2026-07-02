@@ -135,6 +135,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
             d.animalsById,
             myUserId: d.myUserId,
             query: _query,
+            codesByAnimal: d.codesByAnimal,
           );
           return Column(
             children: [

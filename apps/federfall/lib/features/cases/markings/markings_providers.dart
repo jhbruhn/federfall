@@ -12,6 +12,23 @@ Future<List<Marking>> markingsForAnimal(Ref ref, String animalId) async {
   return repo.forAnimal(animalId);
 }
 
+/// Active marking codes (ring / chip / band) keyed by animal id, in record
+/// order. Shared lookup behind the animals-registry rows and the cases-browser
+/// text search (federfall-78b).
+@riverpod
+Future<Map<String, List<String>>> activeMarkingCodesByAnimal(Ref ref) async {
+  final repo = await ref.watch(markingsRepositoryProvider.future);
+  final activeMarkings = await repo.list(filter: 'is_active = true');
+  final codesByAnimal = <String, List<String>>{};
+  for (final m in activeMarkings) {
+    final code = m.code;
+    if (code != null && code.isNotEmpty) {
+      (codesByAnimal[m.animal] ??= []).add(code);
+    }
+  }
+  return codesByAnimal;
+}
+
 /// A re-identification candidate: an existing animal plus its active markings.
 class ReidMatch {
   const ReidMatch({required this.animal, required this.markings});

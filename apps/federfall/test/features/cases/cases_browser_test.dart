@@ -86,6 +86,24 @@ void main() {
     expect(_ids(run(cases, const CaseQuery(text: 'fritz'))), ['byName']);
   });
 
+  test("text search matches the animal's active marking codes", () {
+    final cases = [
+      _c('ringed'),
+      _c('plain', animal: 'a2'),
+    ];
+    final result = filterCases(
+      cases,
+      _animals,
+      myUserId: 'me',
+      query: const CaseQuery(text: 'de-2024'),
+      codesByAnimal: const {
+        'a1': ['DE-2024-0815'],
+      },
+    );
+
+    expect(_ids(result), ['ringed']);
+  });
+
   test('date range filters by admission day, excluding undated cases', () {
     final result = run([
       _c('in', admittedAt: DateTime(2026, 6, 10)),

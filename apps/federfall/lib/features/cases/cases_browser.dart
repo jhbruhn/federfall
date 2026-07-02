@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -65,7 +66,8 @@ class CaseQuery {
   /// Admission-date window (inclusive), or null for any date.
   final DateTimeRange? admittedRange;
 
-  /// Free text matched against case number and animal name.
+  /// Free text matched against case number, animal name, and the animal's
+  /// active marking codes (ring / chip / band).
   final String text;
 
   /// Whether anything narrows the default ("my active cases") view.
@@ -115,19 +117,25 @@ class CaseQuery {
 }
 
 /// Everything the browser needs in one shot: the accessible cases (server-
-/// scoped), their animals keyed by id (for species/name), and the signed-in
-/// user's id (to resolve the "mine" scope client-side).
+/// scoped), their animals keyed by id (for species/name), the animals' active
+/// marking codes (so searching a ring/chip code works here too, federfall-78b),
+/// and the signed-in user's id (to resolve the "mine" scope client-side).
 @immutable
 class CasesBrowserData {
   const CasesBrowserData({
     required this.cases,
     required this.animalsById,
     required this.myUserId,
+    this.codesByAnimal = const {},
   });
 
   final List<Case> cases;
   final Map<String, Animal> animalsById;
   final String myUserId;
+
+  /// Active marking codes keyed by animal id (shared lookup with the animals
+  /// registry).
+  final Map<String, List<String>> codesByAnimal;
 
   /// Distinct species among the loaded cases' animals, sorted for the filter.
   List<String> get speciesOptions {
@@ -151,10 +159,14 @@ Future<CasesBrowserData> casesBrowserData(Ref ref) async {
   final animalsRepo = await ref.watch(animalsRepositoryProvider.future);
   final cases = await casesRepo.list(sort: '-created');
   final animals = await animalsRepo.list();
+  final codesByAnimal = await ref.watch(
+    activeMarkingCodesByAnimalProvider.future,
+  );
   return CasesBrowserData(
     cases: cases,
     animalsById: {for (final a in animals) a.id: a},
     myUserId: user?.id ?? '',
+    codesByAnimal: codesByAnimal,
   );
 }
 
@@ -165,6 +177,7 @@ List<Case> filterCases(
   Map<String, Animal> animalsById, {
   required String myUserId,
   required CaseQuery query,
+  Map<String, List<String>> codesByAnimal = const {},
 }) {
   final text = query.text.trim().toLowerCase();
   final range = query.admittedRange;
@@ -200,7 +213,12 @@ List<Case> filterCases(
     if (text.isNotEmpty) {
       final number = c.caseNumber?.toLowerCase() ?? '';
       final name = animal?.name?.toLowerCase() ?? '';
-      if (!number.contains(text) && !name.contains(text)) return false;
+      final codes = codesByAnimal[c.animal] ?? const <String>[];
+      if (!number.contains(text) &&
+          !name.contains(text) &&
+          !codes.any((code) => code.toLowerCase().contains(text))) {
+        return false;
+      }
     }
 
     return true;

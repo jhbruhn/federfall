@@ -11,8 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Opens the case-sharing sheet (FED-5.1): list current opt-in shares, grant a
-/// new one (read/edit) to an org member, or revoke. Only offered to the active
-/// carer or a supervisor (the server create rule enforces it too).
+/// new one (read/edit) to an org member, change an existing share's access
+/// level, or revoke (with confirmation). Only offered to the active carer or a
+/// supervisor (the server create rule enforces it too).
 Future<void> showCaseShareSheet(
   BuildContext context, {
   required String caseId,
@@ -65,17 +66,97 @@ class _CaseShareSheetState extends ConsumerState<_CaseShareSheet> {
     }
   }
 
-  Future<void> _revoke(String shareId) async {
+  Future<void> _setAccess(CaseShare share, ShareAccess access) async {
+    if (_busy || access == share.access) return;
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
+    setState(() => _busy = true);
     try {
       final repo = await ref.read(caseSharesRepositoryProvider.future);
-      await repo.delete(shareId);
+      await repo.update(share.id, {'access': access.wire});
       ref.invalidate(caseSharesProvider(widget.caseId));
     } on Object catch (e, stackTrace) {
       reportCaughtError(e, stackTrace);
       messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _revoke(CaseShare share, String memberName) async {
+    if (_busy) return;
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.caseShareRevokeTitle),
+        content: Text(l10n.caseShareRevokeConfirm(memberName)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.caseShareRevokeAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final repo = await ref.read(caseSharesRepositoryProvider.future);
+      await repo.delete(share.id);
+      ref.invalidate(caseSharesProvider(widget.caseId));
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// One existing share: who has it, at which level (changeable in place via
+  /// the menu), and a revoke button guarded by a confirmation dialog.
+  Widget _shareTile(
+    AppLocalizations l10n,
+    CaseShare share,
+    Map<String, AppUser> byId,
+  ) {
+    final member = byId[share.sharedWith];
+    final memberName = member != null ? memberLabel(member) : share.sharedWith;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.person_outline),
+      title: Text(memberName),
+      subtitle: Text(shareAccessLabel(l10n, share.access)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PopupMenuButton<ShareAccess>(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: l10n.caseShareChangeAccess,
+            enabled: !_busy,
+            onSelected: (access) => _setAccess(share, access),
+            itemBuilder: (_) => [
+              for (final access in ShareAccess.values)
+                CheckedPopupMenuItem(
+                  value: access,
+                  checked: access == share.access,
+                  child: Text(shareAccessLabel(l10n, access)),
+                ),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: l10n.caseShareRevoke,
+            onPressed: _busy ? null : () => _revoke(share, memberName),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -146,22 +227,7 @@ class _CaseShareSheetState extends ConsumerState<_CaseShareSheet> {
           ),
         )
       else
-        for (final share in shares)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.person_outline),
-            title: Text(
-              byId[share.sharedWith] != null
-                  ? memberLabel(byId[share.sharedWith]!)
-                  : share.sharedWith,
-            ),
-            subtitle: Text(shareAccessLabel(l10n, share.access)),
-            trailing: IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: l10n.caseShareRevoke,
-              onPressed: () => _revoke(share.id),
-            ),
-          ),
+        for (final share in shares) _shareTile(l10n, share, byId),
       const Divider(height: AppSpacing.lg),
       if (eligible.isEmpty)
         Text(
