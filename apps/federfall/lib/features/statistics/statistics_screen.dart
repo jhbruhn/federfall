@@ -43,7 +43,6 @@ class StatisticsScreen extends ConsumerWidget {
       body: AsyncValueView<Statistics>(
         value: stats,
         onRetry: () => ref.invalidate(statisticsProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         loading: const LinearProgressIndicator(),
         data: (s) => RefreshIndicator(
           onRefresh: () => ref.refresh(statisticsProvider.future),

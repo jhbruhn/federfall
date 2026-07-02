@@ -35,7 +35,6 @@ class ProfileScreen extends ConsumerWidget {
       body: AsyncValueView<AppUser?>(
         value: user,
         onRetry: () => ref.invalidate(currentUserProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (u) => u == null
             ? EmptyView(message: l10n.errorUnauthorized)
             : _ProfileBody(u),

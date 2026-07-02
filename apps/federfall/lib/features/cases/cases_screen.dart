@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/carer_line.dart';
@@ -130,7 +129,6 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
       body: AsyncValueView<CasesBrowserData>(
         value: data,
         onRetry: () => ref.invalidate(casesBrowserDataProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (d) {
           final results = filterCases(
             d.cases,

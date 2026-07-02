@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
@@ -50,7 +49,6 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
       body: AsyncValueView<List<AnimalListItem>>(
         value: registry,
         onRetry: () => ref.invalidate(animalsRegistryProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (items) {
           final results = filterAnimals(items, _query);
           return Column(

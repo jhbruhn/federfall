@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/condition_codelist_sheet.dart';
@@ -51,7 +50,6 @@ class ConditionsAdminScreen extends ConsumerWidget {
       body: AsyncValueView<List<Condition>>(
         value: conditions,
         onRetry: () => ref.invalidate(conditionsProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (list) => list.isEmpty
             ? EmptyView(
                 icon: Icons.checklist_outlined,

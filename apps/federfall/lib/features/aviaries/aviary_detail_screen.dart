@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/animals/add_animal_sheet.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
@@ -63,7 +62,6 @@ class AviaryDetailScreen extends ConsumerWidget {
       body: AsyncValueView<Aviary>(
         value: aviary,
         onRetry: () => ref.invalidate(aviaryByIdProvider(aviaryId)),
-        errorMessage: (e) => errorMessage(l10n, e),
         loading: const LinearProgressIndicator(),
         data: (av) => ContentBounds(
           child: ListView(

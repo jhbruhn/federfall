@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/marking_type_codelist_sheet.dart';
@@ -52,7 +51,6 @@ class MarkingTypesAdminScreen extends ConsumerWidget {
       body: AsyncValueView<List<MarkingType>>(
         value: types,
         onRetry: () => ref.invalidate(markingTypesProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (list) => list.isEmpty
             ? EmptyView(
                 icon: Icons.sell_outlined,

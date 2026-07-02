@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
@@ -84,7 +83,6 @@ class AnimalDetailScreen extends ConsumerWidget {
       body: AsyncValueView<AnimalLifetime>(
         value: lifetime,
         onRetry: () => ref.invalidate(animalLifetimeProvider(animalId)),
-        errorMessage: (e) => errorMessage(l10n, e),
         // Top progress bar rather than a centred spinner, so the header doesn't
         // appear to jump from centre to its final top-left position on load.
         loading: const LinearProgressIndicator(),

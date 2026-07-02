@@ -43,7 +43,6 @@ class OrgSettingsScreen extends ConsumerWidget {
       body: AsyncValueView<Organisation>(
         value: org,
         onRetry: () => ref.invalidate(currentOrganisationProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: _OrgForm.new,
       ),
     );

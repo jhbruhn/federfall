@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
@@ -42,7 +41,6 @@ class DashboardScreen extends ConsumerWidget {
       body: AsyncValueView<DashboardSummary>(
         value: summary,
         onRetry: () => ref.invalidate(dashboardSummaryProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (s) {
           final caseload = Column(
             crossAxisAlignment: CrossAxisAlignment.start,

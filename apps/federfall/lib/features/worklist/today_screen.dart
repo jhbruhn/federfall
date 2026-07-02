@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/features/worklist/worklist.dart';
@@ -56,7 +55,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       body: AsyncValueView<List<WorklistItem>>(
         value: items,
         onRetry: () => ref.invalidate(worklistProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (data) {
           if (data.isEmpty) {
             return EmptyView(

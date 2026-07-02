@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/aviaries/aviary_form_sheet.dart';
@@ -53,7 +52,6 @@ class AviariesScreen extends ConsumerWidget {
       body: AsyncValueView<List<Aviary>>(
         value: aviaries,
         onRetry: () => ref.invalidate(aviariesProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (list) => list.isEmpty
             ? EmptyView(
                 icon: Icons.holiday_village_outlined,

@@ -65,7 +65,6 @@ class CaseDetailScreen extends ConsumerWidget {
       body: AsyncValueView<Case>(
         value: caseAsync,
         onRetry: () => ref.invalidate(caseByIdProvider(caseId)),
-        errorMessage: (e) => errorMessage(l10n, e),
         // Top progress bar rather than a centred spinner, so the header doesn't
         // appear to jump from centre to its final top-left position on load.
         loading: const LinearProgressIndicator(),

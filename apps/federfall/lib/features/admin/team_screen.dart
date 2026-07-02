@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/invite_member_sheet.dart';
 import 'package:federfall/features/admin/member_management_sheet.dart';
@@ -51,7 +50,6 @@ class TeamScreen extends ConsumerWidget {
       body: AsyncValueView<List<AppUser>>(
         value: members,
         onRetry: () => ref.invalidate(orgMembersProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (list) => list.isEmpty
             ? EmptyView(
                 icon: Icons.group_outlined,

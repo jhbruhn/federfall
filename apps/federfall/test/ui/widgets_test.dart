@@ -1,5 +1,6 @@
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +62,35 @@ void main() {
       ),
     );
     expect(find.text('failed'), findsOneWidget);
+  });
+
+  testWidgets('AsyncValueView maps errors to localized copy by default',
+      (tester) async {
+    await tester.pumpWidget(
+      _host(
+        AsyncValueView<int>(
+          value: const AsyncError(
+            RepositoryException(
+              'boom',
+              kind: RepositoryErrorKind.network,
+            ),
+            StackTrace.empty,
+          ),
+          data: (v) => Text('value $v'),
+        ),
+      ),
+    );
+    expect(find.textContaining('Du bist offline'), findsOneWidget);
+
+    await tester.pumpWidget(
+      _host(
+        AsyncValueView<int>(
+          value: AsyncError(Exception('x'), StackTrace.empty),
+          data: (v) => Text('value $v'),
+        ),
+      ),
+    );
+    expect(find.text('Etwas ist schiefgelaufen'), findsOneWidget);
   });
 
   testWidgets('PrimaryButton swaps to spinner and disables while loading',

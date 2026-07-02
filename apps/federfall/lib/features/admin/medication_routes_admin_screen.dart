@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/medication_route_codelist_sheet.dart';
@@ -51,7 +50,6 @@ class MedicationRoutesAdminScreen extends ConsumerWidget {
       body: AsyncValueView<List<MedicationRoute>>(
         value: routes,
         onRetry: () => ref.invalidate(medicationRoutesProvider),
-        errorMessage: (e) => errorMessage(l10n, e),
         data: (list) => list.isEmpty
             ? EmptyView(
                 icon: Icons.medication_outlined,
