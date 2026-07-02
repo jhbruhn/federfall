@@ -121,6 +121,13 @@ void main() {
           builder: (_, state) =>
               NewCaseScreen(animalId: state.uri.queryParameters['animal']),
         ),
+        // Stand-in for the real case detail: after intake the wizard
+        // navigates here instead of popping back to the list.
+        GoRoute(
+          path: '/cases/:id',
+          builder: (_, state) =>
+              Scaffold(body: Text('CASE ${state.pathParameters['id']}')),
+        ),
       ],
     );
 
@@ -149,7 +156,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('creates an animal + case and returns to the list',
+  testWidgets('creates an animal + case and opens the created case',
       (tester) async {
     await pump(tester);
 
@@ -173,8 +180,9 @@ void main() {
     expect(caseBody['active_carer'], 'u1');
     expect(caseBody['admission_reasons'], ['adre1']);
 
-    // Popped back to the list.
-    expect(find.text('HOME'), findsOneWidget);
+    // Landed on the case just admitted, not back on the list.
+    expect(find.text('CASE c1'), findsOneWidget);
+    expect(find.text('HOME'), findsNothing);
   });
 
   testWidgets('opens the exam sheet after intake when opted in',
@@ -328,6 +336,59 @@ void main() {
     final caseBody = verify(() => cases.create(captureAny())).captured.single
         as Map<String, dynamic>;
     expect(caseBody['animal'], 'a1');
+  });
+
+  testWidgets('leaving a pristine wizard pops without prompting',
+      (tester) async {
+    await pump(tester);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard changes?'), findsNothing);
+    expect(find.text('HOME'), findsOneWidget);
+  });
+
+  testWidgets('back mid-intake asks before discarding the input',
+      (tester) async {
+    await pump(tester);
+
+    // Any input marks the wizard dirty — here the animal's name. Pump so the
+    // markDirty setState rebuilds PopScope.canPop before the back gesture.
+    await enterByLabel(tester, 'Name (optional)', 'Pauli');
+    await tester.pump();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // Keep editing: the wizard (with the input) stays.
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Keep editing'));
+    await tester.pumpAndSettle();
+    expect(find.text('HOME'), findsNothing);
+    expect(find.text('Pauli'), findsOneWidget);
+
+    // Discard: back to the list, nothing created.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('HOME'), findsOneWidget);
+    verifyNever(() => animals.create(any()));
+    verifyNever(() => cases.create(any()));
+  });
+
+  testWidgets('progress without typing still guards against back',
+      (tester) async {
+    await pump(tester);
+
+    // Advancing needs a picked reason chip — non-text input must also count
+    // as unsaved progress.
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard changes?'), findsOneWidget);
   });
 
   testWidgets('staged intake photos upload via createWithFiles',

@@ -14,6 +14,7 @@ import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -29,7 +30,9 @@ import 'package:image_picker/image_picker.dart';
 /// location, weight, notes) and — optionally — the external **finder**'s
 /// contact PII. On submit it creates the animal, the finder if any field was
 /// filled, then the case linking them with the signed-in user as active carer;
-/// the backend hooks fill in case number, status and quarantine window.
+/// the backend hooks fill in case number, status and quarantine window. On
+/// success it navigates to the created case (the next action — weigh, medicate,
+/// journal — is almost always there, not on the list).
 ///
 /// Photo attachments and map-based find-location are deferred to FED-4.7 and
 /// FED-4.2 respectively.
@@ -47,13 +50,15 @@ class NewCaseScreen extends ConsumerStatefulWidget {
   ConsumerState<NewCaseScreen> createState() => _NewCaseScreenState();
 }
 
-class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
+class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
+    with DiscardGuard {
   final _formKey = GlobalKey<FormState>();
 
   // Animal identity.
   final _nameController = TextEditingController();
-  final _speciesController =
-      TextEditingController(text: NewCaseScreen.defaultSpecies);
+  final _speciesController = TextEditingController(
+    text: NewCaseScreen.defaultSpecies,
+  );
 
   // Re-identification (FED-4.10): when set, the case links to this existing
   // animal instead of creating a fresh one.
@@ -107,8 +112,11 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
   @override
   void initState() {
     super.initState();
-    // Clear the species error as soon as a value is entered or picked.
+    // Clear the species error as soon as a value is entered or picked. The
+    // species DropdownMenu is not a Form field, so its edits also mark the
+    // wizard dirty here.
     _speciesController.addListener(() {
+      markDirty();
       if (_speciesMissing && _speciesController.text.trim().isNotEmpty) {
         setState(() => _speciesMissing = false);
       }
@@ -117,27 +125,21 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
     if (id != null) {
       // Pre-link to the given animal (e.g. a resident relapse) so the carer
       // skips re-id search.
-      ref
-          .read(animalByIdProvider(id).future)
-          .then((a) {
-            if (mounted) setState(() => _linkedAnimal = a);
-          })
-          .ignore();
+      ref.read(animalByIdProvider(id).future).then((a) {
+        if (mounted) setState(() => _linkedAnimal = a);
+      }).ignore();
     }
     // Prefill the quarantine duration from the org-wide default; the carer can
     // override it for this case (empty falls back to the same default).
-    ref
-        .read(orgQuarantineDefaultDaysProvider.future)
-        .then((days) {
-          if (!mounted) return;
-          setState(() {
-            _orgDefaultQuarantineDays = days;
-            if (_quarantineDaysController.text.trim().isEmpty) {
-              _quarantineDaysController.text = '$days';
-            }
-          });
-        })
-        .ignore();
+    ref.read(orgQuarantineDefaultDaysProvider.future).then((days) {
+      if (!mounted) return;
+      setState(() {
+        _orgDefaultQuarantineDays = days;
+        if (_quarantineDaysController.text.trim().isEmpty) {
+          _quarantineDaysController.text = '$days';
+        }
+      });
+    }).ignore();
   }
 
   @override
@@ -173,6 +175,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       initialAddress: _trimmedOrNull(_findLocationController),
     );
     if (picked == null) return;
+    markDirty();
     setState(() {
       _findGeo = picked.geo;
       _findCity = picked.city.isEmpty ? null : picked.city;
@@ -185,14 +188,18 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
 
   Future<void> _addPhotos() async {
     final picked = await ref.read(imagePickerProvider).pickMultiImage();
-    if (picked.isNotEmpty) setState(() => _intakePhotos.addAll(picked));
+    if (picked.isEmpty) return;
+    markDirty();
+    setState(() => _intakePhotos.addAll(picked));
   }
 
   Future<void> _capturePhoto() async {
     final shot = await ref
         .read(imagePickerProvider)
         .pickImage(source: ImageSource.camera);
-    if (shot != null) setState(() => _intakePhotos.add(shot));
+    if (shot == null) return;
+    markDirty();
+    setState(() => _intakePhotos.add(shot));
   }
 
   /// The staged intake photos as multipart files on the `intake_photos` field.
@@ -235,7 +242,9 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       firstDate: DateTime(2000),
       lastDate: now,
     );
-    if (picked != null) onPicked(picked);
+    if (picked == null) return;
+    markDirty();
+    onPicked(picked);
   }
 
   Future<void> _create() async {
@@ -313,8 +322,9 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           'animal': animalId,
           'case': created.id,
           'weight_g': weight,
-          'measured_at':
-              (_admittedAt ?? DateTime.now()).toUtc().toIso8601String(),
+          'measured_at': (_admittedAt ?? DateTime.now())
+              .toUtc()
+              .toIso8601String(),
           'author': user.id,
           'org': org,
         });
@@ -329,8 +339,9 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
       if (quarantineDays != null &&
           quarantineDays > 0 &&
           quarantineDays != _orgDefaultQuarantineDays) {
-        final quarantineRepo =
-            await ref.read(quarantineRepositoryProvider.future);
+        final quarantineRepo = await ref.read(
+          quarantineRepositoryProvider.future,
+        );
         final records = await quarantineRepo.forCase(created.id);
         if (records.isNotEmpty) {
           final base = _admittedAt ?? DateTime.now();
@@ -358,7 +369,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
         );
         if (!mounted) return;
       }
-      context.pop();
+      // Land on the case just admitted — the next action (weigh, medicate,
+      // journal) is almost always there. `go` replaces the wizard route with
+      // the list → detail stack, so back from the detail reaches the list.
+      context.go(AppRoutes.caseDetail(created.id));
     } on RepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -407,55 +421,61 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.caseNewTitle)),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Column(
-              children: [
-                _WizardHeader(
-                  step: _step,
-                  total: _lastStep + 1,
-                  title: titles[_step],
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.lg,
-                      0,
-                      AppSpacing.lg,
-                      AppSpacing.lg,
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      child: switch (_step) {
-                        0 => _buildAnimalStep(l10n),
-                        1 => _buildIntakeStep(l10n),
-                        _ => _buildFinishStep(l10n),
-                      },
+      // The biggest form in the app: a stray back gesture mid-intake must not
+      // silently discard everything (DiscardGuard prompts while dirty).
+      body: guardUnsavedChanges(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                children: [
+                  _WizardHeader(
+                    step: _step,
+                    total: _lastStep + 1,
+                    title: titles[_step],
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        0,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        onChanged: markDirty,
+                        child: switch (_step) {
+                          0 => _buildAnimalStep(l10n),
+                          1 => _buildIntakeStep(l10n),
+                          _ => _buildFinishStep(l10n),
+                        },
+                      ),
                     ),
                   ),
-                ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                      ),
+                      child: Text(
+                        _error!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.error),
-                    ),
+                  _WizardNav(
+                    showBack: _step > 0,
+                    busy: _busy,
+                    onBack: _busy ? null : _back,
+                    isLast: _step == _lastStep,
+                    onNext: _busy ? null : _next,
+                    onCreate: _create,
                   ),
-                _WizardNav(
-                  showBack: _step > 0,
-                  busy: _busy,
-                  onBack: _busy ? null : _back,
-                  isLast: _step == _lastStep,
-                  onNext: _busy ? null : _next,
-                  onCreate: _create,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -473,7 +493,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           _LinkedAnimalCard(
             animal: linked,
             enabled: !_busy,
-            onUnlink: () => setState(() => _linkedAnimal = null),
+            onUnlink: () {
+              markDirty();
+              setState(() => _linkedAnimal = null);
+            },
           )
         else ...[
           _ReidSearchField(
@@ -481,11 +504,14 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
             enabled: !_busy,
             query: _reidQuery,
             onSearch: (q) => setState(() => _reidQuery = q),
-            onLink: (a) => setState(() {
-              _linkedAnimal = a;
-              _reidQuery = '';
-              _reidController.clear();
-            }),
+            onLink: (a) {
+              markDirty();
+              setState(() {
+                _linkedAnimal = a;
+                _reidQuery = '';
+                _reidController.clear();
+              });
+            },
           ),
           const SizedBox(height: AppSpacing.md),
           _SpeciesField(
@@ -523,9 +549,12 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           error: _reasonsTouched && _reasons.isEmpty
               ? l10n.fieldRequired
               : null,
-          onToggle: (id) => setState(() {
-            if (!_reasons.remove(id)) _reasons.add(id);
-          }),
+          onToggle: (id) {
+            markDirty();
+            setState(() {
+              if (!_reasons.remove(id)) _reasons.add(id);
+            });
+          },
         ),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<AgeClass>(
@@ -547,7 +576,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           enabled: !_busy,
           onPick: () =>
               _pickDate(_foundAt, (d) => setState(() => _foundAt = d)),
-          onClear: () => setState(() => _foundAt = null),
+          onClear: () {
+            markDirty();
+            setState(() => _foundAt = null);
+          },
         ),
         const SizedBox(height: AppSpacing.md),
         _DateField(
@@ -556,7 +588,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           enabled: !_busy,
           onPick: () =>
               _pickDate(_admittedAt, (d) => setState(() => _admittedAt = d)),
-          onClear: () => setState(() => _admittedAt = null),
+          onClear: () {
+            markDirty();
+            setState(() => _admittedAt = null);
+          },
         ),
         const SizedBox(height: AppSpacing.md),
         Row(
@@ -619,7 +654,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
           enabled: !_busy,
           onAdd: _addPhotos,
           onCapture: _capturePhoto,
-          onRemove: (i) => setState(() => _intakePhotos.removeAt(i)),
+          onRemove: (i) {
+            markDirty();
+            setState(() => _intakePhotos.removeAt(i));
+          },
         ),
         const SizedBox(height: AppSpacing.md),
         AppTextField(
@@ -641,7 +679,12 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen> {
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: _withExam,
-          onChanged: _busy ? null : (v) => setState(() => _withExam = v),
+          onChanged: _busy
+              ? null
+              : (v) {
+                  markDirty();
+                  setState(() => _withExam = v);
+                },
           title: Text(l10n.caseIntakeWithExam),
           subtitle: Text(l10n.caseIntakeWithExamHint),
         ),
@@ -679,8 +722,9 @@ class _WizardHeader extends StatelessWidget {
         children: [
           Text(
             l10n.caseStepLabel(step + 1, total),
-            style: theme.textTheme.labelMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(title, style: theme.textTheme.titleLarge),
@@ -875,8 +919,9 @@ class _ReasonsField extends StatelessWidget {
             padding: const EdgeInsets.only(top: AppSpacing.xs),
             child: Text(
               error!,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.error),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
             ),
           ),
       ],
@@ -1047,13 +1092,16 @@ class _ReidSearchField extends ConsumerWidget {
             IconButton.filledTonal(
               icon: const Icon(Icons.search),
               tooltip: l10n.reidSearchLabel,
-              onPressed:
-                  enabled ? () => onSearch(controller.text.trim()) : null,
+              onPressed: enabled
+                  ? () => onSearch(controller.text.trim())
+                  : null,
             ),
           ],
         ),
         if (query.isNotEmpty)
-          ref.watch(reidSearchProvider(query)).when(
+          ref
+              .watch(reidSearchProvider(query))
+              .when(
                 loading: () => const Padding(
                   padding: EdgeInsets.all(AppSpacing.md),
                   child: Center(child: CircularProgressIndicator()),
@@ -1079,15 +1127,12 @@ class _ReidSearchField extends ConsumerWidget {
                                 subtitle: Text(
                                   _markingsLine(
                                     l10n,
-                                    ref
-                                            .watch(markingTypesByIdProvider)
-                                            .value ??
+                                    ref.watch(markingTypesByIdProvider).value ??
                                         const {},
                                     m,
                                   ),
                                 ),
-                                onTap:
-                                    enabled ? () => onLink(m.animal) : null,
+                                onTap: enabled ? () => onLink(m.animal) : null,
                               ),
                           ],
                         ),
