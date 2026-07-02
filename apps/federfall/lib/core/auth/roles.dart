@@ -26,6 +26,15 @@ bool caseEditableBy(Case medicalCase, AppUser? me, List<CaseShare> shares) {
   );
 }
 
+/// Whether [me] may delete [weight]. Mirrors the server delete rule
+/// (1700000047): a weight is shared clinical history, so destroying one is
+/// reserved for its author (correct-a-typo path) or a supervisor. Recording
+/// and editing stay open to the whole org like the rest of the identity layer.
+bool weightDeletableBy(Weight weight, AppUser? me) =>
+    me != null &&
+    (me.role == UserRole.supervisor ||
+        (weight.author != null && weight.author == me.id));
+
 /// Whether the role may view org-wide reports/statistics (FED-7.2). Coordinators
 /// and supervisors oversee the whole org; carers only see their own cases, so
 /// org-wide aggregates aren't meaningful (or fully readable) for them.

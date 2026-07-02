@@ -1,3 +1,5 @@
+import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
@@ -11,7 +13,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// One weight measurement as a chronology event (FED-4.4): a [TimelineItem]
 /// showing the measured weight, its date, an optional note and an edit/delete
-/// menu.
+/// menu. Delete only appears for the weight's author or a supervisor,
+/// mirroring the server rule (federfall-tha).
 class WeightEntryTile extends ConsumerWidget {
   const WeightEntryTile({
     required this.weight,
@@ -68,6 +71,8 @@ class WeightEntryTile extends ConsumerWidget {
     final materialL10n = MaterialLocalizations.of(context);
     final date = weight.measuredAt ?? weight.created;
     final notes = weight.notes;
+    final me = ref.watch(currentUserProvider).value;
+    final canDelete = weightDeletableBy(weight, me);
 
     return TimelineItem(
       icon: Icons.monitor_weight_outlined,
@@ -84,10 +89,11 @@ class WeightEntryTile extends ConsumerWidget {
                   onTap: () => _edit(context),
                   child: Text(l10n.weightEditAction),
                 ),
-                PopupMenuItem(
-                  onTap: () => _delete(context, ref),
-                  child: Text(l10n.weightDeleteAction),
-                ),
+                if (canDelete)
+                  PopupMenuItem(
+                    onTap: () => _delete(context, ref),
+                    child: Text(l10n.weightDeleteAction),
+                  ),
               ],
             )
           : null,

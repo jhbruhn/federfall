@@ -21,13 +21,14 @@ void main() {
     weights = MockWeightsRepo();
   });
 
-  Future<void> pump(WidgetTester tester, Widget child) async {
+  Future<void> pump(
+    WidgetTester tester,
+    Widget child, {
+    AppUser me = const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+  }) async {
     final container = ProviderContainer(
       overrides: [
-        currentUserProvider.overrideWith(
-          (ref) async =>
-              const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
-        ),
+        currentUserProvider.overrideWith((ref) async => me),
         weightsRepositoryProvider.overrideWith((ref) async => weights),
       ],
     );
@@ -95,13 +96,20 @@ void main() {
       expect(find.text('248 g'), findsOneWidget);
     });
 
-    testWidgets('deletes a measurement after confirmation', (tester) async {
+    testWidgets('author deletes their measurement after confirmation',
+        (tester) async {
       when(() => weights.delete('w1')).thenAnswer((_) async {});
 
       await pump(
         tester,
         const WeightEntryTile(
-          weight: Weight(id: 'w1', animal: 'a1', caseId: 'c1', weightG: 248),
+          weight: Weight(
+            id: 'w1',
+            animal: 'a1',
+            caseId: 'c1',
+            weightG: 248,
+            author: 'u1',
+          ),
           caseId: 'c1',
         ),
       );
@@ -114,6 +122,55 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => weights.delete('w1')).called(1);
+    });
+
+    testWidgets("hides delete for another member's weight", (tester) async {
+      await pump(
+        tester,
+        const WeightEntryTile(
+          weight: Weight(
+            id: 'w1',
+            animal: 'a1',
+            caseId: 'c1',
+            weightG: 248,
+            author: 'someone-else',
+          ),
+          caseId: 'c1',
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit'), findsOneWidget);
+      expect(find.text('Delete'), findsNothing);
+    });
+
+    testWidgets("a supervisor may delete anyone's weight", (tester) async {
+      await pump(
+        tester,
+        const WeightEntryTile(
+          weight: Weight(
+            id: 'w1',
+            animal: 'a1',
+            caseId: 'c1',
+            weightG: 248,
+            author: 'someone-else',
+          ),
+          caseId: 'c1',
+        ),
+        me: const AppUser(
+          id: 'u1',
+          email: 'me@x.org',
+          org: 'org1',
+          role: UserRole.supervisor,
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete'), findsOneWidget);
     });
   });
 }
