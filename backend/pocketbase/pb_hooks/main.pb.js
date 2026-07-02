@@ -12,6 +12,8 @@
 //      case's `active_carer` is updated in the same transaction.
 //   5. users on update: field guard — a non-supervisor may not change
 //      role / org / is_active / verified on any user (incl. themselves).
+//   6. users on update/delete: lockout guard — the last active supervisor of
+//      an org cannot be demoted, deactivated, moved or deleted.
 //
 // NOTE: each hook callback runs in its own isolated PocketBase JSVM, so
 // top-level helpers/constants are NOT in scope inside a handler — any shared
@@ -348,6 +350,64 @@ onRecordUpdateRequest((e) => {
           throw new ForbiddenError("You are not allowed to change '" + field + "'.", null);
         }
       }
+    }
+  }
+
+  // ── 6. lockout guard (federfall-0kl) ──────────────────────────────────────
+  // Nothing above stops a supervisor (or a dashboard superuser) from demoting
+  // or deactivating the LAST active supervisor of an org, which locks everyone
+  // out of user management. Recovery exists (bootstrap_supervisor.pb.js), but
+  // prevention beats cure: block any update that would leave the org without
+  // an active supervisor. Moving the last supervisor to another org counts as
+  // losing them too. Promote or activate a replacement first.
+  {
+    const orig = e.record.original();
+    const wasActiveSup =
+      orig.getString("role") === "supervisor" && orig.getBool("is_active");
+    const staysActiveSup =
+      e.record.getString("role") === "supervisor" &&
+      e.record.getBool("is_active") &&
+      e.record.getString("org") === orig.getString("org");
+    if (wasActiveSup && !staysActiveSup) {
+      const others = e.app.findRecordsByFilter(
+        "users",
+        "role = 'supervisor' && is_active = true && org = {:org} && id != {:id}",
+        "",
+        1,
+        0,
+        { org: orig.getString("org"), id: e.record.id },
+      );
+      if (others.length === 0) {
+        throw new BadRequestError(
+          "This is the organisation's last active supervisor — promote or " +
+            "activate another supervisor first.",
+          null,
+        );
+      }
+    }
+  }
+
+  e.next();
+}, "users");
+
+// The same lockout applies to deleting the last active supervisor outright.
+onRecordDeleteRequest((e) => {
+  const rec = e.record;
+  if (rec.getString("role") === "supervisor" && rec.getBool("is_active")) {
+    const others = e.app.findRecordsByFilter(
+      "users",
+      "role = 'supervisor' && is_active = true && org = {:org} && id != {:id}",
+      "",
+      1,
+      0,
+      { org: rec.getString("org"), id: rec.id },
+    );
+    if (others.length === 0) {
+      throw new BadRequestError(
+        "This is the organisation's last active supervisor — promote or " +
+          "activate another supervisor first.",
+        null,
+      );
     }
   }
   e.next();

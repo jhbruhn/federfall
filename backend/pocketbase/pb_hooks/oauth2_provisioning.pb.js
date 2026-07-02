@@ -20,6 +20,9 @@
 // those groups may register (others are rejected) — except the first user, who
 // may always bootstrap.
 //
+// FEDERFALL_OIDC_TRUST_EMAIL=true treats the IdP's email claim as verified even
+// when the provider didn't send email_verified (for trusted private IdPs).
+//
 // Existing users (linking OAuth2 to an already-provisioned account) pass through
 // untouched. PocketBase isolates each handler's JSVM context, so everything is
 // defined inside it.
@@ -92,15 +95,25 @@ onRecordAuthWithOAuth2Request((e) => {
     }
   }
 
-  // Resolve a verified email: prefer the provider's verified email, else fall
-  // back to the raw `email` claim (some IdPs/mocks omit email_verified).
+  // Resolve the email. PocketBase only populates `ou.email` when the provider
+  // reported it as verified; the fallback to the raw `email` claim (for IdPs/
+  // mocks that omit email_verified) is UNVERIFIED — with an IdP that lets
+  // users type any address, trusting it would plant an attacker-chosen email
+  // in the roster as verified (federfall-bsv). Track the distinction and only
+  // mark the account verified below when the claim actually was.
   let email = ou ? ou.email || "" : "";
+  let emailVerified = email !== "";
   if (!email && ou && ou.rawUser) {
     try {
       email = ou.rawUser.email ? String(ou.rawUser.email) : "";
     } catch (_) {
       email = "";
     }
+  }
+  // Operator override for a trusted private IdP that never sends
+  // email_verified (self-hosted Authentik/Keycloak holding vetted accounts).
+  if (env("FEDERFALL_OIDC_TRUST_EMAIL").toLowerCase() === "true") {
+    emailVerified = email !== "";
   }
 
   // Seed the to-be-created record. Let PocketBase build + persist it (and link
@@ -124,12 +137,15 @@ onRecordAuthWithOAuth2Request((e) => {
 
   e.next(); // PocketBase creates + links the record here
 
-  // The IdP already verified the email, so mark the new account verified — this
-  // clears the "invite pending" state (which keys off `verified`). It can't go
-  // through createData (protected there); a programmatic save from a hook is
-  // allowed and doesn't trip the API-only field guard in main.pb.js.
+  // Mark the new account verified — but ONLY when the IdP actually verified
+  // the email (or the operator opted into trusting it, see above). An account
+  // left unverified still works: the guest wall keys off `role`, and
+  // `verified` only shows an "invite pending" badge in the team roster until
+  // a supervisor confirms the person. It can't go through createData
+  // (protected there); a programmatic save from a hook is allowed and doesn't
+  // trip the API-only field guard in main.pb.js.
   try {
-    if (e.record && !e.record.getBool("verified")) {
+    if (e.record && emailVerified && !e.record.getBool("verified")) {
       e.record.set("verified", true);
       e.app.save(e.record);
     }

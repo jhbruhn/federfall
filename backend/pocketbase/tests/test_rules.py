@@ -384,6 +384,54 @@ def main():
     s, _ = req("PATCH", f"/api/collections/users/records/{A}", ta, {"is_active": False})
     check("self CANNOT change is_active", s >= 400, f"status {s}")
 
+    # ── federfall-0kl: last-supervisor lockout guard ────────────────────────
+    # An isolated org with a single supervisor: demoting, deactivating, moving
+    # or deleting them must be blocked (even for a superuser) until another
+    # active supervisor exists in that org.
+    print("\n[last-supervisor lockout guard]")
+    lorg = mk(T, "organisations", {"name": "Lockout-Orga"})["id"]
+    S1 = mkuser(T, "lock-sup1@f.local", "supervisor", org=lorg)["id"]
+    ts1 = login("lock-sup1@f.local")[1]
+    s, _ = req("PATCH", f"/api/collections/users/records/{S1}", ts1,
+               {"is_active": False})
+    check("last supervisor CANNOT deactivate themselves", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/users/records/{S1}", ts1,
+               {"role": "carer"})
+    check("last supervisor CANNOT demote themselves", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/users/records/{S1}", T,
+               {"role": "carer"})
+    check("superuser CANNOT demote the last supervisor either", s >= 400,
+          f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/users/records/{S1}", T)
+    check("last supervisor CANNOT be deleted", s >= 400, f"status {s}")
+    # With a second active supervisor the same changes go through.
+    S2 = mkuser(T, "lock-sup2@f.local", "supervisor", org=lorg)["id"]
+    s, _ = req("PATCH", f"/api/collections/users/records/{S1}", ts1,
+               {"role": "carer"})
+    check("demotion allowed once another supervisor exists", s == 200,
+          f"status {s}")
+    # ...which makes S2 the last one — now S2 is protected.
+    s, _ = req("DELETE", f"/api/collections/users/records/{S2}", T)
+    check("the remaining supervisor is now protected", s >= 400, f"status {s}")
+
+    # ── federfall-p5n: weights delete is author-or-supervisor ───────────────
+    # Weights stay org-wide creatable/updatable (identity layer), but only the
+    # author or a supervisor may delete one — a carer can no longer erase
+    # another carer's clinical weight history.
+    print("\n[weights delete guard]")
+    s, wA = req("POST", "/api/collections/weights/records", toks["a"],
+                {"animal": animal, "weight_g": 321, "org": ORG, "author": A})
+    check("setup: A logs a weight", s == 200, f"{s} {wA}")
+    s, _ = req("DELETE", f"/api/collections/weights/records/{wA['id']}", toks["b"])
+    check("another member CANNOT delete A's weight", s != 204, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/weights/records/{wA['id']}", toks["a"])
+    check("the author can delete their own weight", s == 204, f"status {s}")
+    s, wB = req("POST", "/api/collections/weights/records", toks["b"],
+                {"animal": animal, "weight_g": 322, "org": ORG, "author": B})
+    check("setup: B logs a weight", s == 200, f"{s} {wB}")
+    s, _ = req("DELETE", f"/api/collections/weights/records/{wB['id']}", toks["sup"])
+    check("a supervisor can delete any weight", s == 204, f"status {s}")
+
     # ── org isolation ───────────────────────────────────────────────────────
     print("\n[org isolation]")
     org2 = mk(T, "organisations", {"name": "Andere Orga"})["id"]
@@ -803,6 +851,27 @@ def main():
     _, hcf = req("GET", f"/api/collections/cases/records/{hc}", T)
     check("plain move leaves active_carer unchanged",
           hcf["active_carer"] == B, hcf.get("active_carer"))
+
+    # ── federfall-0tf: geocode proxy guards ─────────────────────────────────
+    # Runs LAST: the flood exhausts the geocode rate budget for this client IP,
+    # so nothing may query the geocode routes after this block. All requests
+    # here fail input validation (no/overlong q), so no upstream geocoder is
+    # ever contacted — the rate limiter counts them regardless, because it runs
+    # as middleware before the handler.
+    print("\n[geocode proxy guards]")
+    s, _ = req("GET", "/api/federfall/geocode", toks["a"])
+    check("geocode without q is rejected", s == 400, f"status {s}")
+    s, _ = req("GET", "/api/federfall/geocode?q=" + "x" * 300, toks["a"])
+    check("geocode with overlong q is rejected", s == 400, f"status {s}")
+    statuses = []
+    for _ in range(45):
+        s, _ = req("GET", "/api/federfall/geocode", toks["a"])
+        statuses.append(s)
+    check("sustained geocode traffic hits the rate limit (429)",
+          429 in statuses, f"statuses {sorted(set(statuses))}")
+    check("small bursts stay under the limit (first requests pass)",
+          statuses[0] == 400 and statuses[1] == 400,
+          f"first {statuses[:2]}")
 
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")

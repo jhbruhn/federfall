@@ -77,6 +77,15 @@ A word of warning: the default is the public OpenStreetMap Nominatim, and that s
 Address search will likely fail against it.
 For real use, run your own Nominatim instance or use a mirror that permits backend traffic, and set a real contact address in the user agent.
 
+Successful lookups are cached server-side, and the geocode routes are rate-limited per client IP so no single user can relay bulk queries to the upstream geocoder.
+The default budget — 30 requests per 60 seconds — comfortably covers interactive address searches while capping sustained extraction.
+Tune it if your upstream allows more (or less):
+
+```yaml
+FEDERFALL_GEOCODE_RATE_MAX: "30"      # requests per window per client IP; "0" disables
+FEDERFALL_GEOCODE_RATE_WINDOW: "60"   # window length in seconds
+```
+
 Map *tiles* are a separate matter. They are baked into the web build, not read from the environment, and default to the public OpenStreetMap tile server.
 To change them you edit `apps/federfall/dart_defines/production.json` (`MAP_TILE_URL`, `MAP_ATTRIBUTION`) and rebuild the image.
 
@@ -207,6 +216,16 @@ The server then advertises that password login is disabled and the app hides the
 ### Who may register, and as what
 
 With OAuth2, people can sign in without being invited first. By default a new sign-in creates a walled-off **guest** account: they are signed in but can't see or do anything until a supervisor grants them a real role. This also sidesteps the invite chicken-and-egg — the very first person to sign in, while no supervisor exists yet, is made a supervisor automatically, so you can bootstrap the instance just by signing in.
+
+That convenience is also a race: if you expose the server publicly with an OAuth2 provider configured **before** anyone has signed in, whoever signs in first becomes the supervisor. Claim the instance yourself before opening it up — sign in once, seed a supervisor via `FEDERFALL_SUPERVISOR_EMAIL`/`_PASSWORD`, or restrict registration with `FEDERFALL_OIDC_ALLOWED_GROUPS` (below) from the start.
+
+A related trust question is the email address. The account's email is only marked *verified* when the provider says it verified it (the `email_verified` claim); otherwise the person still signs in fine but wears an "invite pending" badge in the team roster until a supervisor confirms them. If your IdP is a private, vetted directory that simply never sends `email_verified`, you can opt into trusting its email claim:
+
+```yaml
+FEDERFALL_OIDC_TRUST_EMAIL: "true"    # treat the IdP's email claim as verified
+```
+
+Leave it unset for public or social providers — with those, an unverified claim can be any address the user typed.
 
 If your identity provider sends group memberships, you can do better than guest-by-default — map groups to roles, and optionally restrict who may register at all:
 

@@ -25,6 +25,9 @@
 //   FEDERFALL_GEOCODE_CACHE_DISABLED       "1" to bypass the cache entirely
 //   FEDERFALL_GEOCODE_CACHE_TTL_DAYS       positive-result TTL (default 30)
 //   FEDERFALL_GEOCODE_CACHE_NEG_TTL_HOURS  empty-result TTL (default 24)
+//   FEDERFALL_GEOCODE_RATE_MAX             requests allowed per window per
+//                                          client IP (default 30; 0 disables)
+//   FEDERFALL_GEOCODE_RATE_WINDOW          window length in seconds (default 60)
 //
 // PocketBase runs each route handler in an isolated JSVM context, so it cannot
 // see file-level helpers — everything a handler needs is defined inside it
@@ -131,6 +134,9 @@ routerAdd(
 
     const q = e.request.url.query().get("q");
     if (!q) return e.json(400, { error: "missing q" });
+    // No legitimate address needs more — an unbounded q would be relayed
+    // verbatim to the upstream geocoder (federfall-0tf).
+    if (q.length > 256) return e.json(400, { error: "q too long" });
     // Normalization: lowercase + collapse whitespace so "Berlin" / "  berlin "
     // share one entry.
     const cacheKey = q.trim().toLowerCase().replace(/\s+/g, " ");
@@ -353,4 +359,60 @@ cronAdd("geocodeCachePurge", "0 4 * * *", () => {
   if (purged > 0) {
     $app.logger().info("geocode cache purge", "removed", purged);
   }
+});
+
+// federfall-0tf — rate-limit the geocode routes. The cache absorbs repeats,
+// but unique queries were relayed upstream unthrottled; against public OSM
+// Nominatim (1 req/s policy) a batch extraction could get the whole instance
+// blocked. The budget is deliberately burst-friendly — a carer typing a few
+// address searches never hits it — while capping sustained extraction. Uses
+// PocketBase's own per-client-IP rate limiter via settings, applied on every
+// start like settings.pb.js.
+onBootstrap((e) => {
+  e.next();
+
+  const env = (k) => {
+    const v = $os.getenv(k);
+    return v && v !== "" ? v : "";
+  };
+  const max = parseInt(env("FEDERFALL_GEOCODE_RATE_MAX"), 10);
+  const maxRequests = isNaN(max) ? 30 : max;
+  if (maxRequests <= 0) return; // explicit opt-out
+  const win = parseInt(env("FEDERFALL_GEOCODE_RATE_WINDOW"), 10);
+  const duration = isNaN(win) || win <= 0 ? 60 : win;
+
+  // An exact-path label plus a trailing-slash prefix label: PocketBase treats
+  // "/x" as a complete path and "/x/" as a prefix, so the pair covers both
+  // /geocode and /geocode/reverse.
+  const labels = ["/api/federfall/geocode", "/api/federfall/geocode/"];
+
+  const settings = e.app.settings();
+  // When rate limiting was off, the stored rule set is just PocketBase's
+  // inactive factory default — start from a clean slate so ONLY the geocode
+  // routes get limited (the suite and normal API traffic stay unthrottled).
+  // When the operator already enabled it, keep their rules and merge ours in.
+  const others = settings.rateLimits.enabled
+    ? (settings.rateLimits.rules || []).filter(
+        (r) => labels.indexOf(String(r.label)) < 0,
+      )
+    : [];
+  settings.rateLimits.enabled = true;
+  settings.rateLimits.rules = others.concat(
+    labels.map((l) => ({
+      label: l,
+      audience: "",
+      duration: duration,
+      maxRequests: maxRequests,
+    })),
+  );
+  e.app.save(settings);
+  e.app
+    .logger()
+    .info(
+      "federfall: geocode rate limit applied",
+      "maxRequests",
+      maxRequests,
+      "windowSec",
+      duration,
+    );
 });

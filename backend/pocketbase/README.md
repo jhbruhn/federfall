@@ -134,9 +134,16 @@ hooks that read env vars (PocketBase's own recommended pattern — load settings
   default to a walled-off `guest` role; the first user (no supervisor yet) becomes
   supervisor. With IdP groups, map them to roles via `FEDERFALL_OIDC_SUPERVISOR_GROUP` /
   `…_COORDINATOR_GROUP` / `…_CARER_GROUP` (claim name `FEDERFALL_OIDC_GROUPS_CLAIM`, default
-  `groups`), and gate registration with `FEDERFALL_OIDC_ALLOWED_GROUPS`.
+  `groups`), and gate registration with `FEDERFALL_OIDC_ALLOWED_GROUPS`. The account is
+  only marked `verified` when the IdP verified the email (`email_verified`);
+  `FEDERFALL_OIDC_TRUST_EMAIL=true` trusts the claim from a vetted private IdP. NOTE the
+  bootstrap race: with a provider configured and the server exposed before anyone signs
+  in, the FIRST sign-in becomes supervisor — claim the instance first (see
+  docs/DEPLOYMENT.md).
 - **Geocoding proxy** (`pb_hooks/geocode.pb.js`) — `FEDERFALL_NOMINATIM_URL`,
-  `FEDERFALL_GEOCODER_KEY`, `FEDERFALL_USER_AGENT`.
+  `FEDERFALL_GEOCODER_KEY`, `FEDERFALL_USER_AGENT`. Rate-limited per client IP via
+  PocketBase's limiter: `FEDERFALL_GEOCODE_RATE_MAX` (default 30, `0` disables) per
+  `FEDERFALL_GEOCODE_RATE_WINDOW` seconds (default 60).
 
 Set by migration (committed, reproducible):
 
