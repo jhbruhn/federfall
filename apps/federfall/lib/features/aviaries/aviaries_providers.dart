@@ -15,7 +15,7 @@ Future<List<Aviary>> aviaries(Ref ref) async {
 @riverpod
 Future<List<Aviary>> activeAviaries(Ref ref) async {
   final repo = await ref.watch(aviariesRepositoryProvider.future);
-  return repo.list(filter: 'active = true', sort: 'name');
+  return repo.active();
 }
 
 /// A single aviary by id (aviary detail, FED-6.2).
@@ -38,7 +38,7 @@ Future<List<Animal>> aviaryResidents(Ref ref, String aviaryId) async {
 @riverpod
 Future<Map<String, int>> aviaryOccupancyCounts(Ref ref) async {
   final repo = await ref.watch(animalsRepositoryProvider.future);
-  final residents = await repo.list(filter: 'current_aviary != ""');
+  final residents = await repo.housed();
   final counts = <String, int>{};
   for (final animal in residents) {
     final aviaryId = animal.currentAviary;

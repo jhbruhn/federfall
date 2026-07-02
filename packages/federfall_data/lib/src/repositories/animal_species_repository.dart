@@ -5,7 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 /// Repository over the org-wide `animal_species` view: the distinct species
 /// (animal kinds) the org has recorded, for autocompleting the intake species
 /// field. Each record maps to its plain species string.
-class PbAnimalSpeciesRepository extends PbRepository<String> {
+class PbAnimalSpeciesRepository extends PbReadOnlyRepository<String> {
   PbAnimalSpeciesRepository(PocketBase pb)
     : super(
         pb: pb,

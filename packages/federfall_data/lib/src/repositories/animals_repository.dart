@@ -23,17 +23,39 @@ class PbAnimalsRepository extends PbRepository<Animal> {
     sort: 'name',
   );
 
-  /// Animals by id, in one query (an `id = a || id = b …` filter). Returns an
-  /// empty list for no ids rather than fetching the whole collection.
-  Future<List<Animal>> byIds(Iterable<String> ids) {
-    final wanted = ids.toList();
-    if (wanted.isEmpty) return Future.value(const []);
-    final params = <String, Object?>{};
-    final clauses = <String>[];
-    for (var i = 0; i < wanted.length; i++) {
-      clauses.add('id = {:id$i}');
-      params['id$i'] = wanted[i];
+  /// Animals currently housed in any aviary (`current_aviary` set) — the
+  /// occupancy-count source for the aviary registry.
+  Future<List<Animal>> housed() =>
+      list(filter: filterExpr('current_aviary != ""'));
+
+  /// Each `id = {:x}` clause adds ~30 chars to the GET query string; 100 ids
+  /// per request stays a few kB — far below common 8 kB URL/proxy limits.
+  static const int _byIdsChunkSize = 100;
+
+  /// Animals by id, via `id = a || id = b …` filters. Large sets are split
+  /// into chunks of [_byIdsChunkSize] fetched concurrently, so the filter can
+  /// never overflow the URL length limit. Returns an empty list for no ids
+  /// rather than fetching the whole collection; duplicate ids are fetched (and
+  /// returned) once.
+  Future<List<Animal>> byIds(Iterable<String> ids) async {
+    final wanted = ids.toSet().toList();
+    if (wanted.isEmpty) return const [];
+    final chunks = <Future<List<Animal>>>[];
+    for (var start = 0; start < wanted.length; start += _byIdsChunkSize) {
+      final end = start + _byIdsChunkSize;
+      final chunk = wanted.sublist(
+        start,
+        end > wanted.length ? wanted.length : end,
+      );
+      final params = <String, Object?>{};
+      final clauses = <String>[];
+      for (var i = 0; i < chunk.length; i++) {
+        clauses.add('id = {:id$i}');
+        params['id$i'] = chunk[i];
+      }
+      chunks.add(list(filter: filterExpr(clauses.join(' || '), params)));
     }
-    return list(filter: filterExpr(clauses.join(' || '), params));
+    final results = await Future.wait(chunks);
+    return [for (final r in results) ...r];
   }
 }

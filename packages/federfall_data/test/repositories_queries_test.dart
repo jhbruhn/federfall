@@ -18,12 +18,15 @@ void main() {
     when(() => pb.filter(any(), any()))
         .thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
     when(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: any(named: 'filter'),
         sort: any(named: 'sort'),
         expand: any(named: 'expand'),
       ),
-    ).thenAnswer((_) async => []);
+    ).thenAnswer((_) async => ResultList());
   }
 
   setUp(() {
@@ -31,9 +34,12 @@ void main() {
     service = _MockService();
   });
 
-  /// Captures the (filter, sort, expand) actually passed to getFullList.
+  /// Captures the (filter, sort, expand) actually passed to getList.
   List<Object?> capturedQuery() => verify(
-        () => service.getFullList(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
           filter: captureAny(named: 'filter'),
           sort: captureAny(named: 'sort'),
           expand: captureAny(named: 'expand'),
@@ -59,7 +65,10 @@ void main() {
       final result = await PbAnimalsRepository(pb).byIds(const []);
       expect(result, isEmpty);
       verifyNever(
-        () => service.getFullList(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
           filter: any(named: 'filter'),
           sort: any(named: 'sort'),
           expand: any(named: 'expand'),
@@ -73,6 +82,29 @@ void main() {
         () => pb.filter(
           'id = {:id0} || id = {:id1} || id = {:id2}',
           {'id0': 'a', 'id1': 'b', 'id2': 'c'},
+        ),
+      ).called(1);
+    });
+
+    test('byIds chunks a large id set into several bounded queries', () async {
+      // 250 ids -> 100 + 100 + 50, so no single GET query string can outgrow
+      // URL/proxy limits (federfall-un92).
+      await PbAnimalsRepository(pb).byIds([
+        for (var i = 0; i < 250; i++) 'animal$i',
+      ]);
+      final filters = verify(() => pb.filter(captureAny(), any())).captured;
+      expect(filters, hasLength(3));
+      expect('id = '.allMatches(filters[0]! as String), hasLength(100));
+      expect('id = '.allMatches(filters[1]! as String), hasLength(100));
+      expect('id = '.allMatches(filters[2]! as String), hasLength(50));
+    });
+
+    test('byIds fetches duplicate ids only once', () async {
+      await PbAnimalsRepository(pb).byIds(const ['a', 'b', 'a']);
+      verify(
+        () => pb.filter(
+          'id = {:id0} || id = {:id1}',
+          {'id0': 'a', 'id1': 'b'},
         ),
       ).called(1);
     });

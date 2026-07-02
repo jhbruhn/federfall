@@ -30,17 +30,23 @@ void main() {
 
   test('active() excludes disposed cases, newest first', () async {
     when(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: any(named: 'filter'),
         sort: any(named: 'sort'),
         expand: any(named: 'expand'),
       ),
-    ).thenAnswer((_) async => []);
+    ).thenAnswer((_) async => ResultList());
 
     await repo.active();
 
     final captured = verify(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: captureAny(named: 'filter'),
         sort: captureAny(named: 'sort'),
         expand: any(named: 'expand'),
@@ -52,12 +58,15 @@ void main() {
 
   test('forAnimal() filters by the animal relation', () async {
     when(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: any(named: 'filter'),
         sort: any(named: 'sort'),
         expand: any(named: 'expand'),
       ),
-    ).thenAnswer((_) async => []);
+    ).thenAnswer((_) async => ResultList());
 
     await repo.forAnimal('anml1');
 
@@ -67,12 +76,15 @@ void main() {
   test('forCarer() filters by the active_carer relation, newest first',
       () async {
     when(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: any(named: 'filter'),
         sort: any(named: 'sort'),
         expand: any(named: 'expand'),
       ),
-    ).thenAnswer((_) async => []);
+    ).thenAnswer((_) async => ResultList());
 
     await repo.forCarer('user1');
 

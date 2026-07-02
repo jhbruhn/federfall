@@ -37,6 +37,9 @@ void main() {
     pb = _MockPb();
     service = _MockService();
     when(() => pb.collection('animals')).thenReturn(service);
+    when(
+      () => pb.filter(any(), any()),
+    ).thenAnswer((i) => i.positionalArguments.first as String);
     repo = _AnimalsRepo(pb);
   });
 
@@ -45,16 +48,58 @@ void main() {
 
   test('list maps every record through fromRecord', () async {
     when(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: any(named: 'filter'),
         sort: any(named: 'sort'),
         expand: any(named: 'expand'),
       ),
-    ).thenAnswer((_) async => [rec('a1', 'Lotte'), rec('a2', 'Max')]);
+    ).thenAnswer(
+      (_) async => ResultList(items: [rec('a1', 'Lotte'), rec('a2', 'Max')]),
+    );
 
     final animals = await repo.list(sort: 'name');
 
     expect(animals.map((a) => a.name), ['Lotte', 'Max']);
+  });
+
+  test('list keeps paging until a page comes back short', () async {
+    // Page 1 is full (500), so a second request must follow; page 2 is short,
+    // so paging stops there.
+    when(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
+        filter: any(named: 'filter'),
+        sort: any(named: 'sort'),
+        expand: any(named: 'expand'),
+      ),
+    ).thenAnswer((i) async {
+      final page = i.namedArguments[#page]! as int;
+      return ResultList(
+        items: page == 1
+            ? [for (var n = 0; n < 500; n++) rec('a$n', 'Bird $n')]
+            : [rec('a500', 'Last')],
+      );
+    });
+
+    final animals = await repo.list();
+
+    expect(animals, hasLength(501));
+    expect(animals.last.name, 'Last');
+    verify(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: 500,
+        skipTotal: true,
+        filter: any(named: 'filter'),
+        sort: any(named: 'sort'),
+        expand: any(named: 'expand'),
+      ),
+    ).called(2);
   });
 
   test('getOne maps the record', () async {
@@ -195,17 +240,23 @@ void main() {
       () => service.getFirstListItem(any(), expand: any(named: 'expand')),
     ).thenThrow(ClientException(statusCode: 404));
 
-    expect(await repo.firstWhere('name = "nope"'), isNull);
+    expect(
+      await repo.firstWhere(repo.filterExpr('name = {:n}', {'n': 'nope'})),
+      isNull,
+    );
   });
 
   test('a mapper failure surfaces as RepositoryException, not raw', () async {
     when(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: any(named: 'filter'),
         sort: any(named: 'sort'),
         expand: any(named: 'expand'),
       ),
-    ).thenAnswer((_) async => [rec('a1', 'Lotte')]);
+    ).thenAnswer((_) async => ResultList(items: [rec('a1', 'Lotte')]));
     final throwingRepo = _ThrowingRepo(pb);
 
     expect(
@@ -226,13 +277,16 @@ void main() {
       networkTimeout: const Duration(milliseconds: 50),
     );
     when(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: any(named: 'filter'),
         sort: any(named: 'sort'),
         expand: any(named: 'expand'),
       ),
     ).thenAnswer(
-      (_) => Future.delayed(const Duration(seconds: 5), () => []),
+      (_) => Future.delayed(const Duration(seconds: 5), ResultList.new),
     );
 
     expect(

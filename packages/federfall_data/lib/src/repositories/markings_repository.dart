@@ -22,4 +22,9 @@ class PbMarkingsRepository extends PbRepository<Marking> {
   Future<List<Marking>> activeByCode(String code) => list(
     filter: filterExpr('code = {:c} && is_active = true', {'c': code}),
   );
+
+  /// Every currently-active marking the member may see (org-scoped) — the
+  /// source for the code-by-animal lookup behind registry rows and search.
+  Future<List<Marking>> allActive() =>
+      list(filter: filterExpr('is_active = true'));
 }

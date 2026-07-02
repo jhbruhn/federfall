@@ -16,16 +16,22 @@ void main() {
     when(() => pb.filter(any(), any()))
         .thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
     when(
-      () => service.getFullList(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
         filter: any(named: 'filter'),
         sort: any(named: 'sort'),
         expand: any(named: 'expand'),
       ),
-    ).thenAnswer((_) async => []);
+    ).thenAnswer((_) async => ResultList());
   }
 
   List<Object?> capturedQuery() => verify(
-        () => service.getFullList(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
           filter: captureAny(named: 'filter'),
           sort: captureAny(named: 'sort'),
           expand: any(named: 'expand'),

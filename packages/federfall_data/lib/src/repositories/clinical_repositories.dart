@@ -106,7 +106,7 @@ class PbFollowUpsRepository extends PbRepository<FollowUp> {
 /// Repository over the org-wide `medication_due` view (cr3.6): each active
 /// prescription with its server-computed next-due time, the worklist's
 /// medications-due source.
-class PbMedicationDueRepository extends PbRepository<MedicationDue> {
+class PbMedicationDueRepository extends PbReadOnlyRepository<MedicationDue> {
   PbMedicationDueRepository(PocketBase pb)
     : super(
         pb: pb,

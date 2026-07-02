@@ -23,7 +23,7 @@ class PbQuarantineRepository extends PbRepository<Quarantine> {
 /// Repository over the org-wide `case_quarantine` view (federfall-uvm): the
 /// current quarantine end per case (the latest record), the worklist's and
 /// dashboard's quarantine source — one query instead of a per-case scan.
-class PbCaseQuarantineRepository extends PbRepository<CaseQuarantine> {
+class PbCaseQuarantineRepository extends PbReadOnlyRepository<CaseQuarantine> {
   PbCaseQuarantineRepository(PocketBase pb)
     : super(
         pb: pb,

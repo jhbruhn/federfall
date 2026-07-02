@@ -18,7 +18,7 @@ Future<List<Marking>> markingsForAnimal(Ref ref, String animalId) async {
 @riverpod
 Future<Map<String, List<String>>> activeMarkingCodesByAnimal(Ref ref) async {
   final repo = await ref.watch(markingsRepositoryProvider.future);
-  final activeMarkings = await repo.list(filter: 'is_active = true');
+  final activeMarkings = await repo.allActive();
   final codesByAnimal = <String, List<String>>{};
   for (final m in activeMarkings) {
     final code = m.code;

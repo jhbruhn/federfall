@@ -5,7 +5,8 @@ import 'package:pocketbase/pocketbase.dart';
 /// Repository over the org-wide `case_activity` view (cr3.5): the last time
 /// anything happened on each case, used to surface "stale" cases on the carer
 /// worklist without an N+1 scan of every child collection.
-class PbCaseLastActivityRepository extends PbRepository<CaseLastActivity> {
+class PbCaseLastActivityRepository
+    extends PbReadOnlyRepository<CaseLastActivity> {
   PbCaseLastActivityRepository(PocketBase pb)
     : super(
         pb: pb,
