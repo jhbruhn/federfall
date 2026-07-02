@@ -192,6 +192,17 @@ def main():
                          "admitted_at": "2024-02-04 09:00:00.000Z"})
     check("foreign-format manual number does not pollute the sequence",
           c5["case_number"] == "2024-1001", c5["case_number"])
+    # federfall-28m: numbering is generated per org, so the unique index must
+    # be org-scoped too — a second org's first 2026 case gets "2026-001" even
+    # though this org already minted that number above.
+    xorg = mk(T, "organisations", {"name": "Index-Orga"})["id"]
+    xanimal = mk(T, "animals", {"species": "Stadttaube", "org": xorg})["id"]
+    s, x1 = req("POST", "/api/collections/cases/records", T,
+                {"animal": xanimal, "active_carer": A, "org": xorg,
+                 "admitted_at": "2026-03-15 09:00:00.000Z"})
+    check("second org can mint the same per-year number (org-scoped index)",
+          s == 200 and x1.get("case_number") == "2026-001",
+          f"{s} {x1.get('case_number') if x1 else x1}")
 
     # ── hooks: dispositions ─────────────────────────────────────────────────
     print("\n[hooks: dispositions]")
