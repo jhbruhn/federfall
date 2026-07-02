@@ -104,7 +104,10 @@ case intake goes through `POST /api/federfall/intake` (`pb_hooks/intake.pb.js`, 
 transaction for animal+finder+case+weight+quarantine; `cases.finder` is locked against
 direct client writes), and a handoff is just a placement with `to_user` — the hook derives
 the `active_carer` change in the same transaction. Access rules in `1700000010_access_rules.js` are
-the real security boundary (org-scoped, private-by-default + opt-in sharing). Rule tests are
+the real security boundary (org-scoped, private-by-default + opt-in sharing). A migration
+that copies the shared auth predicate MUST use the guest-safe form — append
+`&& @request.auth.role != "guest"` (see `1700000045_guest_wall_refresh.js`; the guest sweep
+in `test_rules.py` catches omissions). Rule tests are
 Python (`backend/pocketbase/tests/test_rules.py`, run via `run.sh`) and **need a live PB** —
 they can't run in the Flutter test suite, so verify migrations/hooks against a running stack.
 

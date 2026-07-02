@@ -174,6 +174,24 @@ def main():
     check("default quarantine row = admitted + 14d",
           len(qrows) == 1 and qrows[0]["quarantine_until"][:10] == "2026-03-24",
           qrows)
+    # federfall-4k4: the max must be derived numerically ("2024-1000" >
+    # "2024-999" only as numbers) and the prefix match anchored (a manual
+    # "ALT-2024-7" CONTAINS "2024-" but must not pollute the sequence).
+    # Year 2024 keeps this independent of the 2026/2025 sequences above.
+    mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG,
+                    "admitted_at": "2024-02-01 09:00:00.000Z",
+                    "case_number": "2024-999"})
+    c4 = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG,
+                         "admitted_at": "2024-02-02 09:00:00.000Z"})
+    check("case_number crosses 1000 (numeric max)",
+          c4["case_number"] == "2024-1000", c4["case_number"])
+    mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG,
+                    "admitted_at": "2024-02-03 09:00:00.000Z",
+                    "case_number": "ALT-2024-7"})
+    c5 = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG,
+                         "admitted_at": "2024-02-04 09:00:00.000Z"})
+    check("foreign-format manual number does not pollute the sequence",
+          c5["case_number"] == "2024-1001", c5["case_number"])
 
     # ── hooks: dispositions ─────────────────────────────────────────────────
     print("\n[hooks: dispositions]")
@@ -634,6 +652,16 @@ def main():
           len(listf(gtok, "animals", "id != ''")) == 0, "non-empty")
     check("guest sees no cases (list filtered)",
           len(listf(gtok, "cases", "id != ''")) == 0, "non-empty")
+    # federfall-7ok: collections/views created AFTER the guest-role migration
+    # must carry the same wall (1700000045 re-applies it; this sweep catches
+    # any future migration that copies the auth predicate without the guest
+    # exclusion). The member check keeps the guest check non-vacuous.
+    for coll in ("admission_reasons", "marking_types", "medication_routes",
+                 "quarantine_records", "case_quarantine", "animal_species"):
+        n = len(listf(toks["a"], coll, "id != ''"))
+        check(f"member sees {coll} (wall check is non-vacuous)", n > 0, "empty")
+        check(f"guest sees no {coll}",
+              len(listf(gtok, coll, "id != ''")) == 0, "non-empty")
     # The OAuth2 createRule (@request.context = "oauth2") must NOT let an
     # anonymous API client create users directly (that path is context default).
     s, _ = req("POST", "/api/collections/users/records", None, {

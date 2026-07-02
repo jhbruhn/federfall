@@ -24,24 +24,40 @@ onRecordCreate((e) => {
   const admittedStr = rec.getString("admitted_at");
   const pad3 = (n) => String(n).padStart(3, "0");
 
-  // Auto per-year case number, scoped to the org. The unique index on
-  // case_number is the final guard against the rare concurrent-create race.
+  // Auto per-year case number, scoped to the org (federfall-4k4).
+  //
+  // The max is derived NUMERICALLY in SQL — a lexicographic sort breaks at
+  // 1000 ("2026-999" > "2026-1000" as strings, so every create that year
+  // would recompute seq 1000 and die on the unique index). The LIKE pattern
+  // is anchored at the start so a manual number like "ALT-2026-1" (which
+  // CONTAINS "2026-") can't pollute the lookup. NOTE: the year is the UTC
+  // year of admitted_at (tracked separately: org-local timezone).
+  //
+  // Concurrency: this hook runs inside the save transaction. The no-op
+  // UPDATE grabs SQLite's write lock BEFORE the max is read, so a second
+  // concurrent create blocks here and then sees the first one's committed
+  // number instead of racing to the same seq. The unique index on
+  // case_number stays as the final guard.
   if (!rec.getString("case_number")) {
     const year = admittedStr ? admittedStr.substring(0, 4) : String(new Date().getFullYear());
-    let seq = 1;
-    const existing = e.app.findRecordsByFilter(
-      "cases",
-      "org = {:org} && case_number ~ {:prefix}",
-      "-case_number",
-      1,
-      0,
-      { org: orgId, prefix: year + "-" },
-    );
-    if (existing.length > 0) {
-      const n = parseInt(existing[0].getString("case_number").split("-")[1], 10);
-      if (!isNaN(n)) seq = n + 1;
+    const prefix = year + "-";
+    if (orgId) {
+      e.app
+        .db()
+        .newQuery("UPDATE organisations SET updated = updated WHERE id = {:org}")
+        .bind({ org: orgId })
+        .execute();
     }
-    rec.set("case_number", year + "-" + pad3(seq));
+    const row = new DynamicModel({ max_seq: 0 });
+    e.app
+      .db()
+      .newQuery(
+        "SELECT COALESCE(MAX(CAST(substr(case_number, {:start}) AS INTEGER)), 0) AS max_seq " +
+          "FROM cases WHERE org = {:org} AND case_number LIKE {:pattern}",
+      )
+      .bind({ start: prefix.length + 1, org: orgId, pattern: prefix + "%" })
+      .one(row);
+    rec.set("case_number", prefix + pad3(row.max_seq + 1));
   }
 
   if (!rec.getString("status")) {
