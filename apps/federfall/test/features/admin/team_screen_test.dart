@@ -12,6 +12,8 @@ import 'package:mocktail/mocktail.dart';
 
 class MockUsersRepo extends Mock implements PbUsersRepository {}
 
+class MockCasesRepo extends Mock implements PbCasesRepository {}
+
 class FakeAuthRepository implements AuthRepository {
   String? invitedEmail;
   UserRole? invitedRole;
@@ -79,6 +81,7 @@ Future<void> _pump(
   required UserRole role,
   List<AppUser> members = const [],
   PbUsersRepository? users,
+  PbCasesRepository? cases,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -90,6 +93,8 @@ Future<void> _pump(
         orgMembersProvider.overrideWith((ref) async => members),
         if (users != null)
           usersRepositoryProvider.overrideWith((ref) async => users),
+        if (cases != null)
+          casesRepositoryProvider.overrideWith((ref) async => cases),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -241,12 +246,15 @@ void main() {
   testWidgets('removing a member confirms and deletes', (tester) async {
     final users = MockUsersRepo();
     when(() => users.delete(any())).thenAnswer((_) async {});
+    final cases = MockCasesRepo();
+    when(() => cases.forCarer('m1')).thenAnswer((_) async => const []);
 
     await _pump(
       tester,
       repo: FakeAuthRepository(),
       role: UserRole.supervisor,
       users: users,
+      cases: cases,
       members: const [
         AppUser(
           id: 'm1',
@@ -268,5 +276,46 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => users.delete('m1')).called(1);
+  });
+
+  testWidgets('removing a member with open cases is blocked', (tester) async {
+    final users = MockUsersRepo();
+    final cases = MockCasesRepo();
+    when(() => cases.forCarer('m1')).thenAnswer(
+      (_) async => const [
+        Case(id: 'c1', animal: 'a1', status: CaseStatus.inCare),
+        Case(id: 'c2', animal: 'a2', status: CaseStatus.disposed),
+      ],
+    );
+
+    await _pump(
+      tester,
+      repo: FakeAuthRepository(),
+      role: UserRole.supervisor,
+      users: users,
+      cases: cases,
+      members: const [
+        AppUser(
+          id: 'm1',
+          email: 'ada@x.org',
+          name: 'Ada',
+          role: UserRole.carer,
+          isActive: true,
+          verified: true,
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('Ada'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Remove member'));
+    await tester.pumpAndSettle();
+
+    // Only the open (non-disposed) case counts; removal is refused.
+    expect(find.textContaining('1 open case'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+
+    verifyNever(() => users.delete(any()));
   });
 }

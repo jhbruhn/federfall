@@ -40,6 +40,10 @@
     "@actionCancel": {
         "description": "Button that cancels an action"
     },
+    "actionOk": "OK",
+    "@actionOk": {
+        "description": "Button that dismisses an informational dialog"
+    },
     "emptyGeneric": "Nothing here yet",
     "@emptyGeneric": {
         "description": "Generic empty-state message"
@@ -1062,6 +1066,11 @@
     "@memberRemoveConfirm": {
         "description": "Confirmation before removing a member",
         "placeholders": { "name": { "type": "String" } }
+    },
+    "memberRemoveBlockedOpenCases": "{name} is still the active carer of {count, plural, one{1 open case} other{{count} open cases}}. Hand those cases over before removing them.",
+    "@memberRemoveBlockedOpenCases": {
+        "description": "Explains why a member with open cases cannot be removed",
+        "placeholders": { "count": { "type": "int" }, "name": { "type": "String" } }
     },
     "orgSettingsTitle": "Organisation settings",
     "@orgSettingsTitle": { "description": "Title of the org settings screen" },

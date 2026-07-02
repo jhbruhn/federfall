@@ -89,29 +89,59 @@ class _MemberManagementSheetState extends ConsumerState<MemberManagementSheet>
     final l10n = context.l10n;
     final navigator = Navigator.of(context);
     final name = _label();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.memberRemoveAction),
-        content: Text(l10n.memberRemoveConfirm(name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.memberRemoveAction),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
+      // Removal must respect the member's open caseload: deleting the active
+      // carer of open cases would leave them pointing at a deleted user with
+      // nobody responsible — the supervisor has to hand them over first
+      // (federfall-xxi).
+      final casesRepo = await ref.read(casesRepositoryProvider.future);
+      final openCases = (await casesRepo.forCarer(widget.member.id))
+          .where((c) => c.status != CaseStatus.disposed)
+          .length;
+      if (!mounted) return;
+      setState(() => _busy = false);
+      if (openCases > 0) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.memberRemoveAction),
+            content: Text(l10n.memberRemoveBlockedOpenCases(openCases, name)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.actionOk),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l10n.memberRemoveAction),
+          content: Text(l10n.memberRemoveConfirm(name)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l10n.actionCancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l10n.memberRemoveAction),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+      setState(() {
+        _busy = true;
+        _error = null;
+      });
       final repo = await _repo;
       await repo.delete(widget.member.id);
       if (!mounted) return;
