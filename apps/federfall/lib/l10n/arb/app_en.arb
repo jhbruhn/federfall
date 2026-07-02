@@ -185,6 +185,8 @@
     },
     "authOauthFailed": "Sign-in with that provider didn't work. Please try again.",
     "@authOauthFailed": { "description": "Error when an OAuth2 sign-in fails or is cancelled" },
+    "authOauthWaiting": "Waiting for the browser sign-in…",
+    "@authOauthWaiting": { "description": "Shown while an external OAuth2 browser flow is pending, next to a cancel action" },
     "pendingTitle": "Awaiting access",
     "@pendingTitle": { "description": "Title of the guest awaiting-approval screen" },
     "pendingDescription": "Your account has been created and is waiting for an administrator to grant you access. You'll be able to sign in fully once that's done.",

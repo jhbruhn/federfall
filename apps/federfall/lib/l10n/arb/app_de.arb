@@ -53,6 +53,7 @@
     "authOrSeparator": "oder",
     "authContinueWith": "Weiter mit {provider}",
     "authOauthFailed": "Die Anmeldung mit diesem Anbieter hat nicht geklappt. Bitte versuche es erneut.",
+    "authOauthWaiting": "Warten auf die Anmeldung im Browser …",
     "pendingTitle": "Warten auf Freischaltung",
     "pendingDescription": "Dein Konto wurde erstellt und wartet darauf, von einer Administratorin freigeschaltet zu werden. Sobald das erledigt ist, kannst du dich vollständig anmelden.",
     "pendingCheckAgainAction": "Erneut prüfen",

@@ -7,26 +7,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// In-memory [AuthTokenStorage] so tests don't touch the platform keychain.
-class FakeAuthTokenStorage implements AuthTokenStorage {
-  FakeAuthTokenStorage([this.value]);
-
-  String? value;
-
-  @override
-  Future<String?> read() async => value;
-
-  @override
-  Future<void> write(String data) async => value = data;
-
-  @override
-  Future<void> delete() async => value = null;
-}
+import '../../helpers/helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  // Cold start with the server URL already persisted: switching servers via
+  // setServerUrl would (deliberately) purge any seeded auth payload.
+  setUp(
+    () => SharedPreferences.setMockInitialValues({
+      'federfall.serverUrl': 'https://pigeons.example',
+    }),
+  );
 
   Future<ProviderContainer> configuredContainer(
     FakeAuthTokenStorage storage,
@@ -36,9 +28,6 @@ void main() {
     );
     addTearDown(container.dispose);
     await container.read(serverConfigControllerProvider.future);
-    await container
-        .read(serverConfigControllerProvider.notifier)
-        .setServerUrl('https://pigeons.example');
     return container;
   }
 

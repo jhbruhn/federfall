@@ -41,6 +41,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _busy = false;
   String? _error;
 
+  // OAuth wait state: the external browser flow can be abandoned (the future
+  // then never completes), so while it is pending the screen offers a cancel
+  // action. Cancelling bumps the attempt counter, which orphans the pending
+  // wait — its eventual completion is ignored instead of touching state.
+  bool _oauthPending = false;
+  int _oauthAttempt = 0;
+
   // MFA second step: set once a password succeeds on an MFA-enabled account.
   // While non-null the form shows the one-time-code field instead of password.
   String? _mfaId;
@@ -109,8 +116,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _signInWithProvider(OAuthProvider provider) async {
     final l10n = context.l10n;
+    final attempt = ++_oauthAttempt;
     setState(() {
       _busy = true;
+      _oauthPending = true;
       _error = null;
     });
     try {
@@ -124,12 +133,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     } on Object catch (error, stackTrace) {
       reportCaughtError(error, stackTrace);
-      if (!mounted) return;
+      if (!mounted || attempt != _oauthAttempt) return;
       setState(() {
         _busy = false;
+        _oauthPending = false;
         _error = l10n.authOauthFailed;
       });
     }
+  }
+
+  /// Unlocks the screen from an abandoned OAuth wait. A flow that still
+  /// completes in the browser afterwards signs in regardless — the auth-store
+  /// change drives the router gate, not this screen.
+  void _cancelOAuth() {
+    _oauthAttempt++;
+    setState(() {
+      _busy = false;
+      _oauthPending = false;
+    });
   }
 
   Future<void> _verifyOtp() async {
@@ -399,6 +420,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         _OrDivider(label: l10n.authOrSeparator),
                       ],
                       ..._oauthButtons(),
+                      // The external flow can be abandoned in the browser and
+                      // its future then never completes — offer a way out so
+                      // the screen doesn't stay locked until an app restart.
+                      if (_oauthPending) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          l10n.authOauthWaiting,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        TextButton(
+                          onPressed: _cancelOAuth,
+                          child: Text(l10n.actionCancel),
+                        ),
+                      ],
                     ],
                     // Native only: web is pinned to its serving origin, so
                     // there is no server to switch.

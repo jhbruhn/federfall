@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall/core/pocketbase/auth_token_storage.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info.dart';
@@ -14,13 +15,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/helpers.dart';
+
 class FakeAuthRepository implements AuthRepository {
-  FakeAuthRepository({this.onSignIn, this.onRequestOtp, this.onAuthWithOtp});
+  FakeAuthRepository({
+    this.onSignIn,
+    this.onRequestOtp,
+    this.onAuthWithOtp,
+    this.onSignInWithOAuth2,
+  });
 
   final Future<AppUser> Function(String email, String password)? onSignIn;
   final Future<String> Function(String email)? onRequestOtp;
   final Future<AppUser> Function(String otpId, String code, String mfaId)?
       onAuthWithOtp;
+  final Future<AppUser> Function()? onSignInWithOAuth2;
 
   String? lastEmail;
   String? lastPassword;
@@ -98,6 +107,7 @@ class FakeAuthRepository implements AuthRepository {
     Future<void> Function(Uri url) openUrl,
   ) async {
     oauthProviderUsed = provider;
+    if (onSignInWithOAuth2 != null) return onSignInWithOAuth2!();
     return const AppUser(id: 'u1', email: 'staff@example.org');
   }
 }
@@ -111,6 +121,7 @@ Future<ProviderContainer> _pump(
     overrides: [
       authRepositoryProvider.overrideWith((ref) async => repo),
       serverInfoProvider.overrideWith((ref) async => info),
+      authTokenStorageProvider.overrideWithValue(FakeAuthTokenStorage()),
     ],
   );
   addTearDown(container.dispose);
@@ -400,6 +411,52 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(repo.oauthProviderUsed, 'google');
+  });
+
+  testWidgets('an abandoned OAuth wait can be cancelled', (tester) async {
+    // The browser flow never completes (user closed the browser).
+    final pending = Completer<AppUser>();
+    final repo = FakeAuthRepository(onSignInWithOAuth2: () => pending.future)
+      ..providers = const [
+        OAuthProvider(name: 'google', displayName: 'Google'),
+      ];
+    await _pump(
+      tester,
+      repo,
+      info: const ServerInfo(
+        version: '1.0.0',
+        name: 'Federfall',
+        auth: ServerAuthOptions(oauth2: ['google']),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Continue with Google'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // The wait locks the form but offers a way out.
+    final providerButton = find.widgetWithText(
+      OutlinedButton,
+      'Continue with Google',
+    );
+    expect(tester.widget<OutlinedButton>(providerButton).enabled, isFalse);
+    expect(find.text('Waiting for the browser sign-in…'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+
+    // Unlocked again.
+    expect(find.text('Waiting for the browser sign-in…'), findsNothing);
+    expect(tester.widget<OutlinedButton>(providerButton).enabled, isTrue);
+
+    // The orphaned wait failing later must not resurface an error.
+    pending.completeError(Exception('abandoned'));
+    await tester.pump();
+    expect(
+      find.text("Sign-in with that provider didn't work. Please try again."),
+      findsNothing,
+    );
   });
 
   testWidgets('passwordless server shows only the provider button',

@@ -75,7 +75,7 @@ GoRouter router(Ref ref) {
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.home,
     refreshListenable: refresh,
-    redirect: (context, state) => _gate(ref, state.matchedLocation),
+    redirect: (context, state) => _gate(ref, state.uri),
     routes: [
       GoRoute(
         path: AppRoutes.splash,
@@ -284,20 +284,32 @@ GoRouter router(Ref ref) {
   );
 }
 
-/// Pure redirect decision given the current location. Returns the path to send
-/// to, or `null` to stay put.
-String? _gate(Ref ref, String location) {
+/// The gate-only routes (plus the bare root, the old home path): never a
+/// destination in their own right once the gate has resolved.
+const Set<String> _gatePaths = {
+  AppRoutes.splash,
+  AppRoutes.login,
+  AppRoutes.setup,
+  AppRoutes.pending,
+  '/',
+};
+
+/// Pure redirect decision given the requested [uri] (path + query). Returns
+/// the location to send to, or `null` to stay put.
+///
+/// A deep link that arrives while the gate is unresolved (or unauthenticated)
+/// is preserved as a `from` query parameter on the gate routes and restored
+/// once the gate lets the user through — so a shared `/cases/abc` link opens
+/// that case after sign-in instead of the default landing tab.
+String? _gate(Ref ref, Uri uri) {
+  final location = uri.path;
   final configAsync = ref.read(serverConfigControllerProvider);
 
   // Server config not resolved yet → wait on the splash.
-  if (!configAsync.hasValue) {
-    return location == AppRoutes.splash ? null : AppRoutes.splash;
-  }
+  if (!configAsync.hasValue) return _hold(uri, AppRoutes.splash);
 
   final config = configAsync.requireValue;
-  if (config is ServerUnconfigured) {
-    return location == AppRoutes.setup ? null : AppRoutes.setup;
-  }
+  if (config is ServerUnconfigured) return _hold(uri, AppRoutes.setup);
 
   // Public, no-session route: an invited member setting their password from
   // the email link. Allowed once the server is known (native needs setup
@@ -306,9 +318,7 @@ String? _gate(Ref ref, String location) {
 
   // Configured → gate on auth.
   final authAsync = ref.read(authStatusProvider);
-  if (!authAsync.hasValue) {
-    return location == AppRoutes.splash ? null : AppRoutes.splash;
-  }
+  if (!authAsync.hasValue) return _hold(uri, AppRoutes.splash);
 
   final authenticated = authAsync.requireValue;
   if (!authenticated) {
@@ -316,29 +326,49 @@ String? _gate(Ref ref, String location) {
     // have resolved before rendering it. serverInfo settles to a value (null on
     // any fetch error), so this only ever pauses on the splash briefly.
     if (ref.read(serverInfoProvider).isLoading) {
-      return location == AppRoutes.splash ? null : AppRoutes.splash;
+      return _hold(uri, AppRoutes.splash);
     }
-    return location == AppRoutes.login ? null : AppRoutes.login;
+    return _hold(uri, AppRoutes.login);
   }
 
   // Authenticated: a self-registered guest has no role yet and is walled off
   // server-side, so keep them on the pending screen until they are promoted.
   final userAsync = ref.read(currentUserProvider);
-  if (!userAsync.hasValue) {
-    return location == AppRoutes.splash ? null : AppRoutes.splash;
-  }
+  if (!userAsync.hasValue) return _hold(uri, AppRoutes.splash);
   if (isGuest(userAsync.value?.role)) {
-    return location == AppRoutes.pending ? null : AppRoutes.pending;
+    return _hold(uri, AppRoutes.pending);
   }
 
-  // Authenticated with a real role: bounce away from the gate-only routes and
-  // the bare root (the old home path, now unmatched) onto the default landing.
-  const gateRoutes = {
-    AppRoutes.splash,
-    AppRoutes.login,
-    AppRoutes.setup,
-    AppRoutes.pending,
-    '/',
-  };
-  return gateRoutes.contains(location) ? AppRoutes.home : null;
+  // Authenticated with a real role: leave the gate for the originally
+  // requested location, or the default landing when there is none.
+  if (_gatePaths.contains(location)) {
+    return _pendingTarget(uri) ?? AppRoutes.home;
+  }
+  return null;
+}
+
+/// Redirects to [gatePath], remembering where the user was actually headed:
+/// a non-gate location is stashed in a `from` query parameter, and a hop
+/// between gate routes carries the existing one forward. Returns `null` (stay
+/// put, keeping any `from`) when already on [gatePath].
+String? _hold(Uri uri, String gatePath) {
+  if (uri.path == gatePath) return null;
+  final from =
+      _gatePaths.contains(uri.path) ? _pendingTarget(uri) : uri.toString();
+  if (from == null || from == AppRoutes.home) return gatePath;
+  return Uri(path: gatePath, queryParameters: {'from': from}).toString();
+}
+
+/// The validated `from` parameter of a gate location: the in-app location to
+/// restore once the gate resolves. Anything absolute or pointing back at a
+/// gate route is discarded (redirect-loop / open-redirect guard).
+String? _pendingTarget(Uri uri) {
+  final raw = uri.queryParameters['from'];
+  if (raw == null || raw.isEmpty) return null;
+  final target = Uri.tryParse(raw);
+  if (target == null || target.hasScheme || target.hasAuthority) return null;
+  if (!target.path.startsWith('/') || _gatePaths.contains(target.path)) {
+    return null;
+  }
+  return raw;
 }

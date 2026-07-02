@@ -1,3 +1,4 @@
+import 'package:federfall/core/pocketbase/auth_token_storage.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_probe.dart';
@@ -8,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/helpers.dart';
 
 /// A minimal valid `/api/federfall/info` body for a probed server.
 Map<String, Object?> _infoBody() => {
@@ -20,7 +23,10 @@ Map<String, Object?> _infoBody() => {
 
 Future<ProviderContainer> _pump(WidgetTester tester, ServerProbe probe) async {
   final container = ProviderContainer(
-    overrides: [serverProbeProvider.overrideWithValue(probe)],
+    overrides: [
+      serverProbeProvider.overrideWithValue(probe),
+      authTokenStorageProvider.overrideWithValue(FakeAuthTokenStorage()),
+    ],
   );
   addTearDown(container.dispose);
 

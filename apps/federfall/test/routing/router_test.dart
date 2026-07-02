@@ -35,6 +35,16 @@ class _FakeAuthStatus extends AuthStatus {
   Future<bool> build() async => authed;
 }
 
+/// Fake auth status that can flip mid-test (sign-in happening).
+class _MutableAuthStatus extends AuthStatus {
+  _MutableAuthStatus({required this.initial});
+  final bool initial;
+  @override
+  Future<bool> build() async => initial;
+
+  void authed({required bool value}) => state = AsyncData(value);
+}
+
 Future<ProviderContainer> _pumpAt(
   WidgetTester tester, {
   required ServerConfig config,
@@ -193,6 +203,56 @@ void main() {
     // other carer's case (hidden under the default "mine" scope).
     expect(find.byType(CasesScreen), findsOneWidget);
     expect(find.text('2026-099'), findsOneWidget);
+  });
+
+  testWidgets('a deep link entered before sign-in is restored after it',
+      (tester) async {
+    final auth = _MutableAuthStatus(initial: false);
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigControllerProvider.overrideWith(
+          () => _FakeServerConfig(
+            const ServerConfig.configured('https://x.example'),
+          ),
+        ),
+        authStatusProvider.overrideWith(() => auth),
+        serverInfoProvider.overrideWith((ref) async => null),
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => const CasesBrowserData(
+            cases: [],
+            animalsById: {},
+            myUserId: 'u1',
+          ),
+        ),
+        currentUserProvider.overrideWith((ref) async => null),
+        caseByIdProvider(
+          'c1',
+        ).overrideWith((ref) async => const Case(id: 'c1', animal: 'a1')),
+      ],
+    );
+    await _pumpContainer(tester, container);
+
+    // The shared link arrives while unauthenticated: held at the login gate,
+    // with the requested location remembered.
+    final router = container.read(routerProvider)
+      ..go(AppRoutes.caseDetail('c1'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(
+      router.routerDelegate.currentConfiguration.uri.queryParameters['from'],
+      '/cases/c1',
+    );
+
+    // Sign-in completes → the original target opens, not the default tab.
+    auth.authed(value: true);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CaseDetailScreen), findsOneWidget);
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/cases/c1',
+    );
   });
 
   testWidgets('confirm-reset is reachable without a session', (tester) async {

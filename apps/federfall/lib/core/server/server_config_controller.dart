@@ -1,4 +1,5 @@
 import 'package:federfall/config/app_environment.dart';
+import 'package:federfall/core/pocketbase/auth_token_storage.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_url_storage.dart';
 import 'package:flutter/foundation.dart';
@@ -37,14 +38,26 @@ class ServerConfigController extends _$ServerConfigController {
   }
 
   /// Persists [url] as the active native server and switches to it.
+  ///
+  /// A persisted auth payload belongs to the origin it was issued by, so it is
+  /// purged whenever the URL actually changes — otherwise the rebuilt
+  /// PocketBase client would send the previous server's bearer token to the
+  /// new (potentially untrusted) host.
   Future<void> setServerUrl(String url) async {
-    await ref.read(serverUrlStorageProvider).write(url);
+    final urlStorage = ref.read(serverUrlStorageProvider);
+    final previous = await urlStorage.read();
+    if (previous != url) {
+      await ref.read(authTokenStorageProvider).delete();
+    }
+    await urlStorage.write(url);
     state = AsyncData(ServerConfig.configured(url));
   }
 
-  /// Forgets the native server URL, returning to the setup gate.
+  /// Forgets the native server URL, returning to the setup gate. The persisted
+  /// auth payload goes with it (see [setServerUrl]).
   Future<void> clearServerUrl() async {
     await ref.read(serverUrlStorageProvider).delete();
+    await ref.read(authTokenStorageProvider).delete();
     state = const AsyncData(ServerConfig.unconfigured());
   }
 
