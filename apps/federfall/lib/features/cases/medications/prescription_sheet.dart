@@ -72,7 +72,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     _customHours = TextEditingController(
       text: _preset == _FreqPreset.custom ? '${p?.intervalHours ?? ''}' : '',
     );
-    _startedAt = p?.startedAt ?? p?.created ?? DateTime.now();
+    _startedAt = (p?.startedAt ?? p?.created)?.toLocal() ?? DateTime.now();
     _endedAt = p?.endedAt;
     _controlled = p?.isControlled ?? false;
   }
@@ -158,12 +158,14 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     }
   }
 
+  /// The start carries a time of day: `medication_due` uses it as the first
+  /// next-due, so a date-only start would flag a fresh plan "overdue since
+  /// midnight". A future start expresses "first dose tonight".
   Future<void> _pickStarted() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _startedAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
+    final picked = await pickDateTime(
+      context,
+      initial: _startedAt,
+      lastDate: DateTime(2100),
     );
     if (picked != null) {
       setState(() => _startedAt = picked);
@@ -298,6 +300,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                   label: l10n.medStarted,
                   value: _startedAt,
                   enabled: !_busy,
+                  showTime: true,
                   onPick: _pickStarted,
                 ),
                 const SizedBox(height: AppSpacing.md),
