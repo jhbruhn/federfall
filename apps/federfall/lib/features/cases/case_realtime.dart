@@ -25,6 +25,7 @@ const _caseTimelineCollections = [
   'exams',
   'exam_findings',
   'markings',
+  'quarantine_records',
 ];
 
 /// Live-sync for a case detail view (Pattern A): subscribes to the collections
