@@ -146,9 +146,13 @@ void main() {
   group('PbUsersRepository', () {
     setUp(() => wire('users'));
 
-    test('activeMembers filters is_active=true, name-sorted', () async {
+    test('activeMembers filters active non-guests, name-sorted', () async {
       await PbUsersRepository(pb).activeMembers();
-      verify(() => pb.filter('is_active = true')).called(1);
+      verify(
+        () => pb.filter('is_active = true && role != {:guest}', {
+          'guest': 'guest',
+        }),
+      ).called(1);
       expect(capturedQuery()[1], 'name');
     });
 

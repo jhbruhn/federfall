@@ -12,9 +12,14 @@ class PbUsersRepository extends PbRepository<AppUser> {
         fromRecord: AppUser.fromRecord,
       );
 
-  /// Active staff members, name-sorted, for assignee/carer pickers.
+  /// Active staff members, name-sorted, for assignee/carer pickers. Guests are
+  /// excluded: the access rules wall them off from all case data, so sharing
+  /// with or handing off to a guest would silently grant nothing (and make the
+  /// case invisible to its own active carer).
   Future<List<AppUser>> activeMembers() => list(
-    filter: filterExpr('is_active = true'),
+    filter: filterExpr('is_active = true && role != {:guest}', {
+      'guest': UserRole.guest.wire,
+    }),
     sort: 'name',
   );
 
