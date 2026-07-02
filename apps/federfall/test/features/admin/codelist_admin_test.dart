@@ -1,22 +1,27 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
-import 'package:federfall/features/admin/conditions_admin_screen.dart';
+import 'package:federfall/features/admin/codelist_admin.dart';
+import 'package:federfall/features/admin/codelist_specs.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
+import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockConditionsRepo extends Mock implements PbConditionsRepository {}
 
+class MockMarkingTypesRepo extends Mock implements PbMarkingTypesRepository {}
+
 Future<void> _pump(
   WidgetTester tester, {
   required UserRole role,
-  List<Condition> conditions = const [],
-  PbConditionsRepository? repo,
+  required Widget screen,
+  List<Override> overrides = const [],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -25,15 +30,13 @@ Future<void> _pump(
           (ref) async =>
               AppUser(id: 'u1', email: 'me@x.org', role: role, org: 'org1'),
         ),
-        conditionsProvider.overrideWith((ref) async => conditions),
-        if (repo != null)
-          conditionsRepositoryProvider.overrideWith((ref) async => repo),
+        ...overrides,
       ],
-      child: const MaterialApp(
-        locale: Locale('en'),
+      child: MaterialApp(
+        locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: ConditionsAdminScreen(),
+        home: screen,
       ),
     ),
   );
@@ -44,7 +47,11 @@ void main() {
   setUpAll(() => registerFallbackValue(<String, dynamic>{}));
 
   testWidgets('a carer is shown an unauthorized message', (tester) async {
-    await _pump(tester, role: UserRole.carer);
+    await _pump(
+      tester,
+      role: UserRole.carer,
+      screen: CodelistAdminScreen(spec: conditionsCodelistSpec),
+    );
     expect(find.text('You are not authorized to do that'), findsOneWidget);
   });
 
@@ -53,9 +60,14 @@ void main() {
     await _pump(
       tester,
       role: UserRole.supervisor,
-      conditions: const [
-        Condition(id: 'c1', label: 'Trichomoniasis', isNotifiable: true),
-        Condition(id: 'c2', label: 'Old entry', active: false),
+      screen: CodelistAdminScreen(spec: conditionsCodelistSpec),
+      overrides: [
+        conditionsProvider.overrideWith(
+          (ref) async => const [
+            Condition(id: 'c1', label: 'Trichomoniasis', isNotifiable: true),
+            Condition(id: 'c2', label: 'Old entry', active: false),
+          ],
+        ),
       ],
     );
     expect(find.text('Trichomoniasis'), findsOneWidget);
@@ -64,14 +76,22 @@ void main() {
     expect(find.textContaining('Inactive'), findsOneWidget);
   });
 
-  testWidgets('adding a condition creates it scoped to the org',
-      (tester) async {
+  testWidgets('adding a condition creates it scoped to the org, including '
+      'the condition-only fields', (tester) async {
     final repo = MockConditionsRepo();
     when(() => repo.create(any())).thenAnswer(
       (_) async => const Condition(id: 'new', label: 'Paramyxovirus'),
     );
 
-    await _pump(tester, role: UserRole.supervisor, repo: repo);
+    await _pump(
+      tester,
+      role: UserRole.supervisor,
+      screen: CodelistAdminScreen(spec: conditionsCodelistSpec),
+      overrides: [
+        conditionsProvider.overrideWith((ref) async => const []),
+        conditionsRepositoryProvider.overrideWith((ref) async => repo),
+      ],
+    );
 
     await tester.tap(
       find.widgetWithText(FloatingActionButton, 'New condition'),
@@ -91,6 +111,48 @@ void main() {
     expect(data['label'], 'Paramyxovirus');
     expect(data['org'], 'org1');
     expect(data['active'], true);
+    // The conditions spec carries the two extra fields.
+    expect(data['description'], '');
+    expect(data['is_notifiable'], false);
+  });
+
+  testWidgets('a label-only list omits the condition-only fields on create',
+      (tester) async {
+    final repo = MockMarkingTypesRepo();
+    when(() => repo.create(any())).thenAnswer(
+      (_) async => const MarkingType(id: 'new', label: 'Ring'),
+    );
+
+    await _pump(
+      tester,
+      role: UserRole.supervisor,
+      screen: CodelistAdminScreen(spec: markingTypesCodelistSpec),
+      overrides: [
+        markingTypesProvider.overrideWith((ref) async => const []),
+        markingTypesRepositoryProvider.overrideWith((ref) async => repo),
+      ],
+    );
+
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'New marking type'),
+    );
+    await tester.pumpAndSettle();
+
+    // A {label, active} list gets no description field or notifiable switch.
+    expect(find.byType(SwitchListTile), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Ring');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final data =
+        verify(() => repo.create(captureAny())).captured.single
+            as Map<String, dynamic>;
+    expect(data['label'], 'Ring');
+    expect(data['org'], 'org1');
+    expect(data['active'], true);
+    expect(data.containsKey('description'), isFalse);
+    expect(data.containsKey('is_notifiable'), isFalse);
   });
 
   testWidgets('deleting a condition confirms and calls the repo',
@@ -101,8 +163,13 @@ void main() {
     await _pump(
       tester,
       role: UserRole.supervisor,
-      repo: repo,
-      conditions: const [Condition(id: 'c1', label: 'Trichomoniasis')],
+      screen: CodelistAdminScreen(spec: conditionsCodelistSpec),
+      overrides: [
+        conditionsProvider.overrideWith(
+          (ref) async => const [Condition(id: 'c1', label: 'Trichomoniasis')],
+        ),
+        conditionsRepositoryProvider.overrideWith((ref) async => repo),
+      ],
     );
 
     await tester.tap(find.byIcon(Icons.more_vert));

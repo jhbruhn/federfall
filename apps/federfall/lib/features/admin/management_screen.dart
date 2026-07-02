@@ -2,10 +2,8 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/features/admin/admission_reasons_admin_screen.dart';
-import 'package:federfall/features/admin/conditions_admin_screen.dart';
-import 'package:federfall/features/admin/marking_types_admin_screen.dart';
-import 'package:federfall/features/admin/medication_routes_admin_screen.dart';
+import 'package:federfall/features/admin/codelist_admin.dart';
+import 'package:federfall/features/admin/codelist_specs.dart';
 import 'package:federfall/features/admin/org_settings_screen.dart';
 import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -44,10 +42,14 @@ enum _AdminSection {
   Widget screen() => switch (this) {
     _AdminSection.team => const TeamScreen(),
     _AdminSection.orgSettings => const OrgSettingsScreen(),
-    _AdminSection.conditions => const ConditionsAdminScreen(),
-    _AdminSection.admissionReasons => const AdmissionReasonsAdminScreen(),
-    _AdminSection.markingTypes => const MarkingTypesAdminScreen(),
-    _AdminSection.medicationRoutes => const MedicationRoutesAdminScreen(),
+    _AdminSection.conditions =>
+      CodelistAdminScreen(spec: conditionsCodelistSpec),
+    _AdminSection.admissionReasons =>
+      CodelistAdminScreen(spec: admissionReasonsCodelistSpec),
+    _AdminSection.markingTypes =>
+      CodelistAdminScreen(spec: markingTypesCodelistSpec),
+    _AdminSection.medicationRoutes =>
+      CodelistAdminScreen(spec: medicationRoutesCodelistSpec),
   };
 }
 

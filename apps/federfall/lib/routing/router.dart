@@ -4,11 +4,9 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
-import 'package:federfall/features/admin/admission_reasons_admin_screen.dart';
-import 'package:federfall/features/admin/conditions_admin_screen.dart';
+import 'package:federfall/features/admin/codelist_admin.dart';
+import 'package:federfall/features/admin/codelist_specs.dart';
 import 'package:federfall/features/admin/management_screen.dart';
-import 'package:federfall/features/admin/marking_types_admin_screen.dart';
-import 'package:federfall/features/admin/medication_routes_admin_screen.dart';
 import 'package:federfall/features/admin/org_settings_screen.dart';
 import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
@@ -263,19 +261,21 @@ GoRouter router(Ref ref) {
       ),
       GoRoute(
         path: AppRoutes.conditionsAdmin,
-        builder: (_, _) => const ConditionsAdminScreen(),
+        builder: (_, _) => CodelistAdminScreen(spec: conditionsCodelistSpec),
       ),
       GoRoute(
         path: AppRoutes.admissionReasonsAdmin,
-        builder: (_, _) => const AdmissionReasonsAdminScreen(),
+        builder: (_, _) =>
+            CodelistAdminScreen(spec: admissionReasonsCodelistSpec),
       ),
       GoRoute(
         path: AppRoutes.markingTypesAdmin,
-        builder: (_, _) => const MarkingTypesAdminScreen(),
+        builder: (_, _) => CodelistAdminScreen(spec: markingTypesCodelistSpec),
       ),
       GoRoute(
         path: AppRoutes.medicationRoutesAdmin,
-        builder: (_, _) => const MedicationRoutesAdminScreen(),
+        builder: (_, _) =>
+            CodelistAdminScreen(spec: medicationRoutesCodelistSpec),
       ),
       GoRoute(
         path: AppRoutes.statistics,
