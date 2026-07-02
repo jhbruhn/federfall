@@ -389,6 +389,7 @@
     "dispositionEuthanized": "Eingeschläfert",
     "dispositionTransferred": "Übergeben",
     "dispositionReturnedToOwner": "An Besitzer zurück",
+    "dispositionUnknown": "Unbekannter Ausgang",
     "placementHandoffTitle": "An Pflegestelle übergeben",
     "placementMoveTitle": "Standort / Umzug erfassen",
     "placementHandoffSameCarer": "Wähle eine andere Pflegestelle für die Übergabe.",

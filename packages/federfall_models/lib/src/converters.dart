@@ -5,15 +5,16 @@
 
 /// Parses a PocketBase datetime string into a UTC [DateTime].
 ///
-/// Returns `null` for an absent or empty value. PocketBase emits datetimes
-/// space-separated rather than ISO-8601, so the space is swapped for `T`
-/// before parsing.
+/// Returns `null` for an absent, empty or malformed value — one garbage date
+/// on one record must not make a whole list() call throw. PocketBase emits
+/// datetimes space-separated rather than ISO-8601, so the space is swapped
+/// for `T` before parsing.
 DateTime? pbDate(Object? raw) {
   if (raw == null) return null;
   if (raw is DateTime) return raw.toUtc();
   final s = raw.toString().trim();
   if (s.isEmpty) return null;
-  return DateTime.parse(s.replaceFirst(' ', 'T')).toUtc();
+  return DateTime.tryParse(s.replaceFirst(' ', 'T'))?.toUtc();
 }
 
 /// Reads a non-empty string, mapping `null`/empty to `null`.

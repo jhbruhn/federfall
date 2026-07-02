@@ -71,6 +71,12 @@ class AnimalAvatar extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final animal = ref.read(animalByIdProvider(animalId)).value;
     final hasPhoto = animal?.photo != null && animal!.photo!.isNotEmpty;
+    // Everything ref-dependent is captured before the awaits: the camera flow
+    // can dispose this element (Android backgrounds the activity), and ref
+    // must not be touched afterwards.
+    final picker = ref.read(imagePickerProvider);
+    final repo = await ref.read(animalsRepositoryProvider.future);
+    if (!context.mounted) return;
 
     final action = await showModalBottomSheet<_PhotoAction>(
       context: context,
@@ -100,9 +106,6 @@ class AnimalAvatar extends ConsumerWidget {
       ),
     );
     if (action == null) return;
-
-    final picker = ref.read(imagePickerProvider);
-    final repo = await ref.read(animalsRepositoryProvider.future);
 
     try {
       switch (action) {
@@ -134,6 +137,7 @@ class AnimalAvatar extends ConsumerWidget {
       return;
     }
 
+    if (!context.mounted) return;
     ref
       ..invalidate(animalByIdProvider(animalId))
       ..invalidate(animalAvatarUrlProvider(animalId))

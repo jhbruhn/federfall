@@ -32,6 +32,7 @@ class DispositionTile extends StatelessWidget {
     DispositionType.euthanized => Icons.medical_services_outlined,
     DispositionType.transferred => Icons.local_shipping_outlined,
     DispositionType.returnedToOwner => Icons.home_outlined,
+    null => Icons.help_outline,
   };
 
   @override

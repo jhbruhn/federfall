@@ -17,6 +17,17 @@ class _AnimalsRepo extends PbRepository<Animal> {
   }) : super(pb: pb, collection: 'animals', fromRecord: Animal.fromRecord);
 }
 
+/// Repo whose mapper always throws, standing in for a malformed record that
+/// a fromRecord cannot digest.
+class _ThrowingRepo extends PbRepository<Animal> {
+  _ThrowingRepo(PocketBase pb)
+    : super(
+        pb: pb,
+        collection: 'animals',
+        fromRecord: (_) => throw const FormatException('bad record'),
+      );
+}
+
 void main() {
   late _MockPb pb;
   late _MockService service;
@@ -185,6 +196,28 @@ void main() {
     ).thenThrow(ClientException(statusCode: 404));
 
     expect(await repo.firstWhere('name = "nope"'), isNull);
+  });
+
+  test('a mapper failure surfaces as RepositoryException, not raw', () async {
+    when(
+      () => service.getFullList(
+        filter: any(named: 'filter'),
+        sort: any(named: 'sort'),
+        expand: any(named: 'expand'),
+      ),
+    ).thenAnswer((_) async => [rec('a1', 'Lotte')]);
+    final throwingRepo = _ThrowingRepo(pb);
+
+    expect(
+      throwingRepo.list,
+      throwsA(
+        isA<RepositoryException>().having(
+          (e) => e.cause,
+          'cause',
+          isA<FormatException>(),
+        ),
+      ),
+    );
   });
 
   test('a hung request times out as a network error (online-only)', () async {

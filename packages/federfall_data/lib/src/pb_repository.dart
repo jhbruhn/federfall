@@ -158,6 +158,12 @@ abstract class PbRepository<T> implements Repository<T> {
       );
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
+    } on RepositoryException {
+      rethrow;
+    } on Object catch (e) {
+      // Last resort: a mapper (fromRecord) choking on a malformed record must
+      // still surface as the stable exception the UI error states depend on.
+      throw RepositoryException('Unexpected repository failure: $e', cause: e);
     }
   }
 }

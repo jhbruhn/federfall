@@ -64,7 +64,9 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
   final _transferDestination = TextEditingController();
   final _vet = TextEditingController();
 
-  DispositionType _type = DispositionType.released;
+  // Null only when editing a record whose type this app version does not
+  // know; the dropdown then starts empty and requires an explicit choice.
+  DispositionType? _type = DispositionType.released;
   GeoPoint? _releaseGeo;
   String? _aviaryId;
   DateTime _disposedAt = DateTime.now();
@@ -163,26 +165,28 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
       }
       final repo = await ref.read(dispositionsRepositoryProvider.future);
 
+      // Always send the full field set, blanking the sections that do not
+      // apply: PocketBase keeps omitted fields on update, so a type change
+      // (e.g. released -> transferred) must clear the old type's leftovers.
+      final geo = _isRelease ? _releaseGeo : null;
       final body = <String, dynamic>{
         'case': widget.caseId,
-        'type': _type.wire,
+        'type': _type!.wire,
         'disposed_at': _disposedAt.toUtc().toIso8601String(),
         'reason': _trim(_reason) ?? '',
         'performed_by': user.id,
         'vet_signed_off': _showVetSignoff && _vetSignedOff,
-        if (_isEuthanized) 'vet': _trim(_vet) ?? '',
+        'vet': _isEuthanized ? (_trim(_vet) ?? '') : '',
         'org': org,
-        if (_isRelease) ...{
-          'release_location': _trim(_releaseLocation) ?? '',
-          'release_type': _trim(_releaseType) ?? '',
-          if (_releaseGeo case final geo?)
-            'release_geo': {'lon': geo.lon, 'lat': geo.lat},
-        },
-        if (_isTransfer) ...{
-          'transfer_type': _trim(_transferType) ?? '',
-          'transfer_destination': _trim(_transferDestination) ?? '',
-        },
-        if (_isAviary) 'aviary': ?_aviaryId,
+        'release_location': _isRelease ? (_trim(_releaseLocation) ?? '') : '',
+        'release_type': _isRelease ? (_trim(_releaseType) ?? '') : '',
+        'release_geo': geo == null
+            ? {'lon': 0, 'lat': 0}
+            : {'lon': geo.lon, 'lat': geo.lat},
+        'transfer_type': _isTransfer ? (_trim(_transferType) ?? '') : '',
+        'transfer_destination':
+            _isTransfer ? (_trim(_transferDestination) ?? '') : '',
+        'aviary': _isAviary ? (_aviaryId ?? '') : '',
       };
 
       final existing = widget.disposition;
@@ -313,6 +317,7 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
                         child: Text(dispositionTypeLabel(l10n, t)),
                       ),
                   ],
+                  validator: (t) => t == null ? l10n.fieldRequired : null,
                   onChanged: _busy
                       ? null
                       : (t) => setState(() => _type = t ?? _type),

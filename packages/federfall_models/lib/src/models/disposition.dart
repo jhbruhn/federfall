@@ -13,7 +13,9 @@ abstract class Disposition with _$Disposition {
   const factory Disposition({
     required String id,
     required String caseId,
-    required DispositionType type,
+    // Null when the server carries a wire value this app version does not
+    // know — rendered as "unknown", never coerced to a real outcome.
+    DispositionType? type,
     DateTime? disposedAt,
     String? reason,
     String? performedBy,
@@ -38,7 +40,7 @@ abstract class Disposition with _$Disposition {
     return Disposition(
       id: r.id,
       caseId: pbString(d['case']) ?? '',
-      type: DispositionType.fromWire(d['type']) ?? DispositionType.died,
+      type: DispositionType.fromWire(d['type']),
       disposedAt: pbDate(d['disposed_at']),
       reason: pbString(d['reason']),
       performedBy: pbString(d['performed_by']),

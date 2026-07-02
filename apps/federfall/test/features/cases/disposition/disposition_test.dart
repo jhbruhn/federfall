@@ -118,6 +118,53 @@ void main() {
       verifyNever(() => dispositions.create(any()));
     });
 
+    testWidgets("changing the type on edit blanks the old type's fields",
+        (tester) async {
+      when(() => dispositions.update(any(), any())).thenAnswer(
+        (_) async => const Disposition(
+          id: 'd1',
+          caseId: 'c1',
+          type: DispositionType.transferred,
+        ),
+      );
+
+      await pump(
+        tester,
+        const DispositionSheet(
+          caseId: 'c1',
+          disposition: Disposition(
+            id: 'd1',
+            caseId: 'c1',
+            type: DispositionType.released,
+            releaseLocation: 'Stadtwald',
+            releaseType: 'soft release',
+            releaseGeo: GeoPoint(lon: 10, lat: 54),
+          ),
+        ),
+      );
+
+      // Correct the outcome: released -> transferred.
+      await tester.tap(find.text('Released'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Transferred').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Record outcome'));
+      await tester.pumpAndSettle();
+
+      // PocketBase keeps omitted fields, so the stale release data must be
+      // cleared explicitly.
+      final body = verify(() => dispositions.update('d1', captureAny()))
+          .captured
+          .single as Map<String, dynamic>;
+      expect(body['type'], 'transferred');
+      expect(body['release_location'], '');
+      expect(body['release_type'], '');
+      expect(body['release_geo'], {'lon': 0, 'lat': 0});
+      expect(body['aviary'], '');
+      expect(body['vet'], '');
+    });
+
     testWidgets('deleting an outcome confirms and calls delete',
         (tester) async {
       when(() => dispositions.delete(any())).thenAnswer((_) async {});
@@ -245,6 +292,19 @@ void main() {
       expect(find.text('Released'), findsOneWidget);
       expect(find.text('Stadtwald'), findsOneWidget);
       expect(find.text('Vet signed off'), findsOneWidget);
+    });
+
+    testWidgets('renders an unknown outcome type without guessing',
+        (tester) async {
+      await pump(
+        tester,
+        const DispositionTile(
+          disposition: Disposition(id: 'd1', caseId: 'c1'),
+        ),
+      );
+
+      expect(find.text('Unknown outcome'), findsOneWidget);
+      expect(find.text('Died'), findsNothing);
     });
   });
 }

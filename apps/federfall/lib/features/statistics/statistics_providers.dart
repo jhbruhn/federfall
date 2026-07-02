@@ -15,11 +15,13 @@ class StatCount {
 }
 
 /// A terminal-outcome count, keyed by type so the UI resolves the label.
+/// A null [type] bucket counts dispositions whose wire value this app version
+/// does not know.
 @immutable
 class OutcomeStat {
   const OutcomeStat(this.type, this.count);
 
-  final DispositionType type;
+  final DispositionType? type;
   final int count;
 }
 
@@ -95,15 +97,19 @@ Statistics computeStatistics({
 }) {
   final terminalByCase = terminalDispositionByCase(dispositions);
 
-  final outcomeCounts = <DispositionType, int>{};
+  final outcomeCounts = <DispositionType?, int>{};
   for (final d in terminalByCase.values) {
     outcomeCounts[d.type] = (outcomeCounts[d.type] ?? 0) + 1;
   }
+  // Unknown types sort last within a count tie.
+  int typeRank(DispositionType? t) => t?.index ?? DispositionType.values.length;
   final outcomes =
       [for (final e in outcomeCounts.entries) OutcomeStat(e.key, e.value)]
         ..sort((a, b) {
           final byCount = b.count.compareTo(a.count);
-          return byCount != 0 ? byCount : a.type.index.compareTo(b.type.index);
+          return byCount != 0
+              ? byCount
+              : typeRank(a.type).compareTo(typeRank(b.type));
         });
 
   final speciesCounts = <String, int>{};

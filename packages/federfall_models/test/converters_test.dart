@@ -17,6 +17,11 @@ void main() {
       expect(pbDate(''), isNull);
       expect(pbDate(null), isNull);
     });
+
+    test('maps a malformed date to null instead of throwing', () {
+      expect(pbDate('not-a-date'), isNull);
+      expect(pbDate('12.03.2026'), isNull);
+    });
   });
 
   group('pbString', () {

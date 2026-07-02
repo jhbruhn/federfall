@@ -72,7 +72,9 @@ String medicationFrequencyLabel(
   }
 }
 
-String dispositionTypeLabel(AppLocalizations l10n, DispositionType t) =>
+/// Null means the server carries a disposition type this app version does not
+/// know — shown as "unknown" rather than guessing an outcome.
+String dispositionTypeLabel(AppLocalizations l10n, DispositionType? t) =>
     switch (t) {
       DispositionType.released => l10n.dispositionReleased,
       DispositionType.placedInAviary => l10n.dispositionPlacedInAviary,
@@ -80,6 +82,7 @@ String dispositionTypeLabel(AppLocalizations l10n, DispositionType t) =>
       DispositionType.euthanized => l10n.dispositionEuthanized,
       DispositionType.transferred => l10n.dispositionTransferred,
       DispositionType.returnedToOwner => l10n.dispositionReturnedToOwner,
+      null => l10n.dispositionUnknown,
     };
 
 String hydrationLabel(AppLocalizations l10n, Hydration h) => switch (h) {

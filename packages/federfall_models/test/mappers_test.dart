@@ -105,6 +105,15 @@ void main() {
       expect(d.caseId, 'case0000000001');
       expect(d.releaseGeo, const GeoPoint(lon: 10, lat: 54));
     });
+
+    test('maps an unknown wire type to null, never to a real outcome', () {
+      final r = RecordModel({
+        'id': 'disp000000002',
+        'case': 'case0000000001',
+        'type': 'escaped',
+      });
+      expect(Disposition.fromRecord(r).type, isNull);
+    });
   });
 
   group('Exam.fromRecord', () {

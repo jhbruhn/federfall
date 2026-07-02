@@ -860,6 +860,8 @@
     "@dispositionTransferred": { "description": "Disposition type" },
     "dispositionReturnedToOwner": "Returned to owner",
     "@dispositionReturnedToOwner": { "description": "Disposition type" },
+    "dispositionUnknown": "Unknown outcome",
+    "@dispositionUnknown": { "description": "Shown when a disposition carries a type this app version does not know" },
     "placementHandoffTitle": "Hand off to carer",
     "@placementHandoffTitle": { "description": "Title/action for handing a case to another carer" },
     "placementMoveTitle": "Log location / move",

@@ -79,6 +79,10 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
   bool _locating = false;
   String? _error;
 
+  /// Monotonic id of the latest reverse-geocode; stale responses (from a pin
+  /// position that has since changed) are dropped instead of applied.
+  int _resolveSeq = 0;
+
   /// True once a pin position has produced a resolved address — gates "Use".
   bool get _hasLocation => _address.isNotEmpty && !_reversing;
 
@@ -112,8 +116,12 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
     }
   }
 
-  /// Reverse-geocodes the current map centre into the address card.
+  /// Reverse-geocodes the current map centre into the address card. On
+  /// failure the previous pin's address is cleared (never paired with the new
+  /// coordinates) so "Use" stays gated until a fresh resolve succeeds.
   Future<void> _resolveCentre() async {
+    final l10n = context.l10n;
+    final seq = ++_resolveSeq;
     setState(() {
       _reversing = true;
       _error = null;
@@ -121,19 +129,25 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
     try {
       final repo = await ref.read(geocodingRepositoryProvider.future);
       final r = await repo.reverse(_centre.latitude, _centre.longitude);
-      if (!mounted) return;
+      if (!mounted || seq != _resolveSeq) return;
       setState(() {
         _reversing = false;
-        if (r != null) {
-          _address = r.displayName;
-          _city = r.city;
-          _region = r.region;
-        }
+        _address = r?.displayName ?? '';
+        _city = r?.city ?? '';
+        _region = r?.region ?? '';
       });
     } on Object catch (error, stackTrace) {
       reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() => _reversing = false);
+      if (!mounted || seq != _resolveSeq) return;
+      setState(() {
+        _reversing = false;
+        _address = '';
+        _city = '';
+        _region = '';
+        _error = error is RepositoryException
+            ? errorMessage(l10n, error)
+            : l10n.errorGenericTitle;
+      });
     }
   }
 
@@ -180,7 +194,10 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
 
   void _selectResult(GeoResult r) {
     _centre = LatLng(r.lat, r.lon);
+    // The picked result is authoritative — drop any in-flight reverse lookup.
+    _resolveSeq++;
     setState(() {
+      _reversing = false;
       _address = r.displayName;
       _city = r.city;
       _region = r.region;
