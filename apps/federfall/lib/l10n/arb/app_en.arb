@@ -827,6 +827,15 @@
     "@placementFieldCarer": { "description": "Label for the carer holding the animal" },
     "placementHandoffHint": "Hands the case off to this carer; you keep read access.",
     "@placementHandoffHint": { "description": "Note shown when a handoff is selected" },
+    "placementHandoffConfirmTitle": "Hand off case?",
+    "@placementHandoffConfirmTitle": { "description": "Title of the handoff confirmation dialog" },
+    "placementHandoffConfirmBody": "This hands the case off to {name}. You keep read access but can no longer edit it.",
+    "@placementHandoffConfirmBody": {
+        "description": "Body of the handoff confirmation dialog",
+        "placeholders": { "name": { "type": "String" } }
+    },
+    "placementHandoffConfirmAction": "Hand off",
+    "@placementHandoffConfirmAction": { "description": "Confirm button of the handoff confirmation dialog" },
     "placementFieldMovedAt": "Moved on",
     "@placementFieldMovedAt": { "description": "Label for the placement date" },
     "placementFieldWhere": "Held at",

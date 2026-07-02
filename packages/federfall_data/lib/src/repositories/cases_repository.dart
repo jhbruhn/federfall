@@ -1,6 +1,13 @@
+import 'dart:async';
+
 import 'package:federfall_data/src/pb_repository.dart';
+import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
+
+/// Ids of the records created by one atomic intake call.
+typedef IntakeResult = ({String caseId, String animalId});
 
 /// Repository over the `cases` collection (admission episodes).
 ///
@@ -18,6 +25,16 @@ abstract interface class CasesRepository implements Repository<Case> {
 
   /// The case with the given per-year number, or `null`.
   Future<Case?> byCaseNumber(String caseNumber);
+
+  /// Atomic case intake via `POST /api/federfall/intake`: creates the animal
+  /// (or reuses `payload['animal']`), the optional finder and the case — plus
+  /// an intake weight and a quarantine override when given — in one
+  /// server-side transaction, so a failure never strands partial records
+  /// (federfall-zod). [photos] land on the case's `intake_photos` field.
+  Future<IntakeResult> intake(
+    Map<String, dynamic> payload, {
+    List<http.MultipartFile> photos,
+  });
 }
 
 class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
@@ -50,4 +67,32 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   Future<Case?> byCaseNumber(String caseNumber) => firstWhere(
     filterExpr('case_number = {:n}', {'n': caseNumber}),
   );
+
+  @override
+  Future<IntakeResult> intake(
+    Map<String, dynamic> payload, {
+    List<http.MultipartFile> photos = const [],
+  }) async {
+    try {
+      final res = await pb
+          .send<Map<String, dynamic>>(
+            '/api/federfall/intake',
+            method: 'POST',
+            body: payload,
+            files: photos,
+          )
+          .timeout(networkTimeout);
+      return (
+        caseId: (res['id'] as String?) ?? '',
+        animalId: (res['animal'] as String?) ?? '',
+      );
+    } on TimeoutException {
+      throw const RepositoryException(
+        'Could not reach the server',
+        kind: RepositoryErrorKind.network,
+      );
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
 }

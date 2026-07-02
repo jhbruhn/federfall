@@ -21,13 +21,9 @@ class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
 class MockCasesRepo extends Mock implements PbCasesRepository {}
 
-class MockFindersRepo extends Mock implements PbFindersRepository {}
-
 class MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
 
 class MockImagePicker extends Mock implements ImagePicker {}
-
-class MockWeightsRepo extends Mock implements PbWeightsRepository {}
 
 void main() {
   setUpAll(() {
@@ -37,33 +33,29 @@ void main() {
 
   late MockAnimalsRepo animals;
   late MockCasesRepo cases;
-  late MockFindersRepo finders;
   late MockMarkingsRepo markings;
   late MockImagePicker picker;
-  late MockWeightsRepo weights;
 
   setUp(() {
     animals = MockAnimalsRepo();
     cases = MockCasesRepo();
-    finders = MockFindersRepo();
     markings = MockMarkingsRepo();
     picker = MockImagePicker();
-    weights = MockWeightsRepo();
     when(picker.pickMultiImage).thenAnswer((_) async => []);
-    when(() => weights.create(any())).thenAnswer(
-      (_) async => const Weight(id: 'w1', animal: 'a1', weightG: 0),
-    );
-    when(() => animals.create(any()))
-        .thenAnswer((_) async => const Animal(id: 'a1', species: 'Stadttaube'));
     when(() => animals.searchByName(any())).thenAnswer((_) async => []);
-    when(() => cases.create(any()))
-        .thenAnswer((_) async => const Case(id: 'c1', animal: 'a1'));
+    // The whole intake is one atomic backend call (federfall-zod).
+    when(() => cases.intake(any(), photos: any(named: 'photos')))
+        .thenAnswer((_) async => (caseId: 'c1', animalId: 'a1'));
     when(() => cases.forAnimal(any())).thenAnswer((_) async => []);
-    when(() => finders.create(any()))
-        .thenAnswer((_) async => const Finder(id: 'f1'));
     when(() => markings.activeByCode(any())).thenAnswer((_) async => []);
     when(() => markings.forAnimal(any())).thenAnswer((_) async => []);
   });
+
+  // The payload of the single intake call.
+  Map<String, dynamic> capturedPayload() =>
+      verify(() => cases.intake(captureAny(), photos: any(named: 'photos')))
+          .captured
+          .single as Map<String, dynamic>;
 
   // Enters [value] into the field carrying [label], located via its label text.
   Future<void> enterByLabel(
@@ -102,9 +94,7 @@ void main() {
           (ref) async => const [AdmissionReason(id: 'adre1', label: 'Injury')],
         ),
         casesRepositoryProvider.overrideWith((ref) async => cases),
-        findersRepositoryProvider.overrideWith((ref) async => finders),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
-        weightsRepositoryProvider.overrideWith((ref) async => weights),
         imagePickerProvider.overrideWithValue(picker),
       ],
     );
@@ -156,7 +146,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('creates an animal + case and opens the created case',
+  testWidgets('submits one atomic intake and opens the created case',
       (tester) async {
     await pump(tester);
 
@@ -167,17 +157,12 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
-    final animalBody =
-        verify(() => animals.create(captureAny())).captured.single
-            as Map<String, dynamic>;
-    expect(animalBody['species'], 'Stadttaube');
-    expect(animalBody['org'], 'org1');
-
-    final caseBody = verify(() => cases.create(captureAny())).captured.single
-        as Map<String, dynamic>;
-    expect(caseBody['animal'], 'a1');
-    expect(caseBody['org'], 'org1');
-    expect(caseBody['active_carer'], 'u1');
+    final payload = capturedPayload();
+    expect(payload['species'], 'Stadttaube');
+    // org / active_carer come from the authenticated session server-side.
+    expect(payload.containsKey('org'), isFalse);
+    expect(payload.containsKey('active_carer'), isFalse);
+    final caseBody = payload['case'] as Map<String, dynamic>;
     expect(caseBody['admission_reasons'], ['adre1']);
 
     // Landed on the case just admitted, not back on the list.
@@ -206,7 +191,7 @@ void main() {
 
     // The case was created, and the exam sheet opened on it instead of
     // popping straight back to the list.
-    verify(() => cases.create(any())).called(1);
+    verify(() => cases.intake(any(), photos: any(named: 'photos'))).called(1);
     expect(find.text('New exam'), findsOneWidget);
     expect(find.text('HOME'), findsNothing);
   });
@@ -221,10 +206,10 @@ void main() {
 
     expect(find.text('This field is required'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Create case'), findsNothing);
-    verifyNever(() => animals.create(any()));
+    verifyNever(() => cases.intake(any(), photos: any(named: 'photos')));
   });
 
-  testWidgets('captures intake details and creates a linked finder',
+  testWidgets('captures intake details, weight and finder in the payload',
       (tester) async {
     await pump(tester);
 
@@ -246,30 +231,20 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
-    final caseBody = verify(() => cases.create(captureAny())).captured.single
-        as Map<String, dynamic>;
-    expect(caseBody.containsKey('intake_weight_g'), isFalse);
+    final payload = capturedPayload();
+    final caseBody = payload['case'] as Map<String, dynamic>;
     expect(caseBody['intake_notes'], 'thin but alert');
     expect(caseBody['find_location'], 'Domplatz');
-    expect(caseBody['finder'], 'f1');
 
-    // Intake weight becomes a Weight entry on the new case, not a case field.
-    final weightBody =
-        verify(() => weights.create(captureAny())).captured.single
-            as Map<String, dynamic>;
-    expect(weightBody['weight_g'], 250);
-    expect(weightBody['case'], 'c1');
-    expect(weightBody['animal'], 'a1');
+    // Intake weight travels with the intake (a Weight row server-side).
+    expect(payload['weight_g'], 250);
 
-    final finderBody = verify(() => finders.create(captureAny()))
-        .captured
-        .single as Map<String, dynamic>;
+    final finderBody = payload['finder'] as Map<String, dynamic>;
     expect(finderBody['last_name'], 'Klein');
     expect(finderBody['phone'], '0151 234');
-    expect(finderBody['org'], 'org1');
   });
 
-  testWidgets('does not create a finder when the section is left blank',
+  testWidgets('omits the finder when the section is left blank',
       (tester) async {
     await pump(tester);
 
@@ -279,10 +254,9 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
-    verifyNever(() => finders.create(any()));
-    final caseBody = verify(() => cases.create(captureAny())).captured.single
-        as Map<String, dynamic>;
-    expect(caseBody.containsKey('finder'), isFalse);
+    final payload = capturedPayload();
+    expect(payload.containsKey('finder'), isFalse);
+    expect(payload.containsKey('weight_g'), isFalse);
   });
 
   testWidgets('re-identifying links the case to the existing animal',
@@ -291,6 +265,8 @@ void main() {
       (_) async =>
           const [Animal(id: 'a9', species: 'Stadttaube', name: 'Pauli')],
     );
+    when(() => cases.intake(any(), photos: any(named: 'photos')))
+        .thenAnswer((_) async => (caseId: 'c1', animalId: 'a9'));
 
     await pump(tester);
 
@@ -308,10 +284,9 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
-    verifyNever(() => animals.create(any()));
-    final caseBody = verify(() => cases.create(captureAny())).captured.single
-        as Map<String, dynamic>;
-    expect(caseBody['animal'], 'a9');
+    final payload = capturedPayload();
+    expect(payload['animal'], 'a9');
+    expect(payload.containsKey('species'), isFalse);
   });
 
   testWidgets('pre-links the case when opened for an existing animal',
@@ -332,10 +307,9 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
-    verifyNever(() => animals.create(any()));
-    final caseBody = verify(() => cases.create(captureAny())).captured.single
-        as Map<String, dynamic>;
-    expect(caseBody['animal'], 'a1');
+    final payload = capturedPayload();
+    expect(payload['animal'], 'a1');
+    expect(payload.containsKey('species'), isFalse);
   });
 
   testWidgets('leaving a pristine wizard pops without prompting',
@@ -373,8 +347,7 @@ void main() {
     await tester.tap(find.text('Discard'));
     await tester.pumpAndSettle();
     expect(find.text('HOME'), findsOneWidget);
-    verifyNever(() => animals.create(any()));
-    verifyNever(() => cases.create(any()));
+    verifyNever(() => cases.intake(any(), photos: any(named: 'photos')));
   });
 
   testWidgets('progress without typing still guards against back',
@@ -391,7 +364,7 @@ void main() {
     expect(find.text('Discard changes?'), findsOneWidget);
   });
 
-  testWidgets('staged intake photos upload via createWithFiles',
+  testWidgets('staged intake photos ride along on the intake call',
       (tester) async {
     when(picker.pickMultiImage).thenAnswer(
       (_) async => [
@@ -402,8 +375,6 @@ void main() {
         ),
       ],
     );
-    when(() => cases.createWithFiles(any(), any()))
-        .thenAnswer((_) async => const Case(id: 'c1', animal: 'a1'));
 
     await pump(tester);
 
@@ -417,9 +388,8 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
-    verifyNever(() => cases.create(any()));
     final files = verify(
-      () => cases.createWithFiles(any(), captureAny()),
+      () => cases.intake(any(), photos: captureAny(named: 'photos')),
     ).captured.single as List<http.MultipartFile>;
     expect(files.length, 1);
     expect(files.single.field, 'intake_photos');

@@ -93,16 +93,46 @@ void main() {
     await tester.pumpAndSettle();
     await save(tester);
 
-    // The case's active carer is updated (hook then auto-shares Alice).
-    final caseBody = verify(() => cases.update('c1', captureAny()))
-        .captured
-        .single as Map<String, dynamic>;
-    expect(caseBody['active_carer'], 'u2');
+    // Handing off is consequential (the giver drops to read access), so a
+    // confirmation dialog interposes before anything is written.
+    expect(find.text('Hand off case?'), findsOneWidget);
+    verifyNever(() => placements.create(any()));
+    await tester.tap(find.widgetWithText(FilledButton, 'Hand off'));
+    await tester.pumpAndSettle();
 
+    // One write: the backend hook derives the active_carer change from
+    // `to_user` in the same transaction (and auto-shares Alice read access).
+    verifyNever(() => cases.update(any(), any()));
     final body = verify(() => placements.create(captureAny())).captured.single
         as Map<String, dynamic>;
     expect(body['from_user'], 'u1');
     expect(body['to_user'], 'u2');
+  });
+
+  testWidgets('cancelling the handoff confirmation writes nothing',
+      (tester) async {
+    await pump(
+      tester,
+      const PlacementSheet(
+        medicalCase: medicalCase,
+        mode: PlacementMode.handoff,
+      ),
+    );
+
+    await tester.tap(find.text('Alice'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bob').last);
+    await tester.pumpAndSettle();
+    await save(tester);
+
+    expect(find.text('Hand off case?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Back on the sheet, nothing written.
+    verifyNever(() => placements.create(any()));
+    verifyNever(() => cases.update(any(), any()));
+    expect(find.text('Save'), findsOneWidget);
   });
 
   testWidgets('handoff to the same carer is blocked', (tester) async {

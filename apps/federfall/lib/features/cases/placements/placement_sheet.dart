@@ -43,8 +43,9 @@ Future<bool?> showPlacementSheet(
 
 /// Records a placement / handoff (FED-4.9): where the bird is held and who
 /// holds it. Choosing a carer other than the case's current active carer is a
-/// handoff — it updates `active_carer` (the backend then leaves the previous
-/// carer a read share) and records the from→to transfer.
+/// handoff: the record carries `to_user`, and the backend hook updates the
+/// case's `active_carer` from it in the same transaction (leaving the
+/// previous carer a read share).
 class PlacementSheet extends ConsumerStatefulWidget {
   const PlacementSheet({
     required this.medicalCase,
@@ -129,6 +130,36 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
     }
   }
 
+  /// Asks the giver to confirm the handoff: they drop to a read share, which
+  /// is too consequential for a hint text alone (federfall-h5m).
+  Future<bool> _confirmHandoff() async {
+    final l10n = context.l10n;
+    final members = ref.read(orgMembersProvider).value ?? const <AppUser>[];
+    final target = members.where((m) => m.id == _carerId).firstOrNull;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.placementHandoffConfirmTitle),
+        content: Text(
+          l10n.placementHandoffConfirmBody(
+            target == null ? '?' : memberLabel(target),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.placementHandoffConfirmAction),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   Future<void> _save() async {
     final l10n = context.l10n;
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -140,6 +171,8 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
       setState(() => _error = l10n.placementHandoffSameCarer);
       return;
     }
+    final handoff = _isHandoff;
+    if (handoff && !await _confirmHandoff()) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -155,7 +188,6 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
       final placementsRepo = await ref.read(
         placementsRepositoryProvider.future,
       );
-      final handoff = _isHandoff;
 
       final body = <String, dynamic>{
         'moved_in_at': _movedInAt.toUtc().toIso8601String(),
@@ -169,6 +201,10 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
 
       final placement = widget.placement;
       if (placement == null) {
+        // A `to_user` makes this a handoff: the backend hook updates the
+        // case's active_carer in the SAME transaction (and auto-shares the
+        // previous carer read access), so the chain-of-custody record and the
+        // carer change cannot diverge (federfall-h5m).
         await placementsRepo.create({
           ...body,
           'case': caseId,
@@ -180,11 +216,7 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
         await placementsRepo.update(placement.id, body);
       }
 
-      // A handoff changes the active carer; the backend auto-shares the
-      // previous carer (read) on this update.
       if (handoff) {
-        final casesRepo = await ref.read(casesRepositoryProvider.future);
-        await casesRepo.update(caseId, {'active_carer': _carerId});
         ref
           ..invalidate(caseByIdProvider(caseId))
           ..invalidate(casesBrowserDataProvider)

@@ -642,6 +642,129 @@ def main():
     })
     check("anonymous direct user creation is denied", s != 200, f"status {s}")
 
+    # ── federfall-zod: atomic intake route + cases.finder lock ──────────────
+    print("\n[atomic intake route]")
+    s, _ = req("POST", "/api/federfall/intake", None, {"species": "Stadttaube"})
+    check("intake requires auth", s == 401, f"status {s}")
+    s, _ = req("POST", "/api/federfall/intake", gtok, {"species": "Stadttaube"})
+    check("guest CANNOT intake", s == 403, f"status {s}")
+    s, _ = req("POST", "/api/federfall/intake", toks["a"], {})
+    check("intake without animal/species is rejected", s == 400, f"status {s}")
+
+    s, ic = req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Stadttaube", "name": "Zoe",
+        "finder": {"last_name": "Fund", "phone": "0151 999"},
+        "case": {"intake_notes": "thin but alert",
+                 "admitted_at": "2026-06-01 10:00:00.000Z"},
+        "weight_g": 250, "quarantine_days": 10,
+    })
+    check("intake creates the case", s == 200 and bool(ic and ic.get("id")), f"{s} {ic}")
+    _, icase = req("GET", f"/api/collections/cases/records/{ic['id']}", T)
+    check("intake case_number assigned by hook",
+          bool(icase.get("case_number")), icase.get("case_number"))
+    check("intake org/carer come from the session",
+          icase["org"] == ORG and icase["active_carer"] == A,
+          f"{icase.get('org')}/{icase.get('active_carer')}")
+    ifinders = listf(T, "finders", 'last_name = "Fund"')
+    check("intake created + linked the finder",
+          len(ifinders) == 1 and icase["finder"] == ifinders[0]["id"],
+          icase.get("finder"))
+    iw = listf(T, "weights", f'case = "{ic["id"]}"')
+    check("intake weight became a weights row",
+          len(iw) == 1 and iw[0]["weight_g"] == 250, iw)
+    iq = listf(T, "quarantine_records", f'case = "{ic["id"]}"')
+    check("quarantine override row (admitted+10d), no default duplicate",
+          len(iq) == 1 and iq[0]["quarantine_until"][:10] == "2026-06-11", iq)
+
+    # Multipart intake: the Dart SDK sends the payload as an `@jsonPayload`
+    # field next to the `intake_photos` files — exactly what the app does for
+    # a photo intake.
+    boundary = "----fedintakeboundary"
+    payload = json.dumps({"species": "Stadttaube", "name": "Foto",
+                          "case": {"intake_notes": "with photo"}})
+    mp = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="@jsonPayload"\r\n\r\n'
+        f"{payload}\r\n"
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="intake_photos"; filename="in.png"\r\n'
+        "Content-Type: image/png\r\n\r\n"
+    ).encode() + _PNG_1X1 + f"\r\n--{boundary}--\r\n".encode()
+    r = urllib.request.Request(
+        BASE + "/api/federfall/intake", data=mp, method="POST",
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
+                 "Authorization": toks["a"]})
+    try:
+        resp = urllib.request.urlopen(r)
+        s, mic = resp.status, json.loads(resp.read().decode())
+    except urllib.error.HTTPError as err:
+        s, mic = err.code, None
+    check("multipart intake (jsonPayload + photos) succeeds",
+          s == 200 and bool(mic and mic.get("id")), f"status {s}")
+    _, mcase = req("GET", f"/api/collections/cases/records/{mic['id']}", T)
+    check("multipart intake stored the photo",
+          len(mcase.get("intake_photos") or []) == 1, mcase.get("intake_photos"))
+    check("multipart intake parsed the jsonPayload fields",
+          mcase.get("intake_notes") == "with photo", mcase.get("intake_notes"))
+
+    # Atomicity: a case that fails validation must roll back the already-
+    # created finder + animal (no orphaned, carer-invisible PII).
+    s, _ = req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Stadttaube", "name": "Ghostbird",
+        "finder": {"last_name": "Ghost"},
+        "case": {"admission_reasons": ["nonexistent00000"]},
+    })
+    check("intake with invalid case data fails", s >= 400, f"status {s}")
+    check("failed intake strands no finder PII",
+          len(listf(T, "finders", 'last_name = "Ghost"')) == 0)
+    check("failed intake strands no animal",
+          len(listf(T, "animals", 'name = "Ghostbird"')) == 0)
+
+    # Re-identification must not accept a foreign org's animal.
+    fanimal = mk(T, "animals", {"species": "Stadttaube", "org": org2})["id"]
+    s, _ = req("POST", "/api/federfall/intake", toks["a"], {"animal": fanimal})
+    check("intake CANNOT reuse a foreign-org animal", s == 400, f"status {s}")
+
+    # cases.finder is locked for direct writes (federfall-9hy): linking is
+    # exclusively the intake route's job.
+    s, _ = req("POST", "/api/collections/cases/records", toks["a"],
+               {"animal": animal, "active_carer": A, "org": ORG,
+                "finder": ifinders[0]["id"]})
+    check("direct case create with finder is rejected", s >= 400, f"status {s}")
+    own = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    s, _ = req("PATCH", f"/api/collections/cases/records/{own}", toks["a"],
+               {"finder": ifinders[0]["id"]})
+    check("re-pointing cases.finder is rejected", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/cases/records/{own}", toks["a"],
+               {"intake_notes": "still editable"})
+    check("case content stays editable", s == 200, f"status {s}")
+
+    # ── federfall-h5m: handoff derived from the placement record ────────────
+    print("\n[atomic handoff via placement]")
+    hc = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    s, hp = req("POST", "/api/collections/placements/records", toks["a"], {
+        "case": hc, "to_user": B, "org": ORG,
+        # a stale/lying client from_user must be corrected server-side
+        "from_user": D,
+    })
+    check("handoff placement accepted", s == 200, f"{s} {hp}")
+    _, hcf = req("GET", f"/api/collections/cases/records/{hc}", T)
+    check("active_carer derived from to_user",
+          hcf["active_carer"] == B, hcf.get("active_carer"))
+    check("from_user pinned to the real previous carer",
+          bool(hp) and hp.get("from_user") == A, hp and hp.get("from_user"))
+    hshares = listf(T, "case_shares", f'case = "{hc}" && shared_with = "{A}"')
+    check("previous carer keeps a read share",
+          len(hshares) == 1 and hshares[0]["access"] == "read", hshares)
+    # A plain move (no to_user) must not touch the carer.
+    s, _ = req("POST", "/api/collections/placements/records", toks["b"], {
+        "case": hc, "enclosure": "Box 3", "org": ORG,
+    })
+    check("move logged by the new carer", s == 200, f"status {s}")
+    _, hcf = req("GET", f"/api/collections/cases/records/{hc}", T)
+    check("plain move leaves active_carer unchanged",
+          hcf["active_carer"] == B, hcf.get("active_carer"))
+
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)

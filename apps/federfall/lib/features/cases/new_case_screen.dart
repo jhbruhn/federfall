@@ -1,4 +1,3 @@
-import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/org_settings_providers.dart';
@@ -28,11 +27,12 @@ import 'package:image_picker/image_picker.dart';
 /// Full intake form (FED-4.1). Captures the persistent **animal** identity
 /// (species, name, sex), the **case** intake details (reasons, dates, find
 /// location, weight, notes) and — optionally — the external **finder**'s
-/// contact PII. On submit it creates the animal, the finder if any field was
-/// filled, then the case linking them with the signed-in user as active carer;
-/// the backend hooks fill in case number, status and quarantine window. On
-/// success it navigates to the created case (the next action — weigh, medicate,
-/// journal — is almost always there, not on the list).
+/// contact PII. Submit is ONE atomic backend call (`/api/federfall/intake`,
+/// federfall-zod): animal, finder and case are created in a single server-side
+/// transaction with the signed-in user as active carer; the backend fills in
+/// case number, status and quarantine window. On success it navigates to the
+/// created case (the next action — weigh, medicate, journal — is almost always
+/// there, not on the list).
 ///
 /// Photo attachments and map-based find-location are deferred to FED-4.7 and
 /// FED-4.2 respectively.
@@ -217,9 +217,9 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
     return files;
   }
 
-  /// Builds the finder body from the contact fields, or `null` when the carer
-  /// left the whole section blank.
-  Map<String, dynamic>? _finderBody(String org) {
+  /// Builds the finder contact fields, or `null` when the carer left the
+  /// whole section blank (the backend only creates a finder when non-null).
+  Map<String, dynamic>? _finderBody() {
     final fields = {
       'first_name': _trimmedOrNull(_finderFirstName),
       'last_name': _trimmedOrNull(_finderLastName),
@@ -227,8 +227,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       'email': _trimmedOrNull(_finderEmail),
       'city': _trimmedOrNull(_finderCity),
     }..removeWhere((_, v) => v == null);
-    if (fields.isEmpty) return null;
-    return {...fields, 'org': org};
+    return fields.isEmpty ? null : fields;
   }
 
   Future<void> _pickDate(
@@ -259,101 +258,53 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
     });
 
     try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
-
       final casesRepo = await ref.read(casesRepositoryProvider.future);
 
-      // Re-identified return: reuse the existing animal; otherwise create one.
-      final String animalId;
-      final linked = _linkedAnimal;
-      if (linked != null) {
-        animalId = linked.id;
-      } else {
-        final animalsRepo = await ref.read(animalsRepositoryProvider.future);
-        final name = _trimmedOrNull(_nameController);
-        animalId = (await animalsRepo.create({
-          'species': _speciesController.text.trim(),
-          'name': ?name,
-          'org': org,
-        })).id;
-      }
-
-      // Only touch the finders collection when contact details were entered.
-      final finderBody = _finderBody(org);
-      String? finderId;
-      if (finderBody != null) {
-        final findersRepo = await ref.read(findersRepositoryProvider.future);
-        finderId = (await findersRepo.create(finderBody)).id;
-      }
-
+      // One atomic backend call (federfall-zod): animal (or the re-identified
+      // one), optional finder PII, the case, the intake weight and a
+      // quarantine override are created in a single server-side transaction —
+      // a failure strands nothing and retrying cannot duplicate records. The
+      // backend sets org/active_carer from the session and fills in case
+      // number, status and the default quarantine window.
       final weight = int.tryParse(_intakeWeightController.text.trim());
-      final body = <String, dynamic>{
-        'animal': animalId,
-        'org': org,
-        'active_carer': user.id,
-        'admission_reasons': _reasons.toList(),
-        if (_ageClass != null) 'age_class': _ageClass!.wire,
-        if (_foundAt != null) 'found_at': _foundAt!.toUtc().toIso8601String(),
-        if (_admittedAt != null)
-          'admitted_at': _admittedAt!.toUtc().toIso8601String(),
-        'find_location': ?_trimmedOrNull(_findLocationController),
-        if (_findGeo case final geo?)
-          'find_geo': {'lon': geo.lon, 'lat': geo.lat},
-        'city': ?_findCity,
-        'region': ?_findRegion,
-        'intake_notes': ?_trimmedOrNull(_intakeNotesController),
-        'finder': ?finderId,
-      };
-
-      final photos = await _intakePhotoFiles();
-      final created = photos.isEmpty
-          ? await casesRepo.create(body)
-          : await casesRepo.createWithFiles(body, photos);
-
-      // The intake weight is a real Weight entry (single source of truth +
-      // trend), not a field on the case. Baseline measured at admission.
-      if (weight != null && weight > 0) {
-        final weightsRepo = await ref.read(weightsRepositoryProvider.future);
-        await weightsRepo.create({
-          'animal': animalId,
-          'case': created.id,
-          'weight_g': weight,
-          'measured_at': (_admittedAt ?? DateTime.now())
-              .toUtc()
-              .toIso8601String(),
-          'author': user.id,
-          'org': org,
-        });
-      }
-
-      // Quarantine: the create hook already made the org-default record. If the
-      // carer set a different duration, update that record's end rather than
-      // adding a second one (one record per quarantine period).
       final quarantineDays = int.tryParse(
         _quarantineDaysController.text.trim(),
       );
-      if (quarantineDays != null &&
-          quarantineDays > 0 &&
-          quarantineDays != _orgDefaultQuarantineDays) {
-        final quarantineRepo = await ref.read(
-          quarantineRepositoryProvider.future,
-        );
-        final records = await quarantineRepo.forCase(created.id);
-        if (records.isNotEmpty) {
-          final base = _admittedAt ?? DateTime.now();
-          await quarantineRepo.update(records.first.id, {
-            'set_at': base.toUtc().toIso8601String(),
-            'quarantine_until': base
-                .add(Duration(days: quarantineDays))
-                .toUtc()
-                .toIso8601String(),
-          });
-        }
-      }
+      final linked = _linkedAnimal;
+      final payload = <String, dynamic>{
+        if (linked != null)
+          'animal': linked.id
+        else ...{
+          'species': _speciesController.text.trim(),
+          'name': ?_trimmedOrNull(_nameController),
+        },
+        'finder': ?_finderBody(),
+        'case': <String, dynamic>{
+          'admission_reasons': _reasons.toList(),
+          if (_ageClass != null) 'age_class': _ageClass!.wire,
+          if (_foundAt != null) 'found_at': _foundAt!.toUtc().toIso8601String(),
+          if (_admittedAt != null)
+            'admitted_at': _admittedAt!.toUtc().toIso8601String(),
+          'find_location': ?_trimmedOrNull(_findLocationController),
+          if (_findGeo case final geo?)
+            'find_geo': {'lon': geo.lon, 'lat': geo.lat},
+          'city': ?_findCity,
+          'region': ?_findRegion,
+          'intake_notes': ?_trimmedOrNull(_intakeNotesController),
+        },
+        if (weight != null && weight > 0) 'weight_g': weight,
+        // The org-default duration is applied by the backend hook anyway, so
+        // only an explicit per-case override travels with the intake.
+        if (quarantineDays != null &&
+            quarantineDays > 0 &&
+            quarantineDays != _orgDefaultQuarantineDays)
+          'quarantine_days': quarantineDays,
+      };
+
+      final created = await casesRepo.intake(
+        payload,
+        photos: await _intakePhotoFiles(),
+      );
 
       ref
         ..invalidate(casesBrowserDataProvider)
@@ -364,15 +315,15 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       if (_withExam) {
         await showExamSheet(
           context,
-          caseId: created.id,
-          animalId: animalId,
+          caseId: created.caseId,
+          animalId: created.animalId,
         );
         if (!mounted) return;
       }
       // Land on the case just admitted — the next action (weigh, medicate,
       // journal) is almost always there. `go` replaces the wizard route with
       // the list → detail stack, so back from the detail reaches the list.
-      context.go(AppRoutes.caseDetail(created.id));
+      context.go(AppRoutes.caseDetail(created.caseId));
     } on RepositoryException catch (e) {
       if (!mounted) return;
       setState(() {

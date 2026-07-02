@@ -99,7 +99,11 @@ Three layers (see `federfall-implementation-is-planned-in-beads-9-phase` memory 
 memory): PocketBase with JS migrations (`backend/pocketbase/pb_migrations/*.js`, numbered,
 committed) and hooks (`pb_hooks/*.pb.js`). Schema changes = new migration, never hand-edit.
 Hooks own case-number/quarantine defaults, share-on-handoff, and disposition side-effects
-(case `status`, animal `lifetime_status`). Access rules in `1700000010_access_rules.js` are
+(case `status`, animal `lifetime_status`). Multi-record writes are atomic server-side:
+case intake goes through `POST /api/federfall/intake` (`pb_hooks/intake.pb.js`, one
+transaction for animal+finder+case+weight+quarantine; `cases.finder` is locked against
+direct client writes), and a handoff is just a placement with `to_user` — the hook derives
+the `active_carer` change in the same transaction. Access rules in `1700000010_access_rules.js` are
 the real security boundary (org-scoped, private-by-default + opt-in sharing). Rule tests are
 Python (`backend/pocketbase/tests/test_rules.py`, run via `run.sh`) and **need a live PB** —
 they can't run in the Flutter test suite, so verify migrations/hooks against a running stack.

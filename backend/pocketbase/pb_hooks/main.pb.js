@@ -8,7 +8,9 @@
 //      animal `lifetime_status` / `current_aviary`.
 //   3. cases on update: share-on-handoff — when `active_carer` changes, the
 //      previous carer keeps read access via an automatic case_share.
-//   4. users on update: field guard — a non-supervisor may not change
+//   4. placements on create: a record with `to_user` set IS a handoff — the
+//      case's `active_carer` is updated in the same transaction.
+//   5. users on update: field guard — a non-supervisor may not change
 //      role / org / is_active / verified on any user (incl. themselves).
 //
 // NOTE: each hook callback runs in its own isolated PocketBase JSVM, so
@@ -288,7 +290,34 @@ onRecordUpdate((e) => {
   }
 }, "cases");
 
-// ── 4. users: field guard against privilege escalation ─────────────────────────
+// ── 4. placements: a handoff record drives the carer change ────────────────────
+// federfall-h5m: the client used to create the placements (chain-of-custody)
+// record and THEN update cases.active_carer — if the second call failed, the
+// log claimed a from→to transfer that never happened. Deriving the carer
+// change from the placement inside the SAME transaction makes the handoff
+// atomic: either both persist or neither does. `from_user` is also pinned to
+// the case's actual current carer, so the log stays honest even when the
+// client's view of the case was stale. The cases update hook (§3) then leaves
+// the previous carer a read share, still in-transaction.
+onRecordCreate((e) => {
+  const toUser = e.record.getString("to_user");
+  const caseId = e.record.getString("case");
+  let caseRec = null;
+  if (toUser && caseId) {
+    caseRec = e.app.findRecordById("cases", caseId);
+    const current = caseRec.getString("active_carer");
+    if (current) e.record.set("from_user", current);
+  }
+
+  e.next(); // persist the placement first (validation may still reject it)
+
+  if (caseRec && caseRec.getString("active_carer") !== toUser) {
+    caseRec.set("active_carer", toUser);
+    e.app.save(caseRec);
+  }
+}, "placements");
+
+// ── 5. users: field guard against privilege escalation ─────────────────────────
 // Lets self-service profile edits (name/phone/avatar) through once the
 // updateRule is widened to self, while blocking role/org/is_active/verified
 // changes by anyone who isn't a supervisor (or superuser).
