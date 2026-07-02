@@ -168,7 +168,12 @@ def main():
     check("case_number increments = 2026-002", c2["case_number"] == "2026-002", c2["case_number"])
     check("case_number resets per year = 2025-001", c3["case_number"] == "2025-001", c3["case_number"])
     check("status defaults to in_care", c1["status"] == "in_care", c1["status"])
-    check("quarantine_until = admitted + 14d", c1["quarantine_until"][:10] == "2026-03-24", c1["quarantine_until"])
+    # Quarantine is a timeline record (federfall-uvm), not a case field: the
+    # hook creates one default 14-day quarantine_records row on intake.
+    qrows = listf(T, "quarantine_records", f'case="{c1["id"]}"')
+    check("default quarantine row = admitted + 14d",
+          len(qrows) == 1 and qrows[0]["quarantine_until"][:10] == "2026-03-24",
+          qrows)
 
     # ── hooks: dispositions ─────────────────────────────────────────────────
     print("\n[hooks: dispositions]")
@@ -359,6 +364,63 @@ def main():
     s, _ = req("GET", f"/api/collections/cases/records/{case}", te)
     check("supervisor of another org CANNOT view this org's case", s != 200, f"status {s}")
 
+    # ── immutable boundary relations (federfall-621) ────────────────────────
+    # PocketBase evaluates plain field refs in UPDATE rules against the STORED
+    # record, so without the :isset guards a carer could create a share on
+    # their own case and then re-point it at a private foreign case
+    # (privilege escalation), or an edit-share holder could re-point a child
+    # record into a foreign case's timeline.
+    print("\n[immutable boundary relations]")
+    ta = toks["a"]
+    td = login("d@f.local")[1]
+    victim = mk(T, "cases", {"animal": animal, "active_carer": B, "org": ORG})["id"]
+    s, _ = req("GET", f"/api/collections/cases/records/{victim}", ta)
+    check("setup: A cannot view B's private case", s != 200, f"status {s}")
+    # A legitimately shares their OWN (fresh) case with D — `case` already
+    # carries a hook-created share for D from the handoff tests above.
+    atkcase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    s, sh = req("POST", "/api/collections/case_shares/records", ta, {
+        "case": atkcase, "shared_with": D, "access": "read",
+        "shared_by": A, "org": ORG,
+    })
+    check("setup: A shares own case with D", s == 200, f"{s} {sh}")
+    # ...then tries to re-point the share at the victim case.
+    s, _ = req("PATCH", f"/api/collections/case_shares/records/{sh['id']}", ta,
+               {"case": victim})
+    check("share.case is immutable (no re-point escalation)", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/case_shares/records/{sh['id']}", ta,
+               {"shared_with": A})
+    check("share.shared_with is immutable", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/case_shares/records/{sh['id']}", ta,
+               {"org": org2})
+    check("share.org is immutable", s >= 400, f"status {s}")
+    s, _ = req("GET", f"/api/collections/cases/records/{victim}", td)
+    check("D still cannot view the victim case", s != 200, f"status {s}")
+    # Changing only the access level remains a legitimate update.
+    s, _ = req("PATCH", f"/api/collections/case_shares/records/{sh['id']}", ta,
+               {"access": "edit"})
+    check("share.access alone stays editable", s == 200, f"status {s}")
+    req("DELETE", f"/api/collections/case_shares/records/{sh['id']}", ta)
+    # A case's org scope is immutable too.
+    s, _ = req("PATCH", f"/api/collections/cases/records/{case}", ta, {"org": org2})
+    check("case.org is immutable", s >= 400, f"status {s}")
+    # Child records: C holds an edit share on A's case — content edits are
+    # fine, but re-pointing the row's case (or org) must be rejected.
+    tc = toks["c"]
+    s, je = req("POST", "/api/collections/journal_entries/records", tc,
+                {"case": case, "text": "wound check", "org": ORG})
+    check("setup: edit-share C can add a journal entry", s == 200, f"{s} {je}")
+    s, _ = req("PATCH", f"/api/collections/journal_entries/records/{je['id']}", tc,
+               {"case": victim})
+    check("journal_entry.case is immutable (no timeline injection)",
+          s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/journal_entries/records/{je['id']}", tc,
+               {"org": org2})
+    check("journal_entry.org is immutable", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/journal_entries/records/{je['id']}", tc,
+               {"text": "wound check — healing well"})
+    check("journal_entry content stays editable", s == 200, f"status {s}")
+
     # ── case_summaries view (FED-7.6) ───────────────────────────────────────
     # Org-wide, clinical-detail-free projection: an outsider in the same org may
     # read a case's SUMMARY (for the animal lifetime record) but never the full
@@ -543,6 +605,16 @@ def main():
     check("same-org outsider CANNOT read the finding", s != 200, f"status {s}")
     s, _ = req("GET", f"/api/collections/exam_findings/records/{ef['id']}", te)
     check("other-org member CANNOT read the finding", s != 200, f"status {s}")
+    # Grandchild boundary (federfall-621): the finding's `exam` relation is
+    # its access path — re-pointing it at a foreign exam must be rejected.
+    vexcase = mk(T, "cases", {"animal": animal, "active_carer": B, "org": ORG})["id"]
+    vexam = mk(T, "exams", {"case": vexcase, "animal": animal, "org": ORG})["id"]
+    s, _ = req("PATCH", f"/api/collections/exam_findings/records/{ef['id']}",
+               toks["a"], {"exam": vexam})
+    check("finding.exam is immutable (no re-point)", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/exam_findings/records/{ef['id']}",
+               toks["a"], {"note": "pododermatitis, improving"})
+    check("finding content stays editable", s == 200, f"status {s}")
 
     # ── guest role: can authenticate, but walled off from all data ──────────
     print("\n[guest role]")
