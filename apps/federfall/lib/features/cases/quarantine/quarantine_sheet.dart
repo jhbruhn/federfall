@@ -47,6 +47,7 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
   late DateTime _setAt;
   bool _busy = false;
   String? _error;
+  String? _dateError;
 
   bool get _isEditing => widget.entry != null;
 
@@ -74,7 +75,10 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
       lastDate: DateTime.now(),
     );
     if (picked != null) {
-      setState(() => _setAt = picked);
+      setState(() {
+        _setAt = picked;
+        _dateError = null;
+      });
       markDirty();
     }
   }
@@ -87,13 +91,22 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
       lastDate: DateTime(2100),
     );
     if (picked != null) {
-      setState(() => _until = picked);
+      setState(() {
+        _until = picked;
+        _dateError = null;
+      });
       markDirty();
     }
   }
 
   Future<void> _save() async {
     final l10n = context.l10n;
+    // Ending on the day quarantine was imposed is fine (that's how it is
+    // lifted early); only an end strictly before the start is nonsense.
+    if (DateUtils.dateOnly(_until).isBefore(DateUtils.dateOnly(_setAt))) {
+      setState(() => _dateError = l10n.fieldEndBeforeStart);
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -182,6 +195,7 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
                 label: l10n.caseFieldQuarantineUntil,
                 value: _until,
                 enabled: !_busy,
+                errorText: _dateError,
                 onPick: _pickUntil,
               ),
               const SizedBox(height: AppSpacing.md),
@@ -225,11 +239,13 @@ class _DateField extends StatelessWidget {
     required this.value,
     required this.enabled,
     required this.onPick,
+    this.errorText,
   });
 
   final String label;
   final DateTime value;
   final bool enabled;
+  final String? errorText;
   final VoidCallback onPick;
 
   @override
@@ -241,6 +257,7 @@ class _DateField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: const Icon(Icons.event_outlined),
+          errorText: errorText,
         ),
         child: Text(materialL10n.formatMediumDate(value)),
       ),

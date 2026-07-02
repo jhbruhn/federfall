@@ -24,6 +24,13 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
+/// True when both dates are set and the animal was "found" on a later day
+/// than it was admitted — an impossible order (federfall-6sp).
+bool _foundAfterAdmitted(DateTime? found, DateTime? admitted) =>
+    found != null &&
+    admitted != null &&
+    DateUtils.dateOnly(found).isAfter(DateUtils.dateOnly(admitted));
+
 /// Full intake form (FED-4.1). Captures the persistent **animal** identity
 /// (species, name, sex), the **case** intake details (reasons, dates, find
 /// location, weight, notes) and — optionally — the external **finder**'s
@@ -83,6 +90,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
   // clearable for a bird found earlier or an unknown find date.
   DateTime? _foundAt = DateTime.now();
   DateTime? _admittedAt = DateTime.now();
+  String? _dateError;
 
   // Find location (FED-4.2): a geocoded pin + resolved city/region alongside
   // the free-text address.
@@ -251,6 +259,15 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
     setState(() => _reasonsTouched = true);
     final formOk = _formKey.currentState?.validate() ?? false;
     if (!formOk || _reasons.isEmpty) return;
+    // Dates are gated when leaving step 1, but the carer can go back and
+    // change them afterwards — re-check and return to the offending step.
+    if (_foundAfterAdmitted(_foundAt, _admittedAt)) {
+      setState(() {
+        _dateError = l10n.fieldFoundAfterAdmitted;
+        _step = 1;
+      });
+      return;
+    }
 
     setState(() {
       _busy = true;
@@ -352,8 +369,14 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
         if (missing || !formOk) return;
       }
     } else if (_step == 1) {
-      setState(() => _reasonsTouched = true);
-      if (_reasons.isEmpty) return;
+      final dateError = _foundAfterAdmitted(_foundAt, _admittedAt)
+          ? context.l10n.fieldFoundAfterAdmitted
+          : null;
+      setState(() {
+        _reasonsTouched = true;
+        _dateError = dateError;
+      });
+      if (_reasons.isEmpty || dateError != null) return;
     }
     setState(() => _step++);
   }
@@ -525,11 +548,20 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           label: l10n.caseFieldFoundAt,
           value: _foundAt,
           enabled: !_busy,
-          onPick: () =>
-              _pickDate(_foundAt, (d) => setState(() => _foundAt = d)),
+          errorText: _dateError,
+          onPick: () => _pickDate(
+            _foundAt,
+            (d) => setState(() {
+              _foundAt = d;
+              _dateError = null;
+            }),
+          ),
           onClear: () {
             markDirty();
-            setState(() => _foundAt = null);
+            setState(() {
+              _foundAt = null;
+              _dateError = null;
+            });
           },
         ),
         const SizedBox(height: AppSpacing.md),
@@ -537,11 +569,19 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           label: l10n.caseFieldAdmittedAt,
           value: _admittedAt,
           enabled: !_busy,
-          onPick: () =>
-              _pickDate(_admittedAt, (d) => setState(() => _admittedAt = d)),
+          onPick: () => _pickDate(
+            _admittedAt,
+            (d) => setState(() {
+              _admittedAt = d;
+              _dateError = null;
+            }),
+          ),
           onClear: () {
             markDirty();
-            setState(() => _admittedAt = null);
+            setState(() {
+              _admittedAt = null;
+              _dateError = null;
+            });
           },
         ),
         const SizedBox(height: AppSpacing.md),
@@ -891,11 +931,13 @@ class _DateField extends StatelessWidget {
     required this.enabled,
     required this.onPick,
     required this.onClear,
+    this.errorText,
   });
 
   final String label;
   final DateTime? value;
   final bool enabled;
+  final String? errorText;
   final VoidCallback onPick;
   final VoidCallback onClear;
 
@@ -912,6 +954,7 @@ class _DateField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: const Icon(Icons.event_outlined),
+          errorText: errorText,
           suffixIcon: value != null && enabled
               ? IconButton(
                   icon: const Icon(Icons.clear),

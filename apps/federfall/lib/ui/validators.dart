@@ -36,6 +36,17 @@ abstract final class Validators {
     };
   }
 
+  /// Fails when the value is shorter than [min] characters. Empty passes —
+  /// compose with [required] when the field is mandatory. The value is not
+  /// trimmed (passwords may legitimately start or end with whitespace).
+  static String? Function(String?) minLength(AppLocalizations l10n, int min) {
+    return (value) {
+      final v = value ?? '';
+      if (v.isEmpty) return null;
+      return v.length >= min ? null : l10n.fieldMinLength(min);
+    };
+  }
+
   /// Runs [validators] in order, returning the first failure.
   static String? Function(String?) compose(
     List<String? Function(String?)> validators,

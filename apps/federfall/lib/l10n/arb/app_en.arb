@@ -60,6 +60,21 @@
     "@fieldInvalidEmail": {
         "description": "Validation message for a malformed email address"
     },
+    "fieldMinLength": "Must be at least {min} characters",
+    "@fieldMinLength": {
+        "description": "Validation message for a value below a minimum length",
+        "placeholders": {
+            "min": { "type": "int" }
+        }
+    },
+    "fieldFoundAfterAdmitted": "The found date cannot be after the admission date",
+    "@fieldFoundAfterAdmitted": {
+        "description": "Validation message when found_at is later than admitted_at"
+    },
+    "fieldEndBeforeStart": "The end date cannot be before the start date",
+    "@fieldEndBeforeStart": {
+        "description": "Validation message when a period ends before it starts"
+    },
     "serverSetupTitle": "Connect to server",
     "@serverSetupTitle": {
         "description": "Title of the first-run server configuration screen"

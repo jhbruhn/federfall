@@ -84,6 +84,34 @@ void main() {
     expect(data['admission_reasons'], ['adre1']);
   });
 
+  testWidgets('blocks saving when found date is after the admission date',
+      (tester) async {
+    final repo = MockCasesRepo();
+    await _open(
+      tester,
+      repo,
+      medicalCase: Case(
+        id: 'c1',
+        animal: 'a1',
+        admissionReasons: const ['adre1'],
+        foundAt: DateTime(2026, 1, 10),
+        admittedAt: DateTime(2026, 1, 5),
+      ),
+    );
+
+    final save = find.widgetWithText(FilledButton, 'Save');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('The found date cannot be after the admission date'),
+      findsOneWidget,
+    );
+    verifyNever(() => repo.update(any(), any()));
+  });
+
   testWidgets('blocks saving when no admission reason is selected',
       (tester) async {
     final repo = MockCasesRepo();

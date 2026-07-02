@@ -102,7 +102,12 @@ class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen> {
                       textInputAction: TextInputAction.next,
                       autofocus: true,
                       enabled: !_busy,
-                      validator: Validators.required(l10n),
+                      // PocketBase rejects passwords under 8 characters;
+                      // catch that client-side with a specific message.
+                      validator: Validators.compose([
+                        Validators.required(l10n),
+                        Validators.minLength(l10n, 8),
+                      ]),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     AppTextField(

@@ -115,13 +115,13 @@ void main() {
       initialLocation: '/auth/confirm-reset?token=tok123',
     );
 
-    await tester.enterText(find.byType(TextFormField).first, 'newpass');
-    await tester.enterText(find.byType(TextFormField).last, 'newpass');
+    await tester.enterText(find.byType(TextFormField).first, 'newpass123');
+    await tester.enterText(find.byType(TextFormField).last, 'newpass123');
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(repo.resetToken, 'tok123');
-    expect(repo.resetPassword, 'newpass');
+    expect(repo.resetPassword, 'newpass123');
     expect(find.text('LOGIN'), findsOneWidget);
   });
 
@@ -132,12 +132,29 @@ void main() {
       initialLocation: '/auth/confirm-reset?token=tok123',
     );
 
-    await tester.enterText(find.byType(TextFormField).first, 'newpass');
+    await tester.enterText(find.byType(TextFormField).first, 'newpass123');
     await tester.enterText(find.byType(TextFormField).last, 'different');
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(find.text('Passwords do not match.'), findsOneWidget);
+  });
+
+  testWidgets('rejects a password under 8 characters', (tester) async {
+    final repo = FakeAuthRepository();
+    await _pump(
+      tester,
+      repo: repo,
+      initialLocation: '/auth/confirm-reset?token=tok123',
+    );
+
+    await tester.enterText(find.byType(TextFormField).first, 'short12');
+    await tester.enterText(find.byType(TextFormField).last, 'short12');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Must be at least 8 characters'), findsOneWidget);
+    expect(repo.resetToken, isNull);
   });
 
   testWidgets('rejects a missing token', (tester) async {
@@ -148,8 +165,8 @@ void main() {
       initialLocation: '/auth/confirm-reset',
     );
 
-    await tester.enterText(find.byType(TextFormField).first, 'newpass');
-    await tester.enterText(find.byType(TextFormField).last, 'newpass');
+    await tester.enterText(find.byType(TextFormField).first, 'newpass123');
+    await tester.enterText(find.byType(TextFormField).last, 'newpass123');
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 

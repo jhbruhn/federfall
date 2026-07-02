@@ -34,6 +34,14 @@ void main() {
     test('rejects malformed', () => expect(v('a@b'), isNotNull));
   });
 
+  group('minLength', () {
+    final v = Validators.minLength(l10n, 8);
+    test('rejects a short value', () => expect(v('1234567'), isNotNull));
+    test('accepts at the boundary', () => expect(v('12345678'), isNull));
+    test('empty passes (compose with required)', () => expect(v(''), isNull));
+    test('does not trim', () => expect(v('  pass  '), isNull));
+  });
+
   group('compose', () {
     test('returns first failure in order', () {
       final v = Validators.compose([

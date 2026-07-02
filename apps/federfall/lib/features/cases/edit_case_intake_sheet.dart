@@ -25,6 +25,13 @@ Future<bool?> showEditCaseIntakeSheet(BuildContext context, Case medicalCase) {
   );
 }
 
+/// True when both dates are set and the animal was "found" on a later day
+/// than it was admitted — an impossible order (federfall-6sp).
+bool _foundAfterAdmitted(DateTime? found, DateTime? admitted) =>
+    found != null &&
+    admitted != null &&
+    DateUtils.dateOnly(found).isAfter(DateUtils.dateOnly(admitted));
+
 class EditCaseIntakeSheet extends ConsumerStatefulWidget {
   const EditCaseIntakeSheet({required this.medicalCase, super.key});
 
@@ -50,6 +57,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
   bool _busy = false;
   String? _error;
   bool _reasonsError = false;
+  String? _dateError;
 
   @override
   void initState() {
@@ -111,8 +119,13 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
     final l10n = context.l10n;
     final navigator = Navigator.of(context);
     final validForm = _formKey.currentState?.validate() ?? false;
-    setState(() => _reasonsError = _reasons.isEmpty);
-    if (!validForm || _reasons.isEmpty) return;
+    setState(() {
+      _reasonsError = _reasons.isEmpty;
+      _dateError = _foundAfterAdmitted(_foundAt, _admittedAt)
+          ? l10n.fieldFoundAfterAdmitted
+          : null;
+    });
+    if (!validForm || _reasonsError || _dateError != null) return;
 
     setState(() {
       _busy = true;
@@ -260,12 +273,18 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
                     onPick: () => _pickDate(
                       current: _foundAt,
                       onPicked: (d) {
-                        setState(() => _foundAt = d);
+                        setState(() {
+                          _foundAt = d;
+                          _dateError = null;
+                        });
                         markDirty();
                       },
                     ),
                     onClear: () {
-                      setState(() => _foundAt = null);
+                      setState(() {
+                        _foundAt = null;
+                        _dateError = null;
+                      });
                       markDirty();
                     },
                   ),
@@ -279,15 +298,31 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
                     onPick: () => _pickDate(
                       current: _admittedAt,
                       onPicked: (d) {
-                        setState(() => _admittedAt = d);
+                        setState(() {
+                          _admittedAt = d;
+                          _dateError = null;
+                        });
                         markDirty();
                       },
                     ),
                     onClear: () {
-                      setState(() => _admittedAt = null);
+                      setState(() {
+                        _admittedAt = null;
+                        _dateError = null;
+                      });
                       markDirty();
                     },
                   ),
+                  if (_dateError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.xs),
+                      child: Text(
+                        _dateError!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: AppSpacing.md),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
