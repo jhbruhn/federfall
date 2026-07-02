@@ -230,6 +230,72 @@ void main() {
     expect(find.text('That code is incorrect or has expired.'), findsOneWidget);
   });
 
+  testWidgets('MFA: back leaves the OTP step for the password form',
+      (tester) async {
+    final repo = FakeAuthRepository(
+      onSignIn: (_, _) async => throw const MfaRequiredException('mfa-123'),
+    );
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'staff@example.org',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 's3cret');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter the code'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Back to sign-in'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter the code'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
+  });
+
+  testWidgets('MFA: resend requests a fresh code and verifies against it',
+      (tester) async {
+    var requests = 0;
+    final repo = FakeAuthRepository(
+      onSignIn: (_, _) async => throw const MfaRequiredException('mfa-123'),
+      onRequestOtp: (_) async {
+        requests++;
+        return 'otp$requests';
+      },
+      onAuthWithOtp: (otpId, code, mfaId) async {
+        // The resent code's id replaces the original one.
+        expect(otpId, 'otp2');
+        return const AppUser(id: 'u1', email: 'staff@example.org');
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'staff@example.org',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 's3cret');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+    expect(requests, 1);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Send a new code'));
+    await tester.pumpAndSettle();
+
+    expect(requests, 2);
+    expect(
+      find.text('A new code is on its way to your email.'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(find.byType(TextFormField).first, '12345678');
+    await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(repo.lastOtpCode, '12345678');
+  });
+
   testWidgets('shows the offline error on a network failure', (tester) async {
     final repo = FakeAuthRepository(
       onSignIn: (_, _) async => throw const RepositoryException(

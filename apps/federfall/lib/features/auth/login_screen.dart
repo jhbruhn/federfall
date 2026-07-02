@@ -168,6 +168,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  /// Escape hatch from the OTP step (federfall-8r9): back to the password
+  /// form, e.g. for a typo'd email whose code will never arrive. The entered
+  /// password is kept so retrying is one tap.
+  void _backToPassword() {
+    _otpController.clear();
+    setState(() {
+      _mfaId = null;
+      _otpId = null;
+      _error = null;
+    });
+  }
+
+  /// Requests a fresh one-time code for the same sign-in. The new [_otpId]
+  /// replaces the old one, so only the latest code verifies.
+  Future<void> _resendOtp() async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final repo = await ref.read(authRepositoryProvider.future);
+      final otpId = await repo.requestOtp(_emailController.text.trim());
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _otpId = otpId;
+      });
+      messenger.showSnackBar(SnackBar(content: Text(l10n.authOtpResent)));
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = l10n.errorGenericTitle;
+      });
+    }
+  }
+
   /// Login-specific copy: a rejected password is a 400/401/403 here, which
   /// should read as "wrong credentials" rather than the generic validation /
   /// authorization wording.
@@ -324,6 +364,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         label: l10n.authOtpVerifyAction,
                         isLoading: _busy,
                         onPressed: _verifyOtp,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      TextButton(
+                        onPressed: _busy ? null : _resendOtp,
+                        child: Text(l10n.authOtpResendAction),
+                      ),
+                      TextButton(
+                        onPressed: _busy ? null : _backToPassword,
+                        child: Text(l10n.authOtpBackAction),
                       ),
                     ] else if (auth.password) ...[
                       const SizedBox(height: AppSpacing.lg),
