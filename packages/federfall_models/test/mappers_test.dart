@@ -161,6 +161,22 @@ void main() {
       expect(e.mentation, isNull);
       expect(e.examinedAt, isNull);
     });
+
+    test('maps PB number zero-values to null (what the server really sends)',
+        () {
+      // PB stores unset number fields as 0, not '' — body_condition is 1–5
+      // and 0 °C is not a real bird temperature, so 0 means "not assessed".
+      final r = RecordModel({
+        'id': 'exam0000000003',
+        'case': 'case0000000001',
+        'animal': 'anml0000000001',
+        'body_condition': 0,
+        'temperature': 0,
+      });
+      final e = Exam.fromRecord(r);
+      expect(e.bodyCondition, isNull);
+      expect(e.temperature, isNull);
+    });
   });
 
   group('ExamFinding.fromRecord', () {
