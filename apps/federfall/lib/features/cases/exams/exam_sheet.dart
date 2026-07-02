@@ -137,65 +137,44 @@ class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
         throw const RepositoryException('no org for current user');
       }
       final exams = await ref.read(examsRepositoryProvider.future);
-      final findingsRepo = await ref.read(
-        examFindingsRepositoryProvider.future,
-      );
 
-      final body = <String, dynamic>{
-        'examined_at': _examinedAt.toUtc().toIso8601String(),
-        'body_condition': ?_bodyCondition,
-        'hydration': ?_hydration?.wire,
-        'mentation': ?_mentation?.wire,
-        'temperature': ?_parseNumber(_temperature.text),
-        'mm_color': ?_mmColor?.wire,
-        'mm_texture': ?_mmTexture?.wire,
-        'notes': _notes.text.trim(),
-      };
-
-      final String examId;
+      // One atomic call (federfall-lov0): the hook route persists the exam,
+      // replaces the findings set and creates the optional exam weight in a
+      // single server-side transaction — a mid-save network drop can no
+      // longer lose the previous findings or duplicate the exam on retry.
+      // A weight taken at the exam becomes a real Weight entry (single source
+      // of truth + trend), not a field on the exam. Create-path only so
+      // editing the exam can't silently duplicate it.
       final existing = widget.exam;
-      if (existing == null) {
-        examId = (await exams.create({
-          ...body,
+      final weight = existing == null ? _parseNumber(_weight.text) : null;
+      await exams.saveWithFindings({
+        'id': ?existing?.id,
+        if (existing == null) ...{
           'case': widget.caseId,
           'animal': widget.animalId,
-          'examiner': user.id,
-          'org': org,
-        })).id;
-        // A weight taken at the exam becomes a real Weight entry (single
-        // source of truth + trend), not a field on the exam. Create-path only
-        // so editing the exam can't silently duplicate it.
-        final w = _parseNumber(_weight.text);
-        if (w != null && w > 0) {
-          final weights = await ref.read(weightsRepositoryProvider.future);
-          await weights.create({
-            'animal': widget.animalId,
-            'case': widget.caseId,
-            'weight_g': w,
-            'measured_at': _examinedAt.toUtc().toIso8601String(),
-            'author': user.id,
-            'org': org,
-          });
-          ref.invalidate(weightsForCaseProvider(widget.caseId));
-        }
-      } else {
-        examId = existing.id;
-        await exams.update(examId, body);
-        // Re-derive the findings from scratch: the assessed set is small, so a
-        // clean replace is simpler than diffing.
-        for (final f in widget.findings) {
-          await findingsRepo.delete(f.id);
-        }
-      }
-
-      for (final entry in _findingStatus.entries) {
-        await findingsRepo.create({
-          'exam': examId,
-          'system': entry.key.wire,
-          'status': entry.value.wire,
-          'note': _findingNotes[entry.key]!.text.trim(),
-          'org': org,
-        });
+        },
+        'exam': {
+          'examined_at': _examinedAt.toUtc().toIso8601String(),
+          'body_condition': ?_bodyCondition,
+          'hydration': ?_hydration?.wire,
+          'mentation': ?_mentation?.wire,
+          'temperature': ?_parseNumber(_temperature.text),
+          'mm_color': ?_mmColor?.wire,
+          'mm_texture': ?_mmTexture?.wire,
+          'notes': _notes.text.trim(),
+        },
+        'findings': [
+          for (final entry in _findingStatus.entries)
+            {
+              'system': entry.key.wire,
+              'status': entry.value.wire,
+              'note': _findingNotes[entry.key]!.text.trim(),
+            },
+        ],
+        if (weight != null && weight > 0) 'weight_g': weight,
+      });
+      if (weight != null && weight > 0) {
+        ref.invalidate(weightsForCaseProvider(widget.caseId));
       }
 
       ref

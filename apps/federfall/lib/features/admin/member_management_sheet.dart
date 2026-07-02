@@ -97,7 +97,9 @@ class _MemberManagementSheetState extends ConsumerState<MemberManagementSheet>
       // Removal must respect the member's open caseload: deleting the active
       // carer of open cases would leave them pointing at a deleted user with
       // nobody responsible — the supervisor has to hand them over first
-      // (federfall-xxi).
+      // (federfall-xxi). The server's delete hook enforces this invariant
+      // (federfall-zdcb); this pre-check just gives a friendlier dialog than
+      // the raw error.
       final casesRepo = await ref.read(casesRepositoryProvider.future);
       final openCases = (await casesRepo.forCarer(widget.member.id))
           .where((c) => c.status != CaseStatus.disposed)

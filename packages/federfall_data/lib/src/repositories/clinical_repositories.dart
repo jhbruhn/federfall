@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:federfall_data/src/pb_repository.dart';
+import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -142,6 +145,35 @@ class PbExamsRepository extends PbRepository<Exam> {
     filter: filterExpr('animal = {:a}', {'a': animalId}),
     sort: '-examined_at',
   );
+
+  /// Atomic exam save via `POST /api/federfall/exam`: persists the exam, its
+  /// full findings set (replaced server-side) and an optional exam weight in
+  /// one transaction, so a mid-save failure can never lose the previous
+  /// findings or duplicate the exam on retry (federfall-lov0). Returns the
+  /// exam id. Pass `payload['id']` to update an existing exam.
+  Future<String> saveWithFindings(Map<String, dynamic> payload) async {
+    try {
+      final res = await pb
+          .send<Map<String, dynamic>>(
+            '/api/federfall/exam',
+            method: 'POST',
+            body: payload,
+          )
+          .timeout(networkTimeout);
+      final id = res['id'] as String?;
+      if (id == null || id.isEmpty) {
+        throw const RepositoryException('malformed exam save response');
+      }
+      return id;
+    } on TimeoutException {
+      throw const RepositoryException(
+        'Could not reach the server',
+        kind: RepositoryErrorKind.network,
+      );
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
 }
 
 /// Repository over the `exam_findings` collection (one sparse row per assessed

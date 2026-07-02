@@ -297,7 +297,18 @@ onRecordUpdate((e) => {
       0,
       { c: rec.id, u: oldCarer },
     );
-    if (existing.length === 0) {
+    // The "handoff" may actually be PB stripping a just-deleted member from
+    // `active_carer` (removing a user who only has DISPOSED cases — open ones
+    // are blocked by the delete hook). A share pointing at the vanished user
+    // would fail validation and abort the whole member removal, so only keep
+    // the read grant for a carer who still exists.
+    let oldCarerExists = true;
+    try {
+      e.app.findRecordById("users", String(oldCarer));
+    } catch (_) {
+      oldCarerExists = false;
+    }
+    if (existing.length === 0 && oldCarerExists) {
       const share = new Record(e.app.findCollectionByNameOrId("case_shares"));
       share.set("case", rec.id);
       share.set("shared_with", oldCarer);
@@ -410,5 +421,30 @@ onRecordDeleteRequest((e) => {
       );
     }
   }
+
+  // ── open-caseload guard (federfall-zdcb) ──────────────────────────────────
+  // Deleting the active carer of an open case would leave it pointing at a
+  // deleted user with nobody responsible (cases.active_carer is not cascading,
+  // by design — federfall-xxi). The member sheet pre-checks this client-side,
+  // but that check is racy (a concurrent handoff between check and delete) and
+  // trivially bypassed by a direct API call, so the invariant lives here.
+  {
+    const open = e.app.findRecordsByFilter(
+      "cases",
+      "active_carer = {:id} && status != 'disposed'",
+      "",
+      1,
+      0,
+      { id: rec.id },
+    );
+    if (open.length > 0) {
+      throw new BadRequestError(
+        "This member is the active carer of open cases — hand them over " +
+          "or close them first.",
+        null,
+      );
+    }
+  }
+
   e.next();
 }, "users");

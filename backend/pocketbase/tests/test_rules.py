@@ -852,6 +852,136 @@ def main():
     check("plain move leaves active_carer unchanged",
           hcf["active_carer"] == B, hcf.get("active_carer"))
 
+    # ── federfall-lov0: atomic exam save route ───────────────────────────────
+    # Exam + findings (+ optional exam weight) are persisted in one server-side
+    # transaction; an edit REPLACES the findings set. Before this route the
+    # client deleted the old findings and re-created the new ones as separate
+    # calls — a mid-save failure permanently lost clinical findings.
+    print("\n[atomic exam route]")
+    aex_case = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    s, _ = req("POST", "/api/federfall/exam", None, {"case": aex_case})
+    check("exam save requires auth", s == 401, f"status {s}")
+    s, _ = req("POST", "/api/federfall/exam", gtok, {"case": aex_case})
+    check("guest CANNOT save an exam", s == 403, f"status {s}")
+    s, _ = req("POST", "/api/federfall/exam", toks["a"], {})
+    check("exam save without case/animal is rejected", s == 400, f"status {s}")
+
+    s, aex = req("POST", "/api/federfall/exam", toks["a"], {
+        "case": aex_case, "animal": animal,
+        "exam": {"body_condition": 3, "hydration": "moderate",
+                 "notes": "first pass", "examined_at": "2026-06-25 09:00:00.000Z"},
+        "findings": [{"system": "eyes", "status": "abnormal", "note": "cloudy"},
+                     {"system": "wings", "status": "normal", "note": ""}],
+        "weight_g": 312,
+    })
+    check("owner creates exam via route", s == 200 and bool(aex and aex.get("id")),
+          f"{s} {aex}")
+    aex_id = aex["id"]
+    _, aexr = req("GET", f"/api/collections/exams/records/{aex_id}", T)
+    check("exam org/examiner come from the session",
+          aexr["org"] == ORG and aexr["examiner"] == A,
+          f"{aexr['org']} {aexr['examiner']}")
+    afinds = listf(T, "exam_findings", f'exam = "{aex_id}"')
+    check("exam findings created in the same call", len(afinds) == 2, afinds)
+    aweights = listf(T, "weights", f'case = "{aex_case}" && weight_g = 312')
+    check("exam weight became a weights row", len(aweights) == 1, aweights)
+
+    # Same-org outsider / read-share cannot use the route; edit-share can.
+    s, _ = req("POST", "/api/federfall/exam", td,
+               {"case": aex_case, "animal": animal})
+    check("same-org outsider CANNOT save an exam via route", s == 403,
+          f"status {s}")
+    mk(T, "case_shares", {"case": aex_case, "shared_with": C, "shared_by": A,
+                          "access": "read", "org": ORG})
+    tc = login("c@f.local")[1]
+    s, _ = req("POST", "/api/federfall/exam", tc,
+               {"id": aex_id, "exam": {"notes": "read share"}})
+    check("read-share CANNOT edit the exam via route", s == 403, f"status {s}")
+    mk(T, "case_shares", {"case": aex_case, "shared_with": B, "shared_by": A,
+                          "access": "edit", "org": ORG})
+    s, _ = req("POST", "/api/federfall/exam", toks["b"],
+               {"id": aex_id, "exam": {"notes": "edit share",
+                                       "body_condition": 3}})
+    check("edit-share CAN edit the exam via route", s == 200, f"status {s}")
+
+    # Edit replaces the findings set atomically.
+    s, _ = req("POST", "/api/federfall/exam", toks["a"], {
+        "id": aex_id,
+        "exam": {"notes": "second pass", "hydration": "mild"},
+        "findings": [{"system": "legs_feet", "status": "abnormal",
+                      "note": "pododermatitis"}],
+    })
+    check("owner edits exam via route", s == 200, f"status {s}")
+    afinds = listf(T, "exam_findings", f'exam = "{aex_id}"')
+    check("edit REPLACES the findings set",
+          len(afinds) == 1 and afinds[0]["system"] == "legs_feet", afinds)
+    _, aexr = req("GET", f"/api/collections/exams/records/{aex_id}", T)
+    check("omitted exam field is cleared on edit (full replace)",
+          aexr.get("body_condition") in (None, 0, ""), aexr.get("body_condition"))
+    aweights = listf(T, "weights", f'case = "{aex_case}"')
+    check("edit does not duplicate the exam weight", len(aweights) == 1, aweights)
+
+    # THE point of the route: a failed save must not eat the previous findings.
+    s, _ = req("POST", "/api/federfall/exam", toks["a"], {
+        "id": aex_id,
+        "exam": {"notes": "broken"},
+        "findings": [{"system": "legs_feet", "status": "abnormal", "note": "ok"},
+                     {"system": "no_such_system", "status": "abnormal",
+                      "note": "boom"}],
+    })
+    check("invalid finding rejects the whole save", s >= 400, f"status {s}")
+    afinds = listf(T, "exam_findings", f'exam = "{aex_id}"')
+    check("failed edit keeps the previous findings intact (atomic)",
+          len(afinds) == 1 and afinds[0]["system"] == "legs_feet"
+          and afinds[0]["note"] == "pododermatitis", afinds)
+    s, _ = req("POST", "/api/federfall/exam", toks["a"],
+               {"case": aex_case, "animal": fanimal})
+    check("exam save CANNOT denormalize a foreign-org animal", s == 400,
+          f"status {s}")
+
+    # ── federfall-oxqk / federfall-zdcb: member removal ──────────────────────
+    # oxqk turned out to be a false positive (users.deleteRule IS
+    # supervisor-scoped; the reviewer read the down-migration), but the suite
+    # only ever deleted users with the superuser token — cover the real rule.
+    # zdcb: the open-caseload invariant is enforced by the delete hook, not
+    # just the client pre-check (racy + bypassable).
+    print("\n[member removal]")
+    rorg = mk(T, "organisations", {"name": "Removal-Orga"})["id"]
+    RSUP = mkuser(T, "rm-sup@f.local", "supervisor", org=rorg)["id"]
+    RSUP2 = mkuser(T, "rm-sup2@f.local", "supervisor", org=rorg)["id"]
+    RCARER = mkuser(T, "rm-carer@f.local", "carer", org=rorg)["id"]
+    RVICTIM = mkuser(T, "rm-victim@f.local", "carer", org=rorg)["id"]
+    trsup = login("rm-sup@f.local")[1]
+    trcarer = login("rm-carer@f.local")[1]
+
+    s, _ = req("DELETE", f"/api/collections/users/records/{RVICTIM}", trcarer)
+    check("a carer CANNOT remove a member", s >= 400, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/users/records/{RVICTIM}",
+               toks["sup"])
+    check("a foreign-org supervisor CANNOT remove the member", s >= 400,
+          f"status {s}")
+
+    # Open caseload blocks removal server-side (federfall-zdcb) — even for a
+    # superuser, and regardless of any client-side pre-check.
+    ranimal = mk(T, "animals", {"species": "Stadttaube", "org": rorg})["id"]
+    rcase = mk(T, "cases", {"animal": ranimal, "active_carer": RVICTIM,
+                            "org": rorg})["id"]
+    s, _ = req("DELETE", f"/api/collections/users/records/{RVICTIM}", trsup)
+    check("supervisor CANNOT remove a member with open cases", s >= 400,
+          f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/users/records/{RVICTIM}", T)
+    check("superuser CANNOT either (hook, not rule)", s >= 400, f"status {s}")
+
+    # Once the caseload is closed, the org's supervisor can remove the member
+    # (the oxqk regression: this must work with a plain supervisor token).
+    mk(T, "dispositions", {"case": rcase, "type": "released", "org": rorg})
+    s, _ = req("DELETE", f"/api/collections/users/records/{RVICTIM}", trsup)
+    check("supervisor CAN remove a member without open cases", s == 204,
+          f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/users/records/{RSUP2}", trsup)
+    check("supervisor CAN remove another supervisor (not the last one)",
+          s == 204, f"status {s}")
+
     # ── federfall-0tf: geocode proxy guards ─────────────────────────────────
     # Runs LAST: the flood exhausts the geocode rate budget for this client IP,
     # so nothing may query the geocode routes after this block. All requests
