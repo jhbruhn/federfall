@@ -4,6 +4,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
+import 'package:federfall/features/admin/management_screen.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
@@ -253,6 +254,123 @@ void main() {
       router.routerDelegate.currentConfiguration.uri.toString(),
       '/cases/c1',
     );
+  });
+
+  testWidgets('admin and statistics redirect a carer home (federfall-vxg)',
+      (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigControllerProvider.overrideWith(
+          () => _FakeServerConfig(
+            const ServerConfig.configured('https://x.example'),
+          ),
+        ),
+        authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => const CasesBrowserData(
+            cases: [],
+            animalsById: {},
+            myUserId: 'u1',
+          ),
+        ),
+        currentUserProvider.overrideWith(
+          (ref) async => const AppUser(
+            id: 'u1',
+            email: 'carer@example.org',
+            role: UserRole.carer,
+          ),
+        ),
+      ],
+    );
+    await _pumpContainer(tester, container);
+
+    final router = container.read(routerProvider)..go(AppRoutes.admin);
+    await tester.pumpAndSettle();
+    expect(find.byType(ManagementScreen), findsNothing);
+    expect(find.byType(CasesScreen), findsOneWidget);
+    expect(
+      router.routerDelegate.currentConfiguration.uri.path,
+      AppRoutes.home,
+    );
+
+    router.go(AppRoutes.manageTeam);
+    await tester.pumpAndSettle();
+    expect(
+      router.routerDelegate.currentConfiguration.uri.path,
+      AppRoutes.home,
+    );
+
+    router.go(AppRoutes.statistics);
+    await tester.pumpAndSettle();
+    expect(
+      router.routerDelegate.currentConfiguration.uri.path,
+      AppRoutes.home,
+    );
+  });
+
+  testWidgets('a supervisor reaches the management hub', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigControllerProvider.overrideWith(
+          () => _FakeServerConfig(
+            const ServerConfig.configured('https://x.example'),
+          ),
+        ),
+        authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => const CasesBrowserData(
+            cases: [],
+            animalsById: {},
+            myUserId: 'u1',
+          ),
+        ),
+        currentUserProvider.overrideWith(
+          (ref) async => const AppUser(
+            id: 'u1',
+            email: 'chef@example.org',
+            role: UserRole.supervisor,
+          ),
+        ),
+      ],
+    );
+    await _pumpContainer(tester, container);
+
+    container.read(routerProvider).go(AppRoutes.admin);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ManagementScreen), findsOneWidget);
+  });
+
+  testWidgets(
+      'cases list search state survives crossing the expanded breakpoint '
+      '(federfall-8bh2)', (tester) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await _pumpAt(
+      tester,
+      config: const ServerConfig.configured('https://x.example'),
+      authed: true,
+    );
+    expect(find.byType(CasesScreen), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'bussard');
+    await tester.pump();
+    expect(find.text('bussard'), findsOneWidget);
+
+    // Cross into the expanded two-pane layout: the list moves from the pane
+    // navigator's root into the shell's left pane. The shared GlobalKey must
+    // carry the mounted list (and its in-progress search) across.
+    tester.view.physicalSize = const Size(1200, 800);
+    await tester.pumpAndSettle();
+    expect(find.byType(CasesScreen), findsOneWidget);
+    expect(find.text('bussard'), findsOneWidget);
+
+    // And back down again.
+    tester.view.physicalSize = const Size(800, 600);
+    await tester.pumpAndSettle();
+    expect(find.text('bussard'), findsOneWidget);
   });
 
   testWidgets('confirm-reset is reachable without a session', (tester) async {

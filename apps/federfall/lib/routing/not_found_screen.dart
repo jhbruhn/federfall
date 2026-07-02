@@ -1,3 +1,4 @@
+import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
@@ -12,8 +13,9 @@ class NotFoundScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('404')),
+      appBar: AppBar(title: Text(l10n.notFoundTitle)),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -29,7 +31,7 @@ class NotFoundScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               OutlinedButton(
                 onPressed: () => context.go(AppRoutes.home),
-                child: const Text('Zur Startseite'),
+                child: Text(l10n.notFoundGoHome),
               ),
             ],
           ),

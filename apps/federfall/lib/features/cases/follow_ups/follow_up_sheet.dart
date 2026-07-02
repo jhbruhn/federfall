@@ -106,7 +106,7 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
 
       ref
         ..invalidate(followUpsForCaseProvider(widget.caseId))
-        ..invalidate(worklistProvider);
+        ..invalidate(worklistSourceProvider);
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {
       if (!mounted) return;

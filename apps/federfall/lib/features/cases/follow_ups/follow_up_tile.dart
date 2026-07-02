@@ -37,7 +37,7 @@ class FollowUpTile extends ConsumerWidget {
         });
         ref
           ..invalidate(followUpsForCaseProvider(caseId))
-          ..invalidate(worklistProvider);
+          ..invalidate(worklistSourceProvider);
       });
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
@@ -65,7 +65,7 @@ class FollowUpTile extends ConsumerWidget {
       await repo.delete(followUp.id);
       ref
         ..invalidate(followUpsForCaseProvider(caseId))
-        ..invalidate(worklistProvider);
+        ..invalidate(worklistSourceProvider);
     });
   }
 

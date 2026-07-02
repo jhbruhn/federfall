@@ -38,12 +38,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    // Live-sync: re-fetch the worklist when its source collections change,
-    // plus a 1-minute tick so time-relative items surface as they fall due.
+    // Live-sync: re-fetch the worklist's source data when its collections
+    // change, plus a 1-minute tick (network-free, recomputes against the
+    // cached source) so time-relative items surface as they fall due.
     ref
       ..liveRefresh(
         worklistLiveCollections,
-        () => ref.invalidate(worklistProvider),
+        () => ref.invalidate(worklistSourceProvider),
       )
       ..watch(worklistTickerProvider);
     final items = ref.watch(worklistProvider);
@@ -54,7 +55,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       appBar: AppBar(title: Text(l10n.todayTitle)),
       body: AsyncValueView<List<WorklistItem>>(
         value: items,
-        onRetry: () => ref.invalidate(worklistProvider),
+        onRetry: () => ref.invalidate(worklistSourceProvider),
         data: (data) {
           if (data.isEmpty) {
             return EmptyView(
@@ -63,7 +64,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             );
           }
           return RefreshIndicator(
-            onRefresh: () => ref.refresh(worklistProvider.future),
+            onRefresh: () => ref.refresh(worklistSourceProvider.future),
             child: ListView(
               children: [
                 for (final kind in TodayScreen._order)

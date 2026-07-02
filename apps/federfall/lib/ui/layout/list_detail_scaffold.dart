@@ -45,6 +45,11 @@ class ListDetailScaffold extends StatelessWidget {
 ///
 /// Because the list is the same widget instance type in both arrangements, the
 /// surfaces stay single-implementation — the panes are just containers.
+///
+/// Give [list] the same `GlobalKey` as the copy the section root builds on
+/// compact (see the router): crossing the 840px boundary then reparents the
+/// mounted list between the two positions instead of remounting it, so its
+/// state also survives a rotation/resize across size classes.
 class ListDetailShell extends StatelessWidget {
   const ListDetailShell({
     required this.list,

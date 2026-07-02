@@ -32,6 +32,14 @@
     "@errorUnknownOutcome": {
         "description": "Shown when a write timed out client-side but may have been committed server-side, so a blind retry could duplicate it"
     },
+    "notFoundTitle": "Page not found",
+    "@notFoundTitle": {
+        "description": "App bar title of the 404 screen for unmatched routes"
+    },
+    "notFoundGoHome": "Go to home",
+    "@notFoundGoHome": {
+        "description": "Button on the 404 screen that navigates back to the default landing page"
+    },
     "actionRetry": "Retry",
     "@actionRetry": {
         "description": "Button that retries a failed action"

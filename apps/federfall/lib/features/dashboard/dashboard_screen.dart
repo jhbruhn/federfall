@@ -115,7 +115,7 @@ class _WorklistPreview extends ConsumerWidget {
     ref
       ..liveRefresh(
         worklistLiveCollections,
-        () => ref.invalidate(worklistProvider),
+        () => ref.invalidate(worklistSourceProvider),
       )
       ..watch(worklistTickerProvider);
 

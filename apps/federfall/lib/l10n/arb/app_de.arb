@@ -11,6 +11,8 @@
     "errorNotFound": "Nicht gefunden",
     "errorValidation": "Die Daten konnten nicht gespeichert werden",
     "errorUnknownOutcome": "Der Server hat nicht rechtzeitig geantwortet – deine Änderung wurde möglicherweise trotzdem gespeichert. Prüfe die Liste, bevor du es erneut versuchst, um Duplikate zu vermeiden.",
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundGoHome": "Zur Startseite",
     "actionRetry": "Erneut versuchen",
     "actionSave": "Speichern",
     "actionCancel": "Abbrechen",

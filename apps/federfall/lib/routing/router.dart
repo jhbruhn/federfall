@@ -71,6 +71,17 @@ GoRouter router(Ref ref) {
   final animalsPaneKey = GlobalKey<NavigatorState>(debugLabel: 'animalsPane');
   final aviariesPaneKey = GlobalKey<NavigatorState>(debugLabel: 'aviariesPane');
 
+  // Each section's list widget appears in one of two tree positions depending
+  // on width: the pane navigator's root on compact, the shell's left pane on
+  // expanded. Sharing one GlobalKey between both positions makes crossing the
+  // breakpoint *move* the mounted list instead of remounting it, so scroll
+  // position and in-progress search/filter state survive a tablet rotation or
+  // window resize (federfall-8bh2). Both positions switch on the same
+  // `context.isExpanded`, so exactly one of them builds the key per frame.
+  final casesListKey = GlobalKey(debugLabel: 'casesList');
+  final animalsListKey = GlobalKey(debugLabel: 'animalsList');
+  final aviariesListKey = GlobalKey(debugLabel: 'aviariesList');
+
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.home,
@@ -113,7 +124,7 @@ GoRouter router(Ref ref) {
               ShellRoute(
                 navigatorKey: casesPaneKey,
                 builder: (_, _, child) => ListDetailShell(
-                  list: const CasesScreen(),
+                  list: CasesScreen(key: casesListKey),
                   detailChild: child,
                 ),
                 routes: [
@@ -127,7 +138,7 @@ GoRouter router(Ref ref) {
                             icon: Icons.medical_information_outlined,
                             message: context.l10n.listDetailSelectCase,
                           )
-                        : const CasesScreen(),
+                        : CasesScreen(key: casesListKey),
                     routes: [
                       // `/cases/new` — full-screen over the shell; literal
                       // before `:id` so it wins the match.
@@ -169,7 +180,7 @@ GoRouter router(Ref ref) {
               ShellRoute(
                 navigatorKey: animalsPaneKey,
                 builder: (_, _, child) => ListDetailShell(
-                  list: const AnimalsScreen(),
+                  list: AnimalsScreen(key: animalsListKey),
                   detailChild: child,
                 ),
                 routes: [
@@ -180,7 +191,7 @@ GoRouter router(Ref ref) {
                             icon: Icons.pets_outlined,
                             message: context.l10n.listDetailSelectAnimal,
                           )
-                        : const AnimalsScreen(),
+                        : AnimalsScreen(key: animalsListKey),
                     routes: [
                       GoRoute(
                         path: AppRoutes.detailSegment,
@@ -200,7 +211,7 @@ GoRouter router(Ref ref) {
               ShellRoute(
                 navigatorKey: aviariesPaneKey,
                 builder: (_, _, child) => ListDetailShell(
-                  list: const AviariesScreen(),
+                  list: AviariesScreen(key: aviariesListKey),
                   detailChild: child,
                 ),
                 routes: [
@@ -211,7 +222,7 @@ GoRouter router(Ref ref) {
                             icon: Icons.holiday_village_outlined,
                             message: context.l10n.listDetailSelectAviary,
                           )
-                        : const AviariesScreen(),
+                        : AviariesScreen(key: aviariesListKey),
                     routes: [
                       GoRoute(
                         path: AppRoutes.detailSegment,
@@ -335,8 +346,19 @@ String? _gate(Ref ref, Uri uri) {
   // server-side, so keep them on the pending screen until they are promoted.
   final userAsync = ref.read(currentUserProvider);
   if (!userAsync.hasValue) return _hold(uri, AppRoutes.splash);
-  if (isGuest(userAsync.value?.role)) {
+  final role = userAsync.value?.role;
+  if (isGuest(role)) {
     return _hold(uri, AppRoutes.pending);
+  }
+
+  // Role-gated surfaces (defense-in-depth; the server access rules are the
+  // real boundary and the screens render a lock view): a carer deep-linking
+  // to an admin/reporting path is sent home instead of a dead end.
+  final isAdminPath = location == AppRoutes.admin ||
+      location.startsWith('${AppRoutes.admin}/');
+  if (isAdminPath && !canManageTeam(role)) return AppRoutes.home;
+  if (location == AppRoutes.statistics && !canViewReports(role)) {
+    return AppRoutes.home;
   }
 
   // Authenticated with a real role: leave the gate for the originally

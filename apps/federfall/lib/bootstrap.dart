@@ -16,6 +16,7 @@ Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
   final logger = AppLogger(
     minLevel: AppEnvironment.isProduction ? LogLevel.info : LogLevel.debug,
   );
+  rootLogger = logger;
 
   FlutterError.onError = (details) => logger.error(
         details.exceptionAsString(),

@@ -154,14 +154,20 @@ class CasesBrowserData {
 /// responsive than round-tripping each filter change.
 @riverpod
 Future<CasesBrowserData> casesBrowserData(Ref ref) async {
-  final user = await ref.watch(currentUserProvider.future);
-  final casesRepo = await ref.watch(casesRepositoryProvider.future);
-  final animalsRepo = await ref.watch(animalsRepositoryProvider.future);
-  final cases = await casesRepo.list(sort: '-created');
-  final animals = await animalsRepo.list();
-  final codesByAnimal = await ref.watch(
-    activeMarkingCodesByAnimalProvider.future,
-  );
+  final userFuture = ref.watch(currentUserProvider.future);
+  final codesFuture = ref.watch(activeMarkingCodesByAnimalProvider.future);
+  final (casesRepo, animalsRepo) = await (
+    ref.watch(casesRepositoryProvider.future),
+    ref.watch(animalsRepositoryProvider.future),
+  ).wait;
+  // The fetches are independent — issue them concurrently so a (live-)refresh
+  // costs one round trip, not three in sequence.
+  final (user, codesByAnimal, cases, animals) = await (
+    userFuture,
+    codesFuture,
+    casesRepo.list(sort: '-created'),
+    animalsRepo.list(),
+  ).wait;
   return CasesBrowserData(
     cases: cases,
     animalsById: {for (final a in animals) a.id: a},

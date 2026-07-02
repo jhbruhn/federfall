@@ -79,3 +79,10 @@ class AppLogger {
 AppLogger appLogger(Ref ref) => AppLogger(
       minLevel: AppEnvironment.isProduction ? LogLevel.info : LogLevel.debug,
     );
+
+/// The logger `bootstrap` configured, for call sites without a `Ref` (e.g.
+/// `reportCaughtError`). Set once by `bootstrap` to the same instance behind
+/// [appLoggerProvider], so a crash-reporting hook wired in there also sees
+/// errors reported outside the provider graph. Defaults to a plain logger for
+/// tests and tools that never run `bootstrap`.
+AppLogger rootLogger = const AppLogger();

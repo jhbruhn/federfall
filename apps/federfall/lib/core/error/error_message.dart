@@ -15,7 +15,7 @@ void reportCaughtError(
   StackTrace stackTrace, {
   String? context,
 }) =>
-    const AppLogger().error(
+    rootLogger.error(
       context ?? 'Unexpected error (shown to the user as a generic message)',
       error: error,
       stackTrace: stackTrace,

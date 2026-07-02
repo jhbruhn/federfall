@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/add_animal_sheet.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
@@ -26,6 +27,15 @@ class AviaryDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    // Same live-sync sources as the registry list: a placement made elsewhere
+    // changes the resident animals' `current_aviary`, a disposition removes
+    // them — keep the open detail as fresh as the list next to it.
+    ref.liveRefresh(
+      const ['aviaries', 'dispositions', 'animals'],
+      () => ref
+        ..invalidate(aviaryByIdProvider(aviaryId))
+        ..invalidate(aviaryResidentsProvider(aviaryId)),
+    );
     final aviary = ref.watch(aviaryByIdProvider(aviaryId));
     final residents = ref.watch(aviaryResidentsProvider(aviaryId));
     final canManage = canManageAviaries(
