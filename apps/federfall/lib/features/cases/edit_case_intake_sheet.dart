@@ -67,8 +67,8 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
     _notes = TextEditingController(text: c.intakeNotes ?? '');
     _reasons = {...c.admissionReasons};
     _ageClass = c.ageClass;
-    _foundAt = c.foundAt;
-    _admittedAt = c.admittedAt;
+    _foundAt = c.foundAt?.toLocal();
+    _admittedAt = c.admittedAt?.toLocal();
     _findGeo = c.findGeo;
     _findCity = c.city;
     _findRegion = c.region;

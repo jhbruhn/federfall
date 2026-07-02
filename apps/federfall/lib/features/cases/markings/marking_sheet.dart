@@ -71,7 +71,7 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
     // Editing keeps the marking's current type; new markings default once the
     // active code list loads (see build).
     _type = m?.type;
-    _appliedAt = m?.appliedAt ?? m?.created ?? DateTime.now();
+    _appliedAt = (m?.appliedAt ?? m?.created)?.toLocal() ?? DateTime.now();
   }
 
   @override

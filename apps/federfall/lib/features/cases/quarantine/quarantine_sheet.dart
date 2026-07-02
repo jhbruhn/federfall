@@ -57,8 +57,8 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
     final entry = widget.entry;
     final now = DateTime.now();
     _reasonController.text = entry?.reason ?? '';
-    _setAt = entry?.setAt ?? entry?.created ?? now;
-    _until = entry?.until ?? now.add(_defaultQuarantine);
+    _setAt = (entry?.setAt ?? entry?.created)?.toLocal() ?? now;
+    _until = entry?.until?.toLocal() ?? now.add(_defaultQuarantine);
   }
 
   @override
@@ -178,9 +178,7 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                _isEditing
-                    ? l10n.quarantineEditTitle
-                    : l10n.quarantineNewTitle,
+                _isEditing ? l10n.quarantineEditTitle : l10n.quarantineNewTitle,
                 style: theme.textTheme.titleLarge,
               ),
               const SizedBox(height: AppSpacing.md),

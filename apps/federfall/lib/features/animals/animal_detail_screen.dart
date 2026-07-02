@@ -153,10 +153,7 @@ class _WeightSection extends ConsumerWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
-    final weights =
-        ref.watch(weightsForAnimalProvider(animalId)).value ?? const <Weight>[];
-    // weightsForAnimal is sorted oldest-first, so the last is the latest.
-    final latest = weights.isEmpty ? null : weights.last;
+    final weights = ref.watch(weightsForAnimalProvider(animalId));
 
     return Card(
       child: Padding(
@@ -180,26 +177,42 @@ class _WeightSection extends ConsumerWidget {
                 ),
               ],
             ),
-            if (latest == null)
-              Text(
-                l10n.animalNoWeight,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              )
-            else ...[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.monitor_weight_outlined),
-                title: Text(formatWeightG(latest.weightG)),
-                subtitle: switch (latest.measuredAt ?? latest.created) {
-                  final at? => Text(materialL10n.formatMediumDate(at)),
-                  _ => null,
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              WeightTrendChart.forAnimal(animalId),
-            ],
+            // A load failure must not render as "no weight recorded" — route
+            // through the standard error state with a retry (federfall-5cle).
+            AsyncValueView<List<Weight>>(
+              value: weights,
+              onRetry: () => ref.invalidate(weightsForAnimalProvider(animalId)),
+              loading: const LinearProgressIndicator(),
+              data: (weights) {
+                // weightsForAnimal is sorted oldest-first, so the last is the
+                // latest.
+                final latest = weights.isEmpty ? null : weights.last;
+                if (latest == null) {
+                  return Text(
+                    l10n.animalNoWeight,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.monitor_weight_outlined),
+                      title: Text(formatWeightG(latest.weightG)),
+                      subtitle: switch (latest.measuredAt ?? latest.created) {
+                        final at? => Text(materialL10n.formatMediumDate(at)),
+                        _ => null,
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    WeightTrendChart.forAnimal(animalId),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -220,8 +233,7 @@ class _ExamsSection extends ConsumerWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
-    final exams =
-        ref.watch(examsForAnimalProvider(animalId)).value ?? const <Exam>[];
+    final exams = ref.watch(examsForAnimalProvider(animalId));
 
     return Card(
       child: Padding(
@@ -231,28 +243,44 @@ class _ExamsSection extends ConsumerWidget {
           children: [
             Text(l10n.animalSectionExams, style: theme.textTheme.titleMedium),
             const SizedBox(height: AppSpacing.sm),
-            if (exams.isEmpty)
-              Text(
-                l10n.animalNoExams,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              )
-            else
-              for (final exam in exams)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.monitor_heart_outlined),
-                  title: Text(
-                    switch (exam.examinedAt ?? exam.created) {
-                      final at? => materialL10n.formatMediumDate(at.toLocal()),
-                      _ => l10n.examTitle,
-                    },
-                  ),
-                  subtitle: Text(_vitalsSummary(l10n, exam)),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go(AppRoutes.caseDetail(exam.caseId)),
-                ),
+            // A load failure must not render as "no exams" — route through the
+            // standard error state with a retry (federfall-5cle).
+            AsyncValueView<List<Exam>>(
+              value: exams,
+              onRetry: () => ref.invalidate(examsForAnimalProvider(animalId)),
+              loading: const LinearProgressIndicator(),
+              data: (exams) {
+                if (exams.isEmpty) {
+                  return Text(
+                    l10n.animalNoExams,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final exam in exams)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.monitor_heart_outlined),
+                        title: Text(
+                          switch (exam.examinedAt ?? exam.created) {
+                            final at? => materialL10n.formatMediumDate(
+                              at.toLocal(),
+                            ),
+                            _ => l10n.examTitle,
+                          },
+                        ),
+                        subtitle: Text(_vitalsSummary(l10n, exam)),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () =>
+                            context.go(AppRoutes.caseDetail(exam.caseId)),
+                      ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -318,8 +346,7 @@ class _MarkingsSection extends ConsumerWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
-    final typesById =
-        ref.watch(markingTypesByIdProvider).value ?? const {};
+    final typesById = ref.watch(markingTypesByIdProvider).value ?? const {};
 
     return Card(
       child: Padding(

@@ -85,6 +85,11 @@ class CaseLive extends _$CaseLive {
     ref
       ..invalidate(animalByIdProvider(_animalId))
       ..invalidate(caseByIdProvider(_caseId));
-    await ref.read(caseByIdProvider(_caseId).future);
+    try {
+      await ref.read(caseByIdProvider(_caseId).future);
+    } on Object {
+      // RefreshIndicator.onRefresh does not catch errors from this future;
+      // the provider's error state already carries the failure to the UI.
+    }
   }
 }

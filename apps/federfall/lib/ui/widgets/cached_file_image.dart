@@ -87,14 +87,15 @@ class _CachedFileImageState extends ConsumerState<CachedFileImage> {
     if (_retryPending || _attempt >= _maxRetries) return;
     _retryPending = true;
     final next = _attempt + 1;
+    // Captured now — the tile can be disposed during the backoff (thumbnails
+    // scrolled off-screen), and ref must not be touched afterwards.
+    final cacheManager = ref.read(protectedFileCacheManagerProvider);
     // Grow the backoff (~0.5s, 1s, 1.5s) to give the server time to finish
     // generating the thumbnail.
     Future.delayed(Duration(milliseconds: 500 * next), () async {
       // Drop the failed entry so the rebuild re-requests it rather than
       // replaying the cached error.
-      await ref
-          .read(protectedFileCacheManagerProvider)
-          .removeFile(fileCacheKey(widget.url));
+      await cacheManager.removeFile(fileCacheKey(widget.url));
       if (!mounted) return;
       setState(() {
         _attempt = next;

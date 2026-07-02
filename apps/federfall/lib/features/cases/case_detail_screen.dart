@@ -302,9 +302,11 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
 
     // Mirrors the add-entry sheet's isDisposed logic: a recorded disposition
     // ends the case even before the status invalidation lands.
-    final dispositions =
-        ref.watch(dispositionsForCaseProvider(medicalCase.id)).value;
-    final isDisposed = status == CaseStatus.disposed ||
+    final dispositions = ref
+        .watch(dispositionsForCaseProvider(medicalCase.id))
+        .value;
+    final isDisposed =
+        status == CaseStatus.disposed ||
         (dispositions != null && dispositions.isNotEmpty);
     final showStatusToggle = !isDisposed;
     final (statusLabel, statusTarget) = switch (status) {
@@ -398,12 +400,12 @@ class _PriorCasesSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final lifetime =
-        ref.watch(animalLifetimeProvider(medicalCase.animal)).value;
+    final lifetime = ref
+        .watch(animalLifetimeProvider(medicalCase.animal))
+        .value;
     if (lifetime == null) return const SizedBox.shrink();
 
-    final others =
-        lifetime.cases.where((c) => c.id != medicalCase.id).toList();
+    final others = lifetime.cases.where((c) => c.id != medicalCase.id).toList();
     if (others.isEmpty) return const SizedBox.shrink();
 
     return Padding(
@@ -474,7 +476,7 @@ class _Header extends StatelessWidget {
       // The avatar only needs the animal id, which the case always carries —
       // rendering it unconditionally keeps the header left-aligned instead of
       // briefly centring while the Animal record loads.
-      leading: AnimalAvatar(animalId: medicalCase.animal, editable: true),
+      leading: AnimalAvatar(animalId: medicalCase.animal, editable: !readOnly),
       trailing: readOnly
           ? Tooltip(
               message: l10n.caseReadOnlyTooltip,
@@ -516,11 +518,17 @@ class _IntakeSection extends ConsumerWidget {
 
     final rows = <_DetailRow>[
       if (sex != null)
-        _DetailRow(Icons.transgender_outlined, l10n.caseFieldSex,
-            sexLabel(l10n, sex)),
+        _DetailRow(
+          Icons.transgender_outlined,
+          l10n.caseFieldSex,
+          sexLabel(l10n, sex),
+        ),
       if (ageClass != null)
-        _DetailRow(Icons.cake_outlined, l10n.caseFieldAgeClass,
-            ageClassLabel(l10n, ageClass)),
+        _DetailRow(
+          Icons.cake_outlined,
+          l10n.caseFieldAgeClass,
+          ageClassLabel(l10n, ageClass),
+        ),
       if (reasons.isNotEmpty)
         _DetailRow(Icons.report_outlined, l10n.caseReasonsFieldLabel, reasons),
       if (date(medicalCase.foundAt) case final d?)
@@ -542,16 +550,19 @@ class _IntakeSection extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.caseSectionIntake,
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              l10n.caseSectionIntake,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             if (rows.isEmpty)
-              Text(l10n.emptyGeneric,
-                  style: Theme.of(context).textTheme.bodyMedium)
+              Text(
+                l10n.emptyGeneric,
+                style: Theme.of(context).textTheme.bodyMedium,
+              )
             else
               for (final row in rows) row,
-            if (medicalCase.finder case final finderId?)
-              _FinderRow(finderId),
+            if (medicalCase.finder case final finderId?) _FinderRow(finderId),
             if (medicalCase.intakePhotos.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
               _IntakePhotos(
@@ -587,8 +598,9 @@ class _FindMap extends StatelessWidget {
           options: MapOptions(
             initialCenter: point,
             initialZoom: 14,
-            interactionOptions:
-                const InteractionOptions(flags: InteractiveFlag.none),
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.none,
+            ),
           ),
           children: [
             const MapTileLayer(),
@@ -648,8 +660,7 @@ class _IntakePhotos extends ConsumerWidget {
               showImageViewer(
                 context,
                 imageUrls: [
-                  for (final f in filenames)
-                    repo.fileUrl(caseId, f).toString(),
+                  for (final f in filenames) repo.fileUrl(caseId, f).toString(),
                 ],
                 initialIndex: i,
               ),
@@ -687,9 +698,12 @@ class _DetailRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 Text(value, style: theme.textTheme.bodyLarge),
               ],
             ),
@@ -712,10 +726,10 @@ class _FinderRow extends ConsumerWidget {
     final finder = ref.watch(finderByIdProvider(finderId)).value;
     if (finder == null) return const SizedBox.shrink();
 
-    final name = [finder.firstName, finder.lastName]
-        .whereType<String>()
-        .where((s) => s.isNotEmpty)
-        .join(' ');
+    final name = [
+      finder.firstName,
+      finder.lastName,
+    ].whereType<String>().where((s) => s.isNotEmpty).join(' ');
     final value = [
       if (name.isNotEmpty) name,
       ?finder.phone,

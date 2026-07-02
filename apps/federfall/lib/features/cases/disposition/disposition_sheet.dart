@@ -90,7 +90,7 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
     final d = widget.disposition;
     if (d == null) return;
     _type = d.type;
-    _disposedAt = d.disposedAt ?? DateTime.now();
+    _disposedAt = d.disposedAt?.toLocal() ?? DateTime.now();
     _reason.text = d.reason ?? '';
     _releaseLocation.text = d.releaseLocation ?? '';
     _releaseType.text = d.releaseType ?? '';
@@ -184,8 +184,9 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
             ? {'lon': 0, 'lat': 0}
             : {'lon': geo.lon, 'lat': geo.lat},
         'transfer_type': _isTransfer ? (_trim(_transferType) ?? '') : '',
-        'transfer_destination':
-            _isTransfer ? (_trim(_transferDestination) ?? '') : '',
+        'transfer_destination': _isTransfer
+            ? (_trim(_transferDestination) ?? '')
+            : '',
         'aviary': _isAviary ? (_aviaryId ?? '') : '',
       };
 

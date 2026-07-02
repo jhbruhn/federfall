@@ -64,7 +64,7 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
       text: w == null ? '' : formatGramsInput(w.weightG),
     );
     _notesController = TextEditingController(text: w?.notes ?? '');
-    _measuredAt = w?.measuredAt ?? w?.created ?? DateTime.now();
+    _measuredAt = (w?.measuredAt ?? w?.created)?.toLocal() ?? DateTime.now();
   }
 
   @override

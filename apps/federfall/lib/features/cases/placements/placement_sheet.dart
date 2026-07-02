@@ -101,7 +101,7 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
     _condition = TextEditingController(text: p?.conditionAtHandoff ?? '');
     _comments = TextEditingController(text: p?.comments ?? '');
     _carerId = p?.carer ?? widget.medicalCase.activeCarer;
-    _movedInAt = p?.movedInAt ?? p?.created ?? DateTime.now();
+    _movedInAt = (p?.movedInAt ?? p?.created)?.toLocal() ?? DateTime.now();
   }
 
   @override

@@ -74,8 +74,9 @@ class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
     final entry = widget.entry;
     _notesController.text = entry?.notes ?? '';
     _certainty = entry?.certainty ?? Certainty.suspected;
-    _onsetAt = entry?.onsetDate ?? entry?.created ?? DateTime.now();
-    _resolvedAt = entry?.resolvedDate;
+    _onsetAt =
+        (entry?.onsetDate ?? entry?.created)?.toLocal() ?? DateTime.now();
+    _resolvedAt = entry?.resolvedDate?.toLocal();
   }
 
   @override

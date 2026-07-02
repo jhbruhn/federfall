@@ -394,7 +394,6 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final hasText = controller.text.isNotEmpty;
     final showEmpty = searched && !busy && results.isEmpty && error == null;
 
     return Material(
@@ -404,33 +403,38 @@ class _SearchBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
-            controller: controller,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => onSubmit(),
-            decoration: InputDecoration(
-              hintText: l10n.locationSearchHint,
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: busy
-                  ? const Padding(
-                      padding: EdgeInsets.all(14),
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : hasText
-                      ? IconButton(
-                          icon: const Icon(Icons.close),
-                          tooltip: l10n.actionClear,
-                          onPressed: onClear,
-                        )
-                      : null,
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.md,
+          // Rebuilt per keystroke via the controller so the clear button
+          // appears/disappears while typing, not only on unrelated setStates.
+          ValueListenableBuilder(
+            valueListenable: controller,
+            builder: (context, text, _) => TextField(
+              controller: controller,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => onSubmit(),
+              decoration: InputDecoration(
+                hintText: l10n.locationSearchHint,
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: busy
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : text.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: l10n.actionClear,
+                        onPressed: onClear,
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.md,
+                ),
               ),
             ),
           ),
@@ -552,31 +556,28 @@ class _AddressBar extends StatelessWidget {
                               ),
                             )
                           : address.isEmpty
-                              ? Text(
-                                  l10n.locationPickHint,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                )
-                              : Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      address,
-                                      style: theme.textTheme.bodyLarge,
-                                    ),
-                                    if (locality.isNotEmpty)
-                                      Text(
-                                        locality,
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                          color: theme
-                                              .colorScheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                  ],
+                          ? Text(
+                              l10n.locationPickHint,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  address,
+                                  style: theme.textTheme.bodyLarge,
                                 ),
+                                if (locality.isNotEmpty)
+                                  Text(
+                                    locality,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                              ],
+                            ),
                     ),
                   ],
                 ),

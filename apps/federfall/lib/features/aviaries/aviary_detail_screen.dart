@@ -27,8 +27,7 @@ class AviaryDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final aviary = ref.watch(aviaryByIdProvider(aviaryId));
-    final residents =
-        ref.watch(aviaryResidentsProvider(aviaryId)).value ?? const <Animal>[];
+    final residents = ref.watch(aviaryResidentsProvider(aviaryId));
     final canManage = canManageAviaries(
       ref.watch(currentUserProvider).value?.role,
     );
@@ -67,20 +66,31 @@ class AviaryDetailScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
-              _Header(aviary: av, residentCount: residents.length),
+              _Header(aviary: av, residentCount: residents.value?.length),
               const SizedBox(height: AppSpacing.md),
               Text(
                 l10n.aviaryResidentsTitle,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppSpacing.sm),
-              if (residents.isEmpty)
-                EmptyView(
-                  icon: Icons.pets_outlined,
-                  message: l10n.aviaryNoResidents,
-                )
-              else
-                for (final animal in residents) _ResidentTile(animal),
+              // A load failure must not render as "no residents" — route
+              // through the standard error state with a retry (federfall-5cle).
+              AsyncValueView<List<Animal>>(
+                value: residents,
+                onRetry: () =>
+                    ref.invalidate(aviaryResidentsProvider(aviaryId)),
+                loading: const LinearProgressIndicator(),
+                data: (residents) => residents.isEmpty
+                    ? EmptyView(
+                        icon: Icons.pets_outlined,
+                        message: l10n.aviaryNoResidents,
+                      )
+                    : Column(
+                        children: [
+                          for (final animal in residents) _ResidentTile(animal),
+                        ],
+                      ),
+              ),
             ],
           ),
         ),
@@ -93,7 +103,10 @@ class _Header extends ConsumerWidget {
   const _Header({required this.aviary, required this.residentCount});
 
   final Aviary aviary;
-  final int residentCount;
+
+  /// Null while the residents are still loading (or failed to load) — the
+  /// occupancy chip is omitted rather than asserting a wrong count of 0.
+  final int? residentCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,16 +119,19 @@ class _Header extends ConsumerWidget {
       ?aviary.location,
     ].join(' · ');
     final capacity = aviary.capacity;
-    final occupancy = capacity != null
-        ? l10n.aviaryOccupancyOfCapacity(residentCount, capacity)
-        : l10n.aviaryOccupancy(residentCount);
+    final count = residentCount;
+    final occupancy = count == null
+        ? null
+        : capacity != null
+        ? l10n.aviaryOccupancyOfCapacity(count, capacity)
+        : l10n.aviaryOccupancy(count);
 
     return DetailHeader(
       title: aviary.name,
       subtitle: subtitle,
       chipLabel: occupancy,
       // Flag over-capacity so a coordinator spots it (federfall-kml).
-      chipAlert: capacity != null && residentCount > capacity,
+      chipAlert: capacity != null && count != null && count > capacity,
     );
   }
 }
