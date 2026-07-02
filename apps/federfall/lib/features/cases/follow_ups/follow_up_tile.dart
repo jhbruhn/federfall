@@ -1,3 +1,4 @@
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/follow_ups/follow_up_sheet.dart';
 import 'package:federfall/features/cases/follow_ups/follow_ups_providers.dart';
@@ -26,17 +27,18 @@ class FollowUpTile extends ConsumerWidget {
   final bool canEdit;
   final bool isLast;
 
-  Future<void> _toggleDone(WidgetRef ref) async {
-    final repo = await ref.read(followUpsRepositoryProvider.future);
-    await repo.update(followUp.id, {
-      'done_at': followUp.doneAt == null
-          ? DateTime.now().toUtc().toIso8601String()
-          : '',
-    });
-    ref
-      ..invalidate(followUpsForCaseProvider(caseId))
-      ..invalidate(worklistProvider);
-  }
+  Future<void> _toggleDone(BuildContext context, WidgetRef ref) =>
+      runQuickAction(context, () async {
+        final repo = await ref.read(followUpsRepositoryProvider.future);
+        await repo.update(followUp.id, {
+          'done_at': followUp.doneAt == null
+              ? DateTime.now().toUtc().toIso8601String()
+              : '',
+        });
+        ref
+          ..invalidate(followUpsForCaseProvider(caseId))
+          ..invalidate(worklistProvider);
+      });
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
@@ -57,12 +59,14 @@ class FollowUpTile extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
-    final repo = await ref.read(followUpsRepositoryProvider.future);
-    await repo.delete(followUp.id);
-    ref
-      ..invalidate(followUpsForCaseProvider(caseId))
-      ..invalidate(worklistProvider);
+    if (confirmed != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(followUpsRepositoryProvider.future);
+      await repo.delete(followUp.id);
+      ref
+        ..invalidate(followUpsForCaseProvider(caseId))
+        ..invalidate(worklistProvider);
+    });
   }
 
   @override
@@ -89,7 +93,7 @@ class FollowUpTile extends ConsumerWidget {
                 caseId: caseId,
                 followUp: followUp,
               ),
-              onToggleDone: () => _toggleDone(ref),
+              onToggleDone: () => _toggleDone(context, ref),
               onDelete: () => _delete(context, ref),
             )
           : null,

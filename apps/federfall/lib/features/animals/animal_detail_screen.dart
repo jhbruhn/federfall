@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
@@ -277,14 +278,15 @@ class _MarkingsSection extends ConsumerWidget {
   final String animalId;
   final List<Marking> markings;
 
-  Future<void> _remove(WidgetRef ref, Marking m) async {
-    final repo = await ref.read(markingsRepositoryProvider.future);
-    await repo.update(m.id, {
-      'is_active': false,
-      'removed_at': DateTime.now().toUtc().toIso8601String(),
-    });
-    ref.invalidate(markingsForAnimalProvider(animalId));
-  }
+  Future<void> _remove(BuildContext context, WidgetRef ref, Marking m) =>
+      runQuickAction(context, () async {
+        final repo = await ref.read(markingsRepositoryProvider.future);
+        await repo.update(m.id, {
+          'is_active': false,
+          'removed_at': DateTime.now().toUtc().toIso8601String(),
+        });
+        ref.invalidate(markingsForAnimalProvider(animalId));
+      });
 
   Future<void> _delete(BuildContext context, WidgetRef ref, Marking m) async {
     final l10n = context.l10n;
@@ -305,10 +307,12 @@ class _MarkingsSection extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true) return;
-    final repo = await ref.read(markingsRepositoryProvider.future);
-    await repo.delete(m.id);
-    ref.invalidate(markingsForAnimalProvider(animalId));
+    if (ok != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(markingsRepositoryProvider.future);
+      await repo.delete(m.id);
+      ref.invalidate(markingsForAnimalProvider(animalId));
+    });
   }
 
   @override
@@ -380,7 +384,7 @@ class _MarkingsSection extends ConsumerWidget {
                       ),
                       if (m.isActive)
                         PopupMenuItem(
-                          onTap: () => _remove(ref, m),
+                          onTap: () => _remove(context, ref, m),
                           child: Text(l10n.markingRemoveAction),
                         ),
                       PopupMenuItem(

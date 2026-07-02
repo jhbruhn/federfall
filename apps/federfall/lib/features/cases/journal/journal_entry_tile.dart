@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
@@ -48,11 +49,13 @@ class JournalEntryTile extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
-    final repo = await ref.read(journalRepositoryProvider.future);
-    await repo.delete(entry.id);
-    ref.invalidate(journalForCaseProvider(caseId));
+    await runQuickAction(context, () async {
+      final repo = await ref.read(journalRepositoryProvider.future);
+      await repo.delete(entry.id);
+      ref.invalidate(journalForCaseProvider(caseId));
+    });
   }
 
   @override

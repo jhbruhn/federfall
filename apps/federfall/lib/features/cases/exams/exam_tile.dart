@@ -1,3 +1,4 @@
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/exams/exam_sheet.dart';
@@ -50,13 +51,15 @@ class ExamTile extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
     // Deleting the exam cascades its findings server-side (cascadeDelete).
-    final repo = await ref.read(examsRepositoryProvider.future);
-    await repo.delete(exam.id);
-    ref
-      ..invalidate(examsForCaseProvider(caseId))
-      ..invalidate(examFindingsForCaseProvider(caseId));
+    await runQuickAction(context, () async {
+      final repo = await ref.read(examsRepositoryProvider.future);
+      await repo.delete(exam.id);
+      ref
+        ..invalidate(examsForCaseProvider(caseId))
+        ..invalidate(examFindingsForCaseProvider(caseId));
+    });
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
@@ -31,14 +32,16 @@ class MarkingTile extends ConsumerWidget {
       context: context,
       builder: (ctx) => const _RemoveDialog(),
     );
-    if (reason == null) return;
-    final repo = await ref.read(markingsRepositoryProvider.future);
-    await repo.update(marking.id, {
-      'is_active': false,
-      'removed_at': DateTime.now().toUtc().toIso8601String(),
-      'removed_reason': reason,
+    if (reason == null || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(markingsRepositoryProvider.future);
+      await repo.update(marking.id, {
+        'is_active': false,
+        'removed_at': DateTime.now().toUtc().toIso8601String(),
+        'removed_reason': reason,
+      });
+      ref.invalidate(markingsForAnimalProvider(marking.animal));
     });
-    ref.invalidate(markingsForAnimalProvider(marking.animal));
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
@@ -60,10 +63,12 @@ class MarkingTile extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true) return;
-    final repo = await ref.read(markingsRepositoryProvider.future);
-    await repo.delete(marking.id);
-    ref.invalidate(markingsForAnimalProvider(marking.animal));
+    if (ok != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(markingsRepositoryProvider.future);
+      await repo.delete(marking.id);
+      ref.invalidate(markingsForAnimalProvider(marking.animal));
+    });
   }
 
   @override

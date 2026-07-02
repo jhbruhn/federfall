@@ -1,3 +1,4 @@
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/worklist/worklist.dart';
@@ -41,13 +42,14 @@ class WorklistTile extends ConsumerWidget {
     if (saved ?? false) ref.invalidate(worklistProvider);
   }
 
-  Future<void> _markFollowUpDone(WidgetRef ref) async {
-    final repo = await ref.read(followUpsRepositoryProvider.future);
-    await repo.update(item.followUp!.id, {
-      'done_at': DateTime.now().toUtc().toIso8601String(),
-    });
-    ref.invalidate(worklistProvider);
-  }
+  Future<void> _markFollowUpDone(BuildContext context, WidgetRef ref) =>
+      runQuickAction(context, () async {
+        final repo = await ref.read(followUpsRepositoryProvider.future);
+        await repo.update(item.followUp!.id, {
+          'done_at': DateTime.now().toUtc().toIso8601String(),
+        });
+        ref.invalidate(worklistProvider);
+      });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -86,7 +88,7 @@ class WorklistTile extends ConsumerWidget {
       return IconButton(
         icon: const Icon(Icons.check_circle_outline),
         tooltip: l10n.followUpMarkDone,
-        onPressed: () => _markFollowUpDone(ref),
+        onPressed: () => _markFollowUpDone(context, ref),
       );
     }
     return const Icon(Icons.chevron_right);

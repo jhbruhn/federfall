@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/marking_type_codelist_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
@@ -96,10 +97,12 @@ class _MarkingTypeTile extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true) return;
-    final repo = await ref.read(markingTypesRepositoryProvider.future);
-    await repo.delete(markingType.id);
-    ref.invalidate(markingTypesProvider);
+    if (ok != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(markingTypesRepositoryProvider.future);
+      await repo.delete(markingType.id);
+      ref.invalidate(markingTypesProvider);
+    });
   }
 
   @override

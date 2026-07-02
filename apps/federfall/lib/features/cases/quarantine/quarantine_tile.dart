@@ -1,3 +1,4 @@
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_sheet.dart';
@@ -41,15 +42,16 @@ class QuarantineTile extends ConsumerWidget {
   Future<void> _edit(BuildContext context) =>
       showQuarantineSheet(context, caseId: caseId, entry: entry);
 
-  Future<void> _endNow(WidgetRef ref) async {
-    final repo = await ref.read(quarantineRepositoryProvider.future);
-    await repo.update(entry.id, {
-      'quarantine_until': DateTime.now().toUtc().toIso8601String(),
-    });
-    ref
-      ..invalidate(quarantineForCaseProvider(caseId))
-      ..invalidate(caseQuarantineUntilProvider);
-  }
+  Future<void> _endNow(BuildContext context, WidgetRef ref) =>
+      runQuickAction(context, () async {
+        final repo = await ref.read(quarantineRepositoryProvider.future);
+        await repo.update(entry.id, {
+          'quarantine_until': DateTime.now().toUtc().toIso8601String(),
+        });
+        ref
+          ..invalidate(quarantineForCaseProvider(caseId))
+          ..invalidate(caseQuarantineUntilProvider);
+      });
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
@@ -70,13 +72,15 @@ class QuarantineTile extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
-    final repo = await ref.read(quarantineRepositoryProvider.future);
-    await repo.delete(entry.id);
-    ref
-      ..invalidate(quarantineForCaseProvider(caseId))
-      ..invalidate(caseQuarantineUntilProvider);
+    await runQuickAction(context, () async {
+      final repo = await ref.read(quarantineRepositoryProvider.future);
+      await repo.delete(entry.id);
+      ref
+        ..invalidate(quarantineForCaseProvider(caseId))
+        ..invalidate(caseQuarantineUntilProvider);
+    });
   }
 
   @override
@@ -148,7 +152,7 @@ class QuarantineTile extends ConsumerWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.tonalIcon(
-                  onPressed: () => _endNow(ref),
+                  onPressed: () => _endNow(context, ref),
                   icon: const Icon(Icons.event_busy_outlined, size: 18),
                   label: Text(l10n.quarantineEndNowAction),
                 ),

@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/admission_reason_codelist_sheet.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
@@ -93,10 +94,12 @@ class _AdmissionReasonTile extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true) return;
-    final repo = await ref.read(admissionReasonsRepositoryProvider.future);
-    await repo.delete(reason.id);
-    ref.invalidate(admissionReasonsProvider);
+    if (ok != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(admissionReasonsRepositoryProvider.future);
+      await repo.delete(reason.id);
+      ref.invalidate(admissionReasonsProvider);
+    });
   }
 
   @override

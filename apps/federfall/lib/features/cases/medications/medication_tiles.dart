@@ -1,3 +1,4 @@
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
@@ -47,10 +48,12 @@ class PrescriptionTile extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true) return;
-    final repo = await ref.read(medicationsRepositoryProvider.future);
-    await repo.delete(plan.id);
-    ref.invalidate(medicationsForCaseProvider(caseId));
+    if (ok != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(medicationsRepositoryProvider.future);
+      await repo.delete(plan.id);
+      ref.invalidate(medicationsForCaseProvider(caseId));
+    });
   }
 
   @override
@@ -210,11 +213,13 @@ class AdministrationTile extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true) return;
-    final repo =
-        await ref.read(medicationAdministrationsRepositoryProvider.future);
-    await repo.delete(administration.id);
-    ref.invalidate(administrationsForCaseProvider(caseId));
+    if (ok != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo =
+          await ref.read(medicationAdministrationsRepositoryProvider.future);
+      await repo.delete(administration.id);
+      ref.invalidate(administrationsForCaseProvider(caseId));
+    });
   }
 
   @override

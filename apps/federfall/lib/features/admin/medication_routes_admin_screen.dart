@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/medication_route_codelist_sheet.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
@@ -93,10 +94,12 @@ class _MedicationRouteTile extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true) return;
-    final repo = await ref.read(medicationRoutesRepositoryProvider.future);
-    await repo.delete(route.id);
-    ref.invalidate(medicationRoutesProvider);
+    if (ok != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(medicationRoutesRepositoryProvider.future);
+      await repo.delete(route.id);
+      ref.invalidate(medicationRoutesProvider);
+    });
   }
 
   @override
