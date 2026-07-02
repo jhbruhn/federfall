@@ -163,7 +163,7 @@ class _AddEntrySheet extends ConsumerWidget {
         ),
         _Entry(
           _AddKind.outcome,
-          Icons.flag_outlined,
+          Icons.sports_score,
           l10n.timelineRecordOutcome,
           enabled: !isDisposed,
         ),

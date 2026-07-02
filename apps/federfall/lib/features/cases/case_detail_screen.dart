@@ -14,6 +14,8 @@ import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/disposition/disposition_providers.dart';
+import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/edit_case_intake_sheet.dart';
 import 'package:federfall/features/cases/placements/placement_sheet.dart';
 import 'package:federfall/features/cases/sharing/case_share_sheet.dart';
@@ -298,7 +300,13 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
 
     if (!canEdit) return const SizedBox.shrink();
 
-    final showStatusToggle = status != CaseStatus.disposed;
+    // Mirrors the add-entry sheet's isDisposed logic: a recorded disposition
+    // ends the case even before the status invalidation lands.
+    final dispositions =
+        ref.watch(dispositionsForCaseProvider(medicalCase.id)).value;
+    final isDisposed = status == CaseStatus.disposed ||
+        (dispositions != null && dispositions.isNotEmpty);
+    final showStatusToggle = !isDisposed;
     final (statusLabel, statusTarget) = switch (status) {
       CaseStatus.inCare => (
         l10n.caseMarkReadyForRelease,
@@ -331,6 +339,18 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
                   label: Text(statusLabel),
                 ),
               const SizedBox(height: AppSpacing.sm),
+              // Recording the outcome closes the case — its most important
+              // lifecycle step, so it sits next to its sibling actions instead
+              // of only inside the History add-entry sheet (federfall-m1z).
+              if (!isDisposed) ...[
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      showDispositionSheet(context, caseId: medicalCase.id),
+                  icon: const Icon(Icons.sports_score),
+                  label: Text(l10n.timelineRecordOutcome),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               if (showStatusToggle)
                 OutlinedButton.icon(
                   onPressed: () => showPlacementSheet(
