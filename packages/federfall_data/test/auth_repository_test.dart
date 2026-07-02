@@ -102,6 +102,41 @@ void main() {
     verify(() => users.requestPasswordReset('new@example.de')).called(1);
   });
 
+  test('inviteUser signals a created account whose reset email failed as '
+      'InviteEmailFailedException, not a generic failure', () async {
+    when(() => store.record).thenReturn(
+      RecordModel({'id': 'sup1', 'org': 'org1', 'role': 'supervisor'}),
+    );
+    when(() => users.create(body: any(named: 'body'))).thenAnswer(
+      (_) async => RecordModel({'id': 'new1', 'email': 'new@example.de'}),
+    );
+    when(() => users.requestPasswordReset(any()))
+        .thenThrow(ClientException(statusCode: 500));
+
+    expect(
+      () => repo.inviteUser(email: 'new@example.de', role: UserRole.carer),
+      throwsA(
+        isA<InviteEmailFailedException>()
+            .having((e) => e.user.id, 'user.id', 'new1'),
+      ),
+    );
+  });
+
+  test('inviteUser reports a failed create as a plain RepositoryException '
+      '(no account exists yet)', () async {
+    when(() => store.record).thenReturn(
+      RecordModel({'id': 'sup1', 'org': 'org1', 'role': 'supervisor'}),
+    );
+    when(() => users.create(body: any(named: 'body')))
+        .thenThrow(ClientException(statusCode: 400));
+
+    await expectLater(
+      () => repo.inviteUser(email: 'dupe@example.de', role: UserRole.carer),
+      throwsA(isA<RepositoryException>()),
+    );
+    verifyNever(() => users.requestPasswordReset(any()));
+  });
+
   test('inviteUser fails when the inviter has no org', () async {
     when(() => store.record)
         .thenReturn(RecordModel({'id': 'sup1', 'role': 'supervisor'}));

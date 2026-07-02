@@ -62,6 +62,10 @@ abstract interface class AuthRepository {
   /// (active, with a throwaway password) and triggers a password-reset email
   /// so the invitee sets their own password. Org and inviter are taken from
   /// the current session.
+  ///
+  /// Throws [InviteEmailFailedException] when the account was created but the
+  /// reset email failed — the caller should offer to resend it rather than
+  /// retry the whole invite.
   Future<AppUser> inviteUser({
     required String email,
     required UserRole role,
@@ -91,6 +95,19 @@ class MfaRequiredException implements Exception {
 
   /// PocketBase's identifier for this in-progress MFA attempt.
   final String mfaId;
+}
+
+/// Thrown by [AuthRepository.inviteUser] when the account WAS created but the
+/// password-reset email could not be sent (mailer down, timeout). The invite
+/// is half-done: retrying it would fail with a duplicate-email error, and the
+/// invitee holds an account with an unknowable throwaway password. Callers
+/// should surface "account created, resend the reset email" — e.g. via
+/// [AuthRepository.requestPasswordReset] — instead of a generic failure.
+class InviteEmailFailedException implements Exception {
+  const InviteEmailFailedException(this.user);
+
+  /// The user record that was created before the email step failed.
+  final AppUser user;
 }
 
 /// An OAuth2 provider the server offers, for rendering a sign-in button.
@@ -282,8 +299,9 @@ class PbAuthRepository implements AuthRepository {
     // Throwaway password: required by PocketBase on create, never used — the
     // invitee sets their own via the reset email below.
     final tempPassword = _randomPassword();
+    final RecordModel record;
     try {
-      final record = await _withTimeout(
+      record = await _withTimeout(
         () => _users.create(
           body: {
             'email': email,
@@ -299,11 +317,21 @@ class PbAuthRepository implements AuthRepository {
           },
         ),
       );
-      await _withTimeout(() => _users.requestPasswordReset(email));
-      return AppUser.fromRecord(record);
     } on ClientException catch (e) {
       throw RepositoryException.fromClient(e);
     }
+
+    // The account now exists; a reset-email failure past this point must NOT
+    // surface as a plain "invite failed" — retrying the invite would hit a
+    // duplicate-email error with no hint that resending the reset email is the
+    // fix. Signal the partial state distinctly instead.
+    final user = AppUser.fromRecord(record);
+    try {
+      await _withTimeout(() => _users.requestPasswordReset(email));
+    } on Exception {
+      throw InviteEmailFailedException(user);
+    }
+    return user;
   }
 
   @override

@@ -570,6 +570,42 @@ def main():
     check("other-org member's file token CANNOT serve the photo",
           file_status(f"{file_path}?token={tok_e}") != 200)
 
+    # ── upload MIME allowlist (federfall-8a5) ───────────────────────────────
+    # intake_photos / attachments are Protected but same-origin: an active
+    # (HTML/SVG) upload would be stored XSS for any org member who opens the
+    # file URL. Both fields must only accept the image allowlist.
+    print("\n[upload MIME allowlist]")
+    _SVG = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    _HTML = b"<!DOCTYPE html><script>alert(1)</script>"
+    s, d = upload_file(
+        "PATCH", f"/api/collections/cases/records/{case}",
+        ta, "intake_photos", "evil.svg", "image/svg+xml", _SVG,
+    )
+    check("SVG upload to cases.intake_photos is rejected", s >= 400, f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/cases/records/{case}",
+        ta, "intake_photos", "evil.html", "text/html", _HTML,
+    )
+    check("HTML upload to cases.intake_photos is rejected", s >= 400, f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/cases/records/{case}",
+        ta, "intake_photos", "ok.png", "image/png", _PNG_1X1,
+    )
+    check("PNG upload to cases.intake_photos still works",
+          s == 200 and bool(d.get("intake_photos")), f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/journal_entries/records/{je['id']}",
+        tc, "attachments", "evil.svg", "image/svg+xml", _SVG,
+    )
+    check("SVG upload to journal_entries.attachments is rejected",
+          s >= 400, f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/journal_entries/records/{je['id']}",
+        tc, "attachments", "ok.png", "image/png", _PNG_1X1,
+    )
+    check("PNG upload to journal_entries.attachments still works",
+          s == 200 and bool(d.get("attachments")), f"{s} {d}")
+
     # ── case_activity view (cr3.5) ──────────────────────────────────────────
     # last_activity reflects the newest child-record touch and is org-scoped
     # readable (timestamp only, no clinical detail). Powers the worklist's

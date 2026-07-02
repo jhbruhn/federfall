@@ -1242,6 +1242,13 @@
         "description": "Confirmation after an invite is sent",
         "placeholders": { "email": { "type": "String" } }
     },
+    "inviteEmailFailed": "Account for {email} created, but the invite email could not be sent.",
+    "@inviteEmailFailed": {
+        "description": "Warning when the account exists but the password-reset email failed; the resend action fixes it",
+        "placeholders": { "email": { "type": "String" } }
+    },
+    "inviteResendAction": "Resend",
+    "@inviteResendAction": { "description": "Snackbar action that resends the invite's password-reset email" },
     "resetTitle": "Set your password",
     "@resetTitle": { "description": "Title of the password-reset screen" },
     "resetIntro": "Choose a password to activate your account.",

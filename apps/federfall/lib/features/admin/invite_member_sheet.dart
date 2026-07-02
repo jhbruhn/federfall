@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
@@ -56,11 +58,32 @@ class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet>
     final email = _emailController.text.trim();
     try {
       final repo = await ref.read(authRepositoryProvider.future);
-      await repo.inviteUser(
-        email: email,
-        role: _role,
-        name: _nameController.text,
-      );
+      try {
+        await repo.inviteUser(
+          email: email,
+          role: _role,
+          name: _nameController.text,
+        );
+      } on InviteEmailFailedException {
+        // The account exists — only the reset email failed. Close (so the
+        // roster shows the new member) and offer to resend instead of implying
+        // the whole invite failed; retrying the invite hits "email taken".
+        if (!mounted) return;
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(l10n.inviteEmailFailed(email)),
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: l10n.inviteResendAction,
+              // The sheet is popped by then: use only captured objects.
+              onPressed: () =>
+                  unawaited(_resendResetEmail(repo, email, messenger, l10n)),
+            ),
+          ),
+        );
+        navigator.pop(true);
+        return;
+      }
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(l10n.inviteSent(email))));
       navigator.pop(true);
@@ -77,6 +100,25 @@ class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet>
         _busy = false;
         _error = l10n.errorGenericTitle;
       });
+    }
+  }
+
+  /// Resends the invite's password-reset email from the failure snackbar.
+  /// Runs after the sheet is closed, so it must not touch `context`/`ref` —
+  /// everything it needs is passed in.
+  Future<void> _resendResetEmail(
+    AuthRepository repo,
+    String email,
+    ScaffoldMessengerState messenger,
+    AppLocalizations l10n,
+  ) async {
+    try {
+      await repo.requestPasswordReset(email);
+      messenger.showSnackBar(SnackBar(content: Text(l10n.inviteSent(email))));
+    } on RepositoryException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
     }
   }
 

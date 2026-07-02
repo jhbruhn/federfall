@@ -21,7 +21,14 @@ Future<ServerInfo?> serverInfo(Ref ref) async {
 
   final pb = await ref.watch(pocketBaseProvider.future);
   try {
-    return ServerInfo.tryParse(await pb.send('/api/federfall/info'));
+    // Capped like ServerProbe: the router gate holds unauthenticated users on
+    // /splash while this loads, so a black-holed server must fail fast into
+    // the null fallback instead of parking them on the spinner for the OS
+    // socket timeout.
+    final info = await pb
+        .send('/api/federfall/info')
+        .timeout(const Duration(seconds: 8));
+    return ServerInfo.tryParse(info);
   } on Object catch (error, stackTrace) {
     reportCaughtError(error, stackTrace);
     return null;

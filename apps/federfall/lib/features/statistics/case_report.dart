@@ -120,8 +120,19 @@ String encodeCaseReportCsv({
       r.city ?? '',
       r.region ?? '',
       r.reasons.join('; '),
-    ]);
+    ].map(_guardFormulaInjection).toList(growable: false));
   }
   // BOM so spreadsheet apps render German umlauts as UTF-8.
   return const CsvEncoder(addBom: true).convert(table);
+}
+
+/// Neutralises spreadsheet formula injection (OWASP CSV Injection): several
+/// cells carry user-authored text (species, name, city, admission-reason
+/// labels), and Excel/LibreOffice execute cells starting with `=`, `+`, `-`,
+/// `@`, tab or CR as formulas. A leading apostrophe forces text interpretation;
+/// the csv package's quoting alone does not prevent this.
+String _guardFormulaInjection(String cell) {
+  if (cell.isEmpty) return cell;
+  const dangerous = ['=', '+', '-', '@', '\t', '\r'];
+  return dangerous.contains(cell[0]) ? "'$cell" : cell;
 }

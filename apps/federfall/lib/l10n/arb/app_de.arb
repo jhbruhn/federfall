@@ -579,6 +579,8 @@
     "inviteNameLabel": "Name (optional)",
     "inviteAction": "Einladung senden",
     "inviteSent": "Einladung an {email} gesendet.",
+    "inviteEmailFailed": "Konto für {email} angelegt, aber die Einladungs-E-Mail konnte nicht gesendet werden.",
+    "inviteResendAction": "Erneut senden",
     "resetTitle": "Passwort festlegen",
     "resetIntro": "Lege ein Passwort fest, um dein Konto zu aktivieren.",
     "resetConfirmLabel": "Passwort bestätigen",
