@@ -90,6 +90,10 @@ const followUpDueWindow = Duration(days: 7);
 /// How long an active case may go untouched before it counts as "stale".
 const staleThreshold = Duration(days: 7);
 
+/// How many days past its end a quarantine still surfaces on the worklist, so
+/// a carer who skipped the end day still sees the release cue once (7zf).
+const quarantineGraceDays = 3;
+
 /// Builds the carer's worklist from cases they are responsible for plus the
 /// medications/doses on those cases, as of [now]. Pure and PocketBase-free so
 /// it can be unit-tested directly.
@@ -113,14 +117,19 @@ List<WorklistItem> buildWorklist({
   final items = <WorklistItem>[];
   final casesById = {for (final c in cases) c.id: c};
 
-  // Quarantines ending *today* only — a neutral same-day note, never overdue.
-  // A quarantine simply concludes; it isn't an obligation you fall behind on,
-  // and "end now" just moves the end to today, so it should leave a gentle
-  // "ends today" marker rather than flip to a red "overdue" item the moment it
-  // passes (and then nag indefinitely, since a past end never leaves a window).
+  // Quarantines ending today, plus a short grace window after — a neutral
+  // note, never overdue. A quarantine simply concludes; it isn't an obligation
+  // you fall behind on, and "end now" just moves the end to today, so it
+  // should leave a gentle "ends today" marker rather than flip to a red
+  // "overdue" item the moment it passes. The grace window makes sure a carer
+  // who didn't open the app on the end day still sees the release cue once
+  // ("ended N days ago"); after [quarantineGraceDays] it goes quiet for good
+  // rather than nag indefinitely.
   for (final c in cases) {
     final until = quarantineUntilByCase[c.id];
-    if (until == null || !_isSameDay(until, now)) continue;
+    if (until == null) continue;
+    final endedDaysAgo = localDaysBetween(until, now);
+    if (endedDaysAgo < 0 || endedDaysAgo > quarantineGraceDays) continue;
     items.add(
       WorklistItem(
         kind: WorklistKind.quarantineEnding,
@@ -212,10 +221,13 @@ List<WorklistItem> buildWorklist({
   return items;
 }
 
-/// Whether [a] and [b] fall on the same calendar day in local time. Quarantine
-/// ends are stored UTC; the carer thinks in their own day, so compare locally.
-bool _isSameDay(DateTime a, DateTime b) {
+/// Whole calendar days from [a]'s local date to [b]'s local date (0 = same
+/// day, positive when [b] is later). Quarantine ends are stored UTC; the carer
+/// thinks in their own day, so compare local dates, not raw instants.
+int localDaysBetween(DateTime a, DateTime b) {
   final la = a.toLocal();
   final lb = b.toLocal();
-  return la.year == lb.year && la.month == lb.month && la.day == lb.day;
+  return DateTime(lb.year, lb.month, lb.day)
+      .difference(DateTime(la.year, la.month, la.day))
+      .inDays;
 }

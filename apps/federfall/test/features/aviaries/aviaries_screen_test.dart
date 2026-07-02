@@ -11,12 +11,14 @@ import 'package:flutter_test/flutter_test.dart';
 Future<void> _pump(
   WidgetTester tester, {
   List<Aviary> aviaries = const [],
+  Map<String, int> occupancy = const {},
   AppUser? user,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         aviariesProvider.overrideWith((ref) async => aviaries),
+        aviaryOccupancyCountsProvider.overrideWith((ref) async => occupancy),
         orgMembersByIdProvider.overrideWith((ref) async => const {}),
         currentUserProvider.overrideWith((ref) async => user),
       ],
@@ -32,7 +34,7 @@ Future<void> _pump(
 }
 
 void main() {
-  testWidgets('lists aviaries with capacity and inactive badge',
+  testWidgets('lists aviaries with occupancy and inactive badge',
       (tester) async {
     await _pump(
       tester,
@@ -40,11 +42,25 @@ void main() {
         Aviary(id: 'av1', name: 'Garden aviary', capacity: 8),
         Aviary(id: 'av2', name: 'Quarantine pen', active: false),
       ],
+      occupancy: const {'av1': 3},
     );
 
     expect(find.text('Garden aviary'), findsOneWidget);
-    expect(find.textContaining('8 places'), findsOneWidget);
+    expect(find.textContaining('3 / 8'), findsOneWidget);
     expect(find.textContaining('Inactive'), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+  });
+
+  testWidgets('an over-capacity aviary is flagged in the list',
+      (tester) async {
+    await _pump(
+      tester,
+      aviaries: const [Aviary(id: 'av1', name: 'Garden aviary', capacity: 8)],
+      occupancy: const {'av1': 9},
+    );
+
+    expect(find.textContaining('9 / 8'), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
   });
 
   testWidgets('empty state when there are no aviaries', (tester) async {

@@ -31,3 +31,19 @@ Future<List<Animal>> aviaryResidents(Ref ref, String aviaryId) async {
   final repo = await ref.watch(animalsRepositoryProvider.future);
   return repo.residentsOf(aviaryId);
 }
+
+/// Current resident count per aviary id, in one animals query — the registry
+/// list shows occupancy next to capacity so a full aviary is visible before
+/// it's picked (federfall-kml). Aviaries without residents are absent.
+@riverpod
+Future<Map<String, int>> aviaryOccupancyCounts(Ref ref) async {
+  final repo = await ref.watch(animalsRepositoryProvider.future);
+  final residents = await repo.list(filter: 'current_aviary != ""');
+  final counts = <String, int>{};
+  for (final animal in residents) {
+    final aviaryId = animal.currentAviary;
+    if (aviaryId == null || aviaryId.isEmpty) continue;
+    counts[aviaryId] = (counts[aviaryId] ?? 0) + 1;
+  }
+  return counts;
+}

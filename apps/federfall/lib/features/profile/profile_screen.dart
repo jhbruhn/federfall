@@ -88,7 +88,9 @@ class _ProfileBody extends StatelessWidget {
               builder: (context, ref, _) => PrimaryButton(
                 label: l10n.authSignOutAction,
                 icon: Icons.logout,
-                onPressed: () => signOut(ref),
+                onPressed: () async {
+                  if (await confirmSignOut(context)) await signOut(ref);
+                },
               ),
             ),
           ),

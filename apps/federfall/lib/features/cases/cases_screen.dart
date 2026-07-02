@@ -419,8 +419,13 @@ class _CaseTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final status = medicalCase.status;
+    // An unnumbered case is titled by its animal instead of a placeholder —
+    // "Neuer Fall" in the list read like a create action (federfall-dai). The
+    // animal then leaves the subtitle so it isn't shown twice.
+    final number = medicalCase.caseNumber;
+    final title = number ?? _animalLabel ?? l10n.worklistUnnumberedCase;
     final summary = [
-      ?_animalLabel,
+      if (number != null) ?_animalLabel,
       if (status != null) caseStatusLabel(l10n, status),
     ].join(' · ');
     final carerId = medicalCase.activeCarer;
@@ -430,7 +435,7 @@ class _CaseTile extends StatelessWidget {
       selected: selected,
       isThreeLine: hasCarer,
       leading: AnimalAvatar(animalId: medicalCase.animal, radius: 20),
-      title: Text(medicalCase.caseNumber ?? l10n.caseNewTitle),
+      title: Text(title),
       subtitle: summary.isEmpty && !hasCarer
           ? null
           : Column(

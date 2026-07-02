@@ -25,7 +25,9 @@ class AviariesScreen extends ConsumerWidget {
     final l10n = context.l10n;
     ref.liveRefresh(
       const ['aviaries', 'dispositions', 'animals'],
-      () => ref.invalidate(aviariesProvider),
+      () => ref
+        ..invalidate(aviariesProvider)
+        ..invalidate(aviaryOccupancyCountsProvider),
     );
     final aviaries = ref.watch(aviariesProvider);
     final canManage = canManageAviaries(
@@ -64,7 +66,10 @@ class AviariesScreen extends ConsumerWidget {
                     : null,
               )
             : RefreshIndicator(
-                onRefresh: () => ref.refresh(aviariesProvider.future),
+                onRefresh: () {
+                  ref.invalidate(aviaryOccupancyCountsProvider);
+                  return ref.refresh(aviariesProvider.future);
+                },
                 child: ListView.builder(
                   itemCount: list.length,
                   itemBuilder: (context, i) => _AviaryTile(
@@ -92,11 +97,23 @@ class _AviaryTile extends ConsumerWidget {
     final keeper = aviary.keeper == null
         ? null
         : ref.watch(orgMembersByIdProvider).value?[aviary.keeper];
+    // Occupancy alongside capacity ("3 / 10") so a full aviary is visible in
+    // the list (federfall-kml); plain capacity while counts are still loading.
+    final counts = ref.watch(aviaryOccupancyCountsProvider).value;
+    final residents = counts?[aviary.id] ?? (counts == null ? null : 0);
+    final capacity = aviary.capacity;
+    final overCapacity =
+        capacity != null && residents != null && residents > capacity;
 
     final subtitle = [
       if (keeper != null) memberLabel(keeper),
       ?aviary.location,
-      if (aviary.capacity != null) l10n.aviaryCapacityValue(aviary.capacity!),
+      if (capacity != null)
+        residents == null
+            ? l10n.aviaryCapacityValue(capacity)
+            : l10n.aviaryOccupancyOfCapacity(residents, capacity)
+      else if (residents != null && residents > 0)
+        l10n.aviaryOccupancy(residents),
       if (!aviary.active) l10n.aviaryInactive,
     ].join(' · ');
 
@@ -105,7 +122,18 @@ class _AviaryTile extends ConsumerWidget {
       leading: const Icon(Icons.holiday_village_outlined),
       title: Text(aviary.name),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: overCapacity
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const Icon(Icons.chevron_right),
+              ],
+            )
+          : const Icon(Icons.chevron_right),
       onTap: () => context.go(AppRoutes.aviaryDetail(aviary.id)),
     );
   }

@@ -51,6 +51,22 @@ void main() {
     expect(find.text('Residents'), findsOneWidget);
   });
 
+  testWidgets('over-capacity occupancy chip is highlighted', (tester) async {
+    await _pump(
+      tester,
+      aviary: const Aviary(id: 'av1', name: 'Garden aviary', capacity: 1),
+      residents: const [
+        Animal(id: 'a1', species: 'Columba livia'),
+        Animal(id: 'a2', species: 'Columba livia'),
+      ],
+    );
+
+    expect(find.text('2 / 1'), findsOneWidget);
+    final chip = tester.widget<Chip>(find.byType(Chip));
+    final scheme = Theme.of(tester.element(find.byType(Chip))).colorScheme;
+    expect(chip.backgroundColor, scheme.errorContainer);
+  });
+
   testWidgets('empty residents state', (tester) async {
     await _pump(tester, aviary: const Aviary(id: 'av1', name: 'Quarantine'));
     expect(find.text('No residents'), findsOneWidget);

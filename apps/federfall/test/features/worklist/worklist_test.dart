@@ -103,12 +103,27 @@ void main() {
       expect(items.single.severity, WorklistSeverity.upcoming);
     });
 
-    test('a quarantine whose end was a prior day does not appear', () {
+    test('a quarantine that ended within the grace window still surfaces', () {
+      // Missed end day (yesterday) — the release cue must appear once, still
+      // neutral, so a carer who skipped a day is not left in the dark (7zf).
+      final until = _now.subtract(const Duration(days: 1));
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medicationsDue: const [],
+        quarantineUntilByCase: {'c1': until},
+        now: _now,
+      );
+      expect(items.single.kind, WorklistKind.quarantineEnding);
+      expect(items.single.severity, WorklistSeverity.upcoming);
+      expect(items.single.dueAt, until);
+    });
+
+    test('a quarantine that ended beyond the grace window does not appear', () {
       final items = buildWorklist(
         cases: [_case('c1')],
         medicationsDue: const [],
         quarantineUntilByCase: {
-          'c1': _now.subtract(const Duration(days: 1)),
+          'c1': _now.subtract(const Duration(days: quarantineGraceDays + 1)),
         },
         now: _now,
       );

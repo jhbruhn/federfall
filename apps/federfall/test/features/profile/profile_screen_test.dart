@@ -143,7 +143,8 @@ void main() {
     expect(repo.updatedPhone, '0123');
   });
 
-  testWidgets('signs out from the profile action', (tester) async {
+  testWidgets('signs out from the profile action after confirming',
+      (tester) async {
     final repo = FakeAuthRepository();
     await _pump(
       tester,
@@ -152,9 +153,34 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.pumpAndSettle();
+
+    // One accidental tap must not end the session — a confirm dialog
+    // intervenes (federfall-u8l).
+    expect(repo.signedOut, isFalse);
+    expect(find.text('Sign out of this device?'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Sign out'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(repo.signedOut, isTrue);
+  });
+
+  testWidgets('cancelling the sign-out confirmation keeps the session',
+      (tester) async {
+    final repo = FakeAuthRepository();
+    await _pump(
+      tester,
+      repo,
+      const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(repo.signedOut, isFalse);
   });
 }

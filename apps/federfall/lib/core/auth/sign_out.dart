@@ -2,7 +2,33 @@ import 'dart:async';
 
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/l10n/l10n.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Asks the user to confirm signing out — one accidental tap must not end the
+/// session (and purge the photo cache). Returns whether they confirmed.
+Future<bool> confirmSignOut(BuildContext context) async {
+  final l10n = context.l10n;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(l10n.authSignOutAction),
+      content: Text(l10n.authSignOutConfirm),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(l10n.actionCancel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(l10n.authSignOutAction),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
 
 /// Signs the user out and purges the on-device protected-file cache (intake
 /// photos, journal attachments, animal photos). Cache hits are served without

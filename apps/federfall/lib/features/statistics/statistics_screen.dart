@@ -156,7 +156,7 @@ class StatisticsScreen extends ConsumerWidget {
       );
     } on Object catch (e, stackTrace) {
       reportCaughtError(e, stackTrace);
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
     }
   }
 }

@@ -41,7 +41,9 @@ class _PendingApprovalScreenState extends ConsumerState<PendingApprovalScreen> {
     }
   }
 
-  Future<void> _signOut() => signOut(ref);
+  Future<void> _signOut() async {
+    if (await confirmSignOut(context)) await signOut(ref);
+  }
 
   @override
   Widget build(BuildContext context) {

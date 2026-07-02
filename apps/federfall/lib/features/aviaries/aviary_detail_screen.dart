@@ -105,14 +105,17 @@ class _Header extends ConsumerWidget {
       if (keeper != null) memberLabel(keeper),
       ?aviary.location,
     ].join(' · ');
-    final occupancy = aviary.capacity != null
-        ? l10n.aviaryOccupancyOfCapacity(residentCount, aviary.capacity!)
+    final capacity = aviary.capacity;
+    final occupancy = capacity != null
+        ? l10n.aviaryOccupancyOfCapacity(residentCount, capacity)
         : l10n.aviaryOccupancy(residentCount);
 
     return DetailHeader(
       title: aviary.name,
       subtitle: subtitle,
       chipLabel: occupancy,
+      // Flag over-capacity so a coordinator spots it (federfall-kml).
+      chipAlert: capacity != null && residentCount > capacity,
     );
   }
 }

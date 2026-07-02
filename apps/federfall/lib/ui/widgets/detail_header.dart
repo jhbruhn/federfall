@@ -15,6 +15,7 @@ class DetailHeader extends StatelessWidget {
     this.subtitle,
     this.footer,
     this.chipLabel,
+    this.chipAlert = false,
     this.leading,
     this.trailing,
     super.key,
@@ -32,6 +33,10 @@ class DetailHeader extends StatelessWidget {
 
   /// Status chip text; omitted when null.
   final String? chipLabel;
+
+  /// Renders the chip in error-container colors to flag an abnormal state
+  /// (e.g. an aviary over capacity).
+  final bool chipAlert;
 
   /// Optional leading widget (avatar) shown left of the text.
   final Widget? leading;
@@ -67,6 +72,12 @@ class DetailHeader extends StatelessWidget {
           Chip(
             label: Text(chipLabel!),
             visualDensity: VisualDensity.compact,
+            backgroundColor: chipAlert
+                ? theme.colorScheme.errorContainer
+                : null,
+            labelStyle: chipAlert
+                ? TextStyle(color: theme.colorScheme.onErrorContainer)
+                : null,
           ),
         ],
       ],
