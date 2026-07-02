@@ -55,15 +55,26 @@ void invalidateCaseTimeline(
 /// and journal entries interleaved newest-first in one ordered list. Further
 /// Phase 4 records (weights, medications, conditions, dispositions) become
 /// additional event kinds here rather than separate sections.
+///
+/// Renders as a lazy scrollable ([ListView.builder]) and therefore owns the
+/// vertical scrolling — hosts must not nest it inside another scroll view.
+/// Long cases accumulate hundreds of events (daily doses, journal entries),
+/// and realtime invalidation rebuilds the chronology constantly, so only the
+/// visible rows may be built.
 class CaseTimeline extends ConsumerWidget {
   const CaseTimeline({
     required this.medicalCase,
     this.canEdit = true,
     this.showTitle = true,
+    this.padding = EdgeInsets.zero,
     super.key,
   });
 
   final Case medicalCase;
+
+  /// Outer inset of the scrollable (a screen-level concern, so the host
+  /// supplies it — e.g. the History tab passes its page padding).
+  final EdgeInsetsGeometry padding;
 
   /// Whether the current user may edit this case's records. When false, the
   /// per-entry edit/delete menus are hidden (read-only view). Supplied by the
@@ -91,7 +102,8 @@ class CaseTimeline extends ConsumerWidget {
     final exams = ref.watch(examsForCaseProvider(caseId));
     final examFindings = ref.watch(examFindingsForCaseProvider(caseId));
     final quarantines = ref.watch(quarantineForCaseProvider(caseId));
-    final isLoading = journal.isLoading ||
+    final isLoading =
+        journal.isLoading ||
         weights.isLoading ||
         conditions.isLoading ||
         meds.isLoading ||
@@ -103,7 +115,8 @@ class CaseTimeline extends ConsumerWidget {
         exams.isLoading ||
         examFindings.isLoading ||
         quarantines.isLoading;
-    final error = journal.error ??
+    final error =
+        journal.error ??
         weights.error ??
         conditions.error ??
         meds.error ??
@@ -121,177 +134,196 @@ class CaseTimeline extends ConsumerWidget {
     final currentQuarantineId =
         (quarantines.value ?? const <Quarantine>[]).firstOrNull?.id;
 
-    final events = <_Event>[
-      if (medicalCase.admittedAt case final d?)
-        _MilestoneEvent(
-          d,
-          Icons.event_available_outlined,
-          l10n.caseEventAdmitted,
-        ),
-      if (medicalCase.created case final d?)
-        _MilestoneEvent(d, Icons.flag_outlined, l10n.caseEventCreated),
-      for (final entry in journal.value ?? const <JournalEntry>[])
-        _JournalEvent(entry),
-      for (final weight in weights.value ?? const <Weight>[])
-        _WeightEvent(weight),
-      for (final condition in conditions.value ?? const <CaseCondition>[])
-        _ConditionEvent(condition),
-      for (final plan in meds.value ?? const <Medication>[])
-        _PrescriptionEvent(plan),
-      for (final dose
-          in doses.value ?? const <MedicationAdministration>[])
-        _AdministrationEvent(dose),
-      for (final marking in markings.value ?? const <Marking>[])
-        _MarkingEvent(marking),
-      for (final placement in placements.value ?? const <Placement>[])
-        _PlacementEvent(placement),
-      for (final disposition in dispositions.value ?? const <Disposition>[])
-        _DispositionEvent(disposition),
-      for (final followUp in followUps.value ?? const <FollowUp>[])
-        _FollowUpEvent(followUp),
-      for (final exam in exams.value ?? const <Exam>[])
-        _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
-      for (final quarantine in quarantines.value ?? const <Quarantine>[]) ...[
-        // Every quarantine shows as a "started" entry; once it has lapsed it
-        // also gets a separate "ended" marker at its end date.
-        _QuarantineEvent(
-          quarantine,
-          phase: QuarantinePhase.started,
-          isCurrent: quarantine.id == currentQuarantineId,
-        ),
-        if (quarantine.until case final until?
-            when !until.isAfter(DateTime.now()))
-          _QuarantineEvent(
-            quarantine,
-            phase: QuarantinePhase.ended,
-            isCurrent: quarantine.id == currentQuarantineId,
-          ),
-      ],
-    ]..sort((a, b) {
-      final byTime = b.at.compareTo(a.at);
-      if (byTime != 0) return byTime;
-      // Same instant — e.g. the intake weight is measured at the admission
-      // time (new_case_screen). Keep the genesis milestones (Admitted, Case
-      // opened) above the records logged at that moment, rather than letting
-      // an unstable tie wedge the weight above "Aufgenommen".
-      final aRank = a is _MilestoneEvent ? 1 : 0;
-      final bRank = b is _MilestoneEvent ? 1 : 0;
-      return aRank.compareTo(bRank);
-    });
+    final events =
+        <_Event>[
+          if (medicalCase.admittedAt case final d?)
+            _MilestoneEvent(
+              d,
+              Icons.event_available_outlined,
+              l10n.caseEventAdmitted,
+            ),
+          if (medicalCase.created case final d?)
+            _MilestoneEvent(d, Icons.flag_outlined, l10n.caseEventCreated),
+          for (final entry in journal.value ?? const <JournalEntry>[])
+            _JournalEvent(entry),
+          for (final weight in weights.value ?? const <Weight>[])
+            _WeightEvent(weight),
+          for (final condition in conditions.value ?? const <CaseCondition>[])
+            _ConditionEvent(condition),
+          for (final plan in meds.value ?? const <Medication>[])
+            _PrescriptionEvent(plan),
+          for (final dose in doses.value ?? const <MedicationAdministration>[])
+            _AdministrationEvent(dose),
+          for (final marking in markings.value ?? const <Marking>[])
+            _MarkingEvent(marking),
+          for (final placement in placements.value ?? const <Placement>[])
+            _PlacementEvent(placement),
+          for (final disposition in dispositions.value ?? const <Disposition>[])
+            _DispositionEvent(disposition),
+          for (final followUp in followUps.value ?? const <FollowUp>[])
+            _FollowUpEvent(followUp),
+          for (final exam in exams.value ?? const <Exam>[])
+            _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
+          for (final quarantine
+              in quarantines.value ?? const <Quarantine>[]) ...[
+            // Every quarantine shows as a "started" entry; once it has
+            // lapsed it also gets a separate "ended" marker at its end date.
+            _QuarantineEvent(
+              quarantine,
+              phase: QuarantinePhase.started,
+              isCurrent: quarantine.id == currentQuarantineId,
+            ),
+            if (quarantine.until case final until?
+                when !until.isAfter(DateTime.now()))
+              _QuarantineEvent(
+                quarantine,
+                phase: QuarantinePhase.ended,
+                isCurrent: quarantine.id == currentQuarantineId,
+              ),
+          ],
+        ]..sort((a, b) {
+          final byTime = b.at.compareTo(a.at);
+          if (byTime != 0) return byTime;
+          // Same instant — e.g. the intake weight is measured at the admission
+          // time (new_case_screen). Keep the genesis milestones (Admitted,
+          // Case opened) above the records logged at that moment, rather than
+          // letting an unstable tie wedge the weight above "Aufgenommen".
+          final aRank = a is _MilestoneEvent ? 1 : 0;
+          final bRank = b is _MilestoneEvent ? 1 : 0;
+          return aRank.compareTo(bRank);
+        });
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // The add-entry trigger now lives on the case detail FAB
-        // (showAddEntrySheet); the timeline only renders the chronology.
-        if (showTitle) ...[
-          Text(l10n.caseTimelineTitle, style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-        // Only on the first load (no events yet). A refresh keeps the existing
-        // events on screen and is already signalled by the pull-to-refresh
-        // indicator, so showing the bar too would be a second, redundant
-        // loading indicator.
-        if (isLoading && events.isEmpty) const LinearProgressIndicator(),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text(
-              errorMessage(l10n, error),
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.error),
+    // The non-event rows (title, first-load progress, error, empty state) lead
+    // the same lazy list as the events — a wrapping Column would force every
+    // event tile to build eagerly.
+    final header = <Widget>[
+      // The add-entry trigger now lives on the case detail FAB
+      // (showAddEntrySheet); the timeline only renders the chronology.
+      if (showTitle) ...[
+        Text(l10n.caseTimelineTitle, style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+      ],
+      // Only on the first load (no events yet). A refresh keeps the existing
+      // events on screen and is already signalled by the pull-to-refresh
+      // indicator, so showing the bar too would be a second, redundant
+      // loading indicator.
+      if (isLoading && events.isEmpty) const LinearProgressIndicator(),
+      if (error != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Text(
+            errorMessage(l10n, error),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.error,
             ),
           ),
-        if (events.isEmpty && !isLoading)
-          Text(l10n.caseTimelineEmpty, style: theme.textTheme.bodyMedium)
-        else
-          for (var i = 0; i < events.length; i++)
-            switch (events[i]) {
-              _JournalEvent(:final entry) => JournalEntryTile(
-                entry: entry,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _WeightEvent(:final weight) => WeightEntryTile(
-                weight: weight,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _ConditionEvent(:final condition) => ConditionEntryTile(
-                entry: condition,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _PrescriptionEvent(:final plan) => PrescriptionTile(
-                plan: plan,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _AdministrationEvent(:final dose) => AdministrationTile(
-                administration: dose,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _MarkingEvent(:final marking) => MarkingTile(
-                marking: marking,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _PlacementEvent(:final placement) => PlacementTile(
-                placement: placement,
-                medicalCase: medicalCase,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _DispositionEvent(:final disposition) => DispositionTile(
-                disposition: disposition,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _FollowUpEvent(:final followUp) => FollowUpTile(
-                followUp: followUp,
-                caseId: caseId,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _ExamEvent(:final exam, :final findings) => ExamTile(
-                exam: exam,
-                findings: findings,
-                caseId: caseId,
-                animalId: medicalCase.animal,
-                canEdit: canEdit,
-                isLast: i == events.length - 1,
-              ),
-              _QuarantineEvent(
-                :final quarantine,
-                :final phase,
-                :final isCurrent,
-              ) =>
-                QuarantineTile(
-                  entry: quarantine,
-                  caseId: caseId,
-                  phase: phase,
-                  canEdit: canEdit,
-                  isCurrent: isCurrent,
-                  isLast: i == events.length - 1,
-                ),
-              _MilestoneEvent(:final icon, :final label, :final at) =>
-                TimelineItem(
-                  icon: icon,
-                  date: formatEventDate(MaterialLocalizations.of(context), at),
-                  isLast: i == events.length - 1,
-                  child: Text(label, style: theme.textTheme.bodyLarge),
-                ),
-            },
-      ],
+        ),
+      if (events.isEmpty && !isLoading)
+        Text(l10n.caseTimelineEmpty, style: theme.textTheme.bodyMedium),
+    ];
+
+    return ListView.builder(
+      padding: padding,
+      // Pull-to-refresh must keep working when the chronology is shorter than
+      // the viewport.
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: header.length + events.length,
+      itemBuilder: (context, index) {
+        if (index < header.length) return header[index];
+        final i = index - header.length;
+        return _eventTile(context, events[i], isLast: i == events.length - 1);
+      },
     );
+  }
+
+  Widget _eventTile(
+    BuildContext context,
+    _Event event, {
+    required bool isLast,
+  }) {
+    final caseId = medicalCase.id;
+    return switch (event) {
+      _JournalEvent(:final entry) => JournalEntryTile(
+        entry: entry,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _WeightEvent(:final weight) => WeightEntryTile(
+        weight: weight,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _ConditionEvent(:final condition) => ConditionEntryTile(
+        entry: condition,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _PrescriptionEvent(:final plan) => PrescriptionTile(
+        plan: plan,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _AdministrationEvent(:final dose) => AdministrationTile(
+        administration: dose,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _MarkingEvent(:final marking) => MarkingTile(
+        marking: marking,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _PlacementEvent(:final placement) => PlacementTile(
+        placement: placement,
+        medicalCase: medicalCase,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _DispositionEvent(:final disposition) => DispositionTile(
+        disposition: disposition,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _FollowUpEvent(:final followUp) => FollowUpTile(
+        followUp: followUp,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _ExamEvent(:final exam, :final findings) => ExamTile(
+        exam: exam,
+        findings: findings,
+        caseId: caseId,
+        animalId: medicalCase.animal,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _QuarantineEvent(:final quarantine, :final phase, :final isCurrent) =>
+        QuarantineTile(
+          entry: quarantine,
+          caseId: caseId,
+          phase: phase,
+          canEdit: canEdit,
+          isCurrent: isCurrent,
+          isLast: isLast,
+        ),
+      _MilestoneEvent(:final icon, :final label, :final at) => TimelineItem(
+        icon: icon,
+        date: formatEventDate(MaterialLocalizations.of(context), at),
+        isLast: isLast,
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+      ),
+    };
   }
 }
 
@@ -320,9 +352,7 @@ class _JournalEvent extends _Event {
 
   @override
   DateTime get at =>
-      entry.entryAt ??
-      entry.created ??
-      DateTime.fromMillisecondsSinceEpoch(0);
+      entry.entryAt ?? entry.created ?? DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 /// A weight measurement placed on the timeline by its measurement date.
@@ -359,9 +389,7 @@ class _PrescriptionEvent extends _Event {
 
   @override
   DateTime get at =>
-      plan.startedAt ??
-      plan.created ??
-      DateTime.fromMillisecondsSinceEpoch(0);
+      plan.startedAt ?? plan.created ?? DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 /// An administered dose placed on the timeline by when it was given.
@@ -426,9 +454,7 @@ class _ExamEvent extends _Event {
 
   @override
   DateTime get at =>
-      exam.examinedAt ??
-      exam.created ??
-      DateTime.fromMillisecondsSinceEpoch(0);
+      exam.examinedAt ?? exam.created ?? DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 /// A case outcome placed on the timeline by when the case was disposed.

@@ -83,23 +83,24 @@ void main() {
       overrides: [
         journalRepositoryProvider.overrideWith((ref) async => journal),
         weightsRepositoryProvider.overrideWith((ref) async => weights),
-        caseConditionsRepositoryProvider
-            .overrideWith((ref) async => caseConditions),
-        medicationsRepositoryProvider
-            .overrideWith((ref) async => medications),
-        medicationAdministrationsRepositoryProvider
-            .overrideWith((ref) async => administrations),
+        caseConditionsRepositoryProvider.overrideWith(
+          (ref) async => caseConditions,
+        ),
+        medicationsRepositoryProvider.overrideWith((ref) async => medications),
+        medicationAdministrationsRepositoryProvider.overrideWith(
+          (ref) async => administrations,
+        ),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
-        placementsRepositoryProvider
-            .overrideWith((ref) async => placements),
-        dispositionsRepositoryProvider
-            .overrideWith((ref) async => dispositions),
+        placementsRepositoryProvider.overrideWith((ref) async => placements),
+        dispositionsRepositoryProvider.overrideWith(
+          (ref) async => dispositions,
+        ),
         followUpsRepositoryProvider.overrideWith((ref) async => followUps),
         examsRepositoryProvider.overrideWith((ref) async => exams),
-        examFindingsRepositoryProvider
-            .overrideWith((ref) async => examFindings),
-        quarantineRepositoryProvider
-            .overrideWith((ref) async => quarantine),
+        examFindingsRepositoryProvider.overrideWith(
+          (ref) async => examFindings,
+        ),
+        quarantineRepositoryProvider.overrideWith((ref) async => quarantine),
       ],
     );
     addTearDown(container.dispose);
@@ -111,10 +112,10 @@ void main() {
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          // The timeline is its own lazy scrollable now — pump it directly as
+          // the body (nesting it in another scroll view is unsupported).
           home: Scaffold(
-            body: SingleChildScrollView(
-              child: CaseTimeline(medicalCase: medicalCase, canEdit: canEdit),
-            ),
+            body: CaseTimeline(medicalCase: medicalCase, canEdit: canEdit),
           ),
         ),
       ),
@@ -122,8 +123,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('interleaves journal entries and milestones newest-first',
-      (tester) async {
+  testWidgets('interleaves journal entries and milestones newest-first', (
+    tester,
+  ) async {
     when(() => journal.forCase('c1')).thenAnswer(
       (_) async => [
         JournalEntry(
@@ -175,8 +177,9 @@ void main() {
     expect(find.text('248 g'), findsOneWidget);
   });
 
-  testWidgets('orders a same-instant weight above the Admitted milestone',
-      (tester) async {
+  testWidgets('orders a same-instant weight above the Admitted milestone', (
+    tester,
+  ) async {
     when(() => journal.forCase('c1')).thenAnswer((_) async => []);
     // The intake weight is measured at the admission time (new_case_screen),
     // so the two share an instant; the record sorts above the milestone
@@ -201,8 +204,9 @@ void main() {
     expect(weight, lessThan(admitted));
   });
 
-  testWidgets('places an exam with vitals and an abnormal finding',
-      (tester) async {
+  testWidgets('places an exam with vitals and an abnormal finding', (
+    tester,
+  ) async {
     when(() => journal.forCase('c1')).thenAnswer((_) async => []);
     when(() => exams.forCase('c1')).thenAnswer(
       (_) async => [
@@ -235,8 +239,9 @@ void main() {
     expect(_richContaining('Legs & feet', 'pododermatitis'), findsOneWidget);
   });
 
-  testWidgets('shows the empty state when nothing is on the timeline',
-      (tester) async {
+  testWidgets('shows the empty state when nothing is on the timeline', (
+    tester,
+  ) async {
     when(() => journal.forCase('c1')).thenAnswer((_) async => []);
 
     await pump(tester, const Case(id: 'c1', animal: 'a1'));
@@ -262,8 +267,9 @@ void main() {
     expect(find.byIcon(Icons.more_vert), findsOneWidget);
   });
 
-  testWidgets('hides per-entry edit menus when the case is read-only',
-      (tester) async {
+  testWidgets('hides per-entry edit menus when the case is read-only', (
+    tester,
+  ) async {
     when(() => journal.forCase('c1')).thenAnswer(
       (_) async => [
         JournalEntry(
@@ -282,8 +288,9 @@ void main() {
     expect(find.byIcon(Icons.more_vert), findsNothing);
   });
 
-  testWidgets('an ended quarantine shows both a started and an ended entry',
-      (tester) async {
+  testWidgets('an ended quarantine shows both a started and an ended entry', (
+    tester,
+  ) async {
     when(() => journal.forCase('c1')).thenAnswer((_) async => []);
     // Imposed two months ago, ended one month ago — both dates are in the past.
     when(() => quarantine.forCase('c1')).thenAnswer(
@@ -306,13 +313,15 @@ void main() {
     // The started entry sits above the ended marker (newest-first: the end date
     // is more recent than the start).
     final ended = tester.getTopLeft(find.text('Quarantine ended')).dy;
-    final started =
-        tester.getTopLeft(find.textContaining('Quarantine until')).dy;
+    final started = tester
+        .getTopLeft(find.textContaining('Quarantine until'))
+        .dy;
     expect(ended, lessThan(started));
   });
 
-  testWidgets('an active quarantine shows only the started entry',
-      (tester) async {
+  testWidgets('an active quarantine shows only the started entry', (
+    tester,
+  ) async {
     when(() => journal.forCase('c1')).thenAnswer((_) async => []);
     when(() => quarantine.forCase('c1')).thenAnswer(
       (_) async => [
@@ -335,8 +344,8 @@ void main() {
 /// Matches a `Text.rich` labelled fact whose combined plain text contains both
 /// [label] and [value] (the exam tile renders each across separate spans).
 Finder _richContaining(String label, String value) => find.byWidgetPredicate(
-      (w) =>
-          w is RichText &&
-          w.text.toPlainText().contains(label) &&
-          w.text.toPlainText().contains(value),
-    );
+  (w) =>
+      w is RichText &&
+      w.text.toPlainText().contains(label) &&
+      w.text.toPlainText().contains(value),
+);

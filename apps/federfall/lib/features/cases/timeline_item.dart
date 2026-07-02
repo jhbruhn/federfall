@@ -33,84 +33,86 @@ class TimelineItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Rail(icon: icon, isLast: isLast),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          date,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+    // The connecting line is painted behind the row rather than stretched
+    // alongside it — stretching would need IntrinsicHeight (a second layout
+    // pass per row), which is too costly for a chronology with hundreds of
+    // entries.
+    return Stack(
+      children: [
+        if (!isLast)
+          Positioned(
+            left: _dotSize / 2 - 1,
+            top: _dotSize,
+            bottom: 0,
+            width: 2,
+            child: ColoredBox(color: theme.colorScheme.outlineVariant),
+          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Dot(icon: icon),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            date,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
-                      ),
-                      // Pin the action to a compact square. Menus/buttons
-                      // otherwise impose a 48px tap target that inflates the
-                      // date header and pushes the body down — making editable
-                      // entries sit lower than read-only ones (federfall-533).
-                      if (trailing case final t?)
-                        SizedBox.square(dimension: 32, child: t),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  child,
-                ],
+                        // Pin the action to a compact square. Menus/buttons
+                        // otherwise impose a 48px tap target that inflates
+                        // the date header and pushes the body down — making
+                        // editable entries sit lower than read-only ones
+                        // (federfall-533).
+                        if (trailing case final t?)
+                          SizedBox.square(dimension: 32, child: t),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    child,
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-/// The leading rail: a circular icon dot with a vertical line running down to
-/// the next event (trimmed on the last one).
-class _Rail extends StatelessWidget {
-  const _Rail({required this.icon, required this.isLast});
+const double _dotSize = 32;
+
+/// The rail's circular icon dot; the connecting line down to the next event
+/// is painted separately behind the row (see [TimelineItem.build]).
+class _Dot extends StatelessWidget {
+  const _Dot({required this.icon});
 
   final IconData icon;
-  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: 32,
-      child: Column(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.secondaryContainer,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              size: 18,
-              color: theme.colorScheme.onSecondaryContainer,
-            ),
-          ),
-          if (!isLast)
-            Expanded(
-              child: Container(
-                width: 2,
-                color: theme.colorScheme.outlineVariant,
-              ),
-            ),
-        ],
+    return Container(
+      width: _dotSize,
+      height: _dotSize,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        icon,
+        size: 18,
+        color: theme.colorScheme.onSecondaryContainer,
       ),
     );
   }

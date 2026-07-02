@@ -207,15 +207,13 @@ class _HistoryTab extends StatelessWidget {
           : null,
       body: RefreshIndicator(
         onRefresh: onRefresh,
-        child: ListView(
+        // The timeline is itself the lazy scrollable (it must not sit inside
+        // another ListView, or every row builds eagerly).
+        child: CaseTimeline(
+          medicalCase: medicalCase,
+          canEdit: canEdit,
+          showTitle: false,
           padding: const EdgeInsets.all(AppSpacing.md),
-          children: [
-            CaseTimeline(
-              medicalCase: medicalCase,
-              canEdit: canEdit,
-              showTitle: false,
-            ),
-          ],
         ),
       ),
     );

@@ -38,6 +38,9 @@ class StagedPhotos extends StatelessWidget {
               itemCount: photos.length,
               separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
               itemBuilder: (context, i) => _Thumb(
+                // Keyed by the file so removing photo i doesn't remount (and
+                // re-read) every thumbnail after it.
+                key: ObjectKey(photos[i]),
                 photo: photos[i],
                 onRemove: enabled ? () => onRemove(i) : null,
               ),
@@ -64,8 +67,65 @@ class StagedPhotos extends StatelessWidget {
   }
 }
 
+/// A square thumbnail of a not-yet-uploaded local photo. Reads the file's
+/// bytes once per file (cached across parent rebuilds — a form keystroke must
+/// not hit the disk) and decodes at thumbnail resolution via `cacheWidth`
+/// instead of holding the full-resolution frame in memory.
+class LocalPhotoThumb extends StatefulWidget {
+  const LocalPhotoThumb({required this.photo, this.size = 88, super.key});
+
+  final XFile photo;
+  final double size;
+
+  @override
+  State<LocalPhotoThumb> createState() => _LocalPhotoThumbState();
+}
+
+class _LocalPhotoThumbState extends State<LocalPhotoThumb> {
+  late Future<Uint8List> _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _bytes = widget.photo.readAsBytes();
+  }
+
+  @override
+  void didUpdateWidget(LocalPhotoThumb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.photo.path != widget.photo.path) {
+      _bytes = widget.photo.readAsBytes();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.size;
+    return FutureBuilder<Uint8List>(
+      future: _bytes,
+      builder: (context, snap) {
+        final bytes = snap.data;
+        if (bytes == null) return SizedBox(width: size, height: size);
+        return Image.memory(
+          bytes,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+          errorBuilder: (context, _, _) => Container(
+            width: size,
+            height: size,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Icon(Icons.image_outlined),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _Thumb extends StatelessWidget {
-  const _Thumb({required this.photo, required this.onRemove});
+  const _Thumb({required this.photo, required this.onRemove, super.key});
 
   final XFile photo;
   final VoidCallback? onRemove;
@@ -76,25 +136,7 @@ class _Thumb extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: FutureBuilder<Uint8List>(
-            future: photo.readAsBytes(),
-            builder: (context, snap) {
-              final bytes = snap.data;
-              if (bytes == null) return const SizedBox(width: 88, height: 88);
-              return Image.memory(
-                bytes,
-                width: 88,
-                height: 88,
-                fit: BoxFit.cover,
-                errorBuilder: (context, _, _) => Container(
-                  width: 88,
-                  height: 88,
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.image_outlined),
-                ),
-              );
-            },
-          ),
+          child: LocalPhotoThumb(photo: photo),
         ),
         if (onRemove != null)
           Positioned(

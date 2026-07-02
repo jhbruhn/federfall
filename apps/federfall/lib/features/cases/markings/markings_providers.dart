@@ -51,23 +51,26 @@ Future<List<ReidMatch>> reidSearch(Ref ref, String query) async {
   final byCode = await markingsRepo.activeByCode(q);
   final byName = await animalsRepo.searchByName(q);
 
-  // Resolve the animals behind matched markings, de-duplicating with name hits.
+  // Resolve the animals behind matched markings, de-duplicating with name
+  // hits. The per-animal fetches here and below run concurrently — awaiting
+  // them one by one made every code match cost an extra sequential round trip
+  // in the middle of the intake wizard.
   final animalsById = {for (final a in byName) a.id: a};
-  for (final id in byCode.map((m) => m.animal).toSet()) {
-    if (!animalsById.containsKey(id)) {
-      animalsById[id] = await animalsRepo.getOne(id);
-    }
+  final missing = byCode.map((m) => m.animal).toSet()
+    ..removeAll(animalsById.keys);
+  for (final animal in await Future.wait(missing.map(animalsRepo.getOne))) {
+    animalsById[animal.id] = animal;
   }
 
-  final matches = <ReidMatch>[];
-  for (final animal in animalsById.values) {
-    final markings = await markingsRepo.forAnimal(animal.id);
-    matches.add(
-      ReidMatch(
-        animal: animal,
-        markings: markings.where((m) => m.isActive).toList(),
-      ),
-    );
-  }
-  return matches;
+  return Future.wait([
+    for (final animal in animalsById.values)
+      markingsRepo
+          .forAnimal(animal.id)
+          .then(
+            (markings) => ReidMatch(
+              animal: animal,
+              markings: markings.where((m) => m.isActive).toList(),
+            ),
+          ),
+  ]);
 }

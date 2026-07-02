@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
@@ -302,8 +300,11 @@ class _PhotoStrip extends ConsumerWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
+          // Keys on both loops: removing photo i must not remount (and
+          // re-fetch / re-read) every thumbnail after it.
           for (var i = 0; i < existing.length; i++)
             Padding(
+              key: ValueKey(existing[i]),
               padding: const EdgeInsets.only(right: AppSpacing.sm),
               child: _Thumb(
                 onRemove: onRemoveExisting == null
@@ -324,24 +325,11 @@ class _PhotoStrip extends ConsumerWidget {
             ),
           for (var i = 0; i < newPhotos.length; i++)
             Padding(
+              key: ObjectKey(newPhotos[i]),
               padding: const EdgeInsets.only(right: AppSpacing.sm),
               child: _Thumb(
                 onRemove: onRemoveNew == null ? null : () => onRemoveNew!(i),
-                child: FutureBuilder<Uint8List>(
-                  future: newPhotos[i].readAsBytes(),
-                  builder: (context, snap) {
-                    final bytes = snap.data;
-                    if (bytes == null) {
-                      return const SizedBox(width: 88, height: 88);
-                    }
-                    return Image.memory(
-                      bytes,
-                      width: 88,
-                      height: 88,
-                      fit: BoxFit.cover,
-                    );
-                  },
-                ),
+                child: LocalPhotoThumb(photo: newPhotos[i]),
               ),
             ),
         ],
