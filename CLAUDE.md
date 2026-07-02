@@ -86,12 +86,14 @@ Three layers (see `federfall-implementation-is-planned-in-beads-9-phase` memory 
   mappers from PocketBase `RecordModel`. Enums carry a `wire` value (the exact string PB
   stores) so Dart renames never break mapping. `GeoPoint.fromPb` treats `{lon:0,lat:0}` as null.
 - **`packages/federfall_data`** — `PbRepository<T>` base over one collection: CRUD +
-  read-through offline cache + `ClientException`→`RepositoryException`. File fields use
+  `ClientException`→`RepositoryException`. **Online-only:** every read/write goes straight
+  to the server (no local cache); a `networkTimeout` makes an unreachable server fail fast.
+  File fields use
   `createWithFiles` / `updateWithFiles` (multipart) + `fileUrl(id, name, {thumb})`.
   Geocoding goes through `GeocodingRepository` (backend proxy), not a direct API call.
 - **`apps/federfall`** — Riverpod codegen providers (`@riverpod`), `go_router`, feature
   folders under `lib/features/`. Repo providers in `lib/data/repository_providers.dart`
-  bind each repo to the resolved `PocketBase` client + shared cache.
+  bind each repo to the resolved `PocketBase` client.
 
 **Backend** is fully container-based (see `federfall-backend-is-fully-container-based...`
 memory): PocketBase with JS migrations (`backend/pocketbase/pb_migrations/*.js`, numbered,
