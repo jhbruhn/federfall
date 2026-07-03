@@ -98,16 +98,7 @@ class LocalReminderScheduler implements ReminderScheduler {
   Future<bool> requestPermissions() async {
     final android = _android;
     if (android != null) {
-      final granted = await android.requestNotificationsPermission() ?? false;
-      if (granted) {
-        // Best effort: precise delivery needs the exact-alarm special access
-        // on Android 12+. Denied is fine — scheduling falls back to inexact
-        // (see [replaceAll]), which lands within a window of the due moment.
-        if (!(await android.canScheduleExactNotifications() ?? false)) {
-          await android.requestExactAlarmsPermission();
-        }
-      }
-      return granted;
+      return await android.requestNotificationsPermission() ?? false;
     }
     return await _ios?.requestPermissions(alert: true, sound: true) ?? true;
   }
@@ -116,7 +107,6 @@ class LocalReminderScheduler implements ReminderScheduler {
   Future<void> replaceAll(List<PlannedReminder> reminders) async {
     await _plugin.cancelAll();
 
-    final exact = await _android?.canScheduleExactNotifications() ?? false;
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
         'medication_reminders',
@@ -141,9 +131,11 @@ class LocalReminderScheduler implements ReminderScheduler {
           // only matter for recurring `matchDateTimeComponents` schedules).
           scheduledDate: tz.TZDateTime.from(r.dueAtUtc, tz.UTC),
           notificationDetails: details,
-          androidScheduleMode: exact
-              ? AndroidScheduleMode.exactAllowWhileIdle
-              : AndroidScheduleMode.inexactAllowWhileIdle,
+          // Inexact on purpose: exact delivery needs Android's "Alarms &
+          // reminders" special access, which can only be granted on a system
+          // settings page — a jarring detour for no clinical gain (doses are
+          // interval-based; the OS batching window of ~10-15 min is fine).
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         );
       } on Object catch (error, stackTrace) {
         // One unschedulable reminder (e.g. a permission revoked mid-flight)

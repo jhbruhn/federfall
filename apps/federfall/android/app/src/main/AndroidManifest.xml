@@ -3,12 +3,12 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Local medication-due reminders (federfall-3uz): runtime notification
-         permission (Android 13+), rescheduling after a reboot, and the
-         exact-alarm special access for on-time delivery (falls back to
-         inexact when not granted). -->
+         permission (Android 13+) and rescheduling after a reboot. Reminders
+         are scheduled inexact on purpose (no SCHEDULE_EXACT_ALARM): exact
+         delivery would drag the user through the "Alarms & reminders"
+         settings page for no clinical gain. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <application
         android:label="${appName}"
         android:name="${applicationName}"
