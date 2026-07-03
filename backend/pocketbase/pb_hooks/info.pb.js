@@ -49,12 +49,12 @@ routerAdd(
     let name = "Federfall";
     let password = true;
     let oauth2 = [];
-    let passwordReset = false;
+    let smtpEnabled = false;
 
     try {
       const settings = $app.settings();
       if (settings.meta && settings.meta.appName) name = settings.meta.appName;
-      passwordReset = !!(settings.smtp && settings.smtp.enabled);
+      smtpEnabled = !!(settings.smtp && settings.smtp.enabled);
     } catch (err) {
       $app.logger().warn("federfall info: settings read failed", "err", err);
     }
@@ -68,6 +68,11 @@ routerAdd(
     } catch (err) {
       $app.logger().warn("federfall info: users collection read failed", "err", err);
     }
+
+    // Resetting a password only makes sense when password sign-in itself is
+    // enabled — otherwise SMTP being configured (e.g. for an OIDC-only
+    // instance) made this true with no password form to show the link on.
+    const passwordReset = password && smtpEnabled;
 
     return e.json(200, {
       service: "federfall",

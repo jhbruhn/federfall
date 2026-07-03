@@ -1,4 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/server/server_info.dart';
+import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/team_screen.dart';
@@ -82,6 +84,7 @@ Future<void> _pump(
   List<AppUser> members = const [],
   PbUsersRepository? users,
   PbCasesRepository? cases,
+  ServerAuthOptions auth = const ServerAuthOptions(passwordReset: true),
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -91,6 +94,10 @@ Future<void> _pump(
           (ref) async => AppUser(id: 'u1', email: 'me@x.org', role: role),
         ),
         orgMembersProvider.overrideWith((ref) async => members),
+        serverInfoProvider.overrideWith(
+          (ref) async =>
+              ServerInfo(version: '0.1', name: 'Test Server', auth: auth),
+        ),
         if (users != null)
           usersRepositoryProvider.overrideWith((ref) async => users),
         if (cases != null)
@@ -115,8 +122,9 @@ void main() {
     expect(find.text('You are not authorized to do that'), findsOneWidget);
   });
 
-  testWidgets('a supervisor sees the team roster with status badges',
-      (tester) async {
+  testWidgets('a supervisor sees the team roster with status badges', (
+    tester,
+  ) async {
     await _pump(
       tester,
       repo: FakeAuthRepository(),
@@ -158,8 +166,9 @@ void main() {
     expect(find.text('No team members yet.'), findsOneWidget);
   });
 
-  testWidgets('inviting from the FAB calls the repo and confirms',
-      (tester) async {
+  testWidgets('inviting from the FAB calls the repo and confirms', (
+    tester,
+  ) async {
     final repo = FakeAuthRepository();
     await _pump(tester, repo: repo, role: UserRole.supervisor);
 
@@ -178,10 +187,38 @@ void main() {
     expect(find.text('Invite sent to new@x.org.'), findsOneWidget);
   });
 
+  testWidgets('the invite FAB is hidden when password sign-in is off', (
+    tester,
+  ) async {
+    // Inviting creates a password account and emails it a set-password link
+    // — with password sign-in off, that account could never log in, so the
+    // action must not be offered at all (federfall password-reset gating).
+    await _pump(
+      tester,
+      repo: FakeAuthRepository(),
+      role: UserRole.supervisor,
+      auth: const ServerAuthOptions(password: false, passwordReset: true),
+    );
+    expect(find.byType(FloatingActionButton), findsNothing);
+  });
+
+  testWidgets('the invite FAB is hidden when SMTP cannot deliver the invite', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      repo: FakeAuthRepository(),
+      role: UserRole.supervisor,
+      auth: const ServerAuthOptions(),
+    );
+    expect(find.byType(FloatingActionButton), findsNothing);
+  });
+
   testWidgets('changing a member role saves via the repo', (tester) async {
     final users = MockUsersRepo();
-    when(() => users.update(any(), any()))
-        .thenAnswer((_) async => const AppUser(id: 'm1', email: 'ada@x.org'));
+    when(
+      () => users.update(any(), any()),
+    ).thenAnswer((_) async => const AppUser(id: 'm1', email: 'ada@x.org'));
 
     await _pump(
       tester,
@@ -211,13 +248,15 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
-    final captured =
-        verify(() => users.update('m1', captureAny())).captured.single;
+    final captured = verify(
+      () => users.update('m1', captureAny()),
+    ).captured.single;
     expect((captured as Map)['role'], 'coordinator');
   });
 
-  testWidgets('opening your own account hides remove and shows a note',
-      (tester) async {
+  testWidgets('opening your own account hides remove and shows a note', (
+    tester,
+  ) async {
     final users = MockUsersRepo();
     await _pump(
       tester,

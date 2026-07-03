@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/invite_member_sheet.dart';
 import 'package:federfall/features/admin/member_management_sheet.dart';
@@ -32,6 +33,15 @@ class TeamScreen extends ConsumerWidget {
     }
 
     final members = ref.watch(orgMembersProvider);
+    // Inviting creates a password account and delivers its credential-setting
+    // link via the reset email (AuthRepository.inviteUser) — with no other
+    // path in. On an OIDC-only server (password sign-in off) that account
+    // could never log in at all; without SMTP the email could never arrive
+    // either way. Either makes the invite fundamentally non-functional, not
+    // just awkward, so the action is hidden rather than left to fail.
+    final auth = ref.watch(serverInfoProvider).value?.auth;
+    final canInvite =
+        (auth?.password ?? true) && (auth?.passwordReset ?? false);
 
     return Scaffold(
       appBar: AppBar(
@@ -39,14 +49,16 @@ class TeamScreen extends ConsumerWidget {
         automaticallyImplyLeading: !context.isExpanded,
         title: Text(l10n.manageTeamTitle),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final invited = await showInviteMemberSheet(context);
-          if (invited ?? false) ref.invalidate(orgMembersProvider);
-        },
-        icon: const Icon(Icons.person_add_alt_1),
-        label: Text(l10n.inviteSectionTitle),
-      ),
+      floatingActionButton: canInvite
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final invited = await showInviteMemberSheet(context);
+                if (invited ?? false) ref.invalidate(orgMembersProvider);
+              },
+              icon: const Icon(Icons.person_add_alt_1),
+              label: Text(l10n.inviteSectionTitle),
+            )
+          : null,
       body: AsyncValueView<List<AppUser>>(
         value: members,
         onRetry: () => ref.invalidate(orgMembersProvider),
