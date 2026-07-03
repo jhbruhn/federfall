@@ -1,0 +1,149 @@
+name: Release Please
+
+# release-please watches conventional-commit history on main and maintains a
+# standing "release PR" with the next version bump + CHANGELOG. Merging that
+# PR is what cuts a release: it tags vX.Y.Z, creates a GitHub Release, and
+# flips `release_created` — which is what gates the docker/android jobs below.
+# Nothing here runs on a normal feature-branch push; the pipeline only fires
+# from commits landing on main via the version-bump PR.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  FLUTTER_VERSION: "3.44.3"
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  docker:
+    name: Build & publish container image
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # latest / vX.Y.Z / vX.Y / vX — the semver-pattern tags are derived from
+      # the release-please tag rather than a `git tag` trigger event, since
+      # this job is gated on release-please's output, not a tag push.
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{major}},value=${{ needs.release-please.outputs.tag_name }}
+
+      # FEDERFALL_VERSION is baked into the image env (see Dockerfile) so
+      # /api/federfall/info can report it without any source file needing to
+      # be touched at release time — the running image IS the source of truth.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            FEDERFALL_VERSION=${{ needs.release-please.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  android:
+    name: Build & attach signed APK
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created && secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (federfall_models)
+        run: dart run build_runner build
+        working-directory: packages/federfall_models
+
+      - name: Generate code (app) + localizations
+        run: |
+          dart run build_runner build
+          flutter gen-l10n
+        working-directory: apps/federfall
+
+      - name: Decode release keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      # build.gradle.kts already reads these exact env var names (see
+      # apps/federfall/android/app/build.gradle.kts) — no gradle changes needed.
+      - name: Build signed release APK
+        working-directory: apps/federfall
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          ANDROID_KEYSTORE_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD }}
+        run: |
+          flutter build apk --release --flavor production \
+            --target lib/main_production.dart \
+            --dart-define-from-file=dart_defines/production.json \
+            --build-name="${{ needs.release-please.outputs.version }}" \
+            --build-number="${{ github.run_number }}"
+
+      - name: Remove decoded keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Attach APK to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk="apps/federfall/build/app/outputs/flutter-apk/app-production-release.apk"
+          renamed="federfall-${{ needs.release-please.outputs.version }}.apk"
+          mv "$apk" "$renamed"
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" "$renamed"

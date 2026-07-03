@@ -147,3 +147,13 @@ fragmented sections.
   Finder;`). `registerFallbackValue` for `<String,dynamic>{}` and `<MultipartFile>[]`. Fake
   image bytes throw "Invalid image data" — give `Image.memory` an `errorBuilder`; `XFile`
   `.name` can be empty in tests.
+- **Releases** (`.github/workflows/release-please.yml`): version is driven by Conventional
+  Commits via release-please — never hand-bump `apps/federfall/pubspec.yaml`'s `version:` or
+  create tags manually. Merging the standing release PR tags `vX.Y.Z`, then builds/pushes the
+  Docker image to `ghcr.io/<repo>` (tags `latest`/`vX.Y.Z`/`vX.Y`/`vX`) and attaches a signed
+  release APK to the GitHub Release (skipped if `ANDROID_KEYSTORE_*` secrets aren't set). The
+  image gets `FEDERFALL_VERSION` baked in as a build-arg → runtime env; `info.pb.js` reads it
+  via `$os.getenv` and reports only `major.minor` on the unauthenticated `/api/federfall/info`
+  endpoint (patch withheld to avoid fingerprinting). Local/dev builds never set that build-arg,
+  so they report `"0.0"` — expected, not a bug. `MIN_CLIENT` in `info.pb.js` stays a manually
+  bumped policy value (oldest client build still served), independent of the release version.

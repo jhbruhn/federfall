@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md",
+      "bootstrap-sha": "87781bda7b944e9ffd1f992120649e607bf58004",
+      "extra-files": [
+        {
+          "type": "yaml",
+          "path": "apps/federfall/pubspec.yaml",
+          "jsonpath": "$.version"
+        }
+      ]
+    }
+  }
+}

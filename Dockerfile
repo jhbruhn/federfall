@@ -111,6 +111,13 @@ FROM alpine:3.20 AS backend
 RUN apk add --no-cache ca-certificates tzdata wget
 COPY --from=pbfetch /pb/pocketbase /usr/local/bin/pocketbase
 WORKDIR /pb
+# Released images get this set to the release-please version (e.g. "1.4.2") via
+# --build-arg in the release workflow. info.pb.js reads it at request time
+# ($os.getenv) — the running image is the single source of truth for the
+# version it reports, so no source file needs a release-time edit. Local/dev
+# builds keep the "0.0.0-dev" default.
+ARG FEDERFALL_VERSION=0.0.0-dev
+ENV FEDERFALL_VERSION=${FEDERFALL_VERSION}
 RUN mkdir -p /pb/pb_data
 # Bake the committed migrations + hooks INTO the image so it is self-contained
 # and reproducible — production runs them from here with no host bind mounts.

@@ -1,6 +1,9 @@
 name: federfall
 description: Federfall — pigeon rehab case management
-version: 1.0.0+1
+# Managed by release-please (see ../../release-please-config.json) — do not
+# hand-edit. No build number here: CI always passes --build-name/--build-number
+# explicitly (see .github/workflows/release-please.yml), which overrides this.
+version: 1.0.0
 publish_to: none
 
 environment:

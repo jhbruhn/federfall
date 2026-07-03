@@ -74,3 +74,25 @@ jobs:
       # throwaway instance, and asserts the access-rule matrix + hook behaviour.
       - name: Run PocketBase rule/hook suite
         run: backend/pocketbase/tests/run.sh
+
+  docker-build:
+    name: docker · full image builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # backend-rules (above) only ever builds --target backend; the `full`
+      # target's Flutter web build stage is otherwise unexercised until a
+      # release actually needs it. Build-only (no push) so a break surfaces
+      # on the PR, not on release day.
+      - name: Build full image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: federfall:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

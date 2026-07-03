@@ -11,7 +11,8 @@
 //   service / federfall  — the identity marker the client requires before it
 //                          will accept the server (a generic PocketBase has no
 //                          such route → 404 → "not a Federfall server").
-//   version              — server/schema version, for display + diagnostics.
+//   version              — major.minor only (patch withheld from this
+//                          unauthenticated endpoint), for display + diagnostics.
 //   minClient            — minimum client build the server supports (the app
 //                          may warn "update required" when its build is older).
 //   name                 — branding/instance name shown on the login screen.
@@ -31,9 +32,16 @@ routerAdd(
   "GET",
   "/api/federfall/info",
   (e) => {
-    // Hand-maintained: bump on schema/app releases. Mirrors the app pubspec
-    // version; `minClient` is the oldest client build this server still serves.
-    const VERSION = "1.0.0";
+    // Sourced from the image env (see Dockerfile's FEDERFALL_VERSION ARG/ENV),
+    // set at build time from the release-please tag — never hand-edited.
+    // Only major.minor is exposed below: the exact patch level is deliberately
+    // withheld from this UNAUTHENTICATED endpoint so it can't be used to
+    // fingerprint whether a specific CVE fix is deployed. The full version is
+    // still visible via the image tag/label for operator use.
+    // `MIN_CLIENT` is a manual policy value (oldest client build still
+    // served), not derived from VERSION — bump it deliberately when a release
+    // breaks compatibility with older clients.
+    const VERSION = $os.getenv("FEDERFALL_VERSION") || "0.0.0-dev";
     const MIN_CLIENT = "1.0.0";
 
     // Read live capabilities defensively — a missing/renamed field must never
@@ -64,7 +72,7 @@ routerAdd(
     return e.json(200, {
       service: "federfall",
       federfall: true,
-      version: VERSION,
+      version: VERSION.split(".").slice(0, 2).join("."),
       minClient: MIN_CLIENT,
       name: name,
       auth: {
