@@ -33,8 +33,11 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <script>
-    {{flutter_bootstrap_js}}
-  </script>
+  <!-- Loaded as an external file rather than via Flutter's inline-bootstrap
+       template token (which the build would substitute even inside a comment,
+       so it cannot be named here) — this keeps the Content-Security-Policy
+       the backend sends at script-src 'self', no 'unsafe-inline'
+       (backend/pocketbase/pb_hooks/web_headers.pb.js). -->
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

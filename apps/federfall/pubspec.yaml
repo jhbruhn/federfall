@@ -58,3 +58,18 @@ dev_dependencies:
 flutter:
   generate: true
   uses-material-design: true
+  # Roboto bundled locally (Roboto 3 "classic", Apache-2.0): on web the engine
+  # otherwise downloads it from fonts.gstatic.com at startup, which the strict
+  # same-origin CSP (backend/pocketbase/pb_hooks/web_headers.pb.js) blocks —
+  # and a self-hosted instance shouldn't call Google anyway. Registering the
+  # family here makes the engine skip that download on every platform.
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Italic.ttf
+          style: italic
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700

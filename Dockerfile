@@ -68,7 +68,12 @@ RUN set -eux; \
 #    NOTE: the skwasm renderer wants cross-origin isolation (COOP/COEP headers) to
 #    use threads; PocketBase doesn't send those, so it falls back gracefully — set
 #    them at a reverse proxy if you want the threaded fast path.
+#    --no-web-resources-cdn keeps the engine assets (canvaskit/skwasm) in the
+#    bundle instead of Google's gstatic CDN, so the SPA stays fully same-origin
+#    — required by the Content-Security-Policy web_headers.pb.js sends
+#    (script-src 'self') and self-contained for self-hosted instances anyway.
 RUN cd /src/apps/federfall && flutter build web --wasm --release \
+        --no-web-resources-cdn \
         --target lib/main_production.dart \
         --dart-define-from-file=dart_defines/production.json
 
