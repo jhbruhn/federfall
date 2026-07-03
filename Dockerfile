@@ -79,6 +79,14 @@ RUN cd /src/apps/federfall && flutter build web --wasm --release \
 
 # ── PocketBase fetch stage ─────────────────────────────────────────────────────
 # PocketBase ships a single static Go binary; fetch + verify the pinned release.
+#
+# federfall-e8cl: the zip was downloaded over HTTPS with no integrity check — a
+# tampered GitHub release asset or CDN response would ship a backdoored server
+# binary undetected. SHA256s below are copied verbatim from that release's
+# published checksums.txt (https://github.com/pocketbase/pocketbase/releases/
+# download/v${PB_VERSION}/checksums.txt). Bumping PB_VERSION WITHOUT updating
+# these fails the build with a checksum mismatch (not a silent stale check) —
+# copy the new release's checksums.txt values in at the same time.
 FROM alpine:3.20 AS pbfetch
 ARG PB_VERSION
 ARG TARGETARCH
@@ -86,12 +94,13 @@ RUN apk add --no-cache unzip wget ca-certificates
 WORKDIR /pb
 RUN set -eux; \
     case "${TARGETARCH}" in \
-        amd64) PB_ARCH=amd64 ;; \
-        arm64) PB_ARCH=arm64 ;; \
-        arm)   PB_ARCH=armv7 ;; \
+        amd64) PB_ARCH=amd64; PB_SHA256=06a3ec70205b3eaf8343e226ab74c132013f7b1e9102e898dbca034bdd622d62 ;; \
+        arm64) PB_ARCH=arm64; PB_SHA256=a03f3771e487174140e2360e3b7d0500618380cd3e338e4dc012f356ba5db5cf ;; \
+        arm)   PB_ARCH=armv7; PB_SHA256=56a4c6fc9765345808422df16ee8f0f6173d724c42a34297c97935758181a843 ;; \
         *)     echo "unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     wget -q "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_${PB_ARCH}.zip" -O /tmp/pb.zip; \
+    echo "${PB_SHA256}  /tmp/pb.zip" | sha256sum -c -; \
     unzip /tmp/pb.zip -d /pb; \
     rm /tmp/pb.zip; \
     chmod +x /pb/pocketbase

@@ -384,6 +384,19 @@ def main():
     s, _ = req("PATCH", f"/api/collections/users/records/{A}", ta, {"is_active": False})
     check("self CANNOT change is_active", s >= 400, f"status {s}")
 
+    # ── federfall-d1uv: cross-org move via users.updateRule ─────────────────
+    # A supervisor may not plant a same-org user (or themselves) into another
+    # org by setting `org` in the update body — even though the target's
+    # CURRENT org still matches the caller's, which the old rule alone allowed.
+    tsup = toks["sup"]
+    xorg2 = mk(T, "organisations", {"name": "Cross-Org-Target"})["id"]
+    s, _ = req("PATCH", f"/api/collections/users/records/{B}", tsup, {"org": xorg2})
+    check("supervisor CANNOT move another user cross-org", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/users/records/{SUP}", tsup, {"org": xorg2})
+    check("supervisor CANNOT move themselves cross-org", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/users/records/{B}", tsup, {"org": ORG})
+    check("same-org 'update' (org unchanged) still allowed", s == 200, f"status {s}")
+
     # ── federfall-0kl: last-supervisor lockout guard ────────────────────────
     # An isolated org with a single supervisor: demoting, deactivating, moving
     # or deleting them must be blocked (even for a superuser) until another

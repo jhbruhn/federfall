@@ -12,7 +12,14 @@
     <application
         android:label="${appName}"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false">
+        <!-- federfall-69fs: the server is the sole source of truth (online-only,
+             no local cache — federfall-online-only-no-cache); Auto Backup /
+             device transfer would otherwise copy flutter_cache_manager's SQLite
+             cache-object catalog and shared_preferences outside PocketBase's
+             access control. Nothing is lost by disabling it — a fresh install
+             re-syncs from the server on login. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
