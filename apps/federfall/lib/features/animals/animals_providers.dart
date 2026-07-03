@@ -102,13 +102,34 @@ AvatarSource? pickAvatarSource(Animal animal, List<Case> casesNewestFirst) {
   return null;
 }
 
-/// Thumbnail URL for an animal's header avatar, or null for the placeholder.
 /// Resolves [pickAvatarSource] over the animal and its accessible cases.
 @riverpod
-Future<Uri?> animalAvatarUrl(Ref ref, String animalId) async {
+Future<AvatarSource?> animalAvatarSource(Ref ref, String animalId) async {
   final animal = await ref.watch(animalByIdProvider(animalId).future);
   final cases = await ref.watch(casesForAnimalProvider(animalId).future);
-  final source = pickAvatarSource(animal, cases);
+  return pickAvatarSource(animal, cases);
+}
+
+/// Thumbnail URL for an animal's header avatar, or null for the placeholder.
+@riverpod
+Future<Uri?> animalAvatarUrl(Ref ref, String animalId) {
+  return _avatarUrl(ref, animalId, thumb: '200x200');
+}
+
+/// Full-resolution URL for an animal's photo, or null for the placeholder —
+/// used by the full-screen viewer, where the 200x200 avatar thumbnail would
+/// look blurry blown up.
+@riverpod
+Future<Uri?> animalAvatarFullUrl(Ref ref, String animalId) {
+  return _avatarUrl(ref, animalId, thumb: null);
+}
+
+Future<Uri?> _avatarUrl(
+  Ref ref,
+  String animalId, {
+  required String? thumb,
+}) async {
+  final source = await ref.watch(animalAvatarSourceProvider(animalId).future);
   if (source == null) return null;
 
   // Both source fields (animals.photo, cases.intake_photos) are Protected
@@ -117,10 +138,10 @@ Future<Uri?> animalAvatarUrl(Ref ref, String animalId) async {
   switch (source.collection) {
     case AvatarCollection.animals:
       final repo = await ref.watch(animalsRepositoryProvider.future);
-      return repo.fileUrl(source.recordId, source.filename, thumb: '200x200');
+      return repo.fileUrl(source.recordId, source.filename, thumb: thumb);
     case AvatarCollection.cases:
       final repo = await ref.watch(casesRepositoryProvider.future);
-      return repo.fileUrl(source.recordId, source.filename, thumb: '200x200');
+      return repo.fileUrl(source.recordId, source.filename, thumb: thumb);
   }
 }
 

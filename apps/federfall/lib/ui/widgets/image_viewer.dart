@@ -16,11 +16,14 @@ import 'package:share_plus/share_plus.dart';
 
 /// Opens the full-screen image viewer over [imageUrls], starting at
 /// [initialIndex]: swipe between photos, pinch / double-tap to zoom, and share
-/// the current one.
+/// the current one. When [onEdit] is given, an edit action is shown alongside
+/// share (e.g. to reopen the set/replace/remove flow for the viewed photo).
 Future<void> showImageViewer(
   BuildContext context, {
   required List<String> imageUrls,
   int initialIndex = 0,
+  VoidCallback? onEdit,
+  String? editTooltip,
 }) {
   return Navigator.of(context).push<void>(
     MaterialPageRoute(
@@ -28,6 +31,8 @@ Future<void> showImageViewer(
       builder: (_) => ImageViewerScreen(
         imageUrls: imageUrls,
         initialIndex: initialIndex,
+        onEdit: onEdit,
+        editTooltip: editTooltip,
       ),
     ),
   );
@@ -39,11 +44,20 @@ class ImageViewerScreen extends ConsumerStatefulWidget {
   const ImageViewerScreen({
     required this.imageUrls,
     this.initialIndex = 0,
+    this.onEdit,
+    this.editTooltip,
     super.key,
   });
 
   final List<String> imageUrls;
   final int initialIndex;
+
+  /// Shows an edit action in the app bar when non-null; invoked with the
+  /// viewer already popped.
+  final VoidCallback? onEdit;
+
+  /// Tooltip for the edit action. Required when [onEdit] is set.
+  final String? editTooltip;
 
   @override
   ConsumerState<ImageViewerScreen> createState() => _ImageViewerScreenState();
@@ -171,6 +185,15 @@ class _ImageViewerScreenState extends ConsumerState<ImageViewerScreen> {
               icon: const Icon(Icons.share_outlined),
               tooltip: l10n.imageShareAction,
               onPressed: _share,
+            ),
+          if (widget.onEdit case final onEdit?)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: widget.editTooltip,
+              onPressed: () {
+                Navigator.of(context).pop();
+                onEdit();
+              },
             ),
         ],
       ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
@@ -71,11 +73,36 @@ class AnimalAvatar extends ConsumerWidget {
       child: Tooltip(
         message: context.l10n.animalPhotoChange,
         child: InkWell(
-          onTap: () => _editPhoto(context, ref),
+          onTap: () => _onTap(context, ref, hasPhoto: url != null),
           customBorder: const CircleBorder(),
           child: avatar,
         ),
       ),
+    );
+  }
+
+  /// With a photo, opens the full-screen zoomable viewer (edit stays
+  /// reachable from there); with none, there is nothing to view, so this
+  /// goes straight to the set/replace flow.
+  Future<void> _onTap(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool hasPhoto,
+  }) async {
+    if (!hasPhoto) return _editPhoto(context, ref);
+    final l10n = context.l10n;
+    // The avatar itself renders the 200x200 thumbnail; the viewer needs the
+    // full-resolution file, so this is fetched separately rather than reusing
+    // the already-watched thumbnail URL.
+    final fullUrl = await ref.read(
+      animalAvatarFullUrlProvider(animalId).future,
+    );
+    if (fullUrl == null || !context.mounted) return;
+    await showImageViewer(
+      context,
+      imageUrls: [fullUrl.toString()],
+      onEdit: () => unawaited(_editPhoto(context, ref)),
+      editTooltip: l10n.animalPhotoChange,
     );
   }
 

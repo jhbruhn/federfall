@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
@@ -6,14 +8,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Future<void> pump(WidgetTester tester, List<String> urls, {int index = 0}) {
+  Future<void> pump(
+    WidgetTester tester,
+    List<String> urls, {
+    int index = 0,
+    VoidCallback? onEdit,
+  }) {
     return tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: ImageViewerScreen(imageUrls: urls, initialIndex: index),
+          home: ImageViewerScreen(
+            imageUrls: urls,
+            initialIndex: index,
+            onEdit: onEdit,
+            editTooltip: onEdit == null ? null : 'Edit',
+          ),
         ),
       ),
     );
@@ -98,5 +110,51 @@ void main() {
 
     expect(find.text('1 / 1'), findsNothing);
     expect(find.byIcon(Icons.share_outlined), findsOneWidget);
+  });
+
+  testWidgets('omits the edit action when onEdit is not given', (
+    tester,
+  ) async {
+    await pump(tester, const ['https://example.test/only.jpg']);
+    await tester.pump();
+
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+  });
+
+  testWidgets('edit action pops the viewer and invokes onEdit', (
+    tester,
+  ) async {
+    var edited = false;
+    final navKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          navigatorKey: navKey,
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(),
+        ),
+      ),
+    );
+    unawaited(
+      navKey.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => ImageViewerScreen(
+            imageUrls: const ['https://example.test/only.jpg'],
+            onEdit: () => edited = true,
+            editTooltip: 'Edit',
+          ),
+        ),
+      ),
+    );
+    await settlePage(tester);
+
+    expect(find.byType(ImageViewerScreen), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await settlePage(tester);
+
+    expect(edited, isTrue);
+    expect(find.byType(ImageViewerScreen), findsNothing);
   });
 }
