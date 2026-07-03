@@ -4,9 +4,12 @@ import 'package:federfall/core/auth/sign_out.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/profile/edit_profile_sheet.dart';
+import 'package:federfall/features/reminders/reminder_scheduler.dart';
+import 'package:federfall/features/reminders/reminder_settings.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -81,6 +84,8 @@ class _ProfileBody extends StatelessWidget {
             ),
           const Divider(height: AppSpacing.lg),
           _MfaToggle(enabled: user.mfaEnabled),
+          // Local notifications don't exist on the web build.
+          if (!kIsWeb) const _RemindersToggle(),
           const SizedBox(height: AppSpacing.lg),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -96,6 +101,52 @@ class _ProfileBody extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Opt-in switch for local medication-due reminders (federfall-3uz).
+/// Enabling is the moment to ask the OS for notification permission; a denial
+/// keeps the toggle off and says why. The subtitle carries the v1 limitation:
+/// reminders reconcile when the app runs, so changes made elsewhere lag until
+/// the next open.
+class _RemindersToggle extends ConsumerWidget {
+  const _RemindersToggle();
+
+  Future<void> _toggle(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool enabled,
+  }) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    if (enabled) {
+      final granted =
+          await ref.read(reminderSchedulerProvider).requestPermissions();
+      if (!granted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.remindersPermissionDenied)),
+        );
+        return;
+      }
+    }
+    await ref
+        .read(medicationRemindersEnabledProvider.notifier)
+        .set(enabled: enabled);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final enabled = ref.watch(medicationRemindersEnabledProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.notifications_outlined),
+      title: Text(l10n.remindersToggleTitle),
+      subtitle: Text(l10n.remindersToggleSubtitle),
+      value: enabled.value ?? false,
+      onChanged: enabled.isLoading
+          ? null
+          : (v) => _toggle(context, ref, enabled: v),
     );
   }
 }

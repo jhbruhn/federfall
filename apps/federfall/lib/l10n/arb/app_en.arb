@@ -1106,6 +1106,17 @@
     "@profileMfaSubtitle": { "description": "Explains what enabling MFA does" },
     "profileMfaUpdateFailed": "Could not change two-factor authentication. Please try again.",
     "@profileMfaUpdateFailed": { "description": "Error when toggling MFA fails" },
+    "remindersToggleTitle": "Medication reminders",
+    "@remindersToggleTitle": { "description": "Title of the local medication-reminder toggle on the profile screen" },
+    "remindersToggleSubtitle": "Notify on this device when a dose is due. Reminders update while the app is open; changes made by others arrive on the next open.",
+    "@remindersToggleSubtitle": { "description": "Explains medication reminders and their reconcile-on-open limitation" },
+    "remindersPermissionDenied": "Notifications are not allowed. Enable them in the system settings to get reminders.",
+    "@remindersPermissionDenied": { "description": "Shown when the OS notification permission was denied while enabling reminders" },
+    "medicationReminderTitle": "Medication due: {drug}",
+    "@medicationReminderTitle": {
+      "description": "Title of a medication-due notification",
+      "placeholders": { "drug": { "type": "String" } }
+    },
     "profileEditTitle": "Edit profile",
     "@profileEditTitle": { "description": "Title of the edit-profile sheet / tooltip" },
     "adminTitle": "Administration",
