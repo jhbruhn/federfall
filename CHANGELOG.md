@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.2](https://github.com/jhbruhn/federfall/compare/v0.1.1...v0.1.2) (2026-07-03)
+
+
+### Bug Fixes
+
+* **android:** add missing INTERNET permission to the release manifest ([a929bfc](https://github.com/jhbruhn/federfall/commit/a929bfc8d3063bfa448c9232e5d59c0d4944e2dd))
+* **auth:** passwordReset and invite must not imply password sign-in ([3e3582f](https://github.com/jhbruhn/federfall/commit/3e3582f9fb1415d5f1d2b635feafd4ca022d1b97))
+* **security:** CSP default missed OpenFreeMap after the vector-tile switch ([83dd28d](https://github.com/jhbruhn/federfall/commit/83dd28dab6a89a64e39d36c52dd8ae4e80493efa))
+* **web:** service worker never intercepts requests, kills a Firefox SSE bug ([98d1a2c](https://github.com/jhbruhn/federfall/commit/98d1a2ce64929e1e1a933e5cf19f62ab984b08cc))
+
 ## [0.1.1](https://github.com/jhbruhn/federfall/compare/v0.1.0...v0.1.1) (2026-07-03)
 
 
