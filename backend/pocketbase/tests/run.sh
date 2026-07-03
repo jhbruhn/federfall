@@ -21,6 +21,11 @@ ADMIN_PASS="Admin12345!"
 
 cleanup() {
   docker rm -f "$NAME" >/dev/null 2>&1 || true
+  # Files under $DATA/storage are created by the container as root, so the host
+  # user can't rm them directly — clear the contents from inside a container
+  # (same image, already pulled/built) before removing the now-empty tempdir.
+  docker run --rm -v "$DATA:/data" --entrypoint sh "$IMAGE" \
+    -c 'rm -rf /data/* /data/.[!.]* /data/..?* 2>/dev/null' >/dev/null 2>&1 || true
   rm -rf "$DATA"
 }
 trap cleanup EXIT
