@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/jhbruhn/federfall/compare/v0.1.2...v0.2.0) (2026-07-03)
+
+
+### Features
+
+* **app:** send a federfall/&lt;version&gt; User-Agent instead of the Dart default ([8f1af45](https://github.com/jhbruhn/federfall/commit/8f1af450ddad600f93b927e6c2db0705b4ace926))
+
+
+### Bug Fixes
+
+* **auth:** open OAuth2 sign-in in an in-app browser tab on mobile ([af3df78](https://github.com/jhbruhn/federfall/commit/af3df782c4ff58091f4f4edc4a585dd4ce7ad867))
+* **ci:** generate federfall_models codegen before analyze ([55bb920](https://github.com/jhbruhn/federfall/commit/55bb9203f3b258ec745f25868ddbe3bc7dd9dd10))
+
 ## [0.1.2](https://github.com/jhbruhn/federfall/compare/v0.1.1...v0.1.2) (2026-07-03)
 
 
