@@ -43,6 +43,15 @@ jobs:
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
 
+      # build_runner only generates code for the package it runs in, so each
+      # workspace member with its own codegen needs its own step — running it
+      # in apps/federfall does not generate packages/federfall_models's
+      # freezed classes, and `flutter analyze` from the repo root analyzes the
+      # whole workspace.
+      - name: Generate code (federfall_models)
+        run: dart run build_runner build --delete-conflicting-outputs
+        working-directory: packages/federfall_models
+
       - name: Generate code (freezed / json / riverpod)
         run: dart run build_runner build --delete-conflicting-outputs
         working-directory: apps/federfall
