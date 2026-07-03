@@ -158,8 +158,3 @@ fragmented sections.
   endpoint (patch withheld to avoid fingerprinting). Local/dev builds never set that build-arg,
   so they report `"0.0"` — expected, not a bug. `MIN_CLIENT` in `info.pb.js` stays a manually
   bumped policy value (oldest client build still served), independent of the release version.
-  release-please-action runs with a `RELEASE_PLEASE_TOKEN` PAT, not the default `GITHUB_TOKEN`
-  — GitHub never fires downstream workflows for GITHUB_TOKEN-authored events, so the release PR
-  would otherwise never get CI run on it. Always merge that PR by hand for the same reason: an
-  automated merge via the default token wouldn't trigger this workflow's own `push` handler,
-  so the `docker`/`android` jobs would silently never run.
