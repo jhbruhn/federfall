@@ -38,6 +38,12 @@ routerAdd(
   "GET",
   "/api/federfall/geocode",
   (e) => {
+    // Guests are walled off from all data everywhere else; without this check
+    // they could still drive the server-side geocoder and burn the upstream
+    // Nominatim budget (federfall-2asj).
+    if (e.auth && e.auth.getString("role") === "guest") {
+      throw new ForbiddenError("Not allowed.");
+    }
     const base =
       $os.getenv("FEDERFALL_NOMINATIM_URL") ||
       "https://nominatim.openstreetmap.org";
@@ -177,6 +183,12 @@ routerAdd(
   "GET",
   "/api/federfall/geocode/reverse",
   (e) => {
+    // Guests are walled off from all data everywhere else; without this check
+    // they could still drive the server-side geocoder and burn the upstream
+    // Nominatim budget (federfall-2asj).
+    if (e.auth && e.auth.getString("role") === "guest") {
+      throw new ForbiddenError("Not allowed.");
+    }
     const base =
       $os.getenv("FEDERFALL_NOMINATIM_URL") ||
       "https://nominatim.openstreetmap.org";

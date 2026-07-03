@@ -10,15 +10,30 @@
 // through `e.createData`, the official channel for seeding the new record.
 //
 // Role (hybrid model):
-//   - the FIRST user, when no active supervisor exists yet, becomes supervisor
-//     (bootstraps the instance — no invite, no env seed needed); OR
+//   - the FIRST user of the instance (no `users` record exists at all yet)
+//     becomes supervisor (bootstraps the instance — no invite, no env seed
+//     needed); OR
 //   - if the IdP sends groups, an optional group->role mapping applies; else
 //   - the user lands as `guest` — able to log in but walled off from all data
 //     (see 1700000033) until a supervisor promotes them.
 //
-// Optional gating: if FEDERFALL_OIDC_ALLOWED_GROUPS is set, only users in one of
-// those groups may register (others are rejected) — except the first user, who
-// may always bootstrap.
+// federfall-emkj — "first user" is keyed on "no users exist at all", NOT "no
+// ACTIVE supervisor right now": the latter is reachable via legitimate admin
+// actions (Admin-UI/superuser batch deactivate or delete of every
+// supervisor), and auto-granting supervisor to whoever happens to sign in
+// next via OAuth2 would let anyone at the IdP claim it. Once that state is
+// reached, the intended recovery path is the operator-only
+// FEDERFALL_SUPERVISOR_EMAIL/PASSWORD bootstrap (bootstrap_supervisor.pb.js),
+// not OAuth2 self-registration. Concurrent first sign-ins are resolved after
+// the fact (see below the `e.next()` call) rather than locked up front, since
+// the JSVM has no cross-request mutex — this still converges to exactly one
+// supervisor.
+//
+// Optional gating: if FEDERFALL_OIDC_ALLOWED_GROUPS is set, only users in one
+// of those groups may register — INCLUDING the first user. An operator who
+// configured ALLOWED_GROUPS wants only vetted IdP accounts, even for the very
+// first login; bootstrapping without any IdP group set up still works via the
+// env-based path in bootstrap_supervisor.pb.js.
 //
 // FEDERFALL_OIDC_TRUST_EMAIL=true treats the IdP's email claim as verified even
 // when the provider didn't send email_verified (for trusted private IdPs).
@@ -57,20 +72,18 @@ onRecordAuthWithOAuth2Request((e) => {
   }
   const inAny = (names) => names.some((n) => groups.includes(n));
 
-  // First account (no active supervisor yet)?
+  // True first boot: no `users` record exists yet at all (see header).
   let firstUser = false;
   try {
-    e.app.findFirstRecordByFilter(
-      "users",
-      "role = 'supervisor' && is_active = true",
-    );
+    e.app.findFirstRecordByFilter("users", "id != ''");
   } catch (_) {
     firstUser = true;
   }
 
-  // Gate registration to allowed groups, if configured (first user is exempt).
+  // Gate registration to allowed groups, if configured — applies even to the
+  // bootstrap user (see header).
   const allowed = list("FEDERFALL_OIDC_ALLOWED_GROUPS");
-  if (!firstUser && allowed.length > 0 && !inAny(allowed)) {
+  if (allowed.length > 0 && !inAny(allowed)) {
     throw new ForbiddenError("Your account is not permitted to register.", null);
   }
 
@@ -136,6 +149,38 @@ onRecordAuthWithOAuth2Request((e) => {
     .info("federfall: provisioning oauth2 user", "role", role, "firstUser", firstUser);
 
   e.next(); // PocketBase creates + links the record here
+
+  // federfall-emkj — two concurrent first sign-ins can both observe
+  // firstUser=true before either commits and both get provisioned as
+  // supervisor. There's no cross-request mutex available in the JSVM, so
+  // resolve it deterministically after the fact instead: if another active
+  // supervisor with an earlier `created` (ties broken by id) now exists, this
+  // record lost the race and steps down to guest. Whichever record is NOT the
+  // earliest always finds an earlier one once both have committed, so exactly
+  // one supervisor survives.
+  if (firstUser && role === "supervisor" && e.record) {
+    try {
+      const earlier = e.app.findFirstRecordByFilter(
+        "users",
+        "role = 'supervisor' && is_active = true && id != {:id} && " +
+          "(created < {:created} || (created = {:created} && id < {:id}))",
+        { id: e.record.id, created: e.record.getString("created") },
+      );
+      if (earlier) {
+        e.record.set("role", "guest");
+        e.app.save(e.record);
+        e.app
+          .logger()
+          .warn(
+            "federfall: lost concurrent supervisor-bootstrap race, demoted to guest",
+            "id",
+            e.record.id,
+          );
+      }
+    } catch (_) {
+      // no earlier active supervisor found — this record keeps supervisor
+    }
+  }
 
   // Mark the new account verified — but ONLY when the IdP actually verified
   // the email (or the operator opted into trusting it, see above). An account

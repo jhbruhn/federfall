@@ -336,6 +336,23 @@ onRecordCreate((e) => {
     caseRec = e.app.findRecordById("cases", caseId);
     const current = caseRec.getString("active_carer");
     if (current) e.record.set("from_user", current);
+
+    // federfall-yst5 — a handoff to a nonexistent/deactivated/foreign-org
+    // user would orphan the case (assigned to someone who can't act, and
+    // invisible to everyone but coordinators/supervisors). intake.pb.js and
+    // exam.pb.js validate referenced records the same way.
+    let targetUser;
+    try {
+      targetUser = e.app.findRecordById("users", toUser);
+    } catch (_) {
+      throw new BadRequestError("Unknown to_user.");
+    }
+    if (
+      !targetUser.getBool("is_active") ||
+      targetUser.getString("org") !== caseRec.getString("org")
+    ) {
+      throw new BadRequestError("Unknown to_user.");
+    }
   }
 
   e.next(); // persist the placement first (validation may still reject it)

@@ -978,6 +978,25 @@ def main():
     check("plain move leaves active_carer unchanged",
           hcf["active_carer"] == B, hcf.get("active_carer"))
 
+    # federfall-yst5: to_user must exist, be active, and share the case's org
+    # — otherwise the handoff orphans the case (assigned to a user nobody can
+    # see / who can't act).
+    s, _ = req("POST", "/api/collections/placements/records", toks["a"], {
+        "case": hc, "to_user": "nonexistent0000000", "org": ORG,
+    })
+    check("handoff to a nonexistent user is rejected", s >= 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/placements/records", toks["a"], {
+        "case": hc, "to_user": E, "org": ORG,
+    })
+    check("handoff to a foreign-org user is rejected", s >= 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/placements/records", toks["a"], {
+        "case": hc, "to_user": INACTIVE, "org": ORG,
+    })
+    check("handoff to a deactivated user is rejected", s >= 400, f"status {s}")
+    _, hcf = req("GET", f"/api/collections/cases/records/{hc}", T)
+    check("rejected handoffs left active_carer unchanged",
+          hcf["active_carer"] == B, hcf.get("active_carer"))
+
     # ── federfall-lov0: atomic exam save route ───────────────────────────────
     # Exam + findings (+ optional exam weight) are persisted in one server-side
     # transaction; an edit REPLACES the findings set. Before this route the
@@ -1115,6 +1134,15 @@ def main():
     # ever contacted — the rate limiter counts them regardless, because it runs
     # as middleware before the handler.
     print("\n[geocode proxy guards]")
+    # federfall-2asj: guests are walled off from all data everywhere else —
+    # the geocode proxy must reject them too, or an auto-created OAuth2 guest
+    # could burn the upstream Nominatim budget for the whole org. The guest
+    # check runs before any upstream call, so this never actually contacts
+    # Nominatim even with a well-formed query.
+    s, _ = req("GET", "/api/federfall/geocode?q=Berlin", gtok)
+    check("guest CANNOT use forward geocode", s == 403, f"status {s}")
+    s, _ = req("GET", "/api/federfall/geocode/reverse?lat=52.5&lon=13.4", gtok)
+    check("guest CANNOT use reverse geocode", s == 403, f"status {s}")
     s, _ = req("GET", "/api/federfall/geocode", toks["a"])
     check("geocode without q is rejected", s == 400, f"status {s}")
     s, _ = req("GET", "/api/federfall/geocode?q=" + "x" * 300, toks["a"])
