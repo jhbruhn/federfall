@@ -61,9 +61,12 @@ cronAdd("finderPiiRetention", "0 3 * * *", () => {
 
   // Latest "case ended" date for a finder, or null if any case is still active.
   // Reads dispositions directly — a case is "ended" once its status is disposed,
-  // and the end date is the latest disposition's disposed_at (falling back to its
-  // created). (We deliberately don't read the case_summaries view here: its
-  // computed ended_at column doesn't round-trip reliably through the record
+  // and the end date is the latest disposition's server-side `created` autodate.
+  // We deliberately do NOT use disposed_at: it's a client-writable field, so a
+  // carer with edit access could backdate it to accelerate (or delay) when this
+  // finder's PII gets scrubbed — `created` is set by PocketBase and can't be
+  // forged from the client. (We also don't read the case_summaries view here:
+  // its computed ended_at column doesn't round-trip reliably through the record
   // model from a hook.) Returns { active, latestEnd, hasCases }.
   const caseEndInfo = (finderId) => {
     const cases = $app.findRecordsByFilter(
@@ -91,7 +94,7 @@ cronAdd("finderPiiRetention", "0 3 * * *", () => {
         { c: c.id },
       );
       for (const d of disps) {
-        const end = toDate(d.getString("disposed_at")) || toDate(d.getString("created"));
+        const end = toDate(d.getString("created"));
         if (end && (!latest || end > latest)) latest = end;
       }
       // A disposed case with no disposition row is unexpected — fall back to the
