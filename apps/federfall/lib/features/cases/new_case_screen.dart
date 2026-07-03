@@ -107,6 +107,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
 
   bool _busy = false;
   String? _error;
+  // One key for this wizard's whole lifetime: pressing save again after a
+  // timeout resubmits the SAME key, so the backend replays the committed
+  // intake instead of creating a duplicate (federfall-3ty3).
+  final String _idempotencyKey = newIdempotencyKey();
   // Species is a DropdownMenu (not a Form field), so its "required" is enforced
   // manually when advancing past step 0.
   bool _speciesMissing = false;
@@ -321,6 +325,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       final created = await casesRepo.intake(
         payload,
         photos: await _intakePhotoFiles(),
+        idempotencyKey: _idempotencyKey,
       );
 
       ref

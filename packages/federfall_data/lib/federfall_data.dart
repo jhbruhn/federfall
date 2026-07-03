@@ -2,6 +2,7 @@
 /// model mapping and error translation.
 library;
 
+export 'src/idempotency.dart';
 export 'src/pb_repository.dart';
 export 'src/repositories/admission_reasons_repository.dart';
 export 'src/repositories/animal_species_repository.dart';

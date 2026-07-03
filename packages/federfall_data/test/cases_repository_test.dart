@@ -140,6 +140,64 @@ void main() {
       expect(files.single.filename, 'pigeon.jpg');
     });
 
+    test('the idempotency key rides in the body; none sent when absent',
+        () async {
+      stubSend({'id': 'case1', 'animal': 'anml1'});
+
+      await repo.intake({'species': 'Stadttaube'}, idempotencyKey: 'k1');
+      await repo.intake({'species': 'Stadttaube'});
+
+      final bodies = verify(
+        () => pb.send<Map<String, dynamic>>(
+          any(),
+          method: any(named: 'method'),
+          body: captureAny(named: 'body'),
+          files: any(named: 'files'),
+        ),
+      ).captured.cast<Map<String, dynamic>>();
+      expect(bodies.first['idempotency_key'], 'k1');
+      expect(bodies.last.containsKey('idempotency_key'), isFalse);
+    });
+
+    test('a keyed timeout is a plain network error — resubmitting the same '
+        'key cannot duplicate the intake', () async {
+      final slowRepo = PbCasesRepository(
+        pb,
+        networkTimeout: const Duration(milliseconds: 50),
+      );
+      when(
+        () => pb.send<Map<String, dynamic>>(
+          any(),
+          method: any(named: 'method'),
+          body: any(named: 'body'),
+          files: any(named: 'files'),
+        ),
+      ).thenAnswer(
+        (_) => Future.delayed(
+          const Duration(seconds: 5),
+          () => {'id': 'late', 'animal': 'late'},
+        ),
+      );
+
+      expect(
+        () => slowRepo.intake({}, idempotencyKey: 'k1'),
+        throwsA(
+          isA<RepositoryException>().having(
+            (e) => e.kind,
+            'kind',
+            RepositoryErrorKind.network,
+          ),
+        ),
+      );
+    });
+
+    test('newIdempotencyKey() yields unique 32-char hex keys', () {
+      final a = newIdempotencyKey();
+      final b = newIdempotencyKey();
+      expect(a, matches(RegExp(r'^[0-9a-f]{32}$')));
+      expect(a, isNot(b));
+    });
+
     test('a success response missing the ids throws instead of returning '
         'empty-string ids', () async {
       stubSend({'ok': true});

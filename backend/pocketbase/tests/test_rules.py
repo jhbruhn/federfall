@@ -862,6 +862,81 @@ def main():
                {"intake_notes": "still editable"})
     check("case content stays editable", s == 200, f"status {s}")
 
+    # ── federfall-3ty3: intake idempotency key ───────────────────────────────
+    print("\n[intake idempotency]")
+    ikey = "itest-0123456789abcdef0123456789abcdef"
+    s, i1 = req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Stadttaube", "name": "Idem", "weight_g": 111,
+        "idempotency_key": ikey,
+    })
+    check("keyed intake succeeds",
+          s == 200 and bool(i1 and i1.get("id")), f"{s} {i1}")
+    s, i2 = req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Stadttaube", "name": "Idem", "weight_g": 111,
+        "idempotency_key": ikey,
+    })
+    check("replaying the key returns the ORIGINAL result",
+          s == 200 and bool(i2) and i2.get("id") == i1["id"]
+          and i2.get("animal") == i1["animal"]
+          and i2.get("case_number") == i1.get("case_number"), f"{s} {i2}")
+    check("replay created no second animal",
+          len(listf(T, "animals", 'name = "Idem"')) == 1)
+    check("replay created no second weight row",
+          len(listf(T, "weights", f'case = "{i1["id"]}"')) == 1)
+    # Keys are scoped per user: another carer reusing the same key gets their
+    # OWN intake, never user A's stored response.
+    s, i3 = req("POST", "/api/federfall/intake", toks["b"], {
+        "species": "Stadttaube", "name": "IdemB",
+        "idempotency_key": ikey,
+    })
+    check("same key from another user creates a fresh intake",
+          s == 200 and bool(i3) and i3.get("id") != i1["id"], f"{s} {i3}")
+    s, _ = req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Stadttaube", "idempotency_key": "x" * 65,
+    })
+    check("oversized idempotency_key is rejected", s == 400, f"status {s}")
+    # Without a key, every request keeps creating (the pre-3ty3 behaviour).
+    s, i4 = req("POST", "/api/federfall/intake", toks["a"],
+                {"species": "Stadttaube", "name": "NoKey"})
+    s, i5 = req("POST", "/api/federfall/intake", toks["a"],
+                {"species": "Stadttaube", "name": "NoKey"})
+    check("unkeyed intakes stay independent",
+          bool(i4 and i5) and i4["id"] != i5["id"])
+
+    # ── federfall-jfe: security headers (CSP + COOP/COEP scope) ─────────────
+    print("\n[security headers]")
+
+    def headers_of(path):
+        r = urllib.request.Request(BASE + path, method="GET")
+        try:
+            return dict(urllib.request.urlopen(r).headers)
+        except urllib.error.HTTPError as e:
+            return dict(e.headers)
+
+    fh = headers_of(f"/api/files/cases/{own}/nonexistent.png")
+    check("uploaded files get the sandbox CSP",
+          fh.get("Content-Security-Policy") == "default-src 'none'; sandbox",
+          fh.get("Content-Security-Policy"))
+    check("uploaded files get nosniff",
+          fh.get("X-Content-Type-Options") == "nosniff")
+    ah = headers_of("/api/health")
+    check("API responses carry NO SPA CSP",
+          "Content-Security-Policy" not in ah,
+          ah.get("Content-Security-Policy"))
+    sh = headers_of("/")
+    spa_csp = sh.get("Content-Security-Policy") or ""
+    check("SPA gets the CSP",
+          spa_csp.startswith("default-src 'self'"), spa_csp)
+    check("SPA CSP allows wasm + blocks embedding",
+          "'wasm-unsafe-eval'" in spa_csp and "frame-ancestors 'none'" in spa_csp,
+          spa_csp)
+    check("SPA CSP allows the default tile origin",
+          "https://tile.openstreetmap.org" in spa_csp, spa_csp)
+    check("SPA keeps COOP/COEP isolation",
+          sh.get("Cross-Origin-Opener-Policy") == "same-origin"
+          and sh.get("Cross-Origin-Embedder-Policy") == "credentialless",
+          f"{sh.get('Cross-Origin-Opener-Policy')}/{sh.get('Cross-Origin-Embedder-Policy')}")
+
     # ── federfall-h5m: handoff derived from the placement record ────────────
     print("\n[atomic handoff via placement]")
     hc = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]

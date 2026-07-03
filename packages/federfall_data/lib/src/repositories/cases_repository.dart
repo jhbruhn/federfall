@@ -31,9 +31,17 @@ abstract interface class CasesRepository implements Repository<Case> {
   /// an intake weight and a quarantine override when given — in one
   /// server-side transaction, so a failure never strands partial records
   /// (federfall-zod). [photos] land on the case's `intake_photos` field.
+  ///
+  /// [idempotencyKey] (see `newIdempotencyKey`) makes retries safe
+  /// (federfall-3ty3): the backend stores the response under the key, and a
+  /// resubmission of the same key — e.g. after a timeout whose first request
+  /// actually committed — returns the original result instead of creating a
+  /// second animal+case. Callers must reuse ONE key across all retries of the
+  /// same logical intake.
   Future<IntakeResult> intake(
     Map<String, dynamic> payload, {
     List<http.MultipartFile> photos,
+    String? idempotencyKey,
   });
 }
 
@@ -74,13 +82,17 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   Future<IntakeResult> intake(
     Map<String, dynamic> payload, {
     List<http.MultipartFile> photos = const [],
+    String? idempotencyKey,
   }) async {
     try {
       final res = await pb
           .send<Map<String, dynamic>>(
             '/api/federfall/intake',
             method: 'POST',
-            body: payload,
+            body: {
+              ...payload,
+              'idempotency_key': ?idempotencyKey,
+            },
             files: photos,
           )
           .timeout(networkTimeout);
@@ -102,7 +114,15 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
       return (caseId: caseId, animalId: animalId);
     } on TimeoutException {
       // The request left the device; a slow server may still commit the
-      // intake, so a retry can duplicate the animal+case.
+      // intake. With an idempotency key a resubmission converges on the
+      // committed result (plain network error); without one a retry can
+      // duplicate the animal+case.
+      if (idempotencyKey != null) {
+        throw const RepositoryException(
+          'The server did not respond in time',
+          kind: RepositoryErrorKind.network,
+        );
+      }
       throw const RepositoryException(
         'The server did not respond in time — the intake may or may not '
         'have been saved',

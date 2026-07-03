@@ -44,8 +44,13 @@ void main() {
     when(picker.pickMultiImage).thenAnswer((_) async => []);
     when(() => animals.searchByName(any())).thenAnswer((_) async => []);
     // The whole intake is one atomic backend call (federfall-zod).
-    when(() => cases.intake(any(), photos: any(named: 'photos')))
-        .thenAnswer((_) async => (caseId: 'c1', animalId: 'a1'));
+    when(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    ).thenAnswer((_) async => (caseId: 'c1', animalId: 'a1'));
     when(() => cases.forAnimal(any())).thenAnswer((_) async => []);
     when(() => markings.activeByCode(any())).thenAnswer((_) async => []);
     when(() => markings.forAnimal(any())).thenAnswer((_) async => []);
@@ -53,9 +58,14 @@ void main() {
 
   // The payload of the single intake call.
   Map<String, dynamic> capturedPayload() =>
-      verify(() => cases.intake(captureAny(), photos: any(named: 'photos')))
-          .captured
-          .single as Map<String, dynamic>;
+      verify(
+            () => cases.intake(
+              captureAny(),
+              photos: any(named: 'photos'),
+              idempotencyKey: any(named: 'idempotencyKey'),
+            ),
+          ).captured.single
+          as Map<String, dynamic>;
 
   // Enters [value] into the field carrying [label], located via its label text.
   Future<void> enterByLabel(
@@ -146,8 +156,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('submits one atomic intake and opens the created case',
-      (tester) async {
+  testWidgets('submits one atomic intake and opens the created case', (
+    tester,
+  ) async {
     await pump(tester);
 
     // Step 0 (species pre-filled) → step 1: pick a reason → step 2: create.
@@ -170,8 +181,54 @@ void main() {
     expect(find.text('HOME'), findsNothing);
   });
 
-  testWidgets('opens the exam sheet after intake when opted in',
-      (tester) async {
+  testWidgets('a retry after a failure resubmits the SAME idempotency key', (
+    tester,
+  ) async {
+    // First submit times out (the intake may still have committed
+    // server-side), the second succeeds — the backend can only dedupe the
+    // pair when both carry one identical key (federfall-3ty3).
+    var calls = 0;
+    when(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    ).thenAnswer((_) async {
+      calls++;
+      if (calls == 1) {
+        throw const RepositoryException(
+          'timeout',
+          kind: RepositoryErrorKind.network,
+        );
+      }
+      return (caseId: 'c1', animalId: 'a1');
+    });
+
+    await pump(tester);
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    final keys = verify(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: captureAny(named: 'idempotencyKey'),
+      ),
+    ).captured.cast<String>();
+    expect(keys, hasLength(2));
+    expect(keys.first, isNotEmpty);
+    expect(keys.first, keys.last);
+  });
+
+  testWidgets('opens the exam sheet after intake when opted in', (
+    tester,
+  ) async {
     await pump(tester);
 
     await tapNext(tester);
@@ -191,13 +248,18 @@ void main() {
 
     // The case was created, and the exam sheet opened on it instead of
     // popping straight back to the list.
-    verify(() => cases.intake(any(), photos: any(named: 'photos'))).called(1);
+    verify(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    ).called(1);
     expect(find.text('New exam'), findsOneWidget);
     expect(find.text('HOME'), findsNothing);
   });
 
-  testWidgets('requires a reason before advancing past intake',
-      (tester) async {
+  testWidgets('requires a reason before advancing past intake', (tester) async {
     await pump(tester);
 
     await tapNext(tester); // step 0 → 1
@@ -206,11 +268,18 @@ void main() {
 
     expect(find.text('This field is required'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Create case'), findsNothing);
-    verifyNever(() => cases.intake(any(), photos: any(named: 'photos')));
+    verifyNever(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    );
   });
 
-  testWidgets('captures intake details, weight and finder in the payload',
-      (tester) async {
+  testWidgets('captures intake details, weight and finder in the payload', (
+    tester,
+  ) async {
     await pump(tester);
 
     await tapNext(tester); // step 0 → 1
@@ -244,8 +313,9 @@ void main() {
     expect(finderBody['phone'], '0151 234');
   });
 
-  testWidgets('omits the finder when the section is left blank',
-      (tester) async {
+  testWidgets('omits the finder when the section is left blank', (
+    tester,
+  ) async {
     await pump(tester);
 
     await tapNext(tester);
@@ -259,14 +329,21 @@ void main() {
     expect(payload.containsKey('weight_g'), isFalse);
   });
 
-  testWidgets('re-identifying links the case to the existing animal',
-      (tester) async {
+  testWidgets('re-identifying links the case to the existing animal', (
+    tester,
+  ) async {
     when(() => animals.searchByName('Pauli')).thenAnswer(
-      (_) async =>
-          const [Animal(id: 'a9', species: 'Stadttaube', name: 'Pauli')],
+      (_) async => const [
+        Animal(id: 'a9', species: 'Stadttaube', name: 'Pauli'),
+      ],
     );
-    when(() => cases.intake(any(), photos: any(named: 'photos')))
-        .thenAnswer((_) async => (caseId: 'c1', animalId: 'a9'));
+    when(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    ).thenAnswer((_) async => (caseId: 'c1', animalId: 'a9'));
 
     await pump(tester);
 
@@ -289,8 +366,9 @@ void main() {
     expect(payload.containsKey('species'), isFalse);
   });
 
-  testWidgets('pre-links the case when opened for an existing animal',
-      (tester) async {
+  testWidgets('pre-links the case when opened for an existing animal', (
+    tester,
+  ) async {
     when(() => animals.getOne('a1')).thenAnswer(
       (_) async => const Animal(id: 'a1', species: 'Stadttaube', name: 'Pauli'),
     );
@@ -312,8 +390,9 @@ void main() {
     expect(payload.containsKey('species'), isFalse);
   });
 
-  testWidgets('leaving a pristine wizard pops without prompting',
-      (tester) async {
+  testWidgets('leaving a pristine wizard pops without prompting', (
+    tester,
+  ) async {
     await pump(tester);
 
     await tester.pageBack();
@@ -323,8 +402,9 @@ void main() {
     expect(find.text('HOME'), findsOneWidget);
   });
 
-  testWidgets('back mid-intake asks before discarding the input',
-      (tester) async {
+  testWidgets('back mid-intake asks before discarding the input', (
+    tester,
+  ) async {
     await pump(tester);
 
     // Any input marks the wizard dirty — here the animal's name. Pump so the
@@ -347,11 +427,18 @@ void main() {
     await tester.tap(find.text('Discard'));
     await tester.pumpAndSettle();
     expect(find.text('HOME'), findsOneWidget);
-    verifyNever(() => cases.intake(any(), photos: any(named: 'photos')));
+    verifyNever(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    );
   });
 
-  testWidgets('progress without typing still guards against back',
-      (tester) async {
+  testWidgets('progress without typing still guards against back', (
+    tester,
+  ) async {
     await pump(tester);
 
     // Advancing needs a picked reason chip — non-text input must also count
@@ -364,8 +451,9 @@ void main() {
     expect(find.text('Discard changes?'), findsOneWidget);
   });
 
-  testWidgets('staged intake photos ride along on the intake call',
-      (tester) async {
+  testWidgets('staged intake photos ride along on the intake call', (
+    tester,
+  ) async {
     when(picker.pickMultiImage).thenAnswer(
       (_) async => [
         XFile.fromData(
@@ -388,9 +476,15 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
     await tester.pumpAndSettle();
 
-    final files = verify(
-      () => cases.intake(any(), photos: captureAny(named: 'photos')),
-    ).captured.single as List<http.MultipartFile>;
+    final files =
+        verify(
+              () => cases.intake(
+                any(),
+                photos: captureAny(named: 'photos'),
+                idempotencyKey: any(named: 'idempotencyKey'),
+              ),
+            ).captured.single
+            as List<http.MultipartFile>;
     expect(files.length, 1);
     expect(files.single.field, 'intake_photos');
   });

@@ -24,6 +24,12 @@
 //   weight_g         optional intake weight → a `weights` timeline row
 //   quarantine_days  optional override → a `quarantine_records` row replacing
 //                    the org-default one the cases hook would create
+//   idempotency_key  optional client-generated random key (federfall-3ty3):
+//                    the response is stored under (intake, user, key) in the
+//                    SAME transaction, and a replay of the key — e.g. a retry
+//                    after a timeout whose first request actually committed —
+//                    returns the stored response instead of creating a second
+//                    animal+case. See 1700000050_intake_idempotency.js.
 //
 // org and active_carer always come from the authenticated user (mirroring the
 // cases createRule `active_carer = @request.auth.id`); the case_number/status
@@ -61,6 +67,28 @@ routerAdd(
     const species = str(body.species);
     if (!animalId && !species) {
       throw new BadRequestError("Either 'animal' or 'species' is required.");
+    }
+
+    // Idempotent replay: a key seen before (per user) means the intake already
+    // committed — hand back the stored response, write nothing.
+    const idemKey = str(body.idempotency_key);
+    if (idemKey.length > 64) {
+      throw new BadRequestError("idempotency_key too long.");
+    }
+    if (idemKey) {
+      let prior = null;
+      try {
+        prior = e.app.findFirstRecordByFilter(
+          "idempotency_keys",
+          "endpoint = 'intake' && user = {:u} && key = {:k}",
+          { u: auth.id, k: idemKey },
+        );
+      } catch (_) {
+        // no prior request with this key — proceed normally
+      }
+      if (prior) {
+        return e.json(200, prior.get("response"));
+      }
     }
 
     const caseData =
@@ -159,6 +187,29 @@ routerAdd(
         q.set("org", org);
         tx.save(q);
       }
+
+      // Store the response under the idempotency key IN this transaction:
+      // either everything above committed together with the key, or nothing
+      // did. The unique (endpoint, user, key) index makes a concurrent
+      // duplicate roll back whole instead of double-creating.
+      if (idemKey) {
+        const idem = new Record(tx.findCollectionByNameOrId("idempotency_keys"));
+        idem.set("endpoint", "intake");
+        idem.set("key", idemKey);
+        idem.set("user", auth.id);
+        idem.set("response", {
+          id: rec.id,
+          animal: rec.getString("animal"),
+          case_number: rec.getString("case_number"),
+        });
+        // Retry protection only needs to outlive a retry window; the purge
+        // cron below reaps expired rows. PB compares "YYYY-MM-DD HH:MM:SS".
+        idem.set(
+          "expires_at",
+          new Date(Date.now() + 24 * 3600000).toISOString().replace("T", " "),
+        );
+        tx.save(idem);
+      }
     });
 
     return e.json(200, {
@@ -169,3 +220,40 @@ routerAdd(
   },
   $apis.requireAuth(),
 );
+
+// federfall-3ty3 — reap expired idempotency keys daily (same pattern as the
+// geocode cache purge). The handler runs in its own JSVM context.
+cronAdd("idempotencyKeyPurge", "30 4 * * *", () => {
+  const PAGE = 500;
+  const now = new Date().toISOString().replace("T", " ");
+  let purged = 0;
+  // Re-query from offset 0 each round: deleting shrinks the result set.
+  for (;;) {
+    let batch;
+    try {
+      batch = $app.findRecordsByFilter(
+        "idempotency_keys",
+        "expires_at < {:now}",
+        "expires_at",
+        PAGE,
+        0,
+        { now: now },
+      );
+    } catch (_) {
+      break;
+    }
+    if (!batch || batch.length === 0) break;
+    for (let i = 0; i < batch.length; i++) {
+      try {
+        $app.delete(batch[i]);
+        purged++;
+      } catch (_) {
+        // skip a row already gone / locked; the next run retries it
+      }
+    }
+    if (batch.length < PAGE) break;
+  }
+  if (purged > 0) {
+    $app.logger().info("idempotency key purge", "removed", purged);
+  }
+});
