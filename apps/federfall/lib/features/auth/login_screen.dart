@@ -124,12 +124,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     try {
       final repo = await ref.read(authRepositoryProvider.future);
-      // Opens the provider URL externally; the flow completes over PocketBase's
-      // realtime channel and the auth-store change drives the router gate (to
-      // /home, or /pending for a freshly self-registered guest).
+      // Opens the provider URL in an in-app browser tab (Custom Tabs on
+      // Android / SFSafariViewController on iOS) rather than a fully separate
+      // browser app: the flow completes over PocketBase's realtime (SSE)
+      // channel while we wait, and backgrounding the whole app via
+      // LaunchMode.externalApplication can suspend that connection long
+      // enough to race the provider's redirect back to PocketBase — which
+      // shows as "Auth failed" in the browser even though the app signs in
+      // moments later once the channel recovers. The auth-store change drives
+      // the router gate (to /home, or /pending for a freshly self-registered
+      // guest).
       await repo.signInWithOAuth2(
         provider.name,
-        (url) => launchUrl(url, mode: LaunchMode.externalApplication),
+        (url) => launchUrl(url, mode: LaunchMode.inAppBrowserView),
       );
     } on Object catch (error, stackTrace) {
       reportCaughtError(error, stackTrace);
