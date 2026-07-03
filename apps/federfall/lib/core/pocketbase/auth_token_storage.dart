@@ -43,6 +43,23 @@ class SecureAuthTokenStorage implements AuthTokenStorage {
 }
 
 /// Web fallback backed by `shared_preferences` (localStorage).
+///
+/// This is a conscious, documented tradeoff (federfall-xe9), not an
+/// oversight: no browser API gives a Flutter web app real secure storage
+/// (no keychain-equivalent), so the token sits in localStorage, readable by
+/// any script that runs in this origin — an XSS bug here would be a full
+/// account takeover. The 2026-07-03 OWASP review judged this acceptable
+/// *because* the SPA is hardened against script injection in the first
+/// place: it's a CanvasKit/wasm-rendered app (no DOM text nodes to inject
+/// into), ships no inline scripts, and `pb_hooks/web_headers.pb.js` serves a
+/// same-origin `script-src 'self'` CSP with no `unsafe-inline`/`unsafe-eval`.
+///
+/// That makes the CSP header security-critical to this decision, not just
+/// defense-in-depth: **do not** run this app behind `FEDERFALL_CSP=off` (or
+/// a proxy that strips the header) without also reworking token storage. If
+/// that invariant ever needs to be dropped, the two documented alternatives
+/// are a short-TTL token with silent refresh, or in-memory storage backed by
+/// an httpOnly cookie set by a reverse proxy.
 class PrefsAuthTokenStorage implements AuthTokenStorage {
   static const _key = 'federfall.auth';
 
