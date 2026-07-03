@@ -6,6 +6,7 @@
       "include-component-in-tag": false,
       "changelog-path": "CHANGELOG.md",
       "bootstrap-sha": "87781bda7b944e9ffd1f992120649e607bf58004",
+      "release-as": "0.1.0",
       "extra-files": [
         {
           "type": "yaml",
