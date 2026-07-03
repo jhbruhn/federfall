@@ -113,6 +113,12 @@ class _CachedFileImageState extends ConsumerState<CachedFileImage> {
     // sooner and an already-on-disk image has to re-read + re-decode (a visible
     // "tiny bit to load" with no fade). Sizing the decode to the box keeps far
     // more tiles resident, so they render instantly.
+    //
+    // Width ONLY: ResizeImage (which backs memCache*) uses the `exact` policy,
+    // so setting both dimensions stretches a non-square source to the box's
+    // ratio before `fit` is applied — visibly squishing any image the server
+    // couldn't thumb (unlisted size, gif). One dimension scales
+    // aspect-preserving.
     final dpr = MediaQuery.devicePixelRatioOf(context);
     int? decodePx(double? logical) =>
         logical == null ? null : (logical * dpr).round();
@@ -129,7 +135,7 @@ class _CachedFileImageState extends ConsumerState<CachedFileImage> {
       imageUrl: widget.url.toString(),
       cacheKey: fileCacheKey(widget.url),
       memCacheWidth: decodePx(widget.width),
-      memCacheHeight: decodePx(widget.height),
+      memCacheHeight: widget.width == null ? decodePx(widget.height) : null,
       // CachedNetworkImage plays its placeholder cross-fade (default 500ms in /
       // 1s out) even on a cache hit, so an already-cached thumbnail visibly
       // "loads" for half a second. Zero the fades so cached images appear at
