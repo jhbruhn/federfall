@@ -78,7 +78,10 @@ Generated `*.g.dart` / `*.freezed.dart` / `lib/l10n/gen/*` are gitignored and re
 
 **Quality gates before committing:** `dart format --output=none --set-exit-if-changed .`
 (from repo root) clean, `flutter analyze` clean + `flutter test` green for the app, and
-`dart analyze`/`dart test` for any touched package.
+`dart analyze`/`dart test` for any touched package. `flutter test --coverage` on the app
+must stay above 75% (CI's `min_coverage` gate in `.github/workflows/ci.yml`, hand-written
+code only — generated files are excluded); check before committing if you touched
+`apps/federfall/lib/`.
 
 ## Architecture Overview
 

@@ -1,6 +1,21 @@
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockCasesRepo extends Mock implements PbCasesRepository {}
+
+class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
+
+class MockCaseConditionsRepo extends Mock
+    implements PbCaseConditionsRepository {}
+
+class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
+
+class MockConditionsRepo extends Mock implements PbConditionsRepository {}
 
 Case _case(String id, {String animal = 'a1', DateTime? admittedAt}) =>
     Case(id: id, animal: animal, admittedAt: admittedAt);
@@ -111,4 +126,55 @@ void main() {
     final s = run(cases: [_case('c1', admittedAt: DateTime(2026, 2, 2))]);
     expect(s.avgTimeInCareDays, isNull);
   });
+
+  test(
+    'statistics provider loads and aggregates across repositories',
+    () async {
+      final cases = MockCasesRepo();
+      final dispositions = MockDispositionsRepo();
+      final caseConditions = MockCaseConditionsRepo();
+      final animals = MockAnimalsRepo();
+      final conditions = MockConditionsRepo();
+
+      when(cases.list).thenAnswer(
+        (_) async => [_case('c1'), _case('c2')],
+      );
+      when(dispositions.list).thenAnswer(
+        (_) async => [_disp('d1', 'c1', DispositionType.released)],
+      );
+      when(
+        caseConditions.list,
+      ).thenAnswer((_) async => [_cc('1', condition: 'cond1')]);
+      when(animals.list).thenAnswer(
+        (_) async => const [Animal(id: 'a1', species: 'Columba livia')],
+      );
+      when(conditions.list).thenAnswer(
+        (_) async => const [
+          Condition(id: 'cond1', label: 'Trichomoniasis'),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          casesRepositoryProvider.overrideWith((ref) async => cases),
+          dispositionsRepositoryProvider.overrideWith(
+            (ref) async => dispositions,
+          ),
+          caseConditionsRepositoryProvider.overrideWith(
+            (ref) async => caseConditions,
+          ),
+          animalsRepositoryProvider.overrideWith((ref) async => animals),
+          conditionsRepositoryProvider.overrideWith((ref) async => conditions),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(statisticsProvider.future);
+
+      expect(result.totalCases, 2);
+      expect(result.openCases, 1);
+      expect(result.bySpecies.single.label, 'Columba livia');
+      expect(result.byCondition.single.label, 'Trichomoniasis');
+    },
+  );
 }

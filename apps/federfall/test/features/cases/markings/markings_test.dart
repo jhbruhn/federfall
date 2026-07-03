@@ -124,4 +124,34 @@ void main() {
     expect(body['is_active'], false);
     expect(body.containsKey('removed_at'), isTrue);
   });
+
+  testWidgets('shows when and deletes after confirming', (tester) async {
+    when(() => markings.delete('m1')).thenAnswer((_) async {});
+
+    await pump(
+      tester,
+      MarkingTile(
+        marking: Marking(
+          id: 'm1',
+          animal: 'a1',
+          type: 'mktp_finder',
+          removedAt: DateTime(2026, 3, 4),
+        ),
+        caseId: 'c1',
+      ),
+    );
+
+    expect(find.textContaining('Removed'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete marking?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    verify(() => markings.delete('m1')).called(1);
+  });
 }
