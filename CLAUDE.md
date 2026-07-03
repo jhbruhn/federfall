@@ -151,9 +151,15 @@ fragmented sections.
   Commits via release-please — never hand-bump `apps/federfall/pubspec.yaml`'s `version:` or
   create tags manually. Merging the standing release PR tags `vX.Y.Z`, then builds/pushes the
   Docker image to `ghcr.io/<repo>` (tags `latest`/`vX.Y.Z`/`vX.Y`/`vX`) and attaches a signed
-  release APK to the GitHub Release (requires the `ANDROID_KEYSTORE_*` repo secrets — the job
-  fails loudly on the Gradle signing step if they're missing, rather than skipping silently). The
-  image gets `FEDERFALL_VERSION` baked in as a build-arg → runtime env; `info.pb.js` reads it
+  release APK to the GitHub Release. The image build is split across `docker-build` (a matrix:
+  amd64 on `ubuntu-latest`, arm64 on the native `ubuntu-24.04-arm` runner — no QEMU, since this
+  repo is public those hosted arm64 runners are free) and `docker-merge` (stitches both digests
+  into one multi-arch manifest via `docker buildx imagetools create`). Provenance/SBOM
+  attestation is deliberately NOT enabled here — it complicates digest-based merge — so if you
+  need it back, that has to be re-added per-leg and merged too, not just flipped on. The `android`
+  job requires the `ANDROID_KEYSTORE_*` repo secrets — it fails loudly on the Gradle signing step
+  if they're missing, rather than skipping silently. The image gets `FEDERFALL_VERSION` baked in
+  as a build-arg → runtime env; `info.pb.js` reads it
   via `$os.getenv` and reports only `major.minor` on the unauthenticated `/api/federfall/info`
   endpoint (patch withheld to avoid fingerprinting). Local/dev builds never set that build-arg,
   so they report `"0.0"` — expected, not a bug. `MIN_CLIENT` in `info.pb.js` stays a manually

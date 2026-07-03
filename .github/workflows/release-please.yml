@@ -31,11 +31,27 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  docker:
-    name: Build & publish container image
+  # Builds amd64 and arm64 as two parallel jobs, each on a NATIVE runner for
+  # its arch (this repo is public, so the arm64 runner is free) — no QEMU
+  # emulation, which is what made the old single-job `platforms:
+  # linux/amd64,linux/arm64` build so slow (a full Flutter web + dart2wasm
+  # build under emulation is brutal). Each leg pushes by digest only; the
+  # merge job below stitches both digests into one multi-arch manifest under
+  # the real tags. Standard pattern, see:
+  # https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
+  docker-build:
+    name: Build image (${{ matrix.platform }})
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runs-on: ubuntu-latest
+          - platform: linux/arm64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
     permissions:
       contents: read
       packages: write
@@ -44,7 +60,61 @@ jobs:
         with:
           ref: ${{ needs.release-please.outputs.tag_name }}
 
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sanitize platform for artifact name
+        run: echo "PLATFORM_PAIR=${PLATFORM/\//-}" >> "$GITHUB_ENV"
+        env:
+          PLATFORM: ${{ matrix.platform }}
+
+      # FEDERFALL_VERSION is baked into the image env (see Dockerfile) so
+      # /api/federfall/info can report it without any source file needing to
+      # be touched at release time — the running image IS the source of truth.
+      # No tags yet: push-by-digest, the merge job assigns the real tags.
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            FEDERFALL_VERSION=${{ needs.release-please.outputs.version }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  docker-merge:
+    name: Publish multi-arch manifest
+    needs: [release-please, docker-build]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
 
       - uses: docker/setup-buildx-action@v3
 
@@ -67,22 +137,25 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag_name }}
             type=semver,pattern={{major}},value=${{ needs.release-please.outputs.tag_name }}
 
-      # FEDERFALL_VERSION is baked into the image env (see Dockerfile) so
-      # /api/federfall/info can report it without any source file needing to
-      # be touched at release time — the running image IS the source of truth.
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            FEDERFALL_VERSION=${{ needs.release-please.outputs.version }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          provenance: true
-          sbom: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # docker buildx imagetools create is Docker's own native CLI for
+      # stitching digests into a manifest list — no dedicated Action wraps
+      # this. The only glue code is turning metadata-action's newline-
+      # separated `tags` output into `-t` flags.
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          tag_args=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && tag_args+=(-t "$tag")
+          done <<< "$TAGS"
+          docker buildx imagetools create "${tag_args[@]}" \
+            $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
+
+      - name: Inspect pushed image
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
 
   android:
     name: Build & attach signed APK
