@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/jhbruhn/federfall/compare/v0.1.0...v0.1.1) (2026-07-03)
+
+
+### Performance Improvements
+
+* **ci:** build docker image natively per-arch instead of QEMU emulation ([5104c02](https://github.com/jhbruhn/federfall/commit/5104c025790683a2426415fb9aeac9abcbe83808))
+
 ## 0.1.0 (2026-07-03)
 
 
