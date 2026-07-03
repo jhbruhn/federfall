@@ -4,6 +4,8 @@ import 'dart:ui';
 import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/logging/app_logger.dart';
 import 'package:federfall/core/logging/logging_observer.dart';
+import 'package:federfall/routing/cold_start_location.dart';
+import 'package:federfall/routing/last_route_storage.dart';
 import 'package:federfall/routing/url_strategy/url_strategy.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,10 +36,17 @@ Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
   // Clean path-based URLs on the web (no-op on native).
   configureUrlStrategy();
 
+  // Read before the router builds so it can use it synchronously as the
+  // GoRouter's initialLocation (federfall-7ev8).
+  final coldStartLocation = await LastRouteStorage().read();
+
   runApp(
     ProviderScope(
       observers: [LoggingProviderObserver(logger)],
-      overrides: [appLoggerProvider.overrideWithValue(logger)],
+      overrides: [
+        appLoggerProvider.overrideWithValue(logger),
+        coldStartLocationProvider.overrideWithValue(coldStartLocation),
+      ],
       child: await builder(),
     ),
   );

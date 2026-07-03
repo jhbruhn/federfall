@@ -15,6 +15,11 @@ class App extends ConsumerWidget {
     // rather than watch, so its rebuilds never rebuild the MaterialApp.
     ref.listen(medicationRemindersProvider, (_, _) {});
     return MaterialApp.router(
+      // Enables Flutter's Navigator-level state restoration; the actual
+      // "which screen was open" restore is the persisted last-route
+      // mechanism in routing/router.dart (federfall-7ev8), since go_router's
+      // declarative routes don't otherwise participate in restoration.
+      restorationScopeId: 'app',
       // Flavored name (e.g. "[DEV] Federfall") for the window/tab title.
       title: AppEnvironment.appName,
       theme: AppTheme.light,

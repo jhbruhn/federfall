@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
@@ -29,6 +31,8 @@ import 'package:federfall/features/statistics/statistics_screen.dart';
 import 'package:federfall/features/worklist/today_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
+import 'package:federfall/routing/cold_start_location.dart';
+import 'package:federfall/routing/last_route_storage.dart';
 import 'package:federfall/routing/not_found_screen.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
@@ -82,7 +86,10 @@ GoRouter router(Ref ref) {
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: AppRoutes.home,
+    // Reopens the location the user had open before Android reclaimed the
+    // process in the background, or a fresh cold start restored via
+    // `bootstrap.dart` (federfall-7ev8); falls back to the default landing.
+    initialLocation: ref.read(coldStartLocationProvider) ?? AppRoutes.home,
     refreshListenable: refresh,
     redirect: (context, state) => _gate(ref, state.uri),
     routes: [
@@ -305,13 +312,16 @@ const Set<String> _gatePaths = {
   '/',
 };
 
-/// Pure redirect decision given the requested [uri] (path + query). Returns
-/// the location to send to, or `null` to stay put.
+/// Redirect decision given the requested [uri] (path + query). Returns the
+/// location to send to, or `null` to stay put.
 ///
 /// A deep link that arrives while the gate is unresolved (or unauthenticated)
 /// is preserved as a `from` query parameter on the gate routes and restored
 /// once the gate lets the user through — so a shared `/cases/abc` link opens
 /// that case after sign-in instead of the default landing tab.
+///
+/// Side effect: once past the gate, persists [uri] as the location to reopen
+/// on the next cold start (federfall-7ev8) — see [lastRouteStorageProvider].
 String? _gate(Ref ref, Uri uri) {
   final location = uri.path;
   final configAsync = ref.read(serverConfigControllerProvider);
@@ -365,6 +375,14 @@ String? _gate(Ref ref, Uri uri) {
   // requested location, or the default landing when there is none.
   if (_gatePaths.contains(location)) {
     return _pendingTarget(uri) ?? AppRoutes.home;
+  }
+
+  // Remember this location as the one to reopen on the next cold start
+  // (federfall-7ev8), including one forced by Android reclaiming the process
+  // in the background. Skipped for the create-case form, which holds no
+  // resumable draft — restoring into a blank one would only confuse.
+  if (location != AppRoutes.newCase) {
+    unawaited(ref.read(lastRouteStorageProvider).write(uri.toString()));
   }
   return null;
 }

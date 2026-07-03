@@ -14,11 +14,14 @@ import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
+import 'package:federfall/routing/cold_start_location.dart';
+import 'package:federfall/routing/last_route_storage.dart';
 import 'package:federfall/routing/router.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Fake that resolves to a fixed server config.
 class _FakeServerConfig extends ServerConfigController {
@@ -97,6 +100,8 @@ Future<ProviderContainer> _pumpContainer(
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('unconfigured server → setup', (tester) async {
     await _pumpAt(
       tester,
@@ -384,5 +389,72 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ConfirmResetScreen), findsOneWidget);
+  });
+
+  testWidgets(
+      'cold start reopens the persisted last route (federfall-7ev8)',
+      (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigControllerProvider.overrideWith(
+          () => _FakeServerConfig(
+            const ServerConfig.configured('https://x.example'),
+          ),
+        ),
+        authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => const CasesBrowserData(
+            cases: [],
+            animalsById: {},
+            myUserId: 'u1',
+          ),
+        ),
+        currentUserProvider.overrideWith((ref) async => null),
+        caseByIdProvider(
+          'c1',
+        ).overrideWith((ref) async => const Case(id: 'c1', animal: 'a1')),
+        coldStartLocationProvider.overrideWithValue(
+          AppRoutes.caseDetail('c1'),
+        ),
+      ],
+    );
+    await _pumpContainer(tester, container);
+
+    expect(find.byType(CaseDetailScreen), findsOneWidget);
+  });
+
+  testWidgets(
+      'visiting a case persists it as the location to reopen '
+      '(federfall-7ev8)', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigControllerProvider.overrideWith(
+          () => _FakeServerConfig(
+            const ServerConfig.configured('https://x.example'),
+          ),
+        ),
+        authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => const CasesBrowserData(
+            cases: [],
+            animalsById: {},
+            myUserId: 'u1',
+          ),
+        ),
+        currentUserProvider.overrideWith((ref) async => null),
+        caseByIdProvider(
+          'c1',
+        ).overrideWith((ref) async => const Case(id: 'c1', animal: 'a1')),
+      ],
+    );
+    await _pumpContainer(tester, container);
+
+    container.read(routerProvider).go(AppRoutes.caseDetail('c1'));
+    await tester.pumpAndSettle();
+
+    expect(
+      await container.read(lastRouteStorageProvider).read(),
+      '/cases/c1',
+    );
   });
 }
