@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter's template only adds this to the debug/profile manifests (for
+         the VM service) — federfall is online-only (every read/write is a
+         network call to PocketBase, see federfall-online-only-no-cache
+         memory), so a release build needs it declared here explicitly or the
+         OS blocks all networking outright, surfacing as an instant "server
+         unreachable" regardless of whether the server is actually up. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Find-location map picker: centre the map on the user's position. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
