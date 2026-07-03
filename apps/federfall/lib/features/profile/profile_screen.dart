@@ -121,8 +121,9 @@ class _RemindersToggle extends ConsumerWidget {
     final l10n = context.l10n;
     final messenger = ScaffoldMessenger.of(context);
     if (enabled) {
-      final granted =
-          await ref.read(reminderSchedulerProvider).requestPermissions();
+      final granted = await ref
+          .read(reminderSchedulerProvider)
+          .requestPermissions();
       if (!granted) {
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.remindersPermissionDenied)),

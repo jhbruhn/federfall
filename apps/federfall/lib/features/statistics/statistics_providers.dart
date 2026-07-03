@@ -150,8 +150,9 @@ Statistics computeStatistics({
     outcomes: outcomes,
     bySpecies: _ranked(speciesCounts),
     byCondition: _ranked(conditionCounts),
-    avgTimeInCareDays:
-        disposedWithSpan == 0 ? null : totalDays / disposedWithSpan,
+    avgTimeInCareDays: disposedWithSpan == 0
+        ? null
+        : totalDays / disposedWithSpan,
   );
 }
 
@@ -161,10 +162,12 @@ Statistics computeStatistics({
 @riverpod
 Future<Statistics> statistics(Ref ref) async {
   final casesRepo = await ref.watch(casesRepositoryProvider.future);
-  final dispositionsRepo =
-      await ref.watch(dispositionsRepositoryProvider.future);
-  final caseConditionsRepo =
-      await ref.watch(caseConditionsRepositoryProvider.future);
+  final dispositionsRepo = await ref.watch(
+    dispositionsRepositoryProvider.future,
+  );
+  final caseConditionsRepo = await ref.watch(
+    caseConditionsRepositoryProvider.future,
+  );
   final animalsRepo = await ref.watch(animalsRepositoryProvider.future);
   final conditionsRepo = await ref.watch(conditionsRepositoryProvider.future);
 

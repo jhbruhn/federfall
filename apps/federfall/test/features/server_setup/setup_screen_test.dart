@@ -49,8 +49,9 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('shows an inline error when the server is unreachable',
-      (tester) async {
+  testWidgets('shows an inline error when the server is unreachable', (
+    tester,
+  ) async {
     await _pump(tester, ServerProbe((_) async => throw ClientException()));
 
     await tester.enterText(find.byType(TextFormField), 'pigeons.example');
@@ -60,10 +61,13 @@ void main() {
     expect(find.textContaining('Could not reach the server'), findsOneWidget);
   });
 
-  testWidgets('persists the normalised URL on a successful probe',
-      (tester) async {
-    final container =
-        await _pump(tester, ServerProbe((_) async => _infoBody()));
+  testWidgets('persists the normalised URL on a successful probe', (
+    tester,
+  ) async {
+    final container = await _pump(
+      tester,
+      ServerProbe((_) async => _infoBody()),
+    );
 
     await tester.enterText(find.byType(TextFormField), 'pigeons.example');
     await tester.tap(find.text('Connect'));
@@ -73,13 +77,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    final config =
-        container.read(serverConfigControllerProvider).requireValue;
+    final config = container.read(serverConfigControllerProvider).requireValue;
     expect(config, const ServerConfig.configured('https://pigeons.example'));
   });
 
-  testWidgets('shows an inline error for an explicit http:// address',
-      (tester) async {
+  testWidgets('shows an inline error for an explicit http:// address', (
+    tester,
+  ) async {
     var probed = false;
     await _pump(
       tester,

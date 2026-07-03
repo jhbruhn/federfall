@@ -125,8 +125,9 @@ class ExamTile extends ConsumerWidget {
               padding: const EdgeInsets.only(top: AppSpacing.xs),
               child: Text(
                 l10n.examNoVitals,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             )
           else
@@ -146,8 +147,9 @@ class ExamTile extends ConsumerWidget {
               child: Text(
                 '${findingStatusLabel(l10n, FindingStatus.normal)}: '
                 '${normalSystems.join(', ')}',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           if (notes != null && notes.isNotEmpty) ...[
@@ -180,8 +182,9 @@ class _Fact extends StatelessWidget {
           children: [
             TextSpan(
               text: '$label: ',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             TextSpan(
               text: value,

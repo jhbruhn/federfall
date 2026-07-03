@@ -63,9 +63,9 @@ void main() {
     await tester.pumpAndSettle();
     await save(tester);
 
-    final body = verify(() => exams.saveWithFindings(captureAny()))
-        .captured
-        .single as Map<String, dynamic>;
+    final body =
+        verify(() => exams.saveWithFindings(captureAny())).captured.single
+            as Map<String, dynamic>;
     expect(body['id'], isNull);
     expect(body['case'], 'c1');
     expect(body['animal'], 'a1');
@@ -77,8 +77,9 @@ void main() {
     expect(body.containsKey('weight_g'), isFalse);
   });
 
-  testWidgets('edit sends the exam id and the full findings set',
-      (tester) async {
+  testWidgets('edit sends the exam id and the full findings set', (
+    tester,
+  ) async {
     const existing = Exam(
       id: 'e1',
       caseId: 'c1',
@@ -106,9 +107,9 @@ void main() {
     );
     await save(tester);
 
-    final body = verify(() => exams.saveWithFindings(captureAny()))
-        .captured
-        .single as Map<String, dynamic>;
+    final body =
+        verify(() => exams.saveWithFindings(captureAny())).captured.single
+            as Map<String, dynamic>;
     expect(body['id'], 'e1');
     // create-only keys stay out of an update payload
     expect(body.containsKey('case'), isFalse);

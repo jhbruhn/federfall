@@ -34,8 +34,9 @@ Future<void> _pump(
 }
 
 void main() {
-  testWidgets('lists aviaries with occupancy and inactive badge',
-      (tester) async {
+  testWidgets('lists aviaries with occupancy and inactive badge', (
+    tester,
+  ) async {
     await _pump(
       tester,
       aviaries: const [
@@ -51,8 +52,7 @@ void main() {
     expect(find.byIcon(Icons.error_outline), findsNothing);
   });
 
-  testWidgets('an over-capacity aviary is flagged in the list',
-      (tester) async {
+  testWidgets('an over-capacity aviary is flagged in the list', (tester) async {
     await _pump(
       tester,
       aviaries: const [Aviary(id: 'av1', name: 'Garden aviary', capacity: 8)],
@@ -77,8 +77,9 @@ void main() {
     expect(find.byType(FloatingActionButton), findsNothing);
   });
 
-  testWidgets('a coordinator sees the create FAB when aviaries exist',
-      (tester) async {
+  testWidgets('a coordinator sees the create FAB when aviaries exist', (
+    tester,
+  ) async {
     await _pump(
       tester,
       aviaries: const [Aviary(id: 'av1', name: 'Garden aviary')],
@@ -91,8 +92,9 @@ void main() {
     expect(find.byType(FloatingActionButton), findsOneWidget);
   });
 
-  testWidgets('a coordinator on an empty list gets the CTA, not the FAB',
-      (tester) async {
+  testWidgets('a coordinator on an empty list gets the CTA, not the FAB', (
+    tester,
+  ) async {
     await _pump(
       tester,
       user: const AppUser(

@@ -93,8 +93,7 @@ void main() {
     expect(planned.single.body, 'Unnumbered case');
   });
 
-  test('notification ids are stable per prescription and fit a 32-bit int',
-      () {
+  test('notification ids are stable per prescription and fit a 32-bit int', () {
     expect(
       reminderNotificationId('abc123def456xyz'),
       reminderNotificationId('abc123def456xyz'),

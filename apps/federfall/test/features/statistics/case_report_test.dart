@@ -55,8 +55,20 @@ void main() {
   group('encodeCaseReportCsv', () {
     String enc(List<CaseReportRow> rows) => encodeCaseReportCsv(
       rows: rows,
-      header: const ['No', 'Species', 'Name', 'Adm', 'Found', 'Status',
-        'Outcome', 'Closed', 'Days', 'City', 'Region', 'Reasons'],
+      header: const [
+        'No',
+        'Species',
+        'Name',
+        'Adm',
+        'Found',
+        'Status',
+        'Outcome',
+        'Closed',
+        'Days',
+        'City',
+        'Region',
+        'Reasons',
+      ],
       status: (s) => s.name,
       outcome: (o) => o.name,
       date: (d) => '${d.year}-${d.month}-${d.day}',
@@ -91,34 +103,36 @@ void main() {
       expect(csv, contains('inCare'));
     });
 
-    test('neutralises spreadsheet formula injection in user-authored cells',
-        () {
-      final csv = enc([
-        const CaseReportRow(
-          caseNumber: null,
-          species: '=HYPERLINK("http://evil.example";"x")',
-          name: '+cmd',
-          admittedAt: null,
-          foundAt: null,
-          status: null,
-          outcome: null,
-          endedAt: null,
-          daysInCare: null,
-          city: '-2+3',
-          region: '@SUM(A1)',
-          reasons: ['\tTAB', '\rCR'],
-        ),
-      ]);
-      // Every dangerous leading char is escaped with an apostrophe so
-      // spreadsheet apps treat the cell as text (OWASP CSV Injection).
-      expect(csv, contains("'=HYPERLINK"));
-      expect(csv, contains("'+cmd"));
-      expect(csv, contains("'-2+3"));
-      expect(csv, contains("'@SUM(A1)"));
-      expect(csv, contains("'\tTAB"));
-      expect(csv, isNot(contains(',=')));
-      expect(csv, isNot(contains(',+')));
-    });
+    test(
+      'neutralises spreadsheet formula injection in user-authored cells',
+      () {
+        final csv = enc([
+          const CaseReportRow(
+            caseNumber: null,
+            species: '=HYPERLINK("http://evil.example";"x")',
+            name: '+cmd',
+            admittedAt: null,
+            foundAt: null,
+            status: null,
+            outcome: null,
+            endedAt: null,
+            daysInCare: null,
+            city: '-2+3',
+            region: '@SUM(A1)',
+            reasons: ['\tTAB', '\rCR'],
+          ),
+        ]);
+        // Every dangerous leading char is escaped with an apostrophe so
+        // spreadsheet apps treat the cell as text (OWASP CSV Injection).
+        expect(csv, contains("'=HYPERLINK"));
+        expect(csv, contains("'+cmd"));
+        expect(csv, contains("'-2+3"));
+        expect(csv, contains("'@SUM(A1)"));
+        expect(csv, contains("'\tTAB"));
+        expect(csv, isNot(contains(',=')));
+        expect(csv, isNot(contains(',+')));
+      },
+    );
 
     test('leaves benign cells untouched', () {
       final csv = enc([

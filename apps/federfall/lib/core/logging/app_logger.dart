@@ -89,14 +89,13 @@ class AppLogger {
     Object? error,
     StackTrace? stackTrace,
     String? name,
-  }) =>
-      _log(
-        LogLevel.error,
-        message,
-        error: error,
-        stackTrace: stackTrace,
-        name: name,
-      );
+  }) => _log(
+    LogLevel.error,
+    message,
+    error: error,
+    stackTrace: stackTrace,
+    name: name,
+  );
 
   void _log(
     LogLevel level,
@@ -122,8 +121,8 @@ class AppLogger {
 /// error handlers, so logs flow through one configured logger.
 @Riverpod(keepAlive: true)
 AppLogger appLogger(Ref ref) => AppLogger(
-      minLevel: AppEnvironment.isProduction ? LogLevel.info : LogLevel.debug,
-    );
+  minLevel: AppEnvironment.isProduction ? LogLevel.info : LogLevel.debug,
+);
 
 /// The logger `bootstrap` configured, for call sites without a `Ref` (e.g.
 /// `reportCaughtError`). Set once by `bootstrap` to the same instance behind

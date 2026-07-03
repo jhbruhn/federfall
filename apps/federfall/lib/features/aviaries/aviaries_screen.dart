@@ -61,9 +61,7 @@ class AviariesScreen extends ConsumerWidget {
                 message: l10n.aviariesEmptyBody,
                 actionLabel: canManage ? l10n.aviaryNewTitle : null,
                 actionIcon: Icons.add,
-                onAction: canManage
-                    ? () => showAviaryFormSheet(context)
-                    : null,
+                onAction: canManage ? () => showAviaryFormSheet(context) : null,
               )
             : RefreshIndicator(
                 onRefresh: () {

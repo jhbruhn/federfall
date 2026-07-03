@@ -14,8 +14,9 @@ void main() {
   setUp(() {
     pb = _MockPb();
     service = _MockService();
-    when(() => pb.filter(any(), any()))
-        .thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
+    when(
+      () => pb.filter(any(), any()),
+    ).thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
     when(
       () => service.getList(
         page: any(named: 'page'),
@@ -84,21 +85,23 @@ void main() {
         ).called(1);
       });
 
-      test('a success response without an id is an error, not an empty id',
-          () async {
-        when(
-          () => pb.send<Map<String, dynamic>>(
-            any(),
-            method: any(named: 'method'),
-            body: any(named: 'body'),
-          ),
-        ).thenAnswer((_) async => <String, dynamic>{});
+      test(
+        'a success response without an id is an error, not an empty id',
+        () async {
+          when(
+            () => pb.send<Map<String, dynamic>>(
+              any(),
+              method: any(named: 'method'),
+              body: any(named: 'body'),
+            ),
+          ).thenAnswer((_) async => <String, dynamic>{});
 
-        expect(
-          () => repo.saveWithFindings({'case': 'c1'}),
-          throwsA(isA<RepositoryException>()),
-        );
-      });
+          expect(
+            () => repo.saveWithFindings({'case': 'c1'}),
+            throwsA(isA<RepositoryException>()),
+          );
+        },
+      );
 
       test('maps ClientException to RepositoryException', () async {
         when(

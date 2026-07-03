@@ -10,8 +10,9 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('App', () {
-    testWidgets('on native with no server configured, lands on setup gate',
-        (tester) async {
+    testWidgets('on native with no server configured, lands on setup gate', (
+      tester,
+    ) async {
       await tester.pumpWidget(const ProviderScope(child: App()));
       await tester.pumpAndSettle();
 

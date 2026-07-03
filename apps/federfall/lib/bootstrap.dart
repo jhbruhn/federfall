@@ -34,11 +34,11 @@ Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
   rootLogger = logger;
 
   FlutterError.onError = (details) => logger.error(
-        details.exceptionAsString(),
-        error: details.exception,
-        stackTrace: details.stack,
-        name: 'flutter',
-      );
+    details.exceptionAsString(),
+    error: details.exception,
+    stackTrace: details.stack,
+    name: 'flutter',
+  );
 
   // Errors that escape the Flutter framework (platform callbacks, async gaps).
   PlatformDispatcher.instance.onError = (error, stack) {

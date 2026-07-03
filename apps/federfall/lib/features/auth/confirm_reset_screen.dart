@@ -125,8 +125,9 @@ class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         _error!,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.error),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
                       ),
                     ],
                     const SizedBox(height: AppSpacing.lg),

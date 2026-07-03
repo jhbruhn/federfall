@@ -106,68 +106,85 @@ class _AddEntrySheet extends ConsumerWidget {
 
     // The outcome action ends the case. Once a disposition exists we disable it
     // rather than hiding it, so the sheet's layout and muscle memory stay put.
-    final dispositions =
-        ref.watch(dispositionsForCaseProvider(medicalCase.id)).value;
+    final dispositions = ref
+        .watch(dispositionsForCaseProvider(medicalCase.id))
+        .value;
     final isDisposed = dispositions != null && dispositions.isNotEmpty;
 
     final groups = <(String, List<_Entry>)>[
-      (l10n.timelineGroupClinical, [
-        _Entry(
-          _AddKind.note,
-          Icons.sticky_note_2_outlined,
-          l10n.timelineAddNote,
-        ),
-        _Entry(
-          _AddKind.weight,
-          Icons.monitor_weight_outlined,
-          l10n.timelineAddWeight,
-        ),
-        _Entry(
-          _AddKind.exam,
-          Icons.monitor_heart_outlined,
-          l10n.timelineAddExam,
-        ),
-        _Entry(
-          _AddKind.condition,
-          Icons.coronavirus_outlined,
-          l10n.timelineAddCondition,
-        ),
-        _Entry(
-          _AddKind.quarantine,
-          Icons.shield_outlined,
-          l10n.timelineAddQuarantine,
-        ),
-      ]),
-      (l10n.timelineGroupMedication, [
-        _Entry(
-          _AddKind.prescription,
-          Icons.medication_outlined,
-          l10n.timelineAddPrescription,
-        ),
-        _Entry(_AddKind.dose, Icons.vaccines_outlined, l10n.timelineAddDose),
-      ]),
-      (l10n.timelineGroupMovement, [
-        _Entry(_AddKind.marking, Icons.sell_outlined, l10n.timelineAddMarking),
-        _Entry(
-          _AddKind.placement,
-          Icons.move_down_outlined,
-          l10n.timelineAddPlacement,
-        ),
-        _Entry(_AddKind.handoff, Icons.swap_horiz, l10n.timelineAddHandoff),
-      ]),
-      (l10n.timelineGroupLifecycle, [
-        _Entry(
-          _AddKind.followUp,
-          Icons.event_repeat_outlined,
-          l10n.timelineAddFollowUp,
-        ),
-        _Entry(
-          _AddKind.outcome,
-          Icons.sports_score,
-          l10n.timelineRecordOutcome,
-          enabled: !isDisposed,
-        ),
-      ]),
+      (
+        l10n.timelineGroupClinical,
+        [
+          _Entry(
+            _AddKind.note,
+            Icons.sticky_note_2_outlined,
+            l10n.timelineAddNote,
+          ),
+          _Entry(
+            _AddKind.weight,
+            Icons.monitor_weight_outlined,
+            l10n.timelineAddWeight,
+          ),
+          _Entry(
+            _AddKind.exam,
+            Icons.monitor_heart_outlined,
+            l10n.timelineAddExam,
+          ),
+          _Entry(
+            _AddKind.condition,
+            Icons.coronavirus_outlined,
+            l10n.timelineAddCondition,
+          ),
+          _Entry(
+            _AddKind.quarantine,
+            Icons.shield_outlined,
+            l10n.timelineAddQuarantine,
+          ),
+        ],
+      ),
+      (
+        l10n.timelineGroupMedication,
+        [
+          _Entry(
+            _AddKind.prescription,
+            Icons.medication_outlined,
+            l10n.timelineAddPrescription,
+          ),
+          _Entry(_AddKind.dose, Icons.vaccines_outlined, l10n.timelineAddDose),
+        ],
+      ),
+      (
+        l10n.timelineGroupMovement,
+        [
+          _Entry(
+            _AddKind.marking,
+            Icons.sell_outlined,
+            l10n.timelineAddMarking,
+          ),
+          _Entry(
+            _AddKind.placement,
+            Icons.move_down_outlined,
+            l10n.timelineAddPlacement,
+          ),
+          _Entry(_AddKind.handoff, Icons.swap_horiz, l10n.timelineAddHandoff),
+        ],
+      ),
+      (
+        l10n.timelineGroupLifecycle,
+        [
+          _Entry(
+            _AddKind.followUp,
+            Icons.event_repeat_outlined,
+            l10n.timelineAddFollowUp,
+          ),
+          _Entry(
+            _AddKind.outcome,
+            Icons.sports_score,
+            l10n.timelineRecordOutcome,
+            enabled: !isDisposed,
+          ),
+        ],
+      ),
     ];
 
     return SafeArea(
@@ -211,8 +228,7 @@ class _AddEntrySheet extends ConsumerWidget {
                       opacity: entry.enabled ? 1 : 0.38,
                       child: CircleAvatar(
                         backgroundColor: theme.colorScheme.secondaryContainer,
-                        foregroundColor:
-                            theme.colorScheme.onSecondaryContainer,
+                        foregroundColor: theme.colorScheme.onSecondaryContainer,
                         child: Icon(entry.icon, size: 20),
                       ),
                     ),

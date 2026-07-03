@@ -26,7 +26,7 @@ abstract interface class AuthTokenStorage {
 /// Native implementation backed by the platform keychain/keystore.
 class SecureAuthTokenStorage implements AuthTokenStorage {
   SecureAuthTokenStorage([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   static const _key = 'federfall.auth';
 

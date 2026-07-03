@@ -163,5 +163,4 @@ class _AttachmentStrip extends ConsumerWidget {
       ),
     );
   }
-
 }

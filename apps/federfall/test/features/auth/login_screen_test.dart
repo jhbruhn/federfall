@@ -28,7 +28,7 @@ class FakeAuthRepository implements AuthRepository {
   final Future<AppUser> Function(String email, String password)? onSignIn;
   final Future<String> Function(String email)? onRequestOtp;
   final Future<AppUser> Function(String otpId, String code, String mfaId)?
-      onAuthWithOtp;
+  onAuthWithOtp;
   final Future<AppUser> Function()? onSignInWithOAuth2;
 
   String? lastEmail;
@@ -68,7 +68,6 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<AppUser> updateProfile({String? name, String? phone}) async =>
       throw UnimplementedError();
-
 
   @override
   Future<void> requestPasswordReset(String email) async {}
@@ -145,8 +144,9 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('signs in with the trimmed email and raw password',
-      (tester) async {
+  testWidgets('signs in with the trimmed email and raw password', (
+    tester,
+  ) async {
     final repo = FakeAuthRepository();
     await _pump(tester, repo);
 
@@ -184,8 +184,9 @@ void main() {
     expect(find.text('Email or password is incorrect.'), findsOneWidget);
   });
 
-  testWidgets('MFA: password step asks for the one-time code, then completes',
-      (tester) async {
+  testWidgets('MFA: password step asks for the one-time code, then completes', (
+    tester,
+  ) async {
     final repo = FakeAuthRepository(
       onSignIn: (_, _) async => throw const MfaRequiredException('mfa-123'),
       onAuthWithOtp: (otpId, code, mfaId) async {
@@ -241,8 +242,9 @@ void main() {
     expect(find.text('That code is incorrect or has expired.'), findsOneWidget);
   });
 
-  testWidgets('MFA: back leaves the OTP step for the password form',
-      (tester) async {
+  testWidgets('MFA: back leaves the OTP step for the password form', (
+    tester,
+  ) async {
     final repo = FakeAuthRepository(
       onSignIn: (_, _) async => throw const MfaRequiredException('mfa-123'),
     );
@@ -264,8 +266,9 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
   });
 
-  testWidgets('MFA: resend requests a fresh code and verifies against it',
-      (tester) async {
+  testWidgets('MFA: resend requests a fresh code and verifies against it', (
+    tester,
+  ) async {
     var requests = 0;
     final repo = FakeAuthRepository(
       onSignIn: (_, _) async => throw const MfaRequiredException('mfa-123'),
@@ -355,8 +358,9 @@ void main() {
     expect(repo.lastPassword, 's3cret');
   });
 
-  testWidgets('reflects the server: shows its name and the reset link',
-      (tester) async {
+  testWidgets('reflects the server: shows its name and the reset link', (
+    tester,
+  ) async {
     await _pump(
       tester,
       FakeAuthRepository(),
@@ -372,8 +376,9 @@ void main() {
     expect(find.text('Forgot password?'), findsOneWidget);
   });
 
-  testWidgets('hides the reset link when the server cannot send mail',
-      (tester) async {
+  testWidgets('hides the reset link when the server cannot send mail', (
+    tester,
+  ) async {
     await _pump(
       tester,
       FakeAuthRepository(),
@@ -388,8 +393,9 @@ void main() {
     expect(find.text('Forgot password?'), findsNothing);
   });
 
-  testWidgets('renders a provider button and signs in via OAuth2',
-      (tester) async {
+  testWidgets('renders a provider button and signs in via OAuth2', (
+    tester,
+  ) async {
     final repo = FakeAuthRepository()
       ..providers = const [
         OAuthProvider(name: 'google', displayName: 'Google'),
@@ -459,8 +465,9 @@ void main() {
     );
   });
 
-  testWidgets('passwordless server shows only the provider button',
-      (tester) async {
+  testWidgets('passwordless server shows only the provider button', (
+    tester,
+  ) async {
     final repo = FakeAuthRepository()
       ..providers = const [
         OAuthProvider(name: 'oidc', displayName: 'Single sign-on'),
@@ -481,8 +488,9 @@ void main() {
     expect(find.text('Continue with Single sign-on'), findsOneWidget);
   });
 
-  testWidgets('switch server clears the configured URL back to setup',
-      (tester) async {
+  testWidgets('switch server clears the configured URL back to setup', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({
       'federfall.serverUrl': 'https://pigeons.example',
     });

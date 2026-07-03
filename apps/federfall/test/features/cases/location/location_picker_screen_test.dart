@@ -40,8 +40,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('starts with the hint and a disabled confirm button',
-      (tester) async {
+  testWidgets('starts with the hint and a disabled confirm button', (
+    tester,
+  ) async {
     await pump(tester);
 
     expect(
@@ -54,8 +55,9 @@ void main() {
     expect(useButton.onPressed, isNull);
   });
 
-  testWidgets('searching with no results shows the empty state',
-      (tester) async {
+  testWidgets('searching with no results shows the empty state', (
+    tester,
+  ) async {
     when(() => geo.forward(any())).thenAnswer((_) async => const []);
     await pump(tester);
 
@@ -66,8 +68,9 @@ void main() {
     expect(find.text('No matches'), findsOneWidget);
   });
 
-  testWidgets('selecting a search result enables confirm and returns it',
-      (tester) async {
+  testWidgets('selecting a search result enables confirm and returns it', (
+    tester,
+  ) async {
     when(() => geo.forward(any())).thenAnswer(
       (_) async => const [
         GeoResult(

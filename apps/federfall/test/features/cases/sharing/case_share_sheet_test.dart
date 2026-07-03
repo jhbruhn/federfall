@@ -44,8 +44,9 @@ Future<void> _open(
 }
 
 void main() {
-  testWidgets('lists current shares with member name, access and revoke',
-      (tester) async {
+  testWidgets('lists current shares with member name, access and revoke', (
+    tester,
+  ) async {
     await _open(
       tester,
       shares: const [
@@ -64,8 +65,9 @@ void main() {
     expect(find.byTooltip('Revoke access'), findsOneWidget);
   });
 
-  testWidgets('shows the empty state and offers an eligible member',
-      (tester) async {
+  testWidgets('shows the empty state and offers an eligible member', (
+    tester,
+  ) async {
     await _open(tester, shares: const []);
 
     expect(find.text('Not shared with anyone yet'), findsOneWidget);

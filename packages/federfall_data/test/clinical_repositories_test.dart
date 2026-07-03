@@ -13,8 +13,9 @@ void main() {
 
   void wire(String collection) {
     when(() => pb.collection(collection)).thenReturn(service);
-    when(() => pb.filter(any(), any()))
-        .thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
+    when(
+      () => pb.filter(any(), any()),
+    ).thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
     when(
       () => service.getList(
         page: any(named: 'page'),
@@ -28,15 +29,15 @@ void main() {
   }
 
   List<Object?> capturedQuery() => verify(
-        () => service.getList(
-          page: any(named: 'page'),
-          perPage: any(named: 'perPage'),
-          skipTotal: any(named: 'skipTotal'),
-          filter: captureAny(named: 'filter'),
-          sort: captureAny(named: 'sort'),
-          expand: any(named: 'expand'),
-        ),
-      ).captured;
+    () => service.getList(
+      page: any(named: 'page'),
+      perPage: any(named: 'perPage'),
+      skipTotal: any(named: 'skipTotal'),
+      filter: captureAny(named: 'filter'),
+      sort: captureAny(named: 'sort'),
+      expand: any(named: 'expand'),
+    ),
+  ).captured;
 
   setUp(() {
     pb = _MockPb();
@@ -98,17 +99,19 @@ void main() {
       expect(capturedQuery()[1], 'due_at');
     });
 
-    test('openForCarer joins on the carer and excludes done rechecks',
-        () async {
-      await PbFollowUpsRepository(pb).openForCarer('user1');
-      verify(
-        () => pb.filter(
-          'case.active_carer = {:u} && done_at = ""',
-          {'u': 'user1'},
-        ),
-      ).called(1);
-      expect(capturedQuery()[1], 'due_at');
-    });
+    test(
+      'openForCarer joins on the carer and excludes done rechecks',
+      () async {
+        await PbFollowUpsRepository(pb).openForCarer('user1');
+        verify(
+          () => pb.filter(
+            'case.active_carer = {:u} && done_at = ""',
+            {'u': 'user1'},
+          ),
+        ).called(1);
+        expect(capturedQuery()[1], 'due_at');
+      },
+    );
   });
 
   group('PbMedicationDueRepository', () {

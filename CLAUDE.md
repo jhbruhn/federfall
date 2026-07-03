@@ -63,6 +63,7 @@ flutter analyze            # MUST be clean — CI uses very_good_analysis (stric
 flutter test               # widget/unit tests
 flutter gen-l10n           # regenerate l10n after editing lib/l10n/arb/*.arb
 dart run build_runner build  # regenerate riverpod (.g.dart) + freezed (.freezed.dart)
+dart format .              # from repo root — CI fails the build if this changes anything
 
 # Packages (pure Dart):
 cd packages/federfall_data && dart test && dart analyze
@@ -75,8 +76,9 @@ cd packages/federfall_models && dart run build_runner build && dart test
   (note: the `--delete-conflicting-outputs` flag was removed; just `build`).
 Generated `*.g.dart` / `*.freezed.dart` / `lib/l10n/gen/*` are gitignored and rebuilt.
 
-**Quality gates before committing:** `flutter analyze` clean + `flutter test` green for
-the app, and `dart analyze`/`dart test` for any touched package.
+**Quality gates before committing:** `dart format --output=none --set-exit-if-changed .`
+(from repo root) clean, `flutter analyze` clean + `flutter test` green for the app, and
+`dart analyze`/`dart test` for any touched package.
 
 ## Architecture Overview
 

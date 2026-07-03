@@ -46,8 +46,9 @@ void main() {
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
         ),
         conditionsRepositoryProvider.overrideWith((ref) async => conditions),
-        caseConditionsRepositoryProvider
-            .overrideWith((ref) async => caseConditions),
+        caseConditionsRepositoryProvider.overrideWith(
+          (ref) async => caseConditions,
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -77,8 +78,9 @@ void main() {
   }
 
   group('ConditionEntrySheet', () {
-    testWidgets('stores a code-list match as a condition relation',
-        (tester) async {
+    testWidgets('stores a code-list match as a condition relation', (
+      tester,
+    ) async {
       when(() => caseConditions.create(any())).thenAnswer(
         (_) async => const CaseCondition(id: 'x', caseId: 'c1'),
       );
@@ -90,9 +92,9 @@ void main() {
       );
       await save(tester);
 
-      final body = verify(() => caseConditions.create(captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => caseConditions.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['condition'], 'c1');
       expect(body['free_text'], '');
       expect(body['certainty'], 'suspected');
@@ -108,9 +110,9 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Schnupfen');
       await save(tester);
 
-      final body = verify(() => caseConditions.create(captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => caseConditions.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['condition'], isNull);
       expect(body['free_text'], 'Schnupfen');
     });
@@ -125,8 +127,9 @@ void main() {
   });
 
   group('ConditionEntryTile', () {
-    testWidgets('shows the label, certainty and a notifiable badge',
-        (tester) async {
+    testWidgets('shows the label, certainty and a notifiable badge', (
+      tester,
+    ) async {
       await pump(
         tester,
         const ConditionEntryTile(

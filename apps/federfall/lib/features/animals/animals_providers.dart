@@ -30,19 +30,20 @@ Future<List<AnimalListItem>> animalsRegistry(Ref ref) async {
     activeMarkingCodesByAnimalProvider.future,
   );
 
-  final items = [
-    for (final a in animals)
-      AnimalListItem(animal: a, codes: codesByAnimal[a.id] ?? const []),
-  ]..sort((a, b) {
-    final byName = (a.animal.name ?? '').toLowerCase().compareTo(
-      (b.animal.name ?? '').toLowerCase(),
-    );
-    return byName != 0
-        ? byName
-        : a.animal.species.toLowerCase().compareTo(
-            b.animal.species.toLowerCase(),
-          );
-  });
+  final items =
+      [
+        for (final a in animals)
+          AnimalListItem(animal: a, codes: codesByAnimal[a.id] ?? const []),
+      ]..sort((a, b) {
+        final byName = (a.animal.name ?? '').toLowerCase().compareTo(
+          (b.animal.name ?? '').toLowerCase(),
+        );
+        return byName != 0
+            ? byName
+            : a.animal.species.toLowerCase().compareTo(
+                b.animal.species.toLowerCase(),
+              );
+      });
   return items;
 }
 

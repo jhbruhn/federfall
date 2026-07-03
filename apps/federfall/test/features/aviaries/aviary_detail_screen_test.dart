@@ -34,8 +34,9 @@ Future<void> _pump(
 }
 
 void main() {
-  testWidgets('shows occupancy over capacity and lists residents',
-      (tester) async {
+  testWidgets('shows occupancy over capacity and lists residents', (
+    tester,
+  ) async {
     await _pump(
       tester,
       aviary: const Aviary(id: 'av1', name: 'Garden aviary', capacity: 8),
@@ -68,7 +69,10 @@ void main() {
   });
 
   testWidgets('empty residents state', (tester) async {
-    await _pump(tester, aviary: const Aviary(id: 'av1', name: 'Quarantine'));
+    await _pump(
+      tester,
+      aviary: const Aviary(id: 'av1', name: 'Quarantine'),
+    );
     expect(find.text('No residents'), findsOneWidget);
   });
 

@@ -120,8 +120,9 @@ class ConditionEntryTile extends ConsumerWidget {
               if (entry.resolvedDate case final r?)
                 Text(
                   l10n.conditionResolvedOn(materialL10n.formatMediumDate(r)),
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
             ],
           ),

@@ -127,8 +127,9 @@ class PrescriptionTile extends ConsumerWidget {
           if (detail.isNotEmpty)
             Text(
               detail,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
@@ -145,8 +146,9 @@ class PrescriptionTile extends ConsumerWidget {
               if (plan.endedAt case final e?)
                 Text(
                   l10n.medUntil(materialL10n.formatMediumDate(e)),
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
             ],
           ),
@@ -155,8 +157,9 @@ class PrescriptionTile extends ConsumerWidget {
           if (plan.prescribedBy case final p? when p.isNotEmpty)
             Text(
               l10n.medPrescribedByLine(p),
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           if (isActive && canEdit)
             Padding(
@@ -216,8 +219,9 @@ class AdministrationTile extends ConsumerWidget {
     );
     if (ok != true || !context.mounted) return;
     await runQuickAction(context, () async {
-      final repo =
-          await ref.read(medicationAdministrationsRepositoryProvider.future);
+      final repo = await ref.read(
+        medicationAdministrationsRepositoryProvider.future,
+      );
       await repo.delete(administration.id);
       ref.invalidate(caseBundleProvider(caseId));
     });
@@ -273,8 +277,9 @@ class AdministrationTile extends ConsumerWidget {
           if (route != null)
             Text(
               route,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           if (a.notes case final n? when n.isNotEmpty)
             Text(n, style: theme.textTheme.bodyMedium),

@@ -18,7 +18,8 @@ abstract final class Validators {
       final v = value?.trim() ?? '';
       if (v.isEmpty) return null;
       final uri = Uri.tryParse(v);
-      final ok = uri != null &&
+      final ok =
+          uri != null &&
           uri.hasScheme &&
           (uri.isScheme('http') || uri.isScheme('https')) &&
           uri.host.isNotEmpty;

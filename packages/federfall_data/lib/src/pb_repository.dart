@@ -214,11 +214,10 @@ abstract class PbRepository<T> extends PbReadOnlyRepository<T>
   Future<T> createWithFiles(
     Map<String, dynamic> body,
     List<http.MultipartFile> files,
-  ) =>
-      guard(
-        () async => fromRecord(await service.create(body: body, files: files)),
-        write: true,
-      );
+  ) => guard(
+    () async => fromRecord(await service.create(body: body, files: files)),
+    write: true,
+  );
 
   /// Updates record [id] from [body] with new multipart [files] appended to its
   /// file field(s). To keep only some of the existing files, set the field to
@@ -228,12 +227,10 @@ abstract class PbRepository<T> extends PbReadOnlyRepository<T>
     String id,
     Map<String, dynamic> body,
     List<http.MultipartFile> files,
-  ) =>
-      guard(
-        () async =>
-            fromRecord(await service.update(id, body: body, files: files)),
-        write: true,
-      );
+  ) => guard(
+    () async => fromRecord(await service.update(id, body: body, files: files)),
+    write: true,
+  );
 
   @override
   Future<T> update(String id, Map<String, dynamic> body) => guard(

@@ -81,8 +81,8 @@ class _Chart extends StatelessWidget {
     final pad = ((maxY - minY) * 0.15).clamp(5.0, double.infinity);
 
     String dateLabel(double ms) => materialL10n.formatShortDate(
-          DateTime.fromMillisecondsSinceEpoch(ms.toInt()),
-        );
+      DateTime.fromMillisecondsSinceEpoch(ms.toInt()),
+    );
 
     return LineChart(
       LineChartData(

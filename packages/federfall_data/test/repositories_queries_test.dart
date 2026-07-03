@@ -15,8 +15,9 @@ void main() {
   /// bound-filter string so the bound expression can be asserted on.
   void wire(String collection) {
     when(() => pb.collection(collection)).thenReturn(service);
-    when(() => pb.filter(any(), any()))
-        .thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
+    when(
+      () => pb.filter(any(), any()),
+    ).thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
     when(
       () => service.getList(
         page: any(named: 'page'),
@@ -36,15 +37,15 @@ void main() {
 
   /// Captures the (filter, sort, expand) actually passed to getList.
   List<Object?> capturedQuery() => verify(
-        () => service.getList(
-          page: any(named: 'page'),
-          perPage: any(named: 'perPage'),
-          skipTotal: any(named: 'skipTotal'),
-          filter: captureAny(named: 'filter'),
-          sort: captureAny(named: 'sort'),
-          expand: captureAny(named: 'expand'),
-        ),
-      ).captured;
+    () => service.getList(
+      page: any(named: 'page'),
+      perPage: any(named: 'perPage'),
+      skipTotal: any(named: 'skipTotal'),
+      filter: captureAny(named: 'filter'),
+      sort: captureAny(named: 'sort'),
+      expand: captureAny(named: 'expand'),
+    ),
+  ).captured;
 
   group('PbAnimalsRepository', () {
     setUp(() => wire('animals'));
@@ -57,8 +58,9 @@ void main() {
 
     test('residentsOf filters by current_aviary', () async {
       await PbAnimalsRepository(pb).residentsOf('avir1');
-      verify(() => pb.filter('current_aviary = {:a}', {'a': 'avir1'}))
-          .called(1);
+      verify(
+        () => pb.filter('current_aviary = {:a}', {'a': 'avir1'}),
+      ).called(1);
     });
 
     test('byIds short-circuits to an empty list without querying', () async {
@@ -205,8 +207,9 @@ void main() {
 
     test('activeByCode matches code and active flag', () async {
       await PbMarkingsRepository(pb).activeByCode('DE-1');
-      verify(() => pb.filter('code = {:c} && is_active = true', {'c': 'DE-1'}))
-          .called(1);
+      verify(
+        () => pb.filter('code = {:c} && is_active = true', {'c': 'DE-1'}),
+      ).called(1);
     });
   });
 

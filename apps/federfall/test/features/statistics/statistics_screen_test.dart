@@ -42,8 +42,9 @@ const Statistics _emptyStats = Statistics(
 );
 
 void main() {
-  testWidgets('renders KPIs and outcome/species/condition breakdowns',
-      (tester) async {
+  testWidgets('renders KPIs and outcome/species/condition breakdowns', (
+    tester,
+  ) async {
     await _pump(
       tester,
       const Statistics(
@@ -66,16 +67,18 @@ void main() {
     expect(find.text('Trichomoniasis'), findsOneWidget);
   });
 
-  testWidgets('shows an empty hint for breakdowns with no data',
-      (tester) async {
+  testWidgets('shows an empty hint for breakdowns with no data', (
+    tester,
+  ) async {
     await _pump(tester, _emptyStats);
 
     expect(find.text('Not enough data yet'), findsWidgets);
     expect(find.text('–'), findsOneWidget); // avg with no data
   });
 
-  testWidgets('a carer gets the unauthorized view, not the figures',
-      (tester) async {
+  testWidgets('a carer gets the unauthorized view, not the figures', (
+    tester,
+  ) async {
     await _pump(tester, _emptyStats, role: UserRole.carer);
 
     expect(find.text('You are not authorized to do that'), findsOneWidget);

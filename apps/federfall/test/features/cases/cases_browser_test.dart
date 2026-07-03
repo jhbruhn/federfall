@@ -105,16 +105,19 @@ void main() {
   });
 
   test('date range filters by admission day, excluding undated cases', () {
-    final result = run([
-      _c('in', admittedAt: DateTime(2026, 6, 10)),
-      _c('out', admittedAt: DateTime(2026, 1, 20)),
-      _c('undated'),
-    ], CaseQuery(
-      admittedRange: DateTimeRange(
-        start: DateTime(2026, 6, 2),
-        end: DateTime(2026, 6, 30),
+    final result = run(
+      [
+        _c('in', admittedAt: DateTime(2026, 6, 10)),
+        _c('out', admittedAt: DateTime(2026, 1, 20)),
+        _c('undated'),
+      ],
+      CaseQuery(
+        admittedRange: DateTimeRange(
+          start: DateTime(2026, 6, 2),
+          end: DateTime(2026, 6, 30),
+        ),
       ),
-    ));
+    );
 
     expect(_ids(result), ['in']);
   });

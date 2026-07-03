@@ -31,8 +31,9 @@ void main() {
       'email': 'carer@example.de',
       'role': 'carer',
     });
-    when(() => users.authWithPassword('carer@example.de', 'pw'))
-        .thenAnswer((_) async => RecordAuth(token: 't', record: record));
+    when(
+      () => users.authWithPassword('carer@example.de', 'pw'),
+    ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
 
     final user = await repo.signIn('carer@example.de', 'pw');
 
@@ -42,14 +43,18 @@ void main() {
   });
 
   test('signIn translates auth failure', () async {
-    when(() => users.authWithPassword(any(), any()))
-        .thenThrow(ClientException(statusCode: 400));
+    when(
+      () => users.authWithPassword(any(), any()),
+    ).thenThrow(ClientException(statusCode: 400));
 
     expect(
       () => repo.signIn('x', 'y'),
       throwsA(
-        isA<RepositoryException>()
-            .having((e) => e.kind, 'kind', RepositoryErrorKind.validation),
+        isA<RepositoryException>().having(
+          (e) => e.kind,
+          'kind',
+          RepositoryErrorKind.validation,
+        ),
       ),
     );
   });
@@ -71,36 +76,40 @@ void main() {
     expect(repo.currentUser?.role, UserRole.supervisor);
   });
 
-  test('inviteUser creates the user in the inviter org and sends a reset',
-      () async {
-    when(() => store.record).thenReturn(
-      RecordModel({'id': 'sup1', 'org': 'org1', 'role': 'supervisor'}),
-    );
-    when(() => users.create(body: any(named: 'body'))).thenAnswer(
-      (_) async => RecordModel({'id': 'new1', 'email': 'new@example.de'}),
-    );
-    when(() => users.requestPasswordReset(any())).thenAnswer((_) async {});
+  test(
+    'inviteUser creates the user in the inviter org and sends a reset',
+    () async {
+      when(() => store.record).thenReturn(
+        RecordModel({'id': 'sup1', 'org': 'org1', 'role': 'supervisor'}),
+      );
+      when(() => users.create(body: any(named: 'body'))).thenAnswer(
+        (_) async => RecordModel({'id': 'new1', 'email': 'new@example.de'}),
+      );
+      when(() => users.requestPasswordReset(any())).thenAnswer((_) async {});
 
-    final created = await repo.inviteUser(
-      email: 'new@example.de',
-      role: UserRole.carer,
-      name: 'Neu',
-    );
+      final created = await repo.inviteUser(
+        email: 'new@example.de',
+        role: UserRole.carer,
+        name: 'Neu',
+      );
 
-    expect(created.id, 'new1');
-    final body = verify(() => users.create(body: captureAny(named: 'body')))
-        .captured
-        .single as Map<String, dynamic>;
-    expect(body['email'], 'new@example.de');
-    expect(body['role'], 'carer');
-    expect(body['org'], 'org1');
-    expect(body['is_active'], true);
-    expect(body['invited_by'], 'sup1');
-    expect(body['name'], 'Neu');
-    expect(body['password'], isNotEmpty);
-    expect(body['password'], body['passwordConfirm']);
-    verify(() => users.requestPasswordReset('new@example.de')).called(1);
-  });
+      expect(created.id, 'new1');
+      final body =
+          verify(
+                () => users.create(body: captureAny(named: 'body')),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(body['email'], 'new@example.de');
+      expect(body['role'], 'carer');
+      expect(body['org'], 'org1');
+      expect(body['is_active'], true);
+      expect(body['invited_by'], 'sup1');
+      expect(body['name'], 'Neu');
+      expect(body['password'], isNotEmpty);
+      expect(body['password'], body['passwordConfirm']);
+      verify(() => users.requestPasswordReset('new@example.de')).called(1);
+    },
+  );
 
   test('inviteUser signals a created account whose reset email failed as '
       'InviteEmailFailedException, not a generic failure', () async {
@@ -110,14 +119,18 @@ void main() {
     when(() => users.create(body: any(named: 'body'))).thenAnswer(
       (_) async => RecordModel({'id': 'new1', 'email': 'new@example.de'}),
     );
-    when(() => users.requestPasswordReset(any()))
-        .thenThrow(ClientException(statusCode: 500));
+    when(
+      () => users.requestPasswordReset(any()),
+    ).thenThrow(ClientException(statusCode: 500));
 
     expect(
       () => repo.inviteUser(email: 'new@example.de', role: UserRole.carer),
       throwsA(
-        isA<InviteEmailFailedException>()
-            .having((e) => e.user.id, 'user.id', 'new1'),
+        isA<InviteEmailFailedException>().having(
+          (e) => e.user.id,
+          'user.id',
+          'new1',
+        ),
       ),
     );
   });
@@ -127,8 +140,9 @@ void main() {
     when(() => store.record).thenReturn(
       RecordModel({'id': 'sup1', 'org': 'org1', 'role': 'supervisor'}),
     );
-    when(() => users.create(body: any(named: 'body')))
-        .thenThrow(ClientException(statusCode: 400));
+    when(
+      () => users.create(body: any(named: 'body')),
+    ).thenThrow(ClientException(statusCode: 400));
 
     await expectLater(
       () => repo.inviteUser(email: 'dupe@example.de', role: UserRole.carer),
@@ -138,8 +152,9 @@ void main() {
   });
 
   test('inviteUser fails when the inviter has no org', () async {
-    when(() => store.record)
-        .thenReturn(RecordModel({'id': 'sup1', 'role': 'supervisor'}));
+    when(
+      () => store.record,
+    ).thenReturn(RecordModel({'id': 'sup1', 'role': 'supervisor'}));
 
     expect(
       () => repo.inviteUser(email: 'x@y.de', role: UserRole.carer),
@@ -148,13 +163,15 @@ void main() {
   });
 
   test('confirmPasswordReset passes the token and password twice', () async {
-    when(() => users.confirmPasswordReset(any(), any(), any()))
-        .thenAnswer((_) async {});
+    when(
+      () => users.confirmPasswordReset(any(), any(), any()),
+    ).thenAnswer((_) async {});
 
     await repo.confirmPasswordReset('tok123', 'newpass');
 
-    verify(() => users.confirmPasswordReset('tok123', 'newpass', 'newpass'))
-        .called(1);
+    verify(
+      () => users.confirmPasswordReset('tok123', 'newpass', 'newpass'),
+    ).called(1);
   });
 
   test('isSignedIn and signOut delegate to the auth store', () {
@@ -182,93 +199,115 @@ void main() {
     );
   });
 
-  test('oauthProviders maps providers, falling back to name as label',
-      () async {
-    when(() => users.listAuthMethods()).thenAnswer(
-      (_) async => AuthMethodsList(
-        oauth2: AuthMethodOAuth2(
-          providers: [
-            AuthMethodProvider(name: 'google', displayName: 'Google'),
-            AuthMethodProvider(name: 'oidc'),
-          ],
+  test(
+    'oauthProviders maps providers, falling back to name as label',
+    () async {
+      when(() => users.listAuthMethods()).thenAnswer(
+        (_) async => AuthMethodsList(
+          oauth2: AuthMethodOAuth2(
+            providers: [
+              AuthMethodProvider(name: 'google', displayName: 'Google'),
+              AuthMethodProvider(name: 'oidc'),
+            ],
+          ),
         ),
-      ),
-    );
+      );
 
-    final providers = await repo.oauthProviders();
+      final providers = await repo.oauthProviders();
 
-    expect(providers.map((p) => p.name), ['google', 'oidc']);
-    expect(providers.map((p) => p.displayName), ['Google', 'oidc']);
-  });
+      expect(providers.map((p) => p.name), ['google', 'oidc']);
+      expect(providers.map((p) => p.displayName), ['Google', 'oidc']);
+    },
+  );
 
   test('oauthProviders translates a client error', () async {
-    when(() => users.listAuthMethods())
-        .thenThrow(ClientException(statusCode: 500));
+    when(
+      () => users.listAuthMethods(),
+    ).thenThrow(ClientException(statusCode: 500));
 
     expect(repo.oauthProviders(), throwsA(isA<RepositoryException>()));
   });
 
-  test('signInWithOAuth2 returns the mapped user and drives the url callback',
-      () async {
-    final record = RecordModel({'id': 'oa1', 'email': 'g@example.de'});
-    when(
-      () => users.authWithOAuth2(any(), any()),
-    ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
+  test(
+    'signInWithOAuth2 returns the mapped user and drives the url callback',
+    () async {
+      final record = RecordModel({'id': 'oa1', 'email': 'g@example.de'});
+      when(
+        () => users.authWithOAuth2(any(), any()),
+      ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
 
-    final user = await repo.signInWithOAuth2('google', (_) async {});
+      final user = await repo.signInWithOAuth2('google', (_) async {});
 
-    expect(user.id, 'oa1');
-    verify(() => users.authWithOAuth2('google', any())).called(1);
-  });
+      expect(user.id, 'oa1');
+      verify(() => users.authWithOAuth2('google', any())).called(1);
+    },
+  );
 
   test('requestOtp returns the otpId', () async {
-    when(() => users.requestOTP('a@b.de'))
-        .thenAnswer((_) async => OTPResponse(otpId: 'otp1'));
+    when(
+      () => users.requestOTP('a@b.de'),
+    ).thenAnswer((_) async => OTPResponse(otpId: 'otp1'));
 
     expect(await repo.requestOtp('a@b.de'), 'otp1');
   });
 
-  test('authWithOtp links the otp to the earlier password step via mfaId',
-      () async {
-    final record = RecordModel({'id': 'usr1', 'email': 'a@b.de'});
-    when(
-      () => users.authWithOTP('otp1', '123456', body: any(named: 'body')),
-    ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
+  test(
+    'authWithOtp links the otp to the earlier password step via mfaId',
+    () async {
+      final record = RecordModel({'id': 'usr1', 'email': 'a@b.de'});
+      when(
+        () => users.authWithOTP('otp1', '123456', body: any(named: 'body')),
+      ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
 
-    final user =
-        await repo.authWithOtp(otpId: 'otp1', code: '123456', mfaId: 'mfa1');
+      final user = await repo.authWithOtp(
+        otpId: 'otp1',
+        code: '123456',
+        mfaId: 'mfa1',
+      );
 
-    expect(user.id, 'usr1');
-    final body = verify(
-      () => users.authWithOTP(
-        'otp1',
-        '123456',
-        body: captureAny(named: 'body'),
-      ),
-    ).captured.single as Map<String, dynamic>;
-    expect(body['mfaId'], 'mfa1');
-  });
+      expect(user.id, 'usr1');
+      final body =
+          verify(
+                () => users.authWithOTP(
+                  'otp1',
+                  '123456',
+                  body: captureAny(named: 'body'),
+                ),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(body['mfaId'], 'mfa1');
+    },
+  );
 
-  test('setMfaEnabled updates the record and re-saves the auth store',
-      () async {
-    when(() => store.record)
-        .thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
-    when(() => store.token).thenReturn('tok');
-    when(() => store.save(any(), any())).thenReturn(null);
-    final updated =
-        RecordModel({'id': 'usr1', 'email': 'a@b.de', 'mfa_enabled': true});
-    when(() => users.update('usr1', body: any(named: 'body')))
-        .thenAnswer((_) async => updated);
+  test(
+    'setMfaEnabled updates the record and re-saves the auth store',
+    () async {
+      when(
+        () => store.record,
+      ).thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
+      when(() => store.token).thenReturn('tok');
+      when(() => store.save(any(), any())).thenReturn(null);
+      final updated = RecordModel({
+        'id': 'usr1',
+        'email': 'a@b.de',
+        'mfa_enabled': true,
+      });
+      when(
+        () => users.update('usr1', body: any(named: 'body')),
+      ).thenAnswer((_) async => updated);
 
-    final user = await repo.setMfaEnabled(enabled: true);
+      final user = await repo.setMfaEnabled(enabled: true);
 
-    expect(user.mfaEnabled, isTrue);
-    final body = verify(
-      () => users.update('usr1', body: captureAny(named: 'body')),
-    ).captured.single as Map<String, dynamic>;
-    expect(body['mfa_enabled'], true);
-    verify(() => store.save('tok', updated)).called(1);
-  });
+      expect(user.mfaEnabled, isTrue);
+      final body =
+          verify(
+                () => users.update('usr1', body: captureAny(named: 'body')),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(body['mfa_enabled'], true);
+      verify(() => store.save('tok', updated)).called(1);
+    },
+  );
 
   test('setMfaEnabled rejects when nobody is signed in', () async {
     when(() => store.record).thenReturn(null);
@@ -280,22 +319,26 @@ void main() {
   });
 
   test('updateProfile trims name/phone and persists into the store', () async {
-    when(() => store.record)
-        .thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
+    when(
+      () => store.record,
+    ).thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
     when(() => store.token).thenReturn('tok');
     when(() => store.save(any(), any())).thenReturn(null);
     final updated = RecordModel(
       {'id': 'usr1', 'email': 'a@b.de', 'name': 'Mara', 'phone': '123'},
     );
-    when(() => users.update('usr1', body: any(named: 'body')))
-        .thenAnswer((_) async => updated);
+    when(
+      () => users.update('usr1', body: any(named: 'body')),
+    ).thenAnswer((_) async => updated);
 
     final user = await repo.updateProfile(name: '  Mara  ', phone: ' 123 ');
 
     expect(user.name, 'Mara');
-    final body = verify(
-      () => users.update('usr1', body: captureAny(named: 'body')),
-    ).captured.single as Map<String, dynamic>;
+    final body =
+        verify(
+              () => users.update('usr1', body: captureAny(named: 'body')),
+            ).captured.single
+            as Map<String, dynamic>;
     expect(body['name'], 'Mara');
     expect(body['phone'], '123');
     verify(() => store.save('tok', updated)).called(1);
@@ -303,8 +346,9 @@ void main() {
 
   test('updateProfile omits fields that were not passed — a partial update '
       'never clears the other field', () async {
-    when(() => store.record)
-        .thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
+    when(
+      () => store.record,
+    ).thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
     when(() => store.token).thenReturn('tok');
     when(() => store.save(any(), any())).thenReturn(null);
     when(() => users.update('usr1', body: any(named: 'body'))).thenAnswer(
@@ -315,30 +359,37 @@ void main() {
 
     await repo.updateProfile(phone: '456');
 
-    final body = verify(
-      () => users.update('usr1', body: captureAny(named: 'body')),
-    ).captured.single as Map<String, dynamic>;
+    final body =
+        verify(
+              () => users.update('usr1', body: captureAny(named: 'body')),
+            ).captured.single
+            as Map<String, dynamic>;
     expect(body, isNot(contains('name')));
     expect(body['phone'], '456');
   });
 
-  test('updateProfile clears a field only via an explicit empty string',
-      () async {
-    when(() => store.record)
-        .thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
-    when(() => store.token).thenReturn('tok');
-    when(() => store.save(any(), any())).thenReturn(null);
-    when(() => users.update('usr1', body: any(named: 'body'))).thenAnswer(
-      (_) async => RecordModel({'id': 'usr1', 'email': 'a@b.de'}),
-    );
+  test(
+    'updateProfile clears a field only via an explicit empty string',
+    () async {
+      when(
+        () => store.record,
+      ).thenReturn(RecordModel({'id': 'usr1', 'email': 'a@b.de'}));
+      when(() => store.token).thenReturn('tok');
+      when(() => store.save(any(), any())).thenReturn(null);
+      when(() => users.update('usr1', body: any(named: 'body'))).thenAnswer(
+        (_) async => RecordModel({'id': 'usr1', 'email': 'a@b.de'}),
+      );
 
-    await repo.updateProfile(name: '', phone: '1');
+      await repo.updateProfile(name: '', phone: '1');
 
-    final body = verify(
-      () => users.update('usr1', body: captureAny(named: 'body')),
-    ).captured.single as Map<String, dynamic>;
-    expect(body['name'], '');
-  });
+      final body =
+          verify(
+                () => users.update('usr1', body: captureAny(named: 'body')),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(body['name'], '');
+    },
+  );
 
   test('a hung sign-in fails fast with a network error instead of waiting '
       'for the OS TCP timeout', () async {
@@ -377,8 +428,9 @@ void main() {
   test('refresh returns the mapped user while the token is valid', () async {
     when(() => store.isValid).thenReturn(true);
     final record = RecordModel({'id': 'usr1', 'email': 'a@b.de'});
-    when(() => users.authRefresh())
-        .thenAnswer((_) async => RecordAuth(token: 't', record: record));
+    when(
+      () => users.authRefresh(),
+    ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
 
     final user = await repo.refresh();
 

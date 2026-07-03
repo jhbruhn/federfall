@@ -227,7 +227,9 @@ List<WorklistItem> buildWorklist({
 int localDaysBetween(DateTime a, DateTime b) {
   final la = a.toLocal();
   final lb = b.toLocal();
-  return DateTime(lb.year, lb.month, lb.day)
-      .difference(DateTime(la.year, la.month, la.day))
-      .inDays;
+  return DateTime(
+    lb.year,
+    lb.month,
+    lb.day,
+  ).difference(DateTime(la.year, la.month, la.day)).inDays;
 }

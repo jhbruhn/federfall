@@ -55,8 +55,9 @@ void main() {
     expect(find.text('You are not authorized to do that'), findsOneWidget);
   });
 
-  testWidgets('lists conditions with notifiable and inactive badges',
-      (tester) async {
+  testWidgets('lists conditions with notifiable and inactive badges', (
+    tester,
+  ) async {
     await _pump(
       tester,
       role: UserRole.supervisor,
@@ -116,8 +117,9 @@ void main() {
     expect(data['is_notifiable'], false);
   });
 
-  testWidgets('a label-only list omits the condition-only fields on create',
-      (tester) async {
+  testWidgets('a label-only list omits the condition-only fields on create', (
+    tester,
+  ) async {
     final repo = MockMarkingTypesRepo();
     when(() => repo.create(any())).thenAnswer(
       (_) async => const MarkingType(id: 'new', label: 'Ring'),
@@ -155,8 +157,9 @@ void main() {
     expect(data.containsKey('is_notifiable'), isFalse);
   });
 
-  testWidgets('deleting a condition confirms and calls the repo',
-      (tester) async {
+  testWidgets('deleting a condition confirms and calls the repo', (
+    tester,
+  ) async {
     final repo = MockConditionsRepo();
     when(() => repo.delete(any())).thenAnswer((_) async {});
 

@@ -34,11 +34,11 @@ void main() {
   // A labelled fact is rendered as Text.rich (label + value in separate spans),
   // so match on the combined plain text of the RichText carrying both.
   Finder factContaining(String label, String value) => find.byWidgetPredicate(
-        (w) =>
-            w is RichText &&
-            w.text.toPlainText().contains(label) &&
-            w.text.toPlainText().contains(value),
-      );
+    (w) =>
+        w is RichText &&
+        w.text.toPlainText().contains(label) &&
+        w.text.toPlainText().contains(value),
+  );
 
   testWidgets('renders each vital on its own labelled line', (tester) async {
     await pump(
@@ -61,8 +61,9 @@ void main() {
     expect(factContaining('Attitude', 'Quiet'), findsOneWidget);
   });
 
-  testWidgets('shows abnormal findings with their note and lists normals',
-      (tester) async {
+  testWidgets('shows abnormal findings with their note and lists normals', (
+    tester,
+  ) async {
     await pump(
       tester,
       exam: const Exam(id: 'e1', caseId: 'c1', animal: 'a1'),
@@ -105,13 +106,17 @@ void main() {
   });
 
   testWidgets('falls back to "no vitals" when none recorded', (tester) async {
-    await pump(tester, exam: const Exam(id: 'e1', caseId: 'c1', animal: 'a1'));
+    await pump(
+      tester,
+      exam: const Exam(id: 'e1', caseId: 'c1', animal: 'a1'),
+    );
 
     expect(find.text('No vitals recorded'), findsOneWidget);
   });
 
-  testWidgets('hides body condition and temperature when stored as 0',
-      (tester) async {
+  testWidgets('hides body condition and temperature when stored as 0', (
+    tester,
+  ) async {
     // PocketBase stores unset numeric fields as 0; never surface "0/5"/"0.0".
     await pump(
       tester,

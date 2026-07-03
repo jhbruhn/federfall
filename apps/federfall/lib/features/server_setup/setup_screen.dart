@@ -128,8 +128,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         _error!,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.error),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
                       ),
                     ],
                     const SizedBox(height: AppSpacing.lg),

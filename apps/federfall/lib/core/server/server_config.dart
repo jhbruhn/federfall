@@ -16,9 +16,9 @@ sealed class ServerConfig {
 
   /// The resolved base URL, or `null` when not yet configured.
   String? get baseUrlOrNull => switch (this) {
-        ServerConfigured(:final baseUrl) => baseUrl,
-        ServerUnconfigured() => null,
-      };
+    ServerConfigured(:final baseUrl) => baseUrl,
+    ServerUnconfigured() => null,
+  };
 }
 
 /// A resolved server: requests go to [baseUrl].

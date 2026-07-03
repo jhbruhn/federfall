@@ -75,10 +75,7 @@ class PbGeocodingRepository implements GeocodingRepository {
         query: {'q': query},
       );
       final results = (res['results'] as List?) ?? const [];
-      return results
-          .map(GeoResult.tryParse)
-          .whereType<GeoResult>()
-          .toList();
+      return results.map(GeoResult.tryParse).whereType<GeoResult>().toList();
     });
   }
 

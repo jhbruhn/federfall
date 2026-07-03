@@ -226,8 +226,7 @@ class _KpiGrid extends StatelessWidget {
           spacing: AppSpacing.md,
           runSpacing: AppSpacing.md,
           children: [
-            for (final t in tiles)
-              SizedBox(width: width, child: _KpiCard(t)),
+            for (final t in tiles) SizedBox(width: width, child: _KpiCard(t)),
           ],
         );
       },

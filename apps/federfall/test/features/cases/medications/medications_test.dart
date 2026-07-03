@@ -35,13 +35,14 @@ void main() {
           (ref) async =>
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
         ),
-        medicationsRepositoryProvider
-            .overrideWith((ref) async => medications),
-        medicationAdministrationsRepositoryProvider
-            .overrideWith((ref) async => administrations),
+        medicationsRepositoryProvider.overrideWith((ref) async => medications),
+        medicationAdministrationsRepositoryProvider.overrideWith(
+          (ref) async => administrations,
+        ),
         medicationRoutesProvider.overrideWith(
-          (ref) async =>
-              const [MedicationRoute(id: 'mr_subcut', label: 'Subcutaneous')],
+          (ref) async => const [
+            MedicationRoute(id: 'mr_subcut', label: 'Subcutaneous'),
+          ],
         ),
       ],
     );
@@ -69,8 +70,9 @@ void main() {
   }
 
   group('PrescriptionSheet', () {
-    testWidgets('creates a prescription with a controlled flag',
-        (tester) async {
+    testWidgets('creates a prescription with a controlled flag', (
+      tester,
+    ) async {
       when(() => medications.create(any())).thenAnswer(
         (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
       );
@@ -81,9 +83,9 @@ void main() {
       await tester.pumpAndSettle();
       await save(tester);
 
-      final body = verify(() => medications.create(captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['drug'], 'Baytril');
       expect(body['is_controlled'], true);
       expect(body['case'], 'c1');
@@ -107,17 +109,18 @@ void main() {
       await tester.pumpAndSettle();
       await save(tester);
 
-      final body = verify(() => medications.create(captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['frequency_kind'], 'scheduled');
       expect(body['interval_hours'], 12);
     });
   });
 
   group('AdministrationSheet', () {
-    testWidgets('logging a dose from a plan links and prefills it',
-        (tester) async {
+    testWidgets('logging a dose from a plan links and prefills it', (
+      tester,
+    ) async {
       when(() => administrations.create(any())).thenAnswer(
         (_) async =>
             const MedicationAdministration(id: 'a1', caseId: 'c1', drug: 'x'),
@@ -140,9 +143,9 @@ void main() {
       expect(find.text('Baytril'), findsOneWidget);
       await save(tester);
 
-      final body = verify(() => administrations.create(captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => administrations.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['drug'], 'Baytril');
       expect(body['medication'], 'm1');
       expect(body['administered_by'], 'u1');
@@ -151,8 +154,9 @@ void main() {
   });
 
   group('medication tiles', () {
-    testWidgets('prescription tile shows drug, regimen and controlled badge',
-        (tester) async {
+    testWidgets('prescription tile shows drug, regimen and controlled badge', (
+      tester,
+    ) async {
       await pump(
         tester,
         const PrescriptionTile(
@@ -176,8 +180,9 @@ void main() {
       expect(find.text('Controlled'), findsOneWidget);
     });
 
-    testWidgets('inline log-dose button shows only on an active plan',
-        (tester) async {
+    testWidgets('inline log-dose button shows only on an active plan', (
+      tester,
+    ) async {
       // No end date → still being given → inline action present.
       await pump(
         tester,
@@ -204,8 +209,9 @@ void main() {
       expect(find.widgetWithText(FilledButton, 'Log dose'), findsNothing);
     });
 
-    testWidgets('administration tile shows the dose and deletes',
-        (tester) async {
+    testWidgets('administration tile shows the dose and deletes', (
+      tester,
+    ) async {
       when(() => administrations.delete('a1')).thenAnswer((_) async {});
 
       await pump(

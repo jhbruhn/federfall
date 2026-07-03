@@ -75,27 +75,31 @@ void main() {
       expect(probed, isFalse);
     });
 
-    test('a Federfall server is reachable with its normalised url + info',
-        () async {
-      final probe = ServerProbe(
-        (_) async => _infoBody(name: 'Wildvogelhilfe', passwordReset: true),
-      );
+    test(
+      'a Federfall server is reachable with its normalised url + info',
+      () async {
+        final probe = ServerProbe(
+          (_) async => _infoBody(name: 'Wildvogelhilfe', passwordReset: true),
+        );
 
-      final result = await probe.probe('pigeons.example');
+        final result = await probe.probe('pigeons.example');
 
-      expect(result, isA<ProbeReachable>());
-      final reachable = result as ProbeReachable;
-      expect(reachable.baseUrl, 'https://pigeons.example');
-      expect(reachable.info.name, 'Wildvogelhilfe');
-      expect(reachable.info.auth.passwordReset, isTrue);
-    });
+        expect(result, isA<ProbeReachable>());
+        final reachable = result as ProbeReachable;
+        expect(reachable.baseUrl, 'https://pigeons.example');
+        expect(reachable.info.name, 'Wildvogelhilfe');
+        expect(reachable.info.auth.passwordReset, isTrue);
+      },
+    );
 
-    test('a generic PocketBase (no marker in a 200 body) is not-Federfall',
-        () async {
-      final probe = ServerProbe((_) async => {'message': 'ok'});
+    test(
+      'a generic PocketBase (no marker in a 200 body) is not-Federfall',
+      () async {
+        final probe = ServerProbe((_) async => {'message': 'ok'});
 
-      expect(await probe.probe('pigeons.example'), isA<ProbeNotFederfall>());
-    });
+        expect(await probe.probe('pigeons.example'), isA<ProbeNotFederfall>());
+      },
+    );
 
     test('a connection failure (statusCode 0) is unreachable', () async {
       final probe = ServerProbe(
@@ -105,14 +109,16 @@ void main() {
       expect(await probe.probe('pigeons.example'), isA<ProbeUnreachable>());
     });
 
-    test('a 404 (route missing on a generic PocketBase) is not-Federfall',
-        () async {
-      final probe = ServerProbe(
-        (_) async => throw ClientException(statusCode: 404),
-      );
+    test(
+      'a 404 (route missing on a generic PocketBase) is not-Federfall',
+      () async {
+        final probe = ServerProbe(
+          (_) async => throw ClientException(statusCode: 404),
+        );
 
-      expect(await probe.probe('pigeons.example'), isA<ProbeNotFederfall>());
-    });
+        expect(await probe.probe('pigeons.example'), isA<ProbeNotFederfall>());
+      },
+    );
 
     test('a timeout is unreachable', () async {
       final probe = ServerProbe(
@@ -122,39 +128,45 @@ void main() {
       expect(await probe.probe('pigeons.example'), isA<ProbeUnreachable>());
     });
 
-    test('explicit http:// on a non-loopback host is rejected unprobed',
-        () async {
-      var probed = false;
-      final probe = ServerProbe((_) async {
-        probed = true;
-        return _infoBody();
-      });
+    test(
+      'explicit http:// on a non-loopback host is rejected unprobed',
+      () async {
+        var probed = false;
+        final probe = ServerProbe((_) async {
+          probed = true;
+          return _infoBody();
+        });
 
-      expect(
-        await probe.probe('http://pigeons.example'),
-        isA<ProbeInsecureHttp>(),
-      );
-      expect(probed, isFalse);
-    });
+        expect(
+          await probe.probe('http://pigeons.example'),
+          isA<ProbeInsecureHttp>(),
+        );
+        expect(probed, isFalse);
+      },
+    );
 
-    test('explicit http:// on localhost is still probed (dev escape hatch)',
-        () async {
-      final probe = ServerProbe((_) async => _infoBody());
+    test(
+      'explicit http:// on localhost is still probed (dev escape hatch)',
+      () async {
+        final probe = ServerProbe((_) async => _infoBody());
 
-      final result = await probe.probe('http://localhost:8090');
+        final result = await probe.probe('http://localhost:8090');
 
-      expect(result, isA<ProbeReachable>());
-      expect((result as ProbeReachable).baseUrl, 'http://localhost:8090');
-    });
+        expect(result, isA<ProbeReachable>());
+        expect((result as ProbeReachable).baseUrl, 'http://localhost:8090');
+      },
+    );
 
-    test('explicit http:// on 127.0.0.1 is still probed (dev escape hatch)',
-        () async {
-      final probe = ServerProbe((_) async => _infoBody());
+    test(
+      'explicit http:// on 127.0.0.1 is still probed (dev escape hatch)',
+      () async {
+        final probe = ServerProbe((_) async => _infoBody());
 
-      expect(
-        await probe.probe('http://127.0.0.1:8090'),
-        isA<ProbeReachable>(),
-      );
-    });
+        expect(
+          await probe.probe('http://127.0.0.1:8090'),
+          isA<ProbeReachable>(),
+        );
+      },
+    );
   });
 }

@@ -30,8 +30,9 @@ Future<void> _pump(
         weightsForAnimalProvider('a1').overrideWith((ref) async => weights),
         examsForAnimalProvider('a1').overrideWith((ref) async => exams),
         markingTypesProvider.overrideWith(
-          (ref) async =>
-              const [MarkingType(id: 'mktp_assoc', label: 'Association ring')],
+          (ref) async => const [
+            MarkingType(id: 'mktp_assoc', label: 'Association ring'),
+          ],
         ),
         if (animals != null)
           animalsRepositoryProvider.overrideWith((ref) async => animals),
@@ -50,8 +51,9 @@ Future<void> _pump(
 void main() {
   setUpAll(() => registerFallbackValue(<String, dynamic>{}));
 
-  testWidgets('editing identity saves species/name/sex via the repo',
-      (tester) async {
+  testWidgets('editing identity saves species/name/sex via the repo', (
+    tester,
+  ) async {
     final animals = MockAnimalsRepo();
     when(() => animals.update(any(), any())).thenAnswer(
       (_) async => const Animal(id: 'a1', species: 'Columba livia'),
@@ -151,8 +153,9 @@ void main() {
     expect(find.byTooltip('Add weight'), findsOneWidget);
   });
 
-  testWidgets('can apply a marking from the animal detail (no case)',
-      (tester) async {
+  testWidgets('can apply a marking from the animal detail (no case)', (
+    tester,
+  ) async {
     await _pump(
       tester,
       const AnimalLifetime(
@@ -171,8 +174,7 @@ void main() {
     expect(find.text('Apply marking'), findsWidgets);
   });
 
-  testWidgets('marks inaccessible cases as non-tappable stubs',
-      (tester) async {
+  testWidgets('marks inaccessible cases as non-tappable stubs', (tester) async {
     await _pump(
       tester,
       const AnimalLifetime(
@@ -219,8 +221,9 @@ void main() {
     expect(stubTile.onTap, isNull);
   });
 
-  testWidgets('lists the animal lifetime exams with a vitals summary',
-      (tester) async {
+  testWidgets('lists the animal lifetime exams with a vitals summary', (
+    tester,
+  ) async {
     await _pump(
       tester,
       const AnimalLifetime(

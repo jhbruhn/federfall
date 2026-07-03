@@ -55,8 +55,7 @@ Future<void> _open(
 void main() {
   setUpAll(() => registerFallbackValue(<String, dynamic>{}));
 
-  testWidgets('opens prefilled and saves edited intake fields',
-      (tester) async {
+  testWidgets('opens prefilled and saves edited intake fields', (tester) async {
     final repo = MockCasesRepo();
     when(() => repo.update(any(), any())).thenAnswer(
       (_) async => _testCase,
@@ -84,8 +83,9 @@ void main() {
     expect(data['admission_reasons'], ['adre1']);
   });
 
-  testWidgets('blocks saving when found date is after the admission date',
-      (tester) async {
+  testWidgets('blocks saving when found date is after the admission date', (
+    tester,
+  ) async {
     final repo = MockCasesRepo();
     await _open(
       tester,
@@ -112,8 +112,9 @@ void main() {
     verifyNever(() => repo.update(any(), any()));
   });
 
-  testWidgets('blocks saving when no admission reason is selected',
-      (tester) async {
+  testWidgets('blocks saving when no admission reason is selected', (
+    tester,
+  ) async {
     final repo = MockCasesRepo();
     await _open(tester, repo);
 

@@ -10,11 +10,11 @@ void main() {
       AppUser(id: id, email: '$id@x.org', role: role);
 
   CaseShare share(String withId, ShareAccess access) => CaseShare(
-        id: 's-$withId',
-        caseId: 'c1',
-        sharedWith: withId,
-        access: access,
-      );
+    id: 's-$withId',
+    caseId: 'c1',
+    sharedWith: withId,
+    access: access,
+  );
 
   group('caseEditableBy', () {
     test('a signed-out user can never edit', () {

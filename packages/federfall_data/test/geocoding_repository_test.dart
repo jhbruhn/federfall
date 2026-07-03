@@ -73,31 +73,37 @@ void main() {
     );
   });
 
-  test('forward skips malformed entries instead of fabricating (0,0) pins',
-      () async {
-    when(
-      () => pb.send<Map<String, dynamic>>(any(), query: any(named: 'query')),
-    ).thenAnswer(
-      (_) async => {
-        'results': [
-          {'displayName': 'no coordinates at all'},
-          {'lat': 'not-a-number', 'lon': 13.4, 'displayName': 'bad lat'},
-          'not even a map',
-          {'lat': 52.52, 'lon': 13.405, 'displayName': 'the good one'},
-        ],
-      },
-    );
+  test(
+    'forward skips malformed entries instead of fabricating (0,0) pins',
+    () async {
+      when(
+        () => pb.send<Map<String, dynamic>>(any(), query: any(named: 'query')),
+      ).thenAnswer(
+        (_) async => {
+          'results': [
+            {'displayName': 'no coordinates at all'},
+            {'lat': 'not-a-number', 'lon': 13.4, 'displayName': 'bad lat'},
+            'not even a map',
+            {'lat': 52.52, 'lon': 13.405, 'displayName': 'the good one'},
+          ],
+        },
+      );
 
-    final results = await repo.forward('Berlin');
+      final results = await repo.forward('Berlin');
 
-    expect(results, hasLength(1));
-    expect(results.single.displayName, 'the good one');
-  });
+      expect(results, hasLength(1));
+      expect(results.single.displayName, 'the good one');
+    },
+  );
 
   test('reverse treats a malformed result as unresolved (null)', () async {
     when(
       () => pb.send<Map<String, dynamic>>(any(), query: any(named: 'query')),
-    ).thenAnswer((_) async => {'result': <String, dynamic>{'lat': 'x'}});
+    ).thenAnswer(
+      (_) async => {
+        'result': <String, dynamic>{'lat': 'x'},
+      },
+    );
 
     expect(await repo.reverse(52, 13), isNull);
   });

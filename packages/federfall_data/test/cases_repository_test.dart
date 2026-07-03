@@ -23,8 +23,9 @@ void main() {
     service = _MockService();
     when(() => pb.collection('cases')).thenReturn(service);
     // Echo a recognisable bound-filter string so we can assert on it.
-    when(() => pb.filter(any(), any()))
-        .thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
+    when(
+      () => pb.filter(any(), any()),
+    ).thenAnswer((i) => 'BOUND:${i.positionalArguments[0]}');
     repo = PbCasesRepository(pb);
   });
 
@@ -73,23 +74,25 @@ void main() {
     verify(() => pb.filter('animal = {:a}', {'a': 'anml1'})).called(1);
   });
 
-  test('forCarer() filters by the active_carer relation, newest first',
-      () async {
-    when(
-      () => service.getList(
-        page: any(named: 'page'),
-        perPage: any(named: 'perPage'),
-        skipTotal: any(named: 'skipTotal'),
-        filter: any(named: 'filter'),
-        sort: any(named: 'sort'),
-        expand: any(named: 'expand'),
-      ),
-    ).thenAnswer((_) async => ResultList());
+  test(
+    'forCarer() filters by the active_carer relation, newest first',
+    () async {
+      when(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+        ),
+      ).thenAnswer((_) async => ResultList());
 
-    await repo.forCarer('user1');
+      await repo.forCarer('user1');
 
-    verify(() => pb.filter('active_carer = {:c}', {'c': 'user1'})).called(1);
-  });
+      verify(() => pb.filter('active_carer = {:c}', {'c': 'user1'})).called(1);
+    },
+  );
 
   group('intake()', () {
     void stubSend(Map<String, dynamic> response) {
@@ -103,61 +106,65 @@ void main() {
       ).thenAnswer((_) async => response);
     }
 
-    test('posts payload and photos to the atomic route, returns the ids',
-        () async {
-      stubSend({'id': 'case1', 'animal': 'anml1'});
-      final photo = http.MultipartFile.fromBytes(
-        'intake_photos',
-        [1, 2, 3],
-        filename: 'pigeon.jpg',
-      );
+    test(
+      'posts payload and photos to the atomic route, returns the ids',
+      () async {
+        stubSend({'id': 'case1', 'animal': 'anml1'});
+        final photo = http.MultipartFile.fromBytes(
+          'intake_photos',
+          [1, 2, 3],
+          filename: 'pigeon.jpg',
+        );
 
-      final result = await repo.intake(
-        {
-          'case': {'admission_reason': 'injured'},
-        },
-        photos: [photo],
-      );
+        final result = await repo.intake(
+          {
+            'case': {'admission_reason': 'injured'},
+          },
+          photos: [photo],
+        );
 
-      expect(result.caseId, 'case1');
-      expect(result.animalId, 'anml1');
-      final captured = verify(
-        () => pb.send<Map<String, dynamic>>(
-          captureAny(),
-          method: captureAny(named: 'method'),
-          body: captureAny(named: 'body'),
-          files: captureAny(named: 'files'),
-        ),
-      ).captured;
-      expect(captured[0], '/api/federfall/intake');
-      expect(captured[1], 'POST');
-      expect(
-        (captured[2] as Map<String, dynamic>)['case'],
-        {'admission_reason': 'injured'},
-      );
-      final files = captured[3] as List<http.MultipartFile>;
-      expect(files.single.field, 'intake_photos');
-      expect(files.single.filename, 'pigeon.jpg');
-    });
+        expect(result.caseId, 'case1');
+        expect(result.animalId, 'anml1');
+        final captured = verify(
+          () => pb.send<Map<String, dynamic>>(
+            captureAny(),
+            method: captureAny(named: 'method'),
+            body: captureAny(named: 'body'),
+            files: captureAny(named: 'files'),
+          ),
+        ).captured;
+        expect(captured[0], '/api/federfall/intake');
+        expect(captured[1], 'POST');
+        expect(
+          (captured[2] as Map<String, dynamic>)['case'],
+          {'admission_reason': 'injured'},
+        );
+        final files = captured[3] as List<http.MultipartFile>;
+        expect(files.single.field, 'intake_photos');
+        expect(files.single.filename, 'pigeon.jpg');
+      },
+    );
 
-    test('the idempotency key rides in the body; none sent when absent',
-        () async {
-      stubSend({'id': 'case1', 'animal': 'anml1'});
+    test(
+      'the idempotency key rides in the body; none sent when absent',
+      () async {
+        stubSend({'id': 'case1', 'animal': 'anml1'});
 
-      await repo.intake({'species': 'Stadttaube'}, idempotencyKey: 'k1');
-      await repo.intake({'species': 'Stadttaube'});
+        await repo.intake({'species': 'Stadttaube'}, idempotencyKey: 'k1');
+        await repo.intake({'species': 'Stadttaube'});
 
-      final bodies = verify(
-        () => pb.send<Map<String, dynamic>>(
-          any(),
-          method: any(named: 'method'),
-          body: captureAny(named: 'body'),
-          files: any(named: 'files'),
-        ),
-      ).captured.cast<Map<String, dynamic>>();
-      expect(bodies.first['idempotency_key'], 'k1');
-      expect(bodies.last.containsKey('idempotency_key'), isFalse);
-    });
+        final bodies = verify(
+          () => pb.send<Map<String, dynamic>>(
+            any(),
+            method: any(named: 'method'),
+            body: captureAny(named: 'body'),
+            files: any(named: 'files'),
+          ),
+        ).captured.cast<Map<String, dynamic>>();
+        expect(bodies.first['idempotency_key'], 'k1');
+        expect(bodies.last.containsKey('idempotency_key'), isFalse);
+      },
+    );
 
     test('a keyed timeout is a plain network error — resubmitting the same '
         'key cannot duplicate the intake', () async {

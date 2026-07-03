@@ -211,8 +211,9 @@ void main() {
     expect(find.text('2026-099'), findsOneWidget);
   });
 
-  testWidgets('a deep link entered before sign-in is restored after it',
-      (tester) async {
+  testWidgets('a deep link entered before sign-in is restored after it', (
+    tester,
+  ) async {
     final auth = _MutableAuthStatus(initial: false);
     final container = ProviderContainer(
       overrides: [
@@ -261,8 +262,9 @@ void main() {
     );
   });
 
-  testWidgets('admin and statistics redirect a carer home (federfall-vxg)',
-      (tester) async {
+  testWidgets('admin and statistics redirect a carer home (federfall-vxg)', (
+    tester,
+  ) async {
     final container = ProviderContainer(
       overrides: [
         serverConfigControllerProvider.overrideWith(
@@ -347,36 +349,38 @@ void main() {
   });
 
   testWidgets(
-      'cases list search state survives crossing the expanded breakpoint '
-      '(federfall-8bh2)', (tester) async {
-    tester.view.physicalSize = const Size(800, 600);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+    'cases list search state survives crossing the expanded breakpoint '
+    '(federfall-8bh2)',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-    await _pumpAt(
-      tester,
-      config: const ServerConfig.configured('https://x.example'),
-      authed: true,
-    );
-    expect(find.byType(CasesScreen), findsOneWidget);
+      await _pumpAt(
+        tester,
+        config: const ServerConfig.configured('https://x.example'),
+        authed: true,
+      );
+      expect(find.byType(CasesScreen), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField).first, 'bussard');
-    await tester.pump();
-    expect(find.text('bussard'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).first, 'bussard');
+      await tester.pump();
+      expect(find.text('bussard'), findsOneWidget);
 
-    // Cross into the expanded two-pane layout: the list moves from the pane
-    // navigator's root into the shell's left pane. The shared GlobalKey must
-    // carry the mounted list (and its in-progress search) across.
-    tester.view.physicalSize = const Size(1200, 800);
-    await tester.pumpAndSettle();
-    expect(find.byType(CasesScreen), findsOneWidget);
-    expect(find.text('bussard'), findsOneWidget);
+      // Cross into the expanded two-pane layout: the list moves from the pane
+      // navigator's root into the shell's left pane. The shared GlobalKey must
+      // carry the mounted list (and its in-progress search) across.
+      tester.view.physicalSize = const Size(1200, 800);
+      await tester.pumpAndSettle();
+      expect(find.byType(CasesScreen), findsOneWidget);
+      expect(find.text('bussard'), findsOneWidget);
 
-    // And back down again.
-    tester.view.physicalSize = const Size(800, 600);
-    await tester.pumpAndSettle();
-    expect(find.text('bussard'), findsOneWidget);
-  });
+      // And back down again.
+      tester.view.physicalSize = const Size(800, 600);
+      await tester.pumpAndSettle();
+      expect(find.text('bussard'), findsOneWidget);
+    },
+  );
 
   testWidgets('confirm-reset is reachable without a session', (tester) async {
     final container = await _pumpAt(
@@ -391,9 +395,9 @@ void main() {
     expect(find.byType(ConfirmResetScreen), findsOneWidget);
   });
 
-  testWidgets(
-      'cold start reopens the persisted last route (federfall-7ev8)',
-      (tester) async {
+  testWidgets('cold start reopens the persisted last route (federfall-7ev8)', (
+    tester,
+  ) async {
     final container = ProviderContainer(
       overrides: [
         serverConfigControllerProvider.overrideWith(
@@ -423,8 +427,7 @@ void main() {
     expect(find.byType(CaseDetailScreen), findsOneWidget);
   });
 
-  testWidgets(
-      'visiting a case persists it as the location to reopen '
+  testWidgets('visiting a case persists it as the location to reopen '
       '(federfall-7ev8)', (tester) async {
     final container = ProviderContainer(
       overrides: [

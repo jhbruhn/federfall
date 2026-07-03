@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-      'invalidating the derived worklist recomputes from the cached source '
+  test('invalidating the derived worklist recomputes from the cached source '
       'without refetching (federfall-zosx)', () async {
     var fetches = 0;
     final container = ProviderContainer(

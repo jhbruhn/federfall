@@ -107,20 +107,22 @@ String encodeCaseReportCsv({
 
   final table = <List<String>>[header];
   for (final r in rows) {
-    table.add([
-      r.caseNumber ?? '',
-      r.species,
-      r.name ?? '',
-      d(r.admittedAt),
-      d(r.foundAt),
-      s(r.status),
-      o(r.outcome),
-      d(r.endedAt),
-      r.daysInCare?.toString() ?? '',
-      r.city ?? '',
-      r.region ?? '',
-      r.reasons.join('; '),
-    ].map(_guardFormulaInjection).toList(growable: false));
+    table.add(
+      [
+        r.caseNumber ?? '',
+        r.species,
+        r.name ?? '',
+        d(r.admittedAt),
+        d(r.foundAt),
+        s(r.status),
+        o(r.outcome),
+        d(r.endedAt),
+        r.daysInCare?.toString() ?? '',
+        r.city ?? '',
+        r.region ?? '',
+        r.reasons.join('; '),
+      ].map(_guardFormulaInjection).toList(growable: false),
+    );
   }
   // BOM so spreadsheet apps render German umlauts as UTF-8.
   return const CsvEncoder(addBom: true).convert(table);

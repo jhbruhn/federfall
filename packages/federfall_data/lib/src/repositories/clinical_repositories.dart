@@ -49,10 +49,10 @@ class PbMedicationAdministrationsRepository
     extends PbRepository<MedicationAdministration> {
   PbMedicationAdministrationsRepository(PocketBase pb)
     : super(
-         pb: pb,
-         collection: 'medication_administrations',
-         fromRecord: MedicationAdministration.fromRecord,
-       );
+        pb: pb,
+        collection: 'medication_administrations',
+        fromRecord: MedicationAdministration.fromRecord,
+      );
 
   /// Administrations for a case, most recent first.
   Future<List<MedicationAdministration>> forCase(String caseId) => list(

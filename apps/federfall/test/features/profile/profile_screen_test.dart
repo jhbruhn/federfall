@@ -85,8 +85,11 @@ class FakeAuthRepository implements AuthRepository {
   ) async => throw UnimplementedError();
 }
 
-Future<void> _pump(WidgetTester tester, FakeAuthRepository repo,
-    AppUser user) async {
+Future<void> _pump(
+  WidgetTester tester,
+  FakeAuthRepository repo,
+  AppUser user,
+) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -143,8 +146,9 @@ void main() {
     expect(repo.updatedPhone, '0123');
   });
 
-  testWidgets('signs out from the profile action after confirming',
-      (tester) async {
+  testWidgets('signs out from the profile action after confirming', (
+    tester,
+  ) async {
     final repo = FakeAuthRepository();
     await _pump(
       tester,
@@ -167,8 +171,9 @@ void main() {
     expect(repo.signedOut, isTrue);
   });
 
-  testWidgets('cancelling the sign-out confirmation keeps the session',
-      (tester) async {
+  testWidgets('cancelling the sign-out confirmation keeps the session', (
+    tester,
+  ) async {
     final repo = FakeAuthRepository();
     await _pump(
       tester,

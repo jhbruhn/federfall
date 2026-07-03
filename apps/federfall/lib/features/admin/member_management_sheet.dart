@@ -101,9 +101,9 @@ class _MemberManagementSheetState extends ConsumerState<MemberManagementSheet>
       // (federfall-zdcb); this pre-check just gives a friendlier dialog than
       // the raw error.
       final casesRepo = await ref.read(casesRepositoryProvider.future);
-      final openCases = (await casesRepo.forCarer(widget.member.id))
-          .where((c) => c.status != CaseStatus.disposed)
-          .length;
+      final openCases = (await casesRepo.forCarer(
+        widget.member.id,
+      )).where((c) => c.status != CaseStatus.disposed).length;
       if (!mounted) return;
       setState(() => _busy = false);
       if (openCases > 0) {

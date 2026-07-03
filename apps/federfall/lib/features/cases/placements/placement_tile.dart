@@ -113,8 +113,9 @@ class PlacementTile extends ConsumerWidget {
           if (location.isNotEmpty)
             Text(
               location,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           if (placement.conditionAtHandoff case final c? when c.isNotEmpty)
             Text(c, style: theme.textTheme.bodyMedium),

@@ -48,10 +48,8 @@ class MedicationReminders extends _$MedicationReminders {
     // Everything below the gates stays untouched while reminders are off (or
     // nobody is signed in): no realtime subscriptions, no plugin init — an
     // unconfigured/offline start must not pull on the PocketBase client.
-    final enabled =
-        await ref.watch(medicationRemindersEnabledProvider.future);
-    final user =
-        enabled ? await ref.watch(currentUserProvider.future) : null;
+    final enabled = await ref.watch(medicationRemindersEnabledProvider.future);
+    final user = enabled ? await ref.watch(currentUserProvider.future) : null;
     if (!enabled || user == null) {
       await scheduler.cancelAll();
       return;

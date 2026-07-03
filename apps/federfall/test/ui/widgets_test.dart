@@ -6,13 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _host(Widget child) => ProviderScope(
-      child: MaterialApp(
-        locale: const Locale('de'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(body: child),
-      ),
-    );
+  child: MaterialApp(
+    locale: const Locale('de'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: Scaffold(body: child),
+  ),
+);
 
 void main() {
   testWidgets('LoadingView shows spinner and default label', (tester) async {
@@ -64,8 +64,9 @@ void main() {
     expect(find.text('failed'), findsOneWidget);
   });
 
-  testWidgets('AsyncValueView maps errors to localized copy by default',
-      (tester) async {
+  testWidgets('AsyncValueView maps errors to localized copy by default', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _host(
         AsyncValueView<int>(
@@ -93,8 +94,9 @@ void main() {
     expect(find.text('Etwas ist schiefgelaufen'), findsOneWidget);
   });
 
-  testWidgets('PrimaryButton swaps to spinner and disables while loading',
-      (tester) async {
+  testWidgets('PrimaryButton swaps to spinner and disables while loading', (
+    tester,
+  ) async {
     var taps = 0;
     await tester.pumpWidget(
       _host(

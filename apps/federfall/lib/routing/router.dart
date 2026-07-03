@@ -364,8 +364,8 @@ String? _gate(Ref ref, Uri uri) {
   // Role-gated surfaces (defense-in-depth; the server access rules are the
   // real boundary and the screens render a lock view): a carer deep-linking
   // to an admin/reporting path is sent home instead of a dead end.
-  final isAdminPath = location == AppRoutes.admin ||
-      location.startsWith('${AppRoutes.admin}/');
+  final isAdminPath =
+      location == AppRoutes.admin || location.startsWith('${AppRoutes.admin}/');
   if (isAdminPath && !canManageTeam(role)) return AppRoutes.home;
   if (location == AppRoutes.statistics && !canViewReports(role)) {
     return AppRoutes.home;
@@ -393,8 +393,9 @@ String? _gate(Ref ref, Uri uri) {
 /// put, keeping any `from`) when already on [gatePath].
 String? _hold(Uri uri, String gatePath) {
   if (uri.path == gatePath) return null;
-  final from =
-      _gatePaths.contains(uri.path) ? _pendingTarget(uri) : uri.toString();
+  final from = _gatePaths.contains(uri.path)
+      ? _pendingTarget(uri)
+      : uri.toString();
   if (from == null || from == AppRoutes.home) return gatePath;
   return Uri(path: gatePath, queryParameters: {'from': from}).toString();
 }

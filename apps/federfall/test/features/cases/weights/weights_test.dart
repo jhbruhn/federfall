@@ -49,8 +49,7 @@ void main() {
   }
 
   group('WeightEntrySheet', () {
-    testWidgets('saves a measurement, parsing a comma decimal',
-        (tester) async {
+    testWidgets('saves a measurement, parsing a comma decimal', (tester) async {
       when(() => weights.create(any())).thenAnswer(
         (_) async =>
             const Weight(id: 'w1', animal: 'a1', caseId: 'c1', weightG: 248.5),
@@ -62,8 +61,9 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
-      final body = verify(() => weights.create(captureAny())).captured.single
-          as Map<String, dynamic>;
+      final body =
+          verify(() => weights.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['animal'], 'a1');
       expect(body['case'], 'c1');
       expect(body['weight_g'], 248.5);
@@ -96,8 +96,9 @@ void main() {
       expect(find.text('248 g'), findsOneWidget);
     });
 
-    testWidgets('author deletes their measurement after confirmation',
-        (tester) async {
+    testWidgets('author deletes their measurement after confirmation', (
+      tester,
+    ) async {
       when(() => weights.delete('w1')).thenAnswer((_) async {});
 
       await pump(

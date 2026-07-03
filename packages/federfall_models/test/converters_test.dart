@@ -49,8 +49,10 @@ void main() {
   group('enums', () {
     test('round-trip wire values', () {
       expect(UserRole.fromWire('coordinator'), UserRole.coordinator);
-      expect(CaseStatus.fromWire('ready_for_release'),
-          CaseStatus.readyForRelease);
+      expect(
+        CaseStatus.fromWire('ready_for_release'),
+        CaseStatus.readyForRelease,
+      );
       expect(DispositionType.placedInAviary.wire, 'placed_in_aviary');
     });
 

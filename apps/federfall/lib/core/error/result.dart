@@ -33,19 +33,18 @@ sealed class Result<T> {
 
   /// The value if [Ok], else `null`.
   T? get valueOrNull => switch (this) {
-        Ok<T>(:final value) => value,
-        Err<T>() => null,
-      };
+    Ok<T>(:final value) => value,
+    Err<T>() => null,
+  };
 
   /// Folds both cases into a single value.
   R fold<R>({
     required R Function(T value) ok,
     required R Function(Object error) err,
-  }) =>
-      switch (this) {
-        Ok<T>(:final value) => ok(value),
-        Err<T>(:final error) => err(error),
-      };
+  }) => switch (this) {
+    Ok<T>(:final value) => ok(value),
+    Err<T>(:final error) => err(error),
+  };
 }
 
 /// Successful [Result].

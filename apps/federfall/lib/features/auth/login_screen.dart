@@ -243,8 +243,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return switch (e.kind) {
       RepositoryErrorKind.network => l10n.errorOffline,
       RepositoryErrorKind.validation ||
-      RepositoryErrorKind.unauthorized =>
-        l10n.authInvalidCredentials,
+      RepositoryErrorKind.unauthorized => l10n.authInvalidCredentials,
       _ => l10n.errorGenericTitle,
     };
   }
@@ -382,8 +381,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         _error!,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.error),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
                       ),
                     ],
                     if (otpStep) ...[

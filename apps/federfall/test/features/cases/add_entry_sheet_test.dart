@@ -61,15 +61,17 @@ void main() {
   ListTile outcomeTile(WidgetTester tester) =>
       tester.widget<ListTile>(find.widgetWithText(ListTile, 'Record outcome'));
 
-  testWidgets('offers an enabled outcome action on a live case',
-      (tester) async {
+  testWidgets('offers an enabled outcome action on a live case', (
+    tester,
+  ) async {
     await open(tester);
     expect(find.text('Record outcome'), findsOneWidget);
     expect(outcomeTile(tester).enabled, isTrue);
   });
 
-  testWidgets('keeps the outcome action visible but disabled once disposed',
-      (tester) async {
+  testWidgets('keeps the outcome action visible but disabled once disposed', (
+    tester,
+  ) async {
     await open(
       tester,
       dispositions: const [

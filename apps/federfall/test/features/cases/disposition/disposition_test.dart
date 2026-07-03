@@ -33,8 +33,9 @@ void main() {
           (ref) async =>
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
         ),
-        dispositionsRepositoryProvider
-            .overrideWith((ref) async => dispositions),
+        dispositionsRepositoryProvider.overrideWith(
+          (ref) async => dispositions,
+        ),
         activeAviariesProvider.overrideWith((ref) async => aviaries),
       ],
     );
@@ -55,8 +56,9 @@ void main() {
   }
 
   group('DispositionSheet', () {
-    testWidgets('records a death outcome with the carer as performer',
-        (tester) async {
+    testWidgets('records a death outcome with the carer as performer', (
+      tester,
+    ) async {
       when(() => dispositions.create(any())).thenAnswer(
         (_) async => const Disposition(
           id: 'd1',
@@ -76,9 +78,9 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Record outcome'));
       await tester.pumpAndSettle();
 
-      final body = verify(() => dispositions.create(captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => dispositions.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['case'], 'c1');
       expect(body['type'], 'died');
       expect(body['performed_by'], 'u1');
@@ -118,8 +120,9 @@ void main() {
       verifyNever(() => dispositions.create(any()));
     });
 
-    testWidgets("changing the type on edit blanks the old type's fields",
-        (tester) async {
+    testWidgets("changing the type on edit blanks the old type's fields", (
+      tester,
+    ) async {
       when(() => dispositions.update(any(), any())).thenAnswer(
         (_) async => const Disposition(
           id: 'd1',
@@ -154,9 +157,9 @@ void main() {
 
       // PocketBase keeps omitted fields, so the stale release data must be
       // cleared explicitly.
-      final body = verify(() => dispositions.update('d1', captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => dispositions.update('d1', captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['type'], 'transferred');
       expect(body['release_location'], '');
       expect(body['release_type'], '');
@@ -165,8 +168,9 @@ void main() {
       expect(body['vet'], '');
     });
 
-    testWidgets('deleting an outcome confirms and calls delete',
-        (tester) async {
+    testWidgets('deleting an outcome confirms and calls delete', (
+      tester,
+    ) async {
       when(() => dispositions.delete(any())).thenAnswer((_) async {});
 
       await pump(
@@ -193,8 +197,9 @@ void main() {
       verify(() => dispositions.delete('d1')).called(1);
     });
 
-    testWidgets('placed in aviary records the chosen aviary (FED-4.12)',
-        (tester) async {
+    testWidgets('placed in aviary records the chosen aviary (FED-4.12)', (
+      tester,
+    ) async {
       when(() => dispositions.create(any())).thenAnswer(
         (_) async => const Disposition(
           id: 'd1',
@@ -223,9 +228,9 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Record outcome'));
       await tester.pumpAndSettle();
 
-      final body = verify(() => dispositions.create(captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => dispositions.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['type'], 'placed_in_aviary');
       expect(body['aviary'], 'av1');
     });
@@ -238,8 +243,9 @@ void main() {
       expect(find.text('Release type'), findsOneWidget);
     });
 
-    testWidgets('euthanasia records the performing vet, not a sign-off flag',
-        (tester) async {
+    testWidgets('euthanasia records the performing vet, not a sign-off flag', (
+      tester,
+    ) async {
       when(() => dispositions.create(any())).thenAnswer(
         (_) async => const Disposition(
           id: 'd1',
@@ -266,9 +272,9 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Record outcome'));
       await tester.pumpAndSettle();
 
-      final body = verify(() => dispositions.create(captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final body =
+          verify(() => dispositions.create(captureAny())).captured.single
+              as Map<String, dynamic>;
       expect(body['type'], 'euthanized');
       expect(body['vet'], 'Dr. Vogel');
     });
@@ -294,8 +300,9 @@ void main() {
       expect(find.text('Vet signed off'), findsOneWidget);
     });
 
-    testWidgets('renders an unknown outcome type without guessing',
-        (tester) async {
+    testWidgets('renders an unknown outcome type without guessing', (
+      tester,
+    ) async {
       await pump(
         tester,
         const DispositionTile(

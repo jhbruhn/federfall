@@ -46,8 +46,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith(
-          (ref) async =>
-              const AppUser(id: 'u1', email: 'a@x.org', org: 'org1'),
+          (ref) async => const AppUser(id: 'u1', email: 'a@x.org', org: 'org1'),
         ),
         placementsRepositoryProvider.overrideWith((ref) async => placements),
         usersRepositoryProvider.overrideWith((ref) async => users),
@@ -103,14 +102,16 @@ void main() {
     // One write: the backend hook derives the active_carer change from
     // `to_user` in the same transaction (and auto-shares Alice read access).
     verifyNever(() => cases.update(any(), any()));
-    final body = verify(() => placements.create(captureAny())).captured.single
-        as Map<String, dynamic>;
+    final body =
+        verify(() => placements.create(captureAny())).captured.single
+            as Map<String, dynamic>;
     expect(body['from_user'], 'u1');
     expect(body['to_user'], 'u2');
   });
 
-  testWidgets('cancelling the handoff confirmation writes nothing',
-      (tester) async {
+  testWidgets('cancelling the handoff confirmation writes nothing', (
+    tester,
+  ) async {
     await pump(
       tester,
       const PlacementSheet(
@@ -161,8 +162,9 @@ void main() {
     expect(find.text('Carer'), findsNothing);
   });
 
-  testWidgets('keeping the same carer records a move, no handoff',
-      (tester) async {
+  testWidgets('keeping the same carer records a move, no handoff', (
+    tester,
+  ) async {
     await pump(tester, const PlacementSheet(medicalCase: medicalCase));
 
     await tester.enterText(
@@ -175,8 +177,9 @@ void main() {
     await save(tester);
 
     verifyNever(() => cases.update(any(), any()));
-    final body = verify(() => placements.create(captureAny())).captured.single
-        as Map<String, dynamic>;
+    final body =
+        verify(() => placements.create(captureAny())).captured.single
+            as Map<String, dynamic>;
     expect(body['enclosure'], 'Aviary 2');
     expect(body['to_user'], isNull);
   });

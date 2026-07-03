@@ -80,9 +80,11 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
-      final body = verify(
-        () => journal.createWithFiles(captureAny(), any()),
-      ).captured.single as Map<String, dynamic>;
+      final body =
+          verify(
+                () => journal.createWithFiles(captureAny(), any()),
+              ).captured.single
+              as Map<String, dynamic>;
       expect(body['case'], 'c1');
       expect(body['text'], 'Looking brighter');
       expect(body['author'], 'u1');
@@ -99,8 +101,9 @@ void main() {
       expect(find.text('This field is required'), findsOneWidget);
     });
 
-    testWidgets('editing updates the entry, dropping a removed attachment',
-        (tester) async {
+    testWidgets('editing updates the entry, dropping a removed attachment', (
+      tester,
+    ) async {
       when(() => journal.updateWithFiles(any(), any(), any())).thenAnswer(
         (_) async => const JournalEntry(id: 'j1', caseId: 'c1', text: 'x'),
       );
@@ -125,9 +128,11 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
-      final captured = verify(
-        () => journal.updateWithFiles('j1', captureAny(), any()),
-      ).captured.single as Map<String, dynamic>;
+      final captured =
+          verify(
+                () => journal.updateWithFiles('j1', captureAny(), any()),
+              ).captured.single
+              as Map<String, dynamic>;
       expect(captured['text'], 'Updated note');
       expect(captured['attachments'], ['b.jpg']);
     });

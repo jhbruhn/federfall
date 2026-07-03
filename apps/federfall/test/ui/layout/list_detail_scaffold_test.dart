@@ -18,16 +18,18 @@ Future<void> _pumpAt(WidgetTester tester, Size size) async {
 }
 
 void main() {
-  testWidgets('compact shows only the detail child (single pane)',
-      (tester) async {
+  testWidgets('compact shows only the detail child (single pane)', (
+    tester,
+  ) async {
     await _pumpAt(tester, const Size(400, 800));
 
     expect(find.text('THE-DETAIL'), findsOneWidget);
     expect(find.text('THE-LIST'), findsNothing);
   });
 
-  testWidgets('expanded shows the list and the detail side-by-side',
-      (tester) async {
+  testWidgets('expanded shows the list and the detail side-by-side', (
+    tester,
+  ) async {
     await _pumpAt(tester, const Size(1000, 800));
 
     expect(find.text('THE-LIST'), findsOneWidget);

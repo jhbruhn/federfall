@@ -46,7 +46,8 @@ class AsyncValueView<T> extends StatelessWidget {
       data: data,
       loading: () => loading ?? const LoadingView(),
       error: (error, _) => ErrorView(
-        message: errorMessage?.call(error) ??
+        message:
+            errorMessage?.call(error) ??
             core_error.errorMessage(context.l10n, error),
         onRetry: onRetry,
       ),

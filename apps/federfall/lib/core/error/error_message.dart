@@ -14,12 +14,11 @@ void reportCaughtError(
   Object error,
   StackTrace stackTrace, {
   String? context,
-}) =>
-    rootLogger.error(
-      context ?? 'Unexpected error (shown to the user as a generic message)',
-      error: error,
-      stackTrace: stackTrace,
-    );
+}) => rootLogger.error(
+  context ?? 'Unexpected error (shown to the user as a generic message)',
+  error: error,
+  stackTrace: stackTrace,
+);
 
 /// Maps an arbitrary error into user-facing, localized copy.
 ///

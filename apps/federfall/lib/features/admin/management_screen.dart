@@ -42,14 +42,18 @@ enum _AdminSection {
   Widget screen() => switch (this) {
     _AdminSection.team => const TeamScreen(),
     _AdminSection.orgSettings => const OrgSettingsScreen(),
-    _AdminSection.conditions =>
-      CodelistAdminScreen(spec: conditionsCodelistSpec),
-    _AdminSection.admissionReasons =>
-      CodelistAdminScreen(spec: admissionReasonsCodelistSpec),
-    _AdminSection.markingTypes =>
-      CodelistAdminScreen(spec: markingTypesCodelistSpec),
-    _AdminSection.medicationRoutes =>
-      CodelistAdminScreen(spec: medicationRoutesCodelistSpec),
+    _AdminSection.conditions => CodelistAdminScreen(
+      spec: conditionsCodelistSpec,
+    ),
+    _AdminSection.admissionReasons => CodelistAdminScreen(
+      spec: admissionReasonsCodelistSpec,
+    ),
+    _AdminSection.markingTypes => CodelistAdminScreen(
+      spec: markingTypesCodelistSpec,
+    ),
+    _AdminSection.medicationRoutes => CodelistAdminScreen(
+      spec: medicationRoutesCodelistSpec,
+    ),
   };
 }
 
@@ -128,7 +132,8 @@ class _ManagementScreenState extends ConsumerState<ManagementScreen> {
         SizedBox(width: kListPaneWidth, child: hub),
         const VerticalDivider(width: 1),
         Expanded(
-          child: _selected?.screen() ??
+          child:
+              _selected?.screen() ??
               DetailPanePlaceholder(
                 icon: Icons.manage_accounts_outlined,
                 message: l10n.adminSelectSection,

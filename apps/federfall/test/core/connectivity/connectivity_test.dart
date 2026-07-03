@@ -7,20 +7,22 @@ void main() {
     // uses the real 1s spacing.
     const noGap = Duration.zero;
 
-    test('returns online on the first successful probe without retrying',
-        () async {
-      var calls = 0;
-      final status = await confirmStatus(
-        () async {
-          calls++;
-          return OnlineStatus.online;
-        },
-        gap: noGap,
-      );
+    test(
+      'returns online on the first successful probe without retrying',
+      () async {
+        var calls = 0;
+        final status = await confirmStatus(
+          () async {
+            calls++;
+            return OnlineStatus.online;
+          },
+          gap: noGap,
+        );
 
-      expect(status, OnlineStatus.online);
-      expect(calls, 1);
-    });
+        expect(status, OnlineStatus.online);
+        expect(calls, 1);
+      },
+    );
 
     test('treats a single failed probe as tentative and recovers', () async {
       var calls = 0;

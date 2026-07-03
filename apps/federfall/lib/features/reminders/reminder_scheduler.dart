@@ -52,13 +52,15 @@ class LocalReminderScheduler implements ReminderScheduler {
   final _plugin = FlutterLocalNotificationsPlugin();
   var _initialized = false;
 
-  AndroidFlutterLocalNotificationsPlugin? get _android =>
-      _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+  AndroidFlutterLocalNotificationsPlugin? get _android => _plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
 
-  IOSFlutterLocalNotificationsPlugin? get _ios =>
-      _plugin.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
+  IOSFlutterLocalNotificationsPlugin? get _ios => _plugin
+      .resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin
+      >();
 
   @override
   Future<void> init({required void Function(String payload) onSelect}) async {

@@ -130,8 +130,7 @@ void main() {
       );
     });
     when(() => animals.getOne(any())).thenAnswer(
-      (_) async =>
-          const Animal(id: 'a1', species: 'Stadttaube', name: 'Pauli'),
+      (_) async => const Animal(id: 'a1', species: 'Stadttaube', name: 'Pauli'),
     );
     when(() => finders.getOne(any())).thenAnswer(
       (_) async => const Finder(id: 'f1', lastName: 'Klein', phone: '0151'),
@@ -162,23 +161,24 @@ void main() {
         findersRepositoryProvider.overrideWith((ref) async => finders),
         journalRepositoryProvider.overrideWith((ref) async => journal),
         weightsRepositoryProvider.overrideWith((ref) async => weights),
-        caseConditionsRepositoryProvider
-            .overrideWith((ref) async => caseConditions),
-        medicationsRepositoryProvider
-            .overrideWith((ref) async => medications),
-        medicationAdministrationsRepositoryProvider
-            .overrideWith((ref) async => administrations),
+        caseConditionsRepositoryProvider.overrideWith(
+          (ref) async => caseConditions,
+        ),
+        medicationsRepositoryProvider.overrideWith((ref) async => medications),
+        medicationAdministrationsRepositoryProvider.overrideWith(
+          (ref) async => administrations,
+        ),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
-        placementsRepositoryProvider
-            .overrideWith((ref) async => placements),
-        dispositionsRepositoryProvider
-            .overrideWith((ref) async => dispositions),
+        placementsRepositoryProvider.overrideWith((ref) async => placements),
+        dispositionsRepositoryProvider.overrideWith(
+          (ref) async => dispositions,
+        ),
         followUpsRepositoryProvider.overrideWith((ref) async => followUps),
         examsRepositoryProvider.overrideWith((ref) async => exams),
-        examFindingsRepositoryProvider
-            .overrideWith((ref) async => examFindings),
-        quarantineRepositoryProvider
-            .overrideWith((ref) async => quarantine),
+        examFindingsRepositoryProvider.overrideWith(
+          (ref) async => examFindings,
+        ),
+        quarantineRepositoryProvider.overrideWith((ref) async => quarantine),
         if (lifetime != null)
           animalLifetimeProvider('a1').overrideWith((ref) async => lifetime),
         if (currentUser != null)
@@ -201,8 +201,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('renders a name-first header with species and case number',
-      (tester) async {
+  testWidgets('renders a name-first header with species and case number', (
+    tester,
+  ) async {
     await pump(tester);
 
     expect(find.text('Pauli'), findsOneWidget);
@@ -210,8 +211,7 @@ void main() {
     expect(find.text('In care'), findsOneWidget);
   });
 
-  testWidgets('shows the intake summary and the linked finder',
-      (tester) async {
+  testWidgets('shows the intake summary and the linked finder', (tester) async {
     await pump(tester);
 
     expect(find.text('Domplatz'), findsOneWidget);
@@ -233,8 +233,9 @@ void main() {
     expect(find.text('Case opened'), findsOneWidget);
   });
 
-  testWidgets('shows Overview and History side-by-side on a wide pane',
-      (tester) async {
+  testWidgets('shows Overview and History side-by-side on a wide pane', (
+    tester,
+  ) async {
     await pump(tester, width: 1000);
 
     // No tabs on a wide pane — both columns are visible at once, so the intake
@@ -270,8 +271,7 @@ void main() {
     expect(find.text('2025-009'), findsOneWidget);
   });
 
-  testWidgets('Overview hides prior cases when there are none',
-      (tester) async {
+  testWidgets('Overview hides prior cases when there are none', (tester) async {
     await pump(
       tester,
       lifetime: const AnimalLifetime(
@@ -285,8 +285,9 @@ void main() {
     expect(find.text('Other cases'), findsNothing);
   });
 
-  testWidgets('a supervisor can mark an in-care case ready for release',
-      (tester) async {
+  testWidgets('a supervisor can mark an in-care case ready for release', (
+    tester,
+  ) async {
     when(() => cases.update(any(), any())).thenAnswer(
       (_) async => medicalCase,
     );

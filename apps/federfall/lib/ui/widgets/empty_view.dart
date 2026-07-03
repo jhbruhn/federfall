@@ -75,8 +75,9 @@ class EmptyView extends StatelessWidget {
             Text(
               message ?? context.l10n.emptyGeneric,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: colors.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
             ),
             if (hasAction) ...[
               const SizedBox(height: AppSpacing.lg),

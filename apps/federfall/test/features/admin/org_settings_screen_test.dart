@@ -60,8 +60,9 @@ void main() {
     expect(find.text('24'), findsOneWidget);
   });
 
-  testWidgets('saving persists merged settings and contact details',
-      (tester) async {
+  testWidgets('saving persists merged settings and contact details', (
+    tester,
+  ) async {
     final repo = MockOrgRepo();
     when(() => repo.update(any(), any())).thenAnswer(
       (_) async => const Organisation(id: 'org1', name: 'Pigeon Aid'),
@@ -98,8 +99,9 @@ void main() {
     expect(settings[quarantineDefaultDaysKey], 14);
   });
 
-  testWidgets('a blanked or zero retention blocks the save with a message',
-      (tester) async {
+  testWidgets('a blanked or zero retention blocks the save with a message', (
+    tester,
+  ) async {
     final repo = MockOrgRepo();
 
     await _pump(

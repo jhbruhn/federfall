@@ -31,8 +31,9 @@ void main() {
         ),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
         markingTypesProvider.overrideWith(
-          (ref) async =>
-              const [MarkingType(id: 'mktp_finder', label: "Finder's ring")],
+          (ref) async => const [
+            MarkingType(id: 'mktp_finder', label: "Finder's ring"),
+          ],
         ),
       ],
     );
@@ -52,8 +53,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('applying a marking records animal, case, type and active',
-      (tester) async {
+  testWidgets('applying a marking records animal, case, type and active', (
+    tester,
+  ) async {
     when(() => markings.create(any())).thenAnswer(
       (_) async => const Marking(
         id: 'm1',
@@ -80,8 +82,9 @@ void main() {
     expect(body['is_active'], true);
   });
 
-  testWidgets('marking tile shows details and can be marked removed',
-      (tester) async {
+  testWidgets('marking tile shows details and can be marked removed', (
+    tester,
+  ) async {
     when(() => markings.update('m1', any())).thenAnswer(
       (_) async => const Marking(
         id: 'm1',
@@ -115,9 +118,9 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Mark removed'));
     await tester.pumpAndSettle();
 
-    final body = verify(() => markings.update('m1', captureAny()))
-        .captured
-        .single as Map<String, dynamic>;
+    final body =
+        verify(() => markings.update('m1', captureAny())).captured.single
+            as Map<String, dynamic>;
     expect(body['is_active'], false);
     expect(body.containsKey('removed_at'), isTrue);
   });

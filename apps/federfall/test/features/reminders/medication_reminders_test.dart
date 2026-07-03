@@ -77,24 +77,25 @@ ProviderContainer _container(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('enabled + signed in: schedules the due set (and inits the plugin)',
-      () async {
-    SharedPreferences.setMockInitialValues({
-      'medication_reminders_enabled': true,
-    });
-    final scheduler = _FakeScheduler();
-    final container = _container(scheduler);
+  test(
+    'enabled + signed in: schedules the due set (and inits the plugin)',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'medication_reminders_enabled': true,
+      });
+      final scheduler = _FakeScheduler();
+      final container = _container(scheduler);
 
-    await container.read(medicationRemindersProvider.future);
+      await container.read(medicationRemindersProvider.future);
 
-    expect(scheduler.initCalls, 1);
-    expect(scheduler.replaced, hasLength(1));
-    expect(scheduler.replaced.single.single.id, reminderNotificationId('m1'));
-    expect(scheduler.cancelAllCalls, 0);
-  });
+      expect(scheduler.initCalls, 1);
+      expect(scheduler.replaced, hasLength(1));
+      expect(scheduler.replaced.single.single.id, reminderNotificationId('m1'));
+      expect(scheduler.cancelAllCalls, 0);
+    },
+  );
 
-  test('reminders disabled: cancels everything and never schedules',
-      () async {
+  test('reminders disabled: cancels everything and never schedules', () async {
     SharedPreferences.setMockInitialValues({
       'medication_reminders_enabled': false,
     });
@@ -107,8 +108,7 @@ void main() {
     expect(scheduler.replaced, isEmpty);
   });
 
-  test('signed out: cancels everything even with reminders enabled',
-      () async {
+  test('signed out: cancels everything even with reminders enabled', () async {
     SharedPreferences.setMockInitialValues({
       'medication_reminders_enabled': true,
     });
@@ -121,23 +121,28 @@ void main() {
     expect(scheduler.replaced, isEmpty);
   });
 
-  test('a source change (dose logged, prescription edited) reschedules',
-      () async {
-    SharedPreferences.setMockInitialValues({
-      'medication_reminders_enabled': true,
-    });
-    final scheduler = _FakeScheduler();
-    var drug = 'Meloxicam';
-    final container = _container(scheduler, source: () => _source(drug: drug));
+  test(
+    'a source change (dose logged, prescription edited) reschedules',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'medication_reminders_enabled': true,
+      });
+      final scheduler = _FakeScheduler();
+      var drug = 'Meloxicam';
+      final container = _container(
+        scheduler,
+        source: () => _source(drug: drug),
+      );
 
-    await container.read(medicationRemindersProvider.future);
-    expect(scheduler.replaced, hasLength(1));
+      await container.read(medicationRemindersProvider.future);
+      expect(scheduler.replaced, hasLength(1));
 
-    drug = 'Baytril';
-    container.invalidate(worklistSourceProvider);
-    await container.read(medicationRemindersProvider.future);
+      drug = 'Baytril';
+      container.invalidate(worklistSourceProvider);
+      await container.read(medicationRemindersProvider.future);
 
-    expect(scheduler.replaced, hasLength(2));
-    expect(scheduler.replaced.last.single.title, contains('Baytril'));
-  });
+      expect(scheduler.replaced, hasLength(2));
+      expect(scheduler.replaced.last.single.title, contains('Baytril'));
+    },
+  );
 }

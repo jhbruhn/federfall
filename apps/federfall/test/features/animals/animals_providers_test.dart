@@ -48,7 +48,9 @@ void main() {
     test('prefers the animal photo when set', () {
       final src = pickAvatarSource(
         animal.copyWith(photo: 'face.jpg'),
-        [caseWith('c1', ['intake.jpg'])],
+        [
+          caseWith('c1', ['intake.jpg']),
+        ],
       );
       expect(src!.collection, AvatarCollection.animals);
       expect(src.recordId, 'a1');

@@ -42,8 +42,9 @@ void main() {
     }
   }
 
-  testWidgets('shows a counter and a share action for multiple images',
-      (tester) async {
+  testWidgets('shows a counter and a share action for multiple images', (
+    tester,
+  ) async {
     await pump(tester, const [
       'https://example.test/a.jpg',
       'https://example.test/b.jpg',

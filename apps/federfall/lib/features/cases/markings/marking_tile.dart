@@ -133,8 +133,9 @@ class MarkingTile extends ConsumerWidget {
           if (detail.isNotEmpty)
             Text(
               detail,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           const SizedBox(height: AppSpacing.xs),
           if (!marking.isActive)
@@ -144,8 +145,9 @@ class MarkingTile extends ConsumerWidget {
                   : l10n.markingRemovedOn(
                       materialL10n.formatMediumDate(marking.removedAt!),
                     ),
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
         ],
       ),
@@ -189,8 +191,7 @@ class _RemoveDialogState extends State<_RemoveDialog> {
           child: Text(l10n.actionCancel),
         ),
         TextButton(
-          onPressed: () =>
-              Navigator.of(context).pop(_controller.text.trim()),
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
           child: Text(l10n.markingRemoveAction),
         ),
       ],

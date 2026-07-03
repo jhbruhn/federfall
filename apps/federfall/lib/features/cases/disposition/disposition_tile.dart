@@ -78,14 +78,16 @@ class DispositionTile extends StatelessWidget {
           if (detail.isNotEmpty)
             Text(
               detail,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           if (d.vet case final v? when v.isNotEmpty)
             Text(
               l10n.dispositionVetLine(v),
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           if (d.reason case final r? when r.isNotEmpty)
             Text(r, style: theme.textTheme.bodyMedium),
@@ -102,8 +104,9 @@ class DispositionTile extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs),
                 Text(
                   l10n.dispositionVetSignedOff,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.primary),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               ],
             ),

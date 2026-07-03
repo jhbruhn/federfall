@@ -173,8 +173,9 @@ void main() {
     expect(find.text('2026-002'), findsNothing);
   });
 
-  testWidgets('shows the no-matches state when filters exclude all',
-      (tester) async {
+  testWidgets('shows the no-matches state when filters exclude all', (
+    tester,
+  ) async {
     await _pump(
       tester,
       cases: const [
@@ -194,8 +195,9 @@ void main() {
     expect(find.text('No matching cases'), findsOneWidget);
   });
 
-  testWidgets('account menu offers profile but hides admin for a carer',
-      (tester) async {
+  testWidgets('account menu offers profile but hides admin for a carer', (
+    tester,
+  ) async {
     await _pump(
       tester,
       user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
@@ -209,8 +211,9 @@ void main() {
     expect(find.text('Statistics'), findsNothing);
   });
 
-  testWidgets('account menu shows admin and reports for a supervisor',
-      (tester) async {
+  testWidgets('account menu shows admin and reports for a supervisor', (
+    tester,
+  ) async {
     await _pump(
       tester,
       user: const AppUser(
