@@ -25,6 +25,11 @@ import 'package:go_router/go_router.dart';
 /// Animal lifetime detail (FED-7.6): one animal's full record — identity,
 /// markings (active + historic) and every case newest-first. Cases the user
 /// cannot open render as a non-tappable stub (number / status / dates only).
+///
+/// State-restoration note (federfall-7ev8): the route's restoration id is
+/// pattern-scoped (`/animals/:id`), not per-[animalId]. If this screen ever
+/// adds a `RestorationMixin`, fold [animalId] into its restoration id so state
+/// doesn't bleed across different animals.
 class AnimalDetailScreen extends ConsumerWidget {
   const AnimalDetailScreen({required this.animalId, super.key});
 
@@ -76,7 +81,7 @@ class AnimalDetailScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: l10n.animalNewCase,
-            onPressed: () => context.go(AppRoutes.newCaseForAnimal(animalId)),
+            onPressed: () => context.push(AppRoutes.newCaseForAnimal(animalId)),
           ),
         ],
       ),

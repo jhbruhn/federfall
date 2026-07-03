@@ -34,6 +34,12 @@ import 'package:latlong2/latlong.dart';
 /// Case detail (FED-4.3): a persistent name-first identity header over two
 /// tabs — **Overview** (intake summary + weight trend) and **History** (the
 /// unified chronology where journal, weights and other records live).
+///
+/// State-restoration note (federfall-7ev8): this route's restoration id is
+/// go_router's `pageKey`, which is scoped to the route *pattern* (`/cases/:id`),
+/// not the interpolated id. Nothing here uses `RestorationMixin` today, but if
+/// one is ever added it must fold [caseId] into its own restoration id, or its
+/// state will bleed across different cases.
 class CaseDetailScreen extends ConsumerWidget {
   const CaseDetailScreen({required this.caseId, super.key});
 

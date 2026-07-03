@@ -19,6 +19,11 @@ import 'package:go_router/go_router.dart';
 
 /// Aviary detail / occupancy (FED-6.2): the aviary's identity plus the animals
 /// currently resident in it. Coordinators/supervisors can edit.
+///
+/// State-restoration note (federfall-7ev8): the route's restoration id is
+/// pattern-scoped (`/aviaries/:id`), not per-[aviaryId]. If this screen ever
+/// adds a `RestorationMixin`, fold [aviaryId] into its restoration id so state
+/// doesn't bleed across different aviaries.
 class AviaryDetailScreen extends ConsumerWidget {
   const AviaryDetailScreen({required this.aviaryId, super.key});
 

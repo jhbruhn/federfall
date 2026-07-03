@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
@@ -31,8 +29,6 @@ import 'package:federfall/features/statistics/statistics_screen.dart';
 import 'package:federfall/features/worklist/today_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
-import 'package:federfall/routing/cold_start_location.dart';
-import 'package:federfall/routing/last_route_storage.dart';
 import 'package:federfall/routing/not_found_screen.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
@@ -86,10 +82,20 @@ GoRouter router(Ref ref) {
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    // Reopens the location the user had open before Android reclaimed the
-    // process in the background, or a fresh cold start restored via
-    // `bootstrap.dart` (federfall-7ev8); falls back to the default landing.
-    initialLocation: ref.read(coldStartLocationProvider) ?? AppRoutes.home,
+    // Reopening the location the user had open before Android reclaimed the
+    // process is handled by go_router's own state restoration (federfall-7ev8):
+    // this id, plus `MaterialApp.router`'s `restorationScopeId`, plus the
+    // per-branch/per-pane `restorationScopeId`s on the shell below. Only the
+    // current `.go()` location is restored; transient screens reached with
+    // `.push()` (create-case, browse, profile, admin, stats) are imperative
+    // matches and are deliberately dropped on restore.
+    //
+    // Web: Flutter's RestorationManager is a no-op on web (no engine channel),
+    // so there is no last-location restore there — by design. Web users arrive
+    // via a specific URL that already carries the path; only a bare-origin
+    // (PWA) launch lands on the default tab, which is acceptable.
+    restorationScopeId: _RestoreIds.router,
+    initialLocation: AppRoutes.home,
     refreshListenable: refresh,
     redirect: (context, state) => _gate(ref, state.uri),
     routes: [
@@ -112,10 +118,23 @@ GoRouter router(Ref ref) {
       // Adaptive top-level navigation shell (FED-7.0): Dashboard, Cases,
       // Animals. Each destination is a branch so its state survives switching.
       StatefulShellRoute.indexedStack(
+        // State restoration (federfall-7ev8): scoping the shell and each branch
+        // is what lets go_router restore the open tab (and its nested detail)
+        // after Android reclaims the process. The routes stay on plain
+        // `builder:` on purpose — go_router already wraps a `builder` route in
+        // a restorable, platform-adaptive page (`restorationId: state.pageKey`,
+        // see `_buildPlatformAdapterPage` in the package), so the scope ids are
+        // the only wiring needed. What is NOT restored is decided by push vs
+        // go, not by builder vs pageBuilder: only the current `.go()` location
+        // is snapshotted, so the transient routes below are reached via
+        // `.push()`
+        // (imperative matches, dropped on restore) — see [_gate].
+        restorationScopeId: _RestoreIds.shell,
         builder: (_, _, navigationShell) =>
             NavShell(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(
+            restorationScopeId: _RestoreIds.dashboardBranch,
             routes: [
               GoRoute(
                 path: AppRoutes.dashboard,
@@ -124,10 +143,12 @@ GoRouter router(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            restorationScopeId: _RestoreIds.casesBranch,
             initialLocation: AppRoutes.cases,
             routes: [
               ShellRoute(
                 navigatorKey: casesPaneKey,
+                restorationScopeId: _RestoreIds.casesPane,
                 builder: (_, _, child) => ListDetailShell(
                   list: CasesScreen(key: casesListKey),
                   detailChild: child,
@@ -145,8 +166,11 @@ GoRouter router(Ref ref) {
                           )
                         : CasesScreen(key: casesListKey),
                     routes: [
-                      // `/cases/new` — full-screen over the shell; literal
-                      // before `:id` so it wins the match.
+                      // `/cases/new` — full-screen over the shell. Reached with
+                      // `.push()` (never `.go()`) so it is an imperative match
+                      // and is NOT restored after a process kill: reopening
+                      // onto a blank draft would only confuse. Literal before
+                      // `:id` so it wins the match.
                       GoRoute(
                         path: AppRoutes.newCaseSegment,
                         parentNavigatorKey: rootNavigatorKey,
@@ -155,7 +179,8 @@ GoRouter router(Ref ref) {
                         ),
                       ),
                       // `/cases/browse?…` — transient pre-filtered browser,
-                      // full-screen over the shell.
+                      // full-screen over the shell (also push-only → not
+                      // restored).
                       GoRoute(
                         path: AppRoutes.casesBrowseSegment,
                         parentNavigatorKey: rootNavigatorKey,
@@ -180,10 +205,12 @@ GoRouter router(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            restorationScopeId: _RestoreIds.animalsBranch,
             initialLocation: AppRoutes.animals,
             routes: [
               ShellRoute(
                 navigatorKey: animalsPaneKey,
+                restorationScopeId: _RestoreIds.animalsPane,
                 builder: (_, _, child) => ListDetailShell(
                   list: AnimalsScreen(key: animalsListKey),
                   detailChild: child,
@@ -211,10 +238,12 @@ GoRouter router(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            restorationScopeId: _RestoreIds.aviariesBranch,
             initialLocation: AppRoutes.aviaries,
             routes: [
               ShellRoute(
                 navigatorKey: aviariesPaneKey,
+                restorationScopeId: _RestoreIds.aviariesPane,
                 builder: (_, _, child) => ListDetailShell(
                   list: AviariesScreen(key: aviariesListKey),
                   detailChild: child,
@@ -302,6 +331,22 @@ GoRouter router(Ref ref) {
   );
 }
 
+/// Restoration scope ids for the navigation shell (state restoration,
+/// federfall-7ev8). Centralised so a copy-pasted branch can't silently disable
+/// restoration with a typo'd or duplicated id — the same reason [AppRoutes]
+/// centralises path strings. Each must be unique within the tree.
+abstract final class _RestoreIds {
+  static const router = 'router';
+  static const shell = 'shell';
+  static const dashboardBranch = 'branchDashboard';
+  static const casesBranch = 'branchCases';
+  static const animalsBranch = 'branchAnimals';
+  static const aviariesBranch = 'branchAviaries';
+  static const casesPane = 'casesPane';
+  static const animalsPane = 'animalsPane';
+  static const aviariesPane = 'aviariesPane';
+}
+
 /// The gate-only routes (plus the bare root, the old home path): never a
 /// destination in their own right once the gate has resolved.
 const Set<String> _gatePaths = {
@@ -318,10 +363,9 @@ const Set<String> _gatePaths = {
 /// A deep link that arrives while the gate is unresolved (or unauthenticated)
 /// is preserved as a `from` query parameter on the gate routes and restored
 /// once the gate lets the user through — so a shared `/cases/abc` link opens
-/// that case after sign-in instead of the default landing tab.
-///
-/// Side effect: once past the gate, persists [uri] as the location to reopen
-/// on the next cold start (federfall-7ev8) — see [lastRouteStorageProvider].
+/// that case after sign-in instead of the default landing tab. The same `from`
+/// hand-off carries a restored location (federfall-7ev8) past the transient
+/// splash on a cold start, once auth resolves.
 String? _gate(Ref ref, Uri uri) {
   final location = uri.path;
   final configAsync = ref.read(serverConfigControllerProvider);
@@ -377,33 +421,11 @@ String? _gate(Ref ref, Uri uri) {
     return _pendingTarget(uri) ?? AppRoutes.home;
   }
 
-  // Remember this location as the one to reopen on the next cold start
-  // (federfall-7ev8), including one forced by Android reclaiming the process
-  // in the background — but only for genuine, resumable surfaces (see
-  // [_isResumableLocation]).
-  if (_isResumableLocation(location)) {
-    unawaited(ref.read(lastRouteStorageProvider).write(uri.toString()));
-  }
+  // Reopening this location after Android reclaims the process is handled by
+  // go_router's state restoration, not a manual write (federfall-7ev8): only
+  // the shell and list-detail routes carry a restorable `pageBuilder`, so the
+  // overlays and the create-case form are deliberately not restored.
   return null;
-}
-
-/// Whether [location] is worth reopening on the next cold start.
-///
-/// Overlay routes pushed over the shell — the profile, the management hub, the
-/// statistics screen — are top-level routes with no shell beneath them, so a
-/// cold-start restore lands on one with an *empty* back stack and no back
-/// affordance, stranding the user there. The create-case form is excluded for
-/// a different reason: it holds no resumable draft, so restoring into a blank
-/// one would only confuse.
-bool _isResumableLocation(String location) {
-  if (location == AppRoutes.newCase) return false;
-  if (location == AppRoutes.profile) return false;
-  if (location == AppRoutes.statistics) return false;
-  if (location == AppRoutes.admin ||
-      location.startsWith('${AppRoutes.admin}/')) {
-    return false;
-  }
-  return true;
 }
 
 /// Redirects to [gatePath], remembering where the user was actually headed:

@@ -30,7 +30,7 @@ class NavShell extends ConsumerWidget {
   /// dashboard, cases, animals, aviaries).
   static const _casesBranch = 1;
 
-  void _go(WidgetRef ref, int index) {
+  void _go(WidgetRef ref, int index, {required bool compact}) {
     // Entering the Cases tab from the nav menu always gives a clean default
     // view: queue the default filter so any filter a KPI deep-link applied (or
     // one set by hand) is reset. A KPI tap navigates directly (not via here),
@@ -40,8 +40,16 @@ class NavShell extends ConsumerWidget {
     }
     navigationShell.goBranch(
       index,
-      // Re-tapping the active tab returns it to its initial route.
-      initialLocation: index == navigationShell.currentIndex,
+      // Re-tapping the active tab returns it to its root. On compact widths,
+      // also reset when *switching* tabs: the bottom bar is hidden on a detail
+      // (isDetailLocation), so the only way a branch is left parked on a detail
+      // is a cross-branch go() — e.g. tapping a case from an animal's detail
+      // leaves the animals branch on /animals/:id. Without this, tapping that
+      // tab would restore the stale detail full-screen with no bottom bar,
+      // stranding the user on a screen with only the app-bar back to escape.
+      // The list's scroll/filter state is keyed (federfall-8bh2) so it survives
+      // the pop; there's nothing to preserve by keeping the detail.
+      initialLocation: compact || index == navigationShell.currentIndex,
     );
   }
 
@@ -80,7 +88,7 @@ class NavShell extends ConsumerWidget {
             NavigationRail(
               extended: extended,
               selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: (i) => _go(ref, i),
+              onDestinationSelected: (i) => _go(ref, i, compact: false),
               labelType: extended
                   ? NavigationRailLabelType.none
                   : NavigationRailLabelType.all,
@@ -124,7 +132,7 @@ class NavShell extends ConsumerWidget {
       bottomNavigationBar: showBottomBar
           ? NavigationBar(
               selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: (i) => _go(ref, i),
+              onDestinationSelected: (i) => _go(ref, i, compact: true),
               destinations: [
                 for (final d in destinations)
                   NavigationDestination(

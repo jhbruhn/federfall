@@ -121,7 +121,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
       ),
       floatingActionButton: showFab
           ? FloatingActionButton(
-              onPressed: () => context.go(AppRoutes.newCase),
+              onPressed: () => context.push(AppRoutes.newCase),
               tooltip: l10n.caseNewTitle,
               child: const Icon(Icons.add),
             )
@@ -157,7 +157,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
                         message: l10n.casesEmptyBody,
                         actionLabel: l10n.casesEmptyAction,
                         actionIcon: Icons.add,
-                        onAction: () => context.go(AppRoutes.newCase),
+                        onAction: () => context.push(AppRoutes.newCase),
                       )
                     : results.isEmpty
                     ? EmptyView(message: l10n.casesNoMatches)

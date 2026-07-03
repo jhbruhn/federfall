@@ -75,7 +75,7 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
                         message: l10n.animalsEmptyBody,
                         actionLabel: l10n.casesEmptyAction,
                         actionIcon: Icons.add,
-                        onAction: () => context.go(AppRoutes.newCase),
+                        onAction: () => context.push(AppRoutes.newCase),
                       )
                     : results.isEmpty
                     ? EmptyView(message: l10n.animalsNoMatches)
