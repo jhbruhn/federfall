@@ -31,6 +31,7 @@
     "serverConnectAction": "Verbinden",
     "serverUnreachable": "Server nicht erreichbar. Prüfe die Adresse und deine Verbindung.",
     "serverNotFederfall": "Das sieht nicht nach einem Federfall-Server aus.",
+    "serverInsecureHttp": "http:// überträgt deine Anmeldedaten unverschlüsselt. Verwende https://, oder http://localhost für die lokale Entwicklung.",
     "serverSwitchAction": "Anderen Server verwenden",
     "authLoginTitle": "Anmelden",
     "authTagline": "Jeder Fall in guten Händen.",

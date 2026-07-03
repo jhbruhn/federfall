@@ -65,6 +65,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           _busy = false;
           _error = l10n.fieldInvalidUrl;
         });
+      case ProbeInsecureHttp():
+        setState(() {
+          _busy = false;
+          _error = l10n.serverInsecureHttp;
+        });
       case ProbeUnreachable():
         setState(() {
           _busy = false;

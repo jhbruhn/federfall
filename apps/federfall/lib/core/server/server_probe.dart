@@ -54,6 +54,10 @@ sealed class ServerProbeResult {
   /// The input is not a syntactically valid http(s) URL.
   const factory ServerProbeResult.invalidUrl() = ProbeInvalidUrl;
 
+  /// An explicit `http://` scheme was given for a non-loopback host, which
+  /// would send the bearer token in cleartext. Rejected before probing.
+  const factory ServerProbeResult.insecureHttp() = ProbeInsecureHttp;
+
   /// The address could not be reached (DNS/connection failure or timeout).
   const factory ServerProbeResult.unreachable() = ProbeUnreachable;
 
@@ -80,6 +84,10 @@ final class ProbeReachable extends ServerProbeResult {
 
 final class ProbeInvalidUrl extends ServerProbeResult {
   const ProbeInvalidUrl();
+}
+
+final class ProbeInsecureHttp extends ServerProbeResult {
+  const ProbeInsecureHttp();
 }
 
 final class ProbeUnreachable extends ServerProbeResult {
@@ -112,6 +120,19 @@ class ServerProbe {
   Future<ServerProbeResult> probe(String input) async {
     final normalized = normalizeServerUrl(input);
     if (normalized == null) return const ServerProbeResult.invalidUrl();
+
+    // http:// sends the bearer token in cleartext. The OS already blocks it
+    // in release builds (no usesCleartextTraffic/ATS exception), which just
+    // surfaces as an opaque connection failure — reject it here instead with
+    // a clear reason. Loopback stays allowed as the local-dev escape hatch
+    // (the development flavor points at http://localhost:8090).
+    final uri = Uri.parse(normalized);
+    final host = uri.host.toLowerCase();
+    final isLoopback =
+        host == 'localhost' || host == '127.0.0.1' || host == '::1';
+    if (uri.scheme == 'http' && !isLoopback) {
+      return const ServerProbeResult.insecureHttp();
+    }
 
     try {
       final info = ServerInfo.tryParse(await _prober(normalized));

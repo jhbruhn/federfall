@@ -78,6 +78,28 @@ void main() {
     expect(config, const ServerConfig.configured('https://pigeons.example'));
   });
 
+  testWidgets('shows an inline error for an explicit http:// address',
+      (tester) async {
+    var probed = false;
+    await _pump(
+      tester,
+      ServerProbe((_) async {
+        probed = true;
+        return _infoBody();
+      }),
+    );
+
+    await tester.enterText(
+      find.byType(TextFormField),
+      'http://pigeons.example',
+    );
+    await tester.tap(find.text('Connect'));
+    await tester.pumpAndSettle();
+
+    expect(probed, isFalse);
+    expect(find.textContaining('unencrypted'), findsOneWidget);
+  });
+
   testWidgets('blocks submission when the field is empty', (tester) async {
     var probed = false;
     await _pump(

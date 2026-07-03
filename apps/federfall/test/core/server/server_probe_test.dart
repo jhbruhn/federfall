@@ -121,5 +121,40 @@ void main() {
 
       expect(await probe.probe('pigeons.example'), isA<ProbeUnreachable>());
     });
+
+    test('explicit http:// on a non-loopback host is rejected unprobed',
+        () async {
+      var probed = false;
+      final probe = ServerProbe((_) async {
+        probed = true;
+        return _infoBody();
+      });
+
+      expect(
+        await probe.probe('http://pigeons.example'),
+        isA<ProbeInsecureHttp>(),
+      );
+      expect(probed, isFalse);
+    });
+
+    test('explicit http:// on localhost is still probed (dev escape hatch)',
+        () async {
+      final probe = ServerProbe((_) async => _infoBody());
+
+      final result = await probe.probe('http://localhost:8090');
+
+      expect(result, isA<ProbeReachable>());
+      expect((result as ProbeReachable).baseUrl, 'http://localhost:8090');
+    });
+
+    test('explicit http:// on 127.0.0.1 is still probed (dev escape hatch)',
+        () async {
+      final probe = ServerProbe((_) async => _infoBody());
+
+      expect(
+        await probe.probe('http://127.0.0.1:8090'),
+        isA<ProbeReachable>(),
+      );
+    });
   });
 }

@@ -118,6 +118,10 @@
     "@serverNotFederfall": {
         "description": "Error shown when the address responds but is not a Federfall backend"
     },
+    "serverInsecureHttp": "http:// sends your login unencrypted. Use https://, or http://localhost for local development.",
+    "@serverInsecureHttp": {
+        "description": "Error shown when an explicit http:// URL is entered for a non-loopback host"
+    },
     "serverSwitchAction": "Use a different server",
     "@serverSwitchAction": {
         "description": "Action on the login screen that clears the server URL and returns to setup"
