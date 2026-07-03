@@ -1,5 +1,3 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
@@ -30,16 +28,13 @@ class _AviaryFormSheet extends ConsumerStatefulWidget {
 }
 
 class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _name;
   late final TextEditingController _location;
   late final TextEditingController _capacity;
   late final TextEditingController _notes;
   late String? _keeperId;
   late bool _active;
-  var _busy = false;
-  String? _error;
 
   @override
   void initState() {
@@ -63,15 +58,11 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
   }
 
   Future<void> _save() async {
-    if (_busy || !_formKey.currentState!.validate()) return;
-    final l10n = context.l10n;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
+    if (isBusy || !(formKey.currentState?.validate() ?? false)) return;
+
+    final ok = await runSave(() async {
+      final (_, org) = await requireUserOrg();
       final repo = await ref.read(aviariesRepositoryProvider.future);
-      final me = await ref.read(currentUserProvider.future);
       final capacity = int.tryParse(_capacity.text.trim());
       final body = <String, dynamic>{
         'name': _name.text.trim(),
@@ -80,7 +71,7 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
         'capacity': capacity,
         'active': _active,
         'notes': _notes.text.trim(),
-        'org': ?me?.org,
+        'org': org,
       };
       final existing = widget.aviary;
       if (existing == null) {
@@ -92,121 +83,77 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
       ref
         ..invalidate(aviariesProvider)
         ..invalidate(activeAviariesProvider);
-      if (mounted) Navigator.of(context).pop();
-    } on Object catch (e, stackTrace) {
-      reportCaughtError(e, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final members = ref.watch(orgMembersProvider).value ?? const <AppUser>[];
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: Form(
-          key: _formKey,
-          onChanged: markDirty,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  widget.aviary == null
-                      ? l10n.aviaryNewTitle
-                      : l10n.aviaryEditTitle,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: l10n.aviaryFieldName,
-                  controller: _name,
-                  autofocus: widget.aviary == null,
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? l10n.fieldRequired
-                      : null,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String?>(
-                  initialValue: _keeperId,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.aviaryFieldKeeper,
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  items: [
-                    DropdownMenuItem(child: Text(l10n.aviaryKeeperNone)),
-                    for (final m in members)
-                      DropdownMenuItem(
-                        value: m.id,
-                        child: Text(memberLabel(m)),
-                      ),
-                  ],
-                  onChanged: (id) => setState(() => _keeperId = id),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: l10n.aviaryFieldLocation,
-                  controller: _location,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: l10n.aviaryFieldCapacity,
-                  controller: _capacity,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: l10n.aviaryFieldNotes,
-                  controller: _notes,
-                  minLines: 2,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.aviaryFieldActive),
-                  value: _active,
-                  onChanged: (v) {
-                    setState(() => _active = v);
-                    markDirty();
-                  },
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                PrimaryButton(
-                  onPressed: _busy ? null : _save,
-                  isLoading: _busy,
-                  label: l10n.aviarySaveAction,
-                ),
-              ],
-            ),
+      child: SheetScaffold(
+        title: widget.aviary == null
+            ? l10n.aviaryNewTitle
+            : l10n.aviaryEditTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        saveLabel: l10n.aviarySaveAction,
+        onSave: _save,
+        children: [
+          AppTextField(
+            label: l10n.aviaryFieldName,
+            controller: _name,
+            autofocus: widget.aviary == null,
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? l10n.fieldRequired : null,
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<String?>(
+            initialValue: _keeperId,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: l10n.aviaryFieldKeeper,
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: [
+              DropdownMenuItem(child: Text(l10n.aviaryKeeperNone)),
+              for (final m in members)
+                DropdownMenuItem(value: m.id, child: Text(memberLabel(m))),
+            ],
+            onChanged: (id) => setState(() => _keeperId = id),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(label: l10n.aviaryFieldLocation, controller: _location),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            label: l10n.aviaryFieldCapacity,
+            controller: _capacity,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            label: l10n.aviaryFieldNotes,
+            controller: _notes,
+            minLines: 2,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.aviaryFieldActive),
+            value: _active,
+            onChanged: (v) {
+              setState(() => _active = v);
+              markDirty();
+            },
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,3 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
@@ -10,7 +8,6 @@ import 'package:federfall/features/cases/location/location_picker_screen.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,8 +51,7 @@ class DispositionSheet extends ConsumerStatefulWidget {
 }
 
 class _DispositionSheetState extends ConsumerState<DispositionSheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   final _reason = TextEditingController();
   final _releaseLocation = TextEditingController();
   final _releaseType = TextEditingController();
@@ -70,8 +66,6 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
   String? _aviaryId;
   DateTime _disposedAt = DateTime.now();
   bool _vetSignedOff = false;
-  bool _busy = false;
-  String? _error;
 
   bool get _isRelease => _type == DispositionType.released;
   bool get _isTransfer => _type == DispositionType.transferred;
@@ -116,18 +110,8 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
     super.dispose();
   }
 
-  String? _trim(TextEditingController c) {
-    final v = c.text.trim();
-    return v.isEmpty ? null : v;
-  }
-
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _disposedAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+    final picked = await pickDate(context, initial: _disposedAt);
     if (picked != null) {
       setState(() => _disposedAt = picked);
       markDirty();
@@ -138,7 +122,7 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
     final picked = await showLocationPicker(
       context,
       initial: _releaseGeo,
-      initialAddress: _trim(_releaseLocation),
+      initialAddress: trimToNull(_releaseLocation),
     );
     if (picked == null) return;
     setState(() {
@@ -149,19 +133,10 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    if (!(formKey.currentState?.validate() ?? false)) return;
 
-    try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
+    final ok = await runSave(() async {
+      final (user, org) = await requireUserOrg();
       final repo = await ref.read(dispositionsRepositoryProvider.future);
 
       // Always send the full field set, blanking the sections that do not
@@ -172,19 +147,21 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
         'case': widget.caseId,
         'type': _type!.wire,
         'disposed_at': _disposedAt.toUtc().toIso8601String(),
-        'reason': _trim(_reason) ?? '',
+        'reason': trimToNull(_reason) ?? '',
         'performed_by': user.id,
         'vet_signed_off': _showVetSignoff && _vetSignedOff,
-        'vet': _isEuthanized ? (_trim(_vet) ?? '') : '',
+        'vet': _isEuthanized ? (trimToNull(_vet) ?? '') : '',
         'org': org,
-        'release_location': _isRelease ? (_trim(_releaseLocation) ?? '') : '',
-        'release_type': _isRelease ? (_trim(_releaseType) ?? '') : '',
+        'release_location': _isRelease
+            ? (trimToNull(_releaseLocation) ?? '')
+            : '',
+        'release_type': _isRelease ? (trimToNull(_releaseType) ?? '') : '',
         'release_geo': geo == null
             ? {'lon': 0, 'lat': 0}
             : {'lon': geo.lon, 'lat': geo.lat},
-        'transfer_type': _isTransfer ? (_trim(_transferType) ?? '') : '',
+        'transfer_type': _isTransfer ? (trimToNull(_transferType) ?? '') : '',
         'transfer_destination': _isTransfer
-            ? (_trim(_transferDestination) ?? '')
+            ? (trimToNull(_transferDestination) ?? '')
             : '',
         'aviary': _isAviary ? (_aviaryId ?? '') : '',
       };
@@ -197,21 +174,8 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
       }
 
       _refresh();
-      if (mounted) Navigator.of(context).pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop(true);
   }
 
   /// The backend hook maintains the case status and the animal's lifetime
@@ -230,7 +194,7 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
     final navigator = Navigator.of(context);
     final existing = widget.disposition;
     if (existing == null) return;
-    final ok = await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n.dispositionDeleteAction),
@@ -247,211 +211,162 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
         ],
       ),
     );
-    if (ok != true) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
+    if (confirmed != true) return;
+
+    final ok = await runSave(() async {
       final repo = await ref.read(dispositionsRepositoryProvider.future);
       await repo.delete(existing.id);
       _refresh();
-      if (!mounted) return;
-      navigator.pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok) navigator.pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: SheetScaffold(
+        title: _isEditing
+            ? l10n.dispositionEditTitle
+            : l10n.dispositionNewTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        saveLabel: l10n.dispositionSaveAction,
+        onSave: _save,
+        trailing: [
+          if (_isEditing) ...[
+            const SizedBox(height: AppSpacing.sm),
+            TextButton.icon(
+              onPressed: isBusy ? null : _delete,
+              icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+              label: Text(
+                l10n.dispositionDeleteAction,
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            ),
+          ],
+        ],
+        children: [
+          DropdownButtonFormField<DispositionType>(
+            initialValue: _type,
+            decoration: InputDecoration(
+              labelText: l10n.dispositionFieldType,
+              prefixIcon: const Icon(Icons.outbound_outlined),
+            ),
+            items: [
+              for (final t in DispositionSheet._selectableTypes)
+                DropdownMenuItem(
+                  value: t,
+                  child: Text(dispositionTypeLabel(l10n, t)),
+                ),
+            ],
+            validator: (t) => t == null ? l10n.fieldRequired : null,
+            onChanged: isBusy
+                ? null
+                : (t) => setState(() => _type = t ?? _type),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DateField(
+            label: l10n.dispositionFieldDate,
+            value: _disposedAt,
+            enabled: !isBusy,
+            onPick: _pickDate,
+          ),
+          if (_isRelease) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _isEditing
-                      ? l10n.dispositionEditTitle
-                      : l10n.dispositionNewTitle,
-                  style: theme.textTheme.titleLarge,
+                Expanded(
+                  child: AppTextField(
+                    controller: _releaseLocation,
+                    label: l10n.dispositionFieldReleaseLocation,
+                    prefixIcon: Icons.place_outlined,
+                    enabled: !isBusy,
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<DispositionType>(
-                  initialValue: _type,
-                  decoration: InputDecoration(
-                    labelText: l10n.dispositionFieldType,
-                    prefixIcon: const Icon(Icons.outbound_outlined),
+                const SizedBox(width: AppSpacing.sm),
+                IconButton.filledTonal(
+                  icon: Icon(
+                    _releaseGeo == null
+                        ? Icons.add_location_alt_outlined
+                        : Icons.edit_location_alt,
                   ),
-                  items: [
-                    for (final t in DispositionSheet._selectableTypes)
-                      DropdownMenuItem(
-                        value: t,
-                        child: Text(dispositionTypeLabel(l10n, t)),
-                      ),
-                  ],
-                  validator: (t) => t == null ? l10n.fieldRequired : null,
-                  onChanged: _busy
-                      ? null
-                      : (t) => setState(() => _type = t ?? _type),
+                  tooltip: l10n.locationPickAction,
+                  onPressed: isBusy ? null : _pickReleaseLocation,
                 ),
-                const SizedBox(height: AppSpacing.md),
-                DateField(
-                  label: l10n.dispositionFieldDate,
-                  value: _disposedAt,
-                  enabled: !_busy,
-                  onPick: _pickDate,
-                ),
-                if (_isRelease) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: _releaseLocation,
-                          label: l10n.dispositionFieldReleaseLocation,
-                          prefixIcon: Icons.place_outlined,
-                          enabled: !_busy,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      IconButton.filledTonal(
-                        icon: Icon(
-                          _releaseGeo == null
-                              ? Icons.add_location_alt_outlined
-                              : Icons.edit_location_alt,
-                        ),
-                        tooltip: l10n.locationPickAction,
-                        onPressed: _busy ? null : _pickReleaseLocation,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _releaseType,
-                    label: l10n.dispositionFieldReleaseType,
-                    hintText: l10n.dispositionReleaseTypeHint,
-                    prefixIcon: Icons.flight_takeoff_outlined,
-                    enabled: !_busy,
-                  ),
-                ],
-                if (_isTransfer) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _transferDestination,
-                    label: l10n.dispositionFieldTransferTo,
-                    prefixIcon: Icons.local_shipping_outlined,
-                    enabled: !_busy,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _transferType,
-                    label: l10n.dispositionFieldTransferType,
-                    prefixIcon: Icons.category_outlined,
-                    enabled: !_busy,
-                  ),
-                ],
-                if (_isAviary) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  _AviaryPicker(
-                    value: _aviaryId,
-                    enabled: !_busy,
-                    onChanged: (id) => setState(() => _aviaryId = id),
-                  ),
-                ],
-                if (_isEuthanized) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _vet,
-                    label: l10n.dispositionFieldVet,
-                    prefixIcon: Icons.local_hospital_outlined,
-                    enabled: !_busy,
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _reason,
-                  label: l10n.dispositionFieldReason,
-                  enabled: !_busy,
-                  minLines: 2,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                if (_showVetSignoff) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.dispositionVetSignedOff),
-                    value: _vetSignedOff,
-                    onChanged: _busy
-                        ? null
-                        : (v) {
-                            setState(() => _vetSignedOff = v);
-                            markDirty();
-                          },
-                  ),
-                ],
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.dispositionSaveAction,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
-                if (_isEditing) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  TextButton.icon(
-                    onPressed: _busy ? null : _delete,
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: theme.colorScheme.error,
-                    ),
-                    label: Text(
-                      l10n.dispositionDeleteAction,
-                      style: TextStyle(color: theme.colorScheme.error),
-                    ),
-                  ),
-                ],
               ],
             ),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _releaseType,
+              label: l10n.dispositionFieldReleaseType,
+              hintText: l10n.dispositionReleaseTypeHint,
+              prefixIcon: Icons.flight_takeoff_outlined,
+              enabled: !isBusy,
+            ),
+          ],
+          if (_isTransfer) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _transferDestination,
+              label: l10n.dispositionFieldTransferTo,
+              prefixIcon: Icons.local_shipping_outlined,
+              enabled: !isBusy,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _transferType,
+              label: l10n.dispositionFieldTransferType,
+              prefixIcon: Icons.category_outlined,
+              enabled: !isBusy,
+            ),
+          ],
+          if (_isAviary) ...[
+            const SizedBox(height: AppSpacing.md),
+            _AviaryPicker(
+              value: _aviaryId,
+              enabled: !isBusy,
+              onChanged: (id) => setState(() => _aviaryId = id),
+            ),
+          ],
+          if (_isEuthanized) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _vet,
+              label: l10n.dispositionFieldVet,
+              prefixIcon: Icons.local_hospital_outlined,
+              enabled: !isBusy,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _reason,
+            label: l10n.dispositionFieldReason,
+            enabled: !isBusy,
+            minLines: 2,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
           ),
-        ),
+          if (_showVetSignoff) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.dispositionVetSignedOff),
+              value: _vetSignedOff,
+              onChanged: isBusy
+                  ? null
+                  : (v) {
+                      setState(() => _vetSignedOff = v);
+                      markDirty();
+                    },
+            ),
+          ],
+        ],
       ),
     );
   }

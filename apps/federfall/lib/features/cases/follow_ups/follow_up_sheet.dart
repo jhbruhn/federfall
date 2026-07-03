@@ -1,11 +1,8 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,12 +32,9 @@ class FollowUpSheet extends ConsumerStatefulWidget {
 }
 
 class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _note;
   late DateTime _dueAt;
-  bool _busy = false;
-  String? _error;
 
   bool get _isEditing => widget.followUp != null;
 
@@ -59,10 +53,9 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dueAt,
-      firstDate: DateTime(2000),
+    final picked = await pickDate(
+      context,
+      initial: _dueAt,
       lastDate: DateTime(DateTime.now().year + 5),
     );
     if (picked != null) {
@@ -72,19 +65,10 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    if (!(formKey.currentState?.validate() ?? false)) return;
 
-    try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
+    final ok = await runSave(() async {
+      final (user, org) = await requireUserOrg();
       final repo = await ref.read(followUpsRepositoryProvider.future);
       final note = _note.text.trim();
       final body = <String, dynamic>{
@@ -107,85 +91,39 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
       ref
         ..invalidate(caseBundleProvider(widget.caseId))
         ..invalidate(worklistSourceProvider);
-      if (mounted) Navigator.of(context).pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  _isEditing ? l10n.followUpEditTitle : l10n.followUpNewTitle,
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DateField(
-                  label: l10n.followUpDueLabel,
-                  value: _dueAt,
-                  enabled: !_busy,
-                  onPick: _pickDate,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _note,
-                  label: l10n.followUpNoteLabel,
-                  enabled: !_busy,
-                  minLines: 2,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
-              ],
-            ),
+      child: SheetScaffold(
+        title: _isEditing ? l10n.followUpEditTitle : l10n.followUpNewTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          DateField(
+            label: l10n.followUpDueLabel,
+            value: _dueAt,
+            enabled: !isBusy,
+            onPick: _pickDate,
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _note,
+            label: l10n.followUpNoteLabel,
+            enabled: !isBusy,
+            minLines: 2,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ],
       ),
     );
   }

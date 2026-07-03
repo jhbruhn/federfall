@@ -1,5 +1,3 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -7,7 +5,6 @@ import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -63,8 +60,7 @@ class PlacementSheet extends ConsumerStatefulWidget {
 }
 
 class _PlacementSheetState extends ConsumerState<PlacementSheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _where;
   late final TextEditingController _area;
   late final TextEditingController _enclosure;
@@ -72,8 +68,6 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
   late final TextEditingController _comments;
   String? _carerId;
   late DateTime _movedInAt;
-  bool _busy = false;
-  String? _error;
 
   bool get _isEditing => widget.placement != null;
 
@@ -112,18 +106,8 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
     super.dispose();
   }
 
-  String? _trim(TextEditingController c) {
-    final v = c.text.trim();
-    return v.isEmpty ? null : v;
-  }
-
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _movedInAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+    final picked = await pickDate(context, initial: _movedInAt);
     if (picked != null) {
       setState(() => _movedInAt = picked);
       markDirty();
@@ -162,28 +146,20 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
 
   Future<void> _save() async {
     final l10n = context.l10n;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(formKey.currentState?.validate() ?? false)) return;
     // A handoff must name a carer other than the current one — otherwise it's
     // a no-op disguised as a transfer.
     if (!_isEditing &&
         widget.mode == PlacementMode.handoff &&
         (_carerId == null || _carerId == widget.medicalCase.activeCarer)) {
-      setState(() => _error = l10n.placementHandoffSameCarer);
+      setSaveError(l10n.placementHandoffSameCarer);
       return;
     }
     final handoff = _isHandoff;
     if (handoff && !await _confirmHandoff()) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
 
-    try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
+    final ok = await runSave(() async {
+      final (_, org) = await requireUserOrg();
       final caseId = widget.medicalCase.id;
       final placementsRepo = await ref.read(
         placementsRepositoryProvider.future,
@@ -192,11 +168,11 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
       final body = <String, dynamic>{
         'moved_in_at': _movedInAt.toUtc().toIso8601String(),
         'carer': ?_carerId,
-        'where_holding': _trim(_where) ?? '',
-        'area': _trim(_area) ?? '',
-        'enclosure': _trim(_enclosure) ?? '',
-        'condition_at_handoff': _trim(_condition) ?? '',
-        'comments': _trim(_comments) ?? '',
+        'where_holding': trimToNull(_where) ?? '',
+        'area': trimToNull(_area) ?? '',
+        'enclosure': trimToNull(_enclosure) ?? '',
+        'condition_at_handoff': trimToNull(_condition) ?? '',
+        'comments': trimToNull(_comments) ?? '',
       };
 
       final placement = widget.placement;
@@ -223,147 +199,97 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
       }
 
       ref.invalidate(caseBundleProvider(caseId));
-      if (mounted) Navigator.of(context).pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
     final members = ref.watch(orgMembersProvider).value ?? const <AppUser>[];
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  _isEditing
-                      ? l10n.placementEditTitle
-                      : widget.mode == PlacementMode.handoff
-                      ? l10n.placementHandoffTitle
-                      : l10n.placementMoveTitle,
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                if (_showCarerPicker) ...[
-                  DropdownButtonFormField<String>(
-                    initialValue: _carerId,
-                    decoration: InputDecoration(
-                      labelText: l10n.placementFieldCarer,
-                      prefixIcon: const Icon(Icons.person_outline),
-                    ),
-                    items: [
-                      for (final m in members)
-                        DropdownMenuItem(
-                          value: m.id,
-                          child: Text(memberLabel(m)),
-                        ),
-                    ],
-                    onChanged: _busy
-                        ? null
-                        : (id) => setState(() => _carerId = id),
-                  ),
-                  if (_isHandoff) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      l10n.placementHandoffHint,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                DateField(
-                  label: l10n.placementFieldMovedAt,
-                  value: _movedInAt,
-                  enabled: !_busy,
-                  onPick: _pickDate,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _where,
-                  label: l10n.placementFieldWhere,
-                  prefixIcon: Icons.home_outlined,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _enclosure,
-                  label: l10n.placementFieldEnclosure,
-                  prefixIcon: Icons.crop_square,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _area,
-                  label: l10n.placementFieldArea,
-                  prefixIcon: Icons.map_outlined,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _condition,
-                  label: l10n.placementFieldCondition,
-                  prefixIcon: Icons.health_and_safety_outlined,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _comments,
-                  label: l10n.placementFieldComments,
-                  enabled: !_busy,
-                  minLines: 2,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
+      child: SheetScaffold(
+        title: _isEditing
+            ? l10n.placementEditTitle
+            : widget.mode == PlacementMode.handoff
+            ? l10n.placementHandoffTitle
+            : l10n.placementMoveTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          if (_showCarerPicker) ...[
+            DropdownButtonFormField<String>(
+              initialValue: _carerId,
+              decoration: InputDecoration(
+                labelText: l10n.placementFieldCarer,
+                prefixIcon: const Icon(Icons.person_outline),
+              ),
+              items: [
+                for (final m in members)
+                  DropdownMenuItem(value: m.id, child: Text(memberLabel(m))),
               ],
+              onChanged: isBusy ? null : (id) => setState(() => _carerId = id),
             ),
+            if (_isHandoff) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                l10n.placementHandoffHint,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+          ],
+          DateField(
+            label: l10n.placementFieldMovedAt,
+            value: _movedInAt,
+            enabled: !isBusy,
+            onPick: _pickDate,
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _where,
+            label: l10n.placementFieldWhere,
+            prefixIcon: Icons.home_outlined,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _enclosure,
+            label: l10n.placementFieldEnclosure,
+            prefixIcon: Icons.crop_square,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _area,
+            label: l10n.placementFieldArea,
+            prefixIcon: Icons.map_outlined,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _condition,
+            label: l10n.placementFieldCondition,
+            prefixIcon: Icons.health_and_safety_outlined,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _comments,
+            label: l10n.placementFieldComments,
+            enabled: !isBusy,
+            minLines: 2,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ],
       ),
     );
   }

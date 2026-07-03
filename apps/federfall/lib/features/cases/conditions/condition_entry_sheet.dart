@@ -1,11 +1,8 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,8 +48,7 @@ class ConditionEntrySheet extends ConsumerStatefulWidget {
 }
 
 class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   final _notesController = TextEditingController();
 
   /// The condition field's controller, owned by the [Autocomplete].
@@ -61,8 +57,6 @@ class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
   late Certainty _certainty;
   late DateTime _onsetAt;
   DateTime? _resolvedAt;
-  bool _busy = false;
-  String? _error;
 
   bool get _isEditing => widget.entry != null;
 
@@ -87,12 +81,7 @@ class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
   }
 
   Future<void> _pickOnset() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _onsetAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+    final picked = await pickDate(context, initial: _onsetAt);
     if (picked != null) {
       setState(() => _onsetAt = picked);
       markDirty();
@@ -100,12 +89,7 @@ class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
   }
 
   Future<void> _pickResolved() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _resolvedAt ?? _onsetAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+    final picked = await pickDate(context, initial: _resolvedAt ?? _onsetAt);
     if (picked != null) {
       setState(() => _resolvedAt = picked);
       markDirty();
@@ -113,20 +97,10 @@ class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(formKey.currentState?.validate() ?? false)) return;
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
+    final ok = await runSave(() async {
+      final (_, org) = await requireUserOrg();
 
       final text = _conditionController?.text.trim() ?? '';
       // Match the final text against the code list; an exact (case-insensitive)
@@ -161,188 +135,97 @@ class _ConditionEntrySheetState extends ConsumerState<ConditionEntrySheet>
       }
 
       ref.invalidate(caseBundleProvider(widget.caseId));
-      if (mounted) Navigator.of(context).pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
     final active =
         ref.watch(conditionsProvider).value?.where((c) => c.active).toList() ??
         const <Condition>[];
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  _isEditing ? l10n.conditionEditTitle : l10n.conditionNewTitle,
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Autocomplete<Condition>(
-                  initialValue: TextEditingValue(text: _initialText),
-                  displayStringForOption: (c) => c.label,
-                  optionsBuilder: (value) {
-                    final q = value.text.trim().toLowerCase();
-                    if (q.isEmpty) return const Iterable<Condition>.empty();
-                    return active.where(
-                      (c) => c.label.toLowerCase().contains(q),
-                    );
-                  },
-                  fieldViewBuilder:
-                      (context, controller, focusNode, onFieldSubmitted) {
-                        _conditionController = controller;
-                        return AppTextField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          label: l10n.conditionFieldName,
-                          hintText: l10n.conditionFieldHint,
-                          prefixIcon: Icons.coronavirus_outlined,
-                          enabled: !_busy,
-                          validator: Validators.required(l10n),
-                        );
-                      },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                SegmentedButton<Certainty>(
-                  segments: [
-                    ButtonSegment(
-                      value: Certainty.suspected,
-                      label: Text(l10n.certaintySuspected),
-                    ),
-                    ButtonSegment(
-                      value: Certainty.confirmed,
-                      label: Text(l10n.certaintyConfirmed),
-                    ),
-                  ],
-                  selected: {_certainty},
-                  onSelectionChanged: _busy
-                      ? null
-                      : (s) {
-                          setState(() => _certainty = s.first);
-                          markDirty();
-                        },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _DateField(
-                  label: l10n.conditionFieldOnset,
-                  value: _onsetAt,
-                  enabled: !_busy,
-                  onPick: _pickOnset,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _DateField(
-                  label: l10n.conditionFieldResolved,
-                  value: _resolvedAt,
-                  enabled: !_busy,
-                  onPick: _pickResolved,
-                  onClear: () {
-                    setState(() => _resolvedAt = null);
+      child: SheetScaffold(
+        title: _isEditing ? l10n.conditionEditTitle : l10n.conditionNewTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          Autocomplete<Condition>(
+            initialValue: TextEditingValue(text: _initialText),
+            displayStringForOption: (c) => c.label,
+            optionsBuilder: (value) {
+              final q = value.text.trim().toLowerCase();
+              if (q.isEmpty) return const Iterable<Condition>.empty();
+              return active.where((c) => c.label.toLowerCase().contains(q));
+            },
+            fieldViewBuilder:
+                (context, controller, focusNode, onFieldSubmitted) {
+                  _conditionController = controller;
+                  return AppTextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    label: l10n.conditionFieldName,
+                    hintText: l10n.conditionFieldHint,
+                    prefixIcon: Icons.coronavirus_outlined,
+                    enabled: !isBusy,
+                    validator: Validators.required(l10n),
+                  );
+                },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SegmentedButton<Certainty>(
+            segments: [
+              ButtonSegment(
+                value: Certainty.suspected,
+                label: Text(l10n.certaintySuspected),
+              ),
+              ButtonSegment(
+                value: Certainty.confirmed,
+                label: Text(l10n.certaintyConfirmed),
+              ),
+            ],
+            selected: {_certainty},
+            onSelectionChanged: isBusy
+                ? null
+                : (s) {
+                    setState(() => _certainty = s.first);
                     markDirty();
                   },
-                  placeholder: l10n.caseDateNotSet,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _notesController,
-                  label: l10n.conditionFieldNotes,
-                  enabled: !_busy,
-                  minLines: 2,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
-              ],
-            ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A tappable date row with an optional clear action for nullable dates.
-class _DateField extends StatelessWidget {
-  const _DateField({
-    required this.label,
-    required this.value,
-    required this.enabled,
-    required this.onPick,
-    this.onClear,
-    this.placeholder,
-  });
-
-  final String label;
-  final DateTime? value;
-  final bool enabled;
-  final VoidCallback onPick;
-  final VoidCallback? onClear;
-  final String? placeholder;
-
-  @override
-  Widget build(BuildContext context) {
-    final materialL10n = MaterialLocalizations.of(context);
-    final text = value == null
-        ? (placeholder ?? '')
-        : materialL10n.formatMediumDate(value!);
-    return InkWell(
-      onTap: enabled ? onPick : null,
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: const Icon(Icons.event_outlined),
-          suffixIcon: value != null && enabled && onClear != null
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: onClear,
-                )
-              : null,
-        ),
-        child: Text(text),
+          const SizedBox(height: AppSpacing.md),
+          DateField(
+            label: l10n.conditionFieldOnset,
+            value: _onsetAt,
+            enabled: !isBusy,
+            onPick: _pickOnset,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DateField(
+            label: l10n.conditionFieldResolved,
+            value: _resolvedAt,
+            enabled: !isBusy,
+            onPick: _pickResolved,
+            onClear: () {
+              setState(() => _resolvedAt = null);
+              markDirty();
+            },
+            placeholder: l10n.caseDateNotSet,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _notesController,
+            label: l10n.conditionFieldNotes,
+            enabled: !isBusy,
+            minLines: 2,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ],
       ),
     );
   }

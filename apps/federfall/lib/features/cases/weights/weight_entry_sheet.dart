@@ -1,11 +1,8 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,13 +44,10 @@ class WeightEntrySheet extends ConsumerStatefulWidget {
 }
 
 class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _weightController;
   late final TextEditingController _notesController;
   late DateTime _measuredAt;
-  bool _busy = false;
-  String? _error;
 
   bool get _isEditing => widget.weight != null;
 
@@ -88,12 +82,7 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _measuredAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+    final picked = await pickDate(context, initial: _measuredAt);
     if (picked != null) {
       setState(() => _measuredAt = picked);
       markDirty();
@@ -101,21 +90,10 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(formKey.currentState?.validate() ?? false)) return;
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
-
+    final ok = await runSave(() async {
+      final (user, org) = await requireUserOrg();
       final repo = await ref.read(weightsRepositoryProvider.future);
       final grams = _parseGrams();
       final notes = _notesController.text.trim();
@@ -144,99 +122,51 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
       if (widget.caseId case final caseId?) {
         ref.invalidate(caseBundleProvider(caseId));
       }
-      if (mounted) Navigator.of(context).pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  _isEditing ? l10n.weightEditTitle : l10n.weightNewTitle,
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _weightController,
-                  label: l10n.weightFieldGrams,
-                  prefixIcon: Icons.monitor_weight_outlined,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
-                  ],
-                  enabled: !_busy,
-                  validator: _validateGrams,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DateField(
-                  label: l10n.weightFieldDate,
-                  value: _measuredAt,
-                  enabled: !_busy,
-                  onPick: _pickDate,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _notesController,
-                  label: l10n.weightFieldNotes,
-                  enabled: !_busy,
-                  minLines: 2,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
-              ],
-            ),
+      child: SheetScaffold(
+        title: _isEditing ? l10n.weightEditTitle : l10n.weightNewTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          AppTextField(
+            controller: _weightController,
+            label: l10n.weightFieldGrams,
+            prefixIcon: Icons.monitor_weight_outlined,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+            ],
+            enabled: !isBusy,
+            validator: _validateGrams,
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+          DateField(
+            label: l10n.weightFieldDate,
+            value: _measuredAt,
+            enabled: !isBusy,
+            onPick: _pickDate,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _notesController,
+            label: l10n.weightFieldNotes,
+            enabled: !isBusy,
+            minLines: 2,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ],
       ),
     );
   }

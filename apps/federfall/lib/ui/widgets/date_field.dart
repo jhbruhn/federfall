@@ -11,6 +11,7 @@ class DateField extends StatelessWidget {
     required this.onPick,
     this.onClear,
     this.placeholder,
+    this.errorText,
     this.enabled = true,
     this.showTime = false,
     super.key,
@@ -21,6 +22,7 @@ class DateField extends StatelessWidget {
   final VoidCallback onPick;
   final VoidCallback? onClear;
   final String? placeholder;
+  final String? errorText;
   final bool enabled;
 
   /// Whether to append the time of day to the displayed value.
@@ -37,6 +39,7 @@ class DateField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
+          errorText: errorText,
           prefixIcon: Icon(
             showTime ? Icons.schedule_outlined : Icons.event_outlined,
           ),
@@ -78,6 +81,22 @@ String formatEventDate(
     materialL10n,
     value.toLocal(),
     withTime: withTime,
+  );
+}
+
+/// Opens a date picker seeded at [initial] (local), returning the picked
+/// **local** [DateTime], or `null` if cancelled.
+Future<DateTime?> pickDate(
+  BuildContext context, {
+  required DateTime initial,
+  DateTime? firstDate,
+  DateTime? lastDate,
+}) {
+  return showDatePicker(
+    context: context,
+    initialDate: initial,
+    firstDate: firstDate ?? DateTime(2000),
+    lastDate: lastDate ?? DateTime.now(),
   );
 }
 

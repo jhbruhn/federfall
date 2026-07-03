@@ -1,11 +1,8 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,7 +48,8 @@ class ExamSheet extends ConsumerStatefulWidget {
   ConsumerState<ExamSheet> createState() => _ExamSheetState();
 }
 
-class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
+class _ExamSheetState extends ConsumerState<ExamSheet>
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _notes;
   late final TextEditingController _weight;
   late final TextEditingController _temperature;
@@ -63,8 +61,6 @@ class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
   MmColor? _mmColor;
   MmTexture? _mmTexture;
   final Map<BodySystem, FindingStatus> _findingStatus = {};
-  bool _busy = false;
-  String? _error;
 
   bool get _isEditing => widget.exam != null;
 
@@ -110,10 +106,9 @@ class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
       double.tryParse(raw.trim().replaceFirst(',', '.'));
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _examinedAt,
-      firstDate: DateTime(2000),
+    final picked = await pickDate(
+      context,
+      initial: _examinedAt,
       lastDate: DateTime(DateTime.now().year + 1),
     );
     if (picked != null) {
@@ -123,18 +118,8 @@ class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
+    final ok = await runSave(() async {
+      await requireUserOrg();
       final exams = await ref.read(examsRepositoryProvider.future);
 
       // One atomic call (federfall-lov0): the hook route persists the exam,
@@ -174,241 +159,187 @@ class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
       });
       // One bundle refetch covers the exam, its findings and the exam weight.
       ref.invalidate(caseBundleProvider(widget.caseId));
-      if (mounted) Navigator.of(context).pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: SheetScaffold(
+        title: _isEditing ? l10n.examEditTitle : l10n.examNewTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          DateField(
+            label: l10n.examDateLabel,
+            value: _examinedAt,
+            enabled: !isBusy,
+            onPick: _pickDate,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // Zone 1 — vitals, always visible (the fast path).
+          Text(l10n.examGeneralSection, style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Weight becomes a Weight entry on save; only on a new
+              // exam, so editing can't duplicate it. Hidden when editing.
+              if (!_isEditing) ...[
+                Expanded(
+                  child: AppTextField(
+                    controller: _weight,
+                    label: l10n.examWeightLabel,
+                    prefixIcon: Icons.scale_outlined,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    enabled: !isBusy,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+              ],
+              Expanded(
+                child: AppTextField(
+                  controller: _temperature,
+                  label: l10n.examTemperatureLabel,
+                  prefixIcon: Icons.thermostat_outlined,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  enabled: !isBusy,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(l10n.examBodyConditionLabel, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: AppSpacing.xs),
+          SegmentedButton<int>(
+            emptySelectionAllowed: true,
+            showSelectedIcon: false,
+            segments: [
+              for (var i = 1; i <= 5; i++)
+                ButtonSegment(value: i, label: Text('$i')),
+            ],
+            selected: {?_bodyCondition},
+            onSelectionChanged: isBusy
+                ? null
+                : (s) {
+                    setState(() => _bodyCondition = s.isEmpty ? null : s.first);
+                    markDirty();
+                  },
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              l10n.examBodyConditionHelp,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _ChipRow<Hydration>(
+            label: l10n.examHydrationLabel,
+            values: Hydration.values,
+            selected: _hydration,
+            enabled: !isBusy,
+            labelOf: (v) => hydrationLabel(l10n, v),
+            onChanged: (v) {
+              setState(() => _hydration = v);
+              markDirty();
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _ChipRow<Mentation>(
+            label: l10n.examMentationLabel,
+            values: Mentation.values,
+            selected: _mentation,
+            enabled: !isBusy,
+            labelOf: (v) => mentationLabel(l10n, v),
+            onChanged: (v) {
+              setState(() => _mentation = v);
+              markDirty();
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _ChipRow<MmColor>(
+            label: l10n.examMmColorLabel,
+            values: MmColor.values,
+            selected: _mmColor,
+            enabled: !isBusy,
+            labelOf: (v) => mmColorLabel(l10n, v),
+            onChanged: (v) {
+              setState(() => _mmColor = v);
+              markDirty();
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _ChipRow<MmTexture>(
+            label: l10n.examMmTextureLabel,
+            values: MmTexture.values,
+            selected: _mmTexture,
+            enabled: !isBusy,
+            labelOf: (v) => mmTextureLabel(l10n, v),
+            onChanged: (v) {
+              setState(() => _mmTexture = v);
+              markDirty();
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Zone 2 — by-system findings, collapsed by default.
+          Theme(
+            data: theme.copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              title: Text(
+                l10n.examFindingsSection,
+                style: theme.textTheme.titleSmall,
+              ),
               children: [
-                Text(
-                  _isEditing ? l10n.examEditTitle : l10n.examNewTitle,
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DateField(
-                  label: l10n.examDateLabel,
-                  value: _examinedAt,
-                  enabled: !_busy,
-                  onPick: _pickDate,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                // Zone 1 — vitals, always visible (the fast path).
-                Text(
-                  l10n.examGeneralSection,
-                  style: theme.textTheme.titleSmall,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Weight becomes a Weight entry on save; only on a new
-                    // exam, so editing can't duplicate it. Hidden when editing.
-                    if (!_isEditing) ...[
-                      Expanded(
-                        child: AppTextField(
-                          controller: _weight,
-                          label: l10n.examWeightLabel,
-                          prefixIcon: Icons.scale_outlined,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          enabled: !_busy,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                    ],
-                    Expanded(
-                      child: AppTextField(
-                        controller: _temperature,
-                        label: l10n.examTemperatureLabel,
-                        prefixIcon: Icons.thermostat_outlined,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        enabled: !_busy,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  l10n.examBodyConditionLabel,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                SegmentedButton<int>(
-                  emptySelectionAllowed: true,
-                  showSelectedIcon: false,
-                  segments: [
-                    for (var i = 1; i <= 5; i++)
-                      ButtonSegment(value: i, label: Text('$i')),
-                  ],
-                  selected: {?_bodyCondition},
-                  onSelectionChanged: _busy
-                      ? null
-                      : (s) {
-                          setState(
-                            () => _bodyCondition = s.isEmpty ? null : s.first,
-                          );
-                          markDirty();
-                        },
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.xs),
-                  child: Text(
-                    l10n.examBodyConditionHelp,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                for (final system in BodySystem.values)
+                  _FindingRow(
+                    label: bodySystemLabel(l10n, system),
+                    status: _findingStatus[system],
+                    noteController: _findingNotes[system]!,
+                    enabled: !isBusy,
+                    onStatusChanged: (status) {
+                      setState(() {
+                        if (status == null) {
+                          _findingStatus.remove(system);
+                        } else {
+                          _findingStatus[system] = status;
+                        }
+                      });
+                      markDirty();
+                    },
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _ChipRow<Hydration>(
-                  label: l10n.examHydrationLabel,
-                  values: Hydration.values,
-                  selected: _hydration,
-                  enabled: !_busy,
-                  labelOf: (v) => hydrationLabel(l10n, v),
-                  onChanged: (v) {
-                    setState(() => _hydration = v);
-                    markDirty();
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _ChipRow<Mentation>(
-                  label: l10n.examMentationLabel,
-                  values: Mentation.values,
-                  selected: _mentation,
-                  enabled: !_busy,
-                  labelOf: (v) => mentationLabel(l10n, v),
-                  onChanged: (v) {
-                    setState(() => _mentation = v);
-                    markDirty();
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _ChipRow<MmColor>(
-                  label: l10n.examMmColorLabel,
-                  values: MmColor.values,
-                  selected: _mmColor,
-                  enabled: !_busy,
-                  labelOf: (v) => mmColorLabel(l10n, v),
-                  onChanged: (v) {
-                    setState(() => _mmColor = v);
-                    markDirty();
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _ChipRow<MmTexture>(
-                  label: l10n.examMmTextureLabel,
-                  values: MmTexture.values,
-                  selected: _mmTexture,
-                  enabled: !_busy,
-                  labelOf: (v) => mmTextureLabel(l10n, v),
-                  onChanged: (v) {
-                    setState(() => _mmTexture = v);
-                    markDirty();
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // Zone 2 — by-system findings, collapsed by default.
-                Theme(
-                  data: theme.copyWith(dividerColor: Colors.transparent),
-                  child: ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    childrenPadding: const EdgeInsets.only(
-                      bottom: AppSpacing.sm,
-                    ),
-                    title: Text(
-                      l10n.examFindingsSection,
-                      style: theme.textTheme.titleSmall,
-                    ),
-                    children: [
-                      for (final system in BodySystem.values)
-                        _FindingRow(
-                          label: bodySystemLabel(l10n, system),
-                          status: _findingStatus[system],
-                          noteController: _findingNotes[system]!,
-                          enabled: !_busy,
-                          onStatusChanged: (status) {
-                            setState(() {
-                              if (status == null) {
-                                _findingStatus.remove(system);
-                              } else {
-                                _findingStatus[system] = status;
-                              }
-                            });
-                            markDirty();
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // Zone 3 — free notes.
-                AppTextField(
-                  controller: _notes,
-                  label: l10n.examNotesLabel,
-                  enabled: !_busy,
-                  minLines: 3,
-                  maxLines: 6,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
               ],
             ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Zone 3 — free notes.
+          AppTextField(
+            controller: _notes,
+            label: l10n.examNotesLabel,
+            enabled: !isBusy,
+            minLines: 3,
+            maxLines: 6,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ],
       ),
     );
   }

@@ -1,12 +1,9 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,8 +45,8 @@ class MarkingSheet extends ConsumerStatefulWidget {
   ConsumerState<MarkingSheet> createState() => _MarkingSheetState();
 }
 
-class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+class _MarkingSheetState extends ConsumerState<MarkingSheet>
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _code;
   late final TextEditingController _colour;
   late final TextEditingController _scheme;
@@ -57,8 +54,6 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
   /// Selected marking-type id, or null until the picker is populated / chosen.
   late String? _type;
   late DateTime _appliedAt;
-  bool _busy = false;
-  String? _error;
 
   bool get _isEditing => widget.marking != null;
 
@@ -83,18 +78,8 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
     super.dispose();
   }
 
-  String? _trim(TextEditingController c) {
-    final v = c.text.trim();
-    return v.isEmpty ? null : v;
-  }
-
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _appliedAt,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
+    final picked = await pickDate(context, initial: _appliedAt);
     if (picked != null) {
       setState(() => _appliedAt = picked);
       markDirty();
@@ -102,25 +87,16 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    if (!(formKey.currentState?.validate() ?? false)) return;
 
-    try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
+    final ok = await runSave(() async {
+      final (user, org) = await requireUserOrg();
       final repo = await ref.read(markingsRepositoryProvider.future);
       final body = <String, dynamic>{
         'type': _type,
-        'code': _trim(_code) ?? '',
-        'colour': _trim(_colour) ?? '',
-        'scheme_org': _trim(_scheme) ?? '',
+        'code': trimToNull(_code) ?? '',
+        'colour': trimToNull(_colour) ?? '',
+        'scheme_org': trimToNull(_scheme) ?? '',
         'applied_at': _appliedAt.toUtc().toIso8601String(),
       };
 
@@ -142,103 +118,57 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
       if (widget.caseId case final caseId?) {
         ref.invalidate(caseBundleProvider(caseId));
       }
-      if (mounted) Navigator.of(context).pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  _isEditing ? l10n.markingEditTitle : l10n.markingNewTitle,
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _MarkingTypeField(
-                  selected: _type,
-                  enabled: !_busy,
-                  onChanged: (id) => setState(() => _type = id),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _code,
-                  label: l10n.markingFieldCode,
-                  prefixIcon: Icons.tag,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _colour,
-                  label: l10n.markingFieldColour,
-                  prefixIcon: Icons.palette_outlined,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _scheme,
-                  label: l10n.markingFieldScheme,
-                  prefixIcon: Icons.business_outlined,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DateField(
-                  label: l10n.markingFieldApplied,
-                  value: _appliedAt,
-                  enabled: !_busy,
-                  onPick: _pickDate,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
-              ],
-            ),
+      child: SheetScaffold(
+        title: _isEditing ? l10n.markingEditTitle : l10n.markingNewTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          _MarkingTypeField(
+            selected: _type,
+            enabled: !isBusy,
+            onChanged: (id) => setState(() => _type = id),
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _code,
+            label: l10n.markingFieldCode,
+            prefixIcon: Icons.tag,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _colour,
+            label: l10n.markingFieldColour,
+            prefixIcon: Icons.palette_outlined,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _scheme,
+            label: l10n.markingFieldScheme,
+            prefixIcon: Icons.business_outlined,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DateField(
+            label: l10n.markingFieldApplied,
+            value: _appliedAt,
+            enabled: !isBusy,
+            onPick: _pickDate,
+          ),
+        ],
       ),
     );
   }

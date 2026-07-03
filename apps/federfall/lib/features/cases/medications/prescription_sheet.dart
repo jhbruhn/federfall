@@ -1,12 +1,9 @@
-import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,8 +34,7 @@ class PrescriptionSheet extends ConsumerStatefulWidget {
 }
 
 class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _drug;
   late final TextEditingController _dose;
   late final TextEditingController _unit;
@@ -51,8 +47,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   late DateTime _startedAt;
   DateTime? _endedAt;
   bool _controlled = false;
-  bool _busy = false;
-  String? _error;
 
   bool get _isEditing => widget.plan != null;
 
@@ -94,25 +88,11 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     super.dispose();
   }
 
-  String? _trim(TextEditingController c) {
-    final v = c.text.trim();
-    return v.isEmpty ? null : v;
-  }
-
   Future<void> _save() async {
-    final l10n = context.l10n;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    if (!(formKey.currentState?.validate() ?? false)) return;
 
-    try {
-      final user = await ref.read(currentUserProvider.future);
-      final org = user?.org;
-      if (user == null || org == null) {
-        throw const RepositoryException('no org for current user');
-      }
+    final ok = await runSave(() async {
+      final (_, org) = await requireUserOrg();
       final repo = await ref.read(medicationsRepositoryProvider.future);
       final dose = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
       final intervalHours = _preset == _FreqPreset.custom
@@ -122,16 +102,16 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       final body = <String, dynamic>{
         'drug': _drug.text.trim(),
         'dose': dose,
-        'dose_unit': _trim(_unit) ?? '',
-        'frequency': _trim(_frequency) ?? '',
+        'dose_unit': trimToNull(_unit) ?? '',
+        'frequency': trimToNull(_frequency) ?? '',
         'frequency_kind': _preset.kind.wire,
         'interval_hours': intervalHours,
         'route': _route ?? '',
         'started_at': _startedAt.toUtc().toIso8601String(),
         'ended_at': _endedAt?.toUtc().toIso8601String() ?? '',
         'is_controlled': _controlled,
-        'instructions': _trim(_instructions) ?? '',
-        'prescribed_by': _trim(_prescribedBy) ?? '',
+        'instructions': trimToNull(_instructions) ?? '',
+        'prescribed_by': trimToNull(_prescribedBy) ?? '',
       };
 
       final plan = widget.plan;
@@ -142,21 +122,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       }
 
       ref.invalidate(caseBundleProvider(widget.caseId));
-      if (mounted) Navigator.of(context).pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) Navigator.of(context).pop(true);
   }
 
   /// The start carries a time of day: `medication_due` uses it as the first
@@ -190,179 +157,143 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
     return guardUnsavedChanges(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          0,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets,
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  _isEditing
-                      ? l10n.prescriptionEditTitle
-                      : l10n.prescriptionNewTitle,
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _drug,
-                  label: l10n.medDrug,
-                  prefixIcon: Icons.medication_outlined,
-                  enabled: !_busy,
-                  validator: Validators.required(l10n),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        controller: _dose,
-                        label: l10n.medDose,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
-                        ],
-                        enabled: !_busy,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: AppTextField(
-                        controller: _unit,
-                        label: l10n.medUnit,
-                        enabled: !_busy,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                MedicationRouteDropdown(
-                  value: _route,
-                  enabled: !_busy,
-                  onChanged: (r) => setState(() => _route = r),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<_FreqPreset>(
-                  initialValue: _preset,
-                  decoration: InputDecoration(
-                    labelText: l10n.medFrequency,
-                    prefixIcon: const Icon(Icons.repeat),
+      child: SheetScaffold(
+        title: _isEditing
+            ? l10n.prescriptionEditTitle
+            : l10n.prescriptionNewTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          AppTextField(
+            controller: _drug,
+            label: l10n.medDrug,
+            prefixIcon: Icons.medication_outlined,
+            enabled: !isBusy,
+            validator: Validators.required(l10n),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: AppTextField(
+                  controller: _dose,
+                  label: l10n.medDose,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
                   ),
-                  items: [
-                    for (final p in _FreqPreset.values)
-                      DropdownMenuItem(
-                        value: p,
-                        child: Text(p.label(l10n)),
-                      ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
                   ],
-                  onChanged: _busy
-                      ? null
-                      : (p) => setState(() => _preset = p ?? _preset),
+                  enabled: !isBusy,
                 ),
-                if (_preset == _FreqPreset.custom) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _customHours,
-                    label: l10n.medIntervalHours,
-                    prefixIcon: Icons.timelapse_outlined,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    enabled: !_busy,
-                    validator: (v) {
-                      final n = int.tryParse((v ?? '').trim());
-                      return (n == null || n <= 0) ? l10n.fieldRequired : null;
-                    },
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _frequency,
-                  label: l10n.medFrequencyNote,
-                  prefixIcon: Icons.schedule_outlined,
-                  enabled: !_busy,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppTextField(
+                  controller: _unit,
+                  label: l10n.medUnit,
+                  enabled: !isBusy,
                 ),
-                const SizedBox(height: AppSpacing.md),
-                DateField(
-                  label: l10n.medStarted,
-                  value: _startedAt,
-                  enabled: !_busy,
-                  showTime: true,
-                  onPick: _pickStarted,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DateField(
-                  label: l10n.medEnded,
-                  value: _endedAt,
-                  enabled: !_busy,
-                  onPick: _pickEnded,
-                  onClear: () {
-                    setState(() => _endedAt = null);
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          MedicationRouteDropdown(
+            value: _route,
+            enabled: !isBusy,
+            onChanged: (r) => setState(() => _route = r),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<_FreqPreset>(
+            initialValue: _preset,
+            decoration: InputDecoration(
+              labelText: l10n.medFrequency,
+              prefixIcon: const Icon(Icons.repeat),
+            ),
+            items: [
+              for (final p in _FreqPreset.values)
+                DropdownMenuItem(value: p, child: Text(p.label(l10n))),
+            ],
+            onChanged: isBusy
+                ? null
+                : (p) => setState(() => _preset = p ?? _preset),
+          ),
+          if (_preset == _FreqPreset.custom) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _customHours,
+              label: l10n.medIntervalHours,
+              prefixIcon: Icons.timelapse_outlined,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              enabled: !isBusy,
+              validator: (v) {
+                final n = int.tryParse((v ?? '').trim());
+                return (n == null || n <= 0) ? l10n.fieldRequired : null;
+              },
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _frequency,
+            label: l10n.medFrequencyNote,
+            prefixIcon: Icons.schedule_outlined,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DateField(
+            label: l10n.medStarted,
+            value: _startedAt,
+            enabled: !isBusy,
+            showTime: true,
+            onPick: _pickStarted,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DateField(
+            label: l10n.medEnded,
+            value: _endedAt,
+            enabled: !isBusy,
+            onPick: _pickEnded,
+            onClear: () {
+              setState(() => _endedAt = null);
+              markDirty();
+            },
+            placeholder: l10n.caseDateNotSet,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.medControlled),
+            value: _controlled,
+            onChanged: isBusy
+                ? null
+                : (v) {
+                    setState(() => _controlled = v);
                     markDirty();
                   },
-                  placeholder: l10n.caseDateNotSet,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.medControlled),
-                  value: _controlled,
-                  onChanged: _busy
-                      ? null
-                      : (v) {
-                          setState(() => _controlled = v);
-                          markDirty();
-                        },
-                ),
-                AppTextField(
-                  controller: _instructions,
-                  label: l10n.medInstructions,
-                  enabled: !_busy,
-                  minLines: 2,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _prescribedBy,
-                  label: l10n.medPrescribedBy,
-                  prefixIcon: Icons.local_hospital_outlined,
-                  enabled: !_busy,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
-              ],
-            ),
           ),
-        ),
+          AppTextField(
+            controller: _instructions,
+            label: l10n.medInstructions,
+            enabled: !isBusy,
+            minLines: 2,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _prescribedBy,
+            label: l10n.medPrescribedBy,
+            prefixIcon: Icons.local_hospital_outlined,
+            enabled: !isBusy,
+          ),
+        ],
       ),
     );
   }
