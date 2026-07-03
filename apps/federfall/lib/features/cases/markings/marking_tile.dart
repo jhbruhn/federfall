@@ -47,33 +47,21 @@ class MarkingTile extends ConsumerWidget {
     });
   }
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.markingDeleteTitle),
-        content: Text(l10n.markingDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.markingDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.markingDeleteTitle,
+      message: l10n.markingDeleteConfirm,
+      confirmLabel: l10n.markingDeleteAction,
+      action: () async {
+        final repo = await ref.read(markingsRepositoryProvider.future);
+        await repo.delete(marking.id);
+        ref
+          ..invalidate(caseBundleProvider(caseId))
+          ..invalidate(markingsForAnimalProvider(marking.animal));
+      },
     );
-    if (ok != true || !context.mounted) return;
-    await runQuickAction(context, () async {
-      final repo = await ref.read(markingsRepositoryProvider.future);
-      await repo.delete(marking.id);
-      ref
-        ..invalidate(caseBundleProvider(caseId))
-        ..invalidate(markingsForAnimalProvider(marking.animal));
-    });
   }
 
   @override
@@ -96,31 +84,24 @@ class MarkingTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
-          ? PopupMenuButton<void>(
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              padding: EdgeInsets.zero,
+          ? TimelineEntryMenu(
+              editLabel: l10n.markingEditAction,
               tooltip: l10n.markingMenuTooltip,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  onTap: () => showMarkingSheet(
-                    context,
-                    animalId: marking.animal,
-                    caseId: caseId,
-                    marking: marking,
-                  ),
-                  child: Text(l10n.markingEditAction),
-                ),
+              onEdit: () => showMarkingSheet(
+                context,
+                animalId: marking.animal,
+                caseId: caseId,
+                marking: marking,
+              ),
+              middleItems: [
                 if (marking.isActive)
                   PopupMenuItem(
                     onTap: () => _markRemoved(context, ref),
                     child: Text(l10n.markingRemoveAction),
                   ),
-                PopupMenuItem(
-                  onTap: () => _delete(context, ref),
-                  child: Text(l10n.markingDeleteAction),
-                ),
               ],
+              deleteLabel: l10n.markingDeleteAction,
+              onDelete: () => _delete(context, ref),
             )
           : null,
       child: Column(

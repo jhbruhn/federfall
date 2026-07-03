@@ -37,32 +37,19 @@ class WeightEntryTile extends ConsumerWidget {
     weight: weight,
   );
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.weightDeleteTitle),
-        content: Text(l10n.weightDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.weightDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.weightDeleteTitle,
+      message: l10n.weightDeleteConfirm,
+      confirmLabel: l10n.weightDeleteAction,
+      action: () async {
+        final repo = await ref.read(weightsRepositoryProvider.future);
+        await repo.delete(weight.id);
+        ref.invalidate(caseBundleProvider(caseId));
+      },
     );
-    if (confirmed != true || !context.mounted) return;
-
-    await runQuickAction(context, () async {
-      final repo = await ref.read(weightsRepositoryProvider.future);
-      await repo.delete(weight.id);
-      ref.invalidate(caseBundleProvider(caseId));
-    });
   }
 
   @override
@@ -80,22 +67,11 @@ class WeightEntryTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
-          ? PopupMenuButton<void>(
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              padding: EdgeInsets.zero,
-              tooltip: l10n.weightEditAction,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  onTap: () => _edit(context),
-                  child: Text(l10n.weightEditAction),
-                ),
-                if (canDelete)
-                  PopupMenuItem(
-                    onTap: () => _delete(context, ref),
-                    child: Text(l10n.weightDeleteAction),
-                  ),
-              ],
+          ? TimelineEntryMenu(
+              editLabel: l10n.weightEditAction,
+              onEdit: () => _edit(context),
+              deleteLabel: l10n.weightDeleteAction,
+              onDelete: canDelete ? () => _delete(context, ref) : null,
             )
           : null,
       child: Column(

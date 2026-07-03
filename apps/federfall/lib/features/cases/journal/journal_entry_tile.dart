@@ -30,36 +30,24 @@ class JournalEntryTile extends ConsumerWidget {
   Future<void> _edit(BuildContext context) =>
       showJournalEntrySheet(context, caseId: caseId, entry: entry);
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.journalDeleteTitle),
-        content: Text(l10n.journalDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.journalDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.journalDeleteTitle,
+      message: l10n.journalDeleteConfirm,
+      confirmLabel: l10n.journalDeleteAction,
+      action: () async {
+        final repo = await ref.read(journalRepositoryProvider.future);
+        await repo.delete(entry.id);
+        ref.invalidate(caseBundleProvider(caseId));
+      },
     );
-    if (confirmed != true || !context.mounted) return;
-
-    await runQuickAction(context, () async {
-      final repo = await ref.read(journalRepositoryProvider.future);
-      await repo.delete(entry.id);
-      ref.invalidate(caseBundleProvider(caseId));
-    });
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
     final date = entry.entryAt ?? entry.created;
@@ -69,8 +57,10 @@ class JournalEntryTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, date, withTime: true),
       isLast: isLast,
       trailing: canEdit
-          ? _EntryMenu(
+          ? TimelineEntryMenu(
+              editLabel: l10n.journalEditAction,
               onEdit: () => _edit(context),
+              deleteLabel: l10n.journalDeleteAction,
               onDelete: () => _delete(context, ref),
             )
           : null,
@@ -84,29 +74,6 @@ class JournalEntryTile extends ConsumerWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-/// Compact overflow menu on a journal entry: edit or delete.
-class _EntryMenu extends StatelessWidget {
-  const _EntryMenu({required this.onEdit, required this.onDelete});
-
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return PopupMenuButton<void>(
-      icon: const Icon(Icons.more_vert),
-      iconSize: 20,
-      padding: EdgeInsets.zero,
-      tooltip: l10n.journalEditAction,
-      itemBuilder: (context) => [
-        PopupMenuItem(onTap: onEdit, child: Text(l10n.journalEditAction)),
-        PopupMenuItem(onTap: onDelete, child: Text(l10n.journalDeleteAction)),
-      ],
     );
   }
 }

@@ -166,7 +166,6 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
-    final materialL10n = MaterialLocalizations.of(context);
 
     return guardUnsavedChanges(
       child: Padding(
@@ -203,15 +202,11 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
                   validator: _validateGrams,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                InkWell(
-                  onTap: _busy ? null : _pickDate,
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: l10n.weightFieldDate,
-                      prefixIcon: const Icon(Icons.event_outlined),
-                    ),
-                    child: Text(materialL10n.formatMediumDate(_measuredAt)),
-                  ),
+                DateField(
+                  label: l10n.weightFieldDate,
+                  value: _measuredAt,
+                  enabled: !_busy,
+                  onPick: _pickDate,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(

@@ -30,31 +30,19 @@ class PrescriptionTile extends ConsumerWidget {
   final bool canEdit;
   final bool isLast;
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.prescriptionDeleteTitle),
-        content: Text(l10n.prescriptionDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.medDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.prescriptionDeleteTitle,
+      message: l10n.prescriptionDeleteConfirm,
+      confirmLabel: l10n.medDeleteAction,
+      action: () async {
+        final repo = await ref.read(medicationsRepositoryProvider.future);
+        await repo.delete(plan.id);
+        ref.invalidate(caseBundleProvider(caseId));
+      },
     );
-    if (ok != true || !context.mounted) return;
-    await runQuickAction(context, () async {
-      final repo = await ref.read(medicationsRepositoryProvider.future);
-      await repo.delete(plan.id);
-      ref.invalidate(caseBundleProvider(caseId));
-    });
   }
 
   @override
@@ -88,12 +76,9 @@ class PrescriptionTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
-          ? PopupMenuButton<void>(
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              padding: EdgeInsets.zero,
+          ? TimelineEntryMenu(
               tooltip: l10n.medMenuTooltip,
-              itemBuilder: (context) => [
+              leadingItems: [
                 PopupMenuItem(
                   onTap: () => showAdministrationSheet(
                     context,
@@ -102,19 +87,15 @@ class PrescriptionTile extends ConsumerWidget {
                   ),
                   child: Text(l10n.medLogDose),
                 ),
-                PopupMenuItem(
-                  onTap: () => showPrescriptionSheet(
-                    context,
-                    caseId: caseId,
-                    plan: plan,
-                  ),
-                  child: Text(l10n.medEditAction),
-                ),
-                PopupMenuItem(
-                  onTap: () => _confirmDelete(context, ref),
-                  child: Text(l10n.medDeleteAction),
-                ),
               ],
+              editLabel: l10n.medEditAction,
+              onEdit: () => showPrescriptionSheet(
+                context,
+                caseId: caseId,
+                plan: plan,
+              ),
+              deleteLabel: l10n.medDeleteAction,
+              onDelete: () => _confirmDelete(context, ref),
             )
           : null,
       child: Column(
@@ -138,7 +119,7 @@ class PrescriptionTile extends ConsumerWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               if (plan.isControlled)
-                _Tag(
+                TagChip(
                   label: l10n.medControlledBadge,
                   color: theme.colorScheme.errorContainer,
                   onColor: theme.colorScheme.onErrorContainer,
@@ -198,33 +179,21 @@ class AdministrationTile extends ConsumerWidget {
   final bool canEdit;
   final bool isLast;
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.doseDeleteTitle),
-        content: Text(l10n.doseDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.medDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.doseDeleteTitle,
+      message: l10n.doseDeleteConfirm,
+      confirmLabel: l10n.medDeleteAction,
+      action: () async {
+        final repo = await ref.read(
+          medicationAdministrationsRepositoryProvider.future,
+        );
+        await repo.delete(administration.id);
+        ref.invalidate(caseBundleProvider(caseId));
+      },
     );
-    if (ok != true || !context.mounted) return;
-    await runQuickAction(context, () async {
-      final repo = await ref.read(
-        medicationAdministrationsRepositoryProvider.future,
-      );
-      await repo.delete(administration.id);
-      ref.invalidate(caseBundleProvider(caseId));
-    });
   }
 
   @override
@@ -246,25 +215,16 @@ class AdministrationTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, date, withTime: true),
       isLast: isLast,
       trailing: canEdit
-          ? PopupMenuButton<void>(
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              padding: EdgeInsets.zero,
+          ? TimelineEntryMenu(
+              editLabel: l10n.medEditAction,
               tooltip: l10n.medMenuTooltip,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  onTap: () => showAdministrationSheet(
-                    context,
-                    caseId: caseId,
-                    administration: a,
-                  ),
-                  child: Text(l10n.medEditAction),
-                ),
-                PopupMenuItem(
-                  onTap: () => _confirmDelete(context, ref),
-                  child: Text(l10n.medDeleteAction),
-                ),
-              ],
+              onEdit: () => showAdministrationSheet(
+                context,
+                caseId: caseId,
+                administration: a,
+              ),
+              deleteLabel: l10n.medDeleteAction,
+              onDelete: () => _confirmDelete(context, ref),
             )
           : null,
       child: Column(
@@ -284,34 +244,6 @@ class AdministrationTile extends ConsumerWidget {
           if (a.notes case final n? when n.isNotEmpty)
             Text(n, style: theme.textTheme.bodyMedium),
         ],
-      ),
-    );
-  }
-}
-
-/// A small rounded tag (controlled-drug badge).
-class _Tag extends StatelessWidget {
-  const _Tag({required this.label, required this.color, required this.onColor});
-
-  final String label;
-  final Color color;
-  final Color onColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(color: onColor),
       ),
     );
   }

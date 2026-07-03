@@ -54,34 +54,21 @@ class QuarantineTile extends ConsumerWidget {
           ..invalidate(caseQuarantineUntilProvider);
       });
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.quarantineDeleteTitle),
-        content: Text(l10n.quarantineDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.quarantineDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.quarantineDeleteTitle,
+      message: l10n.quarantineDeleteConfirm,
+      confirmLabel: l10n.quarantineDeleteAction,
+      action: () async {
+        final repo = await ref.read(quarantineRepositoryProvider.future);
+        await repo.delete(entry.id);
+        ref
+          ..invalidate(caseBundleProvider(caseId))
+          ..invalidate(caseQuarantineUntilProvider);
+      },
     );
-    if (confirmed != true || !context.mounted) return;
-
-    await runQuickAction(context, () async {
-      final repo = await ref.read(quarantineRepositoryProvider.future);
-      await repo.delete(entry.id);
-      ref
-        ..invalidate(caseBundleProvider(caseId))
-        ..invalidate(caseQuarantineUntilProvider);
-    });
   }
 
   @override
@@ -113,21 +100,11 @@ class QuarantineTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
-          ? PopupMenuButton<void>(
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              padding: EdgeInsets.zero,
-              tooltip: l10n.quarantineEditAction,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  onTap: () => _edit(context),
-                  child: Text(l10n.quarantineEditAction),
-                ),
-                PopupMenuItem(
-                  onTap: () => _delete(context, ref),
-                  child: Text(l10n.quarantineDeleteAction),
-                ),
-              ],
+          ? TimelineEntryMenu(
+              editLabel: l10n.quarantineEditAction,
+              onEdit: () => _edit(context),
+              deleteLabel: l10n.quarantineDeleteAction,
+              onDelete: () => _delete(context, ref),
             )
           : null,
       child: Column(

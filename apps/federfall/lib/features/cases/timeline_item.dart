@@ -108,6 +108,54 @@ class TimelineItem extends StatelessWidget {
   }
 }
 
+/// The overflow menu on a timeline tile's trailing action: an edit item,
+/// optional [leadingItems]/[middleItems] for entry-specific actions (e.g. a
+/// "log dose" or "mark done"), and an optional delete item — [onDelete] is
+/// null (and thus omitted) when the current user isn't allowed to delete.
+class TimelineEntryMenu extends StatelessWidget {
+  const TimelineEntryMenu({
+    required this.editLabel,
+    required this.onEdit,
+    this.tooltip,
+    this.deleteLabel,
+    this.onDelete,
+    this.leadingItems = const [],
+    this.middleItems = const [],
+    super.key,
+  });
+
+  final String editLabel;
+  final VoidCallback onEdit;
+
+  /// Defaults to [editLabel] when omitted.
+  final String? tooltip;
+  final String? deleteLabel;
+  final VoidCallback? onDelete;
+
+  /// Items shown before the edit item (e.g. a primary "log dose" action).
+  final List<PopupMenuEntry<void>> leadingItems;
+
+  /// Items shown between the edit and delete items.
+  final List<PopupMenuEntry<void>> middleItems;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<void>(
+      icon: const Icon(Icons.more_vert),
+      iconSize: 20,
+      padding: EdgeInsets.zero,
+      tooltip: tooltip ?? editLabel,
+      itemBuilder: (context) => [
+        ...leadingItems,
+        PopupMenuItem(onTap: onEdit, child: Text(editLabel)),
+        ...middleItems,
+        if (onDelete != null)
+          PopupMenuItem(onTap: onDelete, child: Text(deleteLabel!)),
+      ],
+    );
+  }
+}
+
 /// Minimum accessible tap target (Material) for the trailing action.
 const double _actionTargetSize = 48;
 

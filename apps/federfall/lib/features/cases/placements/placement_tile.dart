@@ -27,31 +27,19 @@ class PlacementTile extends ConsumerWidget {
   final bool canEdit;
   final bool isLast;
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.placementDeleteTitle),
-        content: Text(l10n.placementDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.placementDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.placementDeleteTitle,
+      message: l10n.placementDeleteConfirm,
+      confirmLabel: l10n.placementDeleteAction,
+      action: () async {
+        final repo = await ref.read(placementsRepositoryProvider.future);
+        await repo.delete(placement.id);
+        ref.invalidate(caseBundleProvider(medicalCase.id));
+      },
     );
-    if (ok != true || !context.mounted) return;
-    await runQuickAction(context, () async {
-      final repo = await ref.read(placementsRepositoryProvider.future);
-      await repo.delete(placement.id);
-      ref.invalidate(caseBundleProvider(medicalCase.id));
-    });
   }
 
   @override
@@ -85,25 +73,16 @@ class PlacementTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
-          ? PopupMenuButton<void>(
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              padding: EdgeInsets.zero,
+          ? TimelineEntryMenu(
+              editLabel: l10n.placementEditAction,
               tooltip: l10n.placementMenuTooltip,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  onTap: () => showPlacementSheet(
-                    context,
-                    medicalCase: medicalCase,
-                    placement: placement,
-                  ),
-                  child: Text(l10n.placementEditAction),
-                ),
-                PopupMenuItem(
-                  onTap: () => _delete(context, ref),
-                  child: Text(l10n.placementDeleteAction),
-                ),
-              ],
+              onEdit: () => showPlacementSheet(
+                context,
+                medicalCase: medicalCase,
+                placement: placement,
+              ),
+              deleteLabel: l10n.placementDeleteAction,
+              onDelete: () => _delete(context, ref),
             )
           : null,
       child: Column(

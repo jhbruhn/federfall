@@ -40,33 +40,21 @@ class FollowUpTile extends ConsumerWidget {
           ..invalidate(worklistSourceProvider);
       });
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.followUpDeleteTitle),
-        content: Text(l10n.followUpDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.followUpDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.followUpDeleteTitle,
+      message: l10n.followUpDeleteConfirm,
+      confirmLabel: l10n.followUpDeleteAction,
+      action: () async {
+        final repo = await ref.read(followUpsRepositoryProvider.future);
+        await repo.delete(followUp.id);
+        ref
+          ..invalidate(caseBundleProvider(caseId))
+          ..invalidate(worklistSourceProvider);
+      },
     );
-    if (confirmed != true || !context.mounted) return;
-    await runQuickAction(context, () async {
-      final repo = await ref.read(followUpsRepositoryProvider.future);
-      await repo.delete(followUp.id);
-      ref
-        ..invalidate(caseBundleProvider(caseId))
-        ..invalidate(worklistSourceProvider);
-    });
   }
 
   @override
@@ -86,14 +74,22 @@ class FollowUpTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, due),
       isLast: isLast,
       trailing: canEdit
-          ? _Menu(
-              done: done,
+          ? TimelineEntryMenu(
+              editLabel: l10n.followUpEditAction,
               onEdit: () => showFollowUpSheet(
                 context,
                 caseId: caseId,
                 followUp: followUp,
               ),
-              onToggleDone: () => _toggleDone(context, ref),
+              middleItems: [
+                PopupMenuItem(
+                  onTap: () => _toggleDone(context, ref),
+                  child: Text(
+                    done ? l10n.followUpReopen : l10n.followUpMarkDone,
+                  ),
+                ),
+              ],
+              deleteLabel: l10n.followUpDeleteAction,
               onDelete: () => _delete(context, ref),
             )
           : null,
@@ -124,39 +120,6 @@ class FollowUpTile extends ConsumerWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-class _Menu extends StatelessWidget {
-  const _Menu({
-    required this.done,
-    required this.onEdit,
-    required this.onToggleDone,
-    required this.onDelete,
-  });
-
-  final bool done;
-  final VoidCallback onEdit;
-  final VoidCallback onToggleDone;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return PopupMenuButton<void>(
-      icon: const Icon(Icons.more_vert),
-      iconSize: 20,
-      padding: EdgeInsets.zero,
-      tooltip: l10n.followUpEditAction,
-      itemBuilder: (context) => [
-        PopupMenuItem(onTap: onEdit, child: Text(l10n.followUpEditAction)),
-        PopupMenuItem(
-          onTap: onToggleDone,
-          child: Text(done ? l10n.followUpReopen : l10n.followUpMarkDone),
-        ),
-        PopupMenuItem(onTap: onDelete, child: Text(l10n.followUpDeleteAction)),
-      ],
     );
   }
 }

@@ -25,3 +25,35 @@ Future<void> runQuickAction(
     );
   }
 }
+
+/// Shows a Cancel/confirm [AlertDialog] and, once confirmed, runs [action] via
+/// [runQuickAction]. The single confirm-then-delete flow every case-timeline
+/// tile's delete affordance repeats.
+Future<void> confirmAndDelete(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  required Future<void> Function() action,
+}) async {
+  final l10n = context.l10n;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(l10n.actionCancel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(confirmLabel),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+  await runQuickAction(context, action);
+}

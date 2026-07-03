@@ -32,32 +32,20 @@ class ExamTile extends ConsumerWidget {
   final bool canEdit;
   final bool isLast;
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.examDeleteTitle),
-        content: Text(l10n.examDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.examDeleteAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
     // Deleting the exam cascades its findings server-side (cascadeDelete).
-    await runQuickAction(context, () async {
-      final repo = await ref.read(examsRepositoryProvider.future);
-      await repo.delete(exam.id);
-      ref.invalidate(caseBundleProvider(caseId));
-    });
+    return confirmAndDelete(
+      context,
+      title: l10n.examDeleteTitle,
+      message: l10n.examDeleteConfirm,
+      confirmLabel: l10n.examDeleteAction,
+      action: () async {
+        final repo = await ref.read(examsRepositoryProvider.future);
+        await repo.delete(exam.id);
+        ref.invalidate(caseBundleProvider(caseId));
+      },
+    );
   }
 
   @override
@@ -105,7 +93,8 @@ class ExamTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, at),
       isLast: isLast,
       trailing: canEdit
-          ? _Menu(
+          ? TimelineEntryMenu(
+              editLabel: l10n.examEditAction,
               onEdit: () => showExamSheet(
                 context,
                 caseId: caseId,
@@ -113,6 +102,7 @@ class ExamTile extends ConsumerWidget {
                 exam: exam,
                 findings: findings,
               ),
+              deleteLabel: l10n.examDeleteAction,
               onDelete: () => _delete(context, ref),
             )
           : null,
@@ -196,28 +186,6 @@ class _Fact extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _Menu extends StatelessWidget {
-  const _Menu({required this.onEdit, required this.onDelete});
-
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return PopupMenuButton<void>(
-      icon: const Icon(Icons.more_vert),
-      iconSize: 20,
-      padding: EdgeInsets.zero,
-      tooltip: l10n.examEditAction,
-      itemBuilder: (context) => [
-        PopupMenuItem(onTap: onEdit, child: Text(l10n.examEditAction)),
-        PopupMenuItem(onTap: onDelete, child: Text(l10n.examDeleteAction)),
-      ],
     );
   }
 }

@@ -23,3 +23,4 @@ export 'widgets/map_attribution.dart';
 export 'widgets/map_tile_layer.dart';
 export 'widgets/primary_button.dart';
 export 'widgets/staged_photos.dart';
+export 'widgets/tag_chip.dart';

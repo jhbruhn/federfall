@@ -37,32 +37,19 @@ class ConditionEntryTile extends ConsumerWidget {
         initialLabel: code?.label,
       );
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.conditionDeleteTitle),
-        content: Text(l10n.conditionDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.conditionDeleteAction),
-          ),
-        ],
-      ),
+    return confirmAndDelete(
+      context,
+      title: l10n.conditionDeleteTitle,
+      message: l10n.conditionDeleteConfirm,
+      confirmLabel: l10n.conditionDeleteAction,
+      action: () async {
+        final repo = await ref.read(caseConditionsRepositoryProvider.future);
+        await repo.delete(entry.id);
+        ref.invalidate(caseBundleProvider(caseId));
+      },
     );
-    if (confirmed != true || !context.mounted) return;
-
-    await runQuickAction(context, () async {
-      final repo = await ref.read(caseConditionsRepositoryProvider.future);
-      await repo.delete(entry.id);
-      ref.invalidate(caseBundleProvider(caseId));
-    });
   }
 
   @override
@@ -82,21 +69,11 @@ class ConditionEntryTile extends ConsumerWidget {
       date: formatEventDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
-          ? PopupMenuButton<void>(
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              padding: EdgeInsets.zero,
-              tooltip: l10n.conditionEditAction,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  onTap: () => _edit(context, code),
-                  child: Text(l10n.conditionEditAction),
-                ),
-                PopupMenuItem(
-                  onTap: () => _delete(context, ref),
-                  child: Text(l10n.conditionDeleteAction),
-                ),
-              ],
+          ? TimelineEntryMenu(
+              editLabel: l10n.conditionEditAction,
+              onEdit: () => _edit(context, code),
+              deleteLabel: l10n.conditionDeleteAction,
+              onDelete: () => _delete(context, ref),
             )
           : null,
       child: Column(
@@ -110,9 +87,9 @@ class ConditionEntryTile extends ConsumerWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               if (entry.certainty case final c?)
-                _Tag(label: certaintyLabel(l10n, c)),
+                TagChip(label: certaintyLabel(l10n, c)),
               if (code?.isNotifiable ?? false)
-                _Tag(
+                TagChip(
                   label: l10n.conditionNotifiable,
                   color: theme.colorScheme.errorContainer,
                   onColor: theme.colorScheme.onErrorContainer,
@@ -131,36 +108,6 @@ class ConditionEntryTile extends ConsumerWidget {
             Text(notes, style: theme.textTheme.bodyMedium),
           ],
         ],
-      ),
-    );
-  }
-}
-
-/// A small rounded tag (certainty / notifiable).
-class _Tag extends StatelessWidget {
-  const _Tag({required this.label, this.color, this.onColor});
-
-  final String label;
-  final Color? color;
-  final Color? onColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final bg = color ?? theme.colorScheme.secondaryContainer;
-    final fg = onColor ?? theme.colorScheme.onSecondaryContainer;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(color: fg),
       ),
     );
   }
