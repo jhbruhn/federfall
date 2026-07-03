@@ -39,5 +39,9 @@
        the backend sends at script-src 'self', no 'unsafe-inline'
        (backend/pocketbase/pb_hooks/web_headers.pb.js). -->
   <script src="flutter_bootstrap.js" async></script>
+
+  <!-- Registers our own service worker (web/sw.js) — Flutter's own is a
+       deprecated no-op stub, see web/register_sw.js for why this exists. -->
+  <script src="register_sw.js" defer></script>
 </body>
 </html>
