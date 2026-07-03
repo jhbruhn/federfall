@@ -25,21 +25,22 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      # Uses the default GITHUB_TOKEN (matches this org's other release-please
-      # setups, e.g. OpenEnergyTwin/protocol-adapter, jhbruhn/omgiavc-firmware)
-      # — no PAT. Trade-off: GitHub never triggers downstream workflow runs
-      # for GITHUB_TOKEN-authored events, so the release PR this opens won't
-      # get ci.yml's `pull_request` checks. Accepted: the PR only touches
-      # version/CHANGELOG files, and the underlying commits already passed CI
-      # individually when they landed on main. The docker/android jobs below
-      # don't depend on that PR being checked — they're gated via `needs` in
-      # this same workflow run, off release-please's own `release_created`
-      # output, triggered by the ordinary push a human merge produces.
+      # Explicit PAT, NOT the default GITHUB_TOKEN: GitHub never triggers
+      # downstream workflow runs for events authored by the default token
+      # (anti-recursion). With the default token, the release PR this opens
+      # would never get ci.yml's `pull_request` checks run against it. Uses a
+      # fine-grained PAT (Contents + Pull requests: Read & write) so the PR is
+      # attributed to a real account instead of github-actions[bot].
+      # For the same reason, always merge that PR by hand — an automated
+      # merge using the default token would make the resulting push to main
+      # invisible to this workflow's own `push` trigger, so the docker/android
+      # jobs below would silently never run.
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
   docker:
     name: Build & publish container image
