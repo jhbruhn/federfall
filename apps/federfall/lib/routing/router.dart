@@ -379,12 +379,31 @@ String? _gate(Ref ref, Uri uri) {
 
   // Remember this location as the one to reopen on the next cold start
   // (federfall-7ev8), including one forced by Android reclaiming the process
-  // in the background. Skipped for the create-case form, which holds no
-  // resumable draft — restoring into a blank one would only confuse.
-  if (location != AppRoutes.newCase) {
+  // in the background — but only for genuine, resumable surfaces (see
+  // [_isResumableLocation]).
+  if (_isResumableLocation(location)) {
     unawaited(ref.read(lastRouteStorageProvider).write(uri.toString()));
   }
   return null;
+}
+
+/// Whether [location] is worth reopening on the next cold start.
+///
+/// Overlay routes pushed over the shell — the profile, the management hub, the
+/// statistics screen — are top-level routes with no shell beneath them, so a
+/// cold-start restore lands on one with an *empty* back stack and no back
+/// affordance, stranding the user there. The create-case form is excluded for
+/// a different reason: it holds no resumable draft, so restoring into a blank
+/// one would only confuse.
+bool _isResumableLocation(String location) {
+  if (location == AppRoutes.newCase) return false;
+  if (location == AppRoutes.profile) return false;
+  if (location == AppRoutes.statistics) return false;
+  if (location == AppRoutes.admin ||
+      location.startsWith('${AppRoutes.admin}/')) {
+    return false;
+  }
+  return true;
 }
 
 /// Redirects to [gatePath], remembering where the user was actually headed:

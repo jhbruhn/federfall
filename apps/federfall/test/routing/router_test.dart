@@ -460,4 +460,42 @@ void main() {
       '/cases/c1',
     );
   });
+
+  testWidgets('the profile overlay is not persisted as the reopen location '
+      '(so a cold start never strands the user there)', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigControllerProvider.overrideWith(
+          () => _FakeServerConfig(
+            const ServerConfig.configured('https://x.example'),
+          ),
+        ),
+        authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => const CasesBrowserData(
+            cases: [],
+            animalsById: {},
+            myUserId: 'u1',
+          ),
+        ),
+        currentUserProvider.overrideWith((ref) async => null),
+        caseByIdProvider(
+          'c1',
+        ).overrideWith((ref) async => const Case(id: 'c1', animal: 'a1')),
+      ],
+    );
+    await _pumpContainer(tester, container);
+
+    final router = container.read(routerProvider)
+      ..go(AppRoutes.caseDetail('c1'));
+    await tester.pumpAndSettle();
+    // Pushing the profile over the shell must not clobber the resumable case.
+    router.go(AppRoutes.profile);
+    await tester.pumpAndSettle();
+
+    expect(
+      await container.read(lastRouteStorageProvider).read(),
+      '/cases/c1',
+    );
+  });
 }
