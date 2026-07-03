@@ -89,7 +89,7 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
 
   @override
   Future<T> getOne(String id, {String? expand}) =>
-      _guard(() async => fromRecord(await service.getOne(id, expand: expand)));
+      guard(() async => fromRecord(await service.getOne(id, expand: expand)));
 
   @override
   Future<List<T>> list({PbFilter? filter, String? sort, String? expand}) async {
@@ -100,7 +100,7 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
     final all = <T>[];
     var page = 1;
     while (true) {
-      final items = await _guard(() async {
+      final items = await guard(() async {
         final result = await service.getList(
           page: page,
           perPage: _listPageSize,
@@ -119,7 +119,7 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
 
   /// Returns the first record matching [filter], or `null` if none.
   Future<T?> firstWhere(PbFilter filter, {String? expand}) {
-    return _guard(() async {
+    return guard(() async {
       try {
         final r = await service.getFirstListItem(
           filter.expression,
@@ -161,7 +161,9 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
   /// still commit the write after the timeout fires. Such timeouts surface as
   /// [RepositoryErrorKind.unknownOutcome] — not `network` — so the UI never
   /// tells the user "not reached, retry" when a retry could duplicate data.
-  Future<R> _guard<R>(Future<R> Function() op, {bool write = false}) async {
+  ///
+  /// Public so typed subclasses wrap their bespoke queries the same way.
+  Future<R> guard<R>(Future<R> Function() op, {bool write = false}) async {
     try {
       return await op().timeout(networkTimeout);
     } on TimeoutException {
@@ -200,7 +202,7 @@ abstract class PbRepository<T> extends PbReadOnlyRepository<T>
   });
 
   @override
-  Future<T> create(Map<String, dynamic> body) => _guard(
+  Future<T> create(Map<String, dynamic> body) => guard(
     () async => fromRecord(await service.create(body: body)),
     write: true,
   );
@@ -213,7 +215,7 @@ abstract class PbRepository<T> extends PbReadOnlyRepository<T>
     Map<String, dynamic> body,
     List<http.MultipartFile> files,
   ) =>
-      _guard(
+      guard(
         () async => fromRecord(await service.create(body: body, files: files)),
         write: true,
       );
@@ -227,19 +229,19 @@ abstract class PbRepository<T> extends PbReadOnlyRepository<T>
     Map<String, dynamic> body,
     List<http.MultipartFile> files,
   ) =>
-      _guard(
+      guard(
         () async =>
             fromRecord(await service.update(id, body: body, files: files)),
         write: true,
       );
 
   @override
-  Future<T> update(String id, Map<String, dynamic> body) => _guard(
+  Future<T> update(String id, Map<String, dynamic> body) => guard(
     () async => fromRecord(await service.update(id, body: body)),
     write: true,
   );
 
   @override
   Future<void> delete(String id) =>
-      _guard(() async => service.delete(id), write: true);
+      guard(() async => service.delete(id), write: true);
 }

@@ -1,4 +1,5 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -6,13 +7,11 @@ part 'conditions_providers.g.dart';
 
 /// Diagnoses recorded on a case, newest first (FED-4.5).
 @riverpod
-Future<List<CaseCondition>> caseConditionsForCase(
-  Ref ref,
-  String caseId,
-) async {
-  final repo = await ref.watch(caseConditionsRepositoryProvider.future);
-  return repo.forCase(caseId);
-}
+Future<List<CaseCondition>> caseConditionsForCase(Ref ref, String caseId) =>
+    caseBundleList(ref, caseId, (b) => b.caseConditions, () async {
+      final repo = await ref.watch(caseConditionsRepositoryProvider.future);
+      return repo.forCase(caseId);
+    });
 
 /// The full condition code list, label-sorted. Used to populate the picker
 /// (active entries only) and to resolve a stored condition id → its label and

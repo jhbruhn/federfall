@@ -107,6 +107,28 @@ void main() {
     when(() => administrations.forCase(any())).thenAnswer((_) async => []);
     when(() => markings.forAnimal(any())).thenAnswer((_) async => []);
     when(() => cases.getOne(any())).thenAnswer((_) async => medicalCase);
+    // The detail reads everything off the case bundle (federfall-kh0u);
+    // assemble it from the leaf repo mocks, so the per-test `forCase` /
+    // `getOne` stubs keep driving what the screen shows.
+    when(() => cases.bundle(any())).thenAnswer((inv) async {
+      final id = inv.positionalArguments.single as String;
+      final c = await cases.getOne(id);
+      return CaseBundle(
+        medicalCase: c,
+        journal: await journal.forCase(id),
+        weights: await weights.forCase(id),
+        caseConditions: await caseConditions.forCase(id),
+        medications: await medications.forCase(id),
+        administrations: await administrations.forCase(id),
+        markings: await markings.forAnimal(c.animal),
+        placements: await placements.forCase(id),
+        dispositions: await dispositions.forCase(id),
+        followUps: await followUps.forCase(id),
+        exams: await exams.forCase(id),
+        examFindings: await examFindings.forCase(id),
+        quarantines: await quarantine.forCase(id),
+      );
+    });
     when(() => animals.getOne(any())).thenAnswer(
       (_) async =>
           const Animal(id: 'a1', species: 'Stadttaube', name: 'Pauli'),

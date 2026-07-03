@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -140,7 +141,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
         await repo.update(plan.id, body);
       }
 
-      ref.invalidate(medicationsForCaseProvider(widget.caseId));
+      ref.invalidate(caseBundleProvider(widget.caseId));
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {
       if (!mounted) return;

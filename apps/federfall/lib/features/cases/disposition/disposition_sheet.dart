@@ -6,7 +6,6 @@ import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
-import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/location/location_picker_screen.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -220,8 +219,7 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
   /// show them.
   void _refresh() {
     ref
-      ..invalidate(dispositionsForCaseProvider(widget.caseId))
-      ..invalidate(caseByIdProvider(widget.caseId))
+      ..invalidate(caseBundleProvider(widget.caseId))
       ..invalidate(casesBrowserDataProvider)
       ..invalidate(dashboardSummaryProvider)
       ..invalidate(animalsRegistryProvider);

@@ -66,7 +66,7 @@ class CaseDetailScreen extends ConsumerWidget {
       ),
       body: AsyncValueView<Case>(
         value: caseAsync,
-        onRetry: () => ref.invalidate(caseByIdProvider(caseId)),
+        onRetry: () => ref.invalidate(caseBundleProvider(caseId)),
         // Top progress bar rather than a centred spinner, so the header doesn't
         // appear to jump from centre to its final top-left position on load.
         loading: const LinearProgressIndicator(),
@@ -275,7 +275,7 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
       final repo = await ref.read(casesRepositoryProvider.future);
       await repo.update(widget.medicalCase.id, {'status': status.wire});
       ref
-        ..invalidate(caseByIdProvider(widget.medicalCase.id))
+        ..invalidate(caseBundleProvider(widget.medicalCase.id))
         ..invalidate(casesBrowserDataProvider)
         ..invalidate(dashboardSummaryProvider);
     } on Object catch (e, stackTrace) {

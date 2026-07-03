@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -138,6 +139,9 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet> with DiscardGuard {
       }
 
       ref.invalidate(markingsForAnimalProvider(widget.animalId));
+      if (widget.caseId case final caseId?) {
+        ref.invalidate(caseBundleProvider(caseId));
+      }
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {
       if (!mounted) return;

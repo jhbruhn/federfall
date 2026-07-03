@@ -1,5 +1,6 @@
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
@@ -40,7 +41,9 @@ class MarkingTile extends ConsumerWidget {
         'removed_at': DateTime.now().toUtc().toIso8601String(),
         'removed_reason': reason,
       });
-      ref.invalidate(markingsForAnimalProvider(marking.animal));
+      ref
+        ..invalidate(caseBundleProvider(caseId))
+        ..invalidate(markingsForAnimalProvider(marking.animal));
     });
   }
 
@@ -67,7 +70,9 @@ class MarkingTile extends ConsumerWidget {
     await runQuickAction(context, () async {
       final repo = await ref.read(markingsRepositoryProvider.future);
       await repo.delete(marking.id);
-      ref.invalidate(markingsForAnimalProvider(marking.animal));
+      ref
+        ..invalidate(caseBundleProvider(caseId))
+        ..invalidate(markingsForAnimalProvider(marking.animal));
     });
   }
 

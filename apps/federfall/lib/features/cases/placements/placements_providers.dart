@@ -1,4 +1,5 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -6,10 +7,11 @@ part 'placements_providers.g.dart';
 
 /// Placement / handoff history for a case, newest move first (FED-4.9).
 @riverpod
-Future<List<Placement>> placementsForCase(Ref ref, String caseId) async {
-  final repo = await ref.watch(placementsRepositoryProvider.future);
-  return repo.forCase(caseId);
-}
+Future<List<Placement>> placementsForCase(Ref ref, String caseId) =>
+    caseBundleList(ref, caseId, (b) => b.placements, () async {
+      final repo = await ref.watch(placementsRepositoryProvider.future);
+      return repo.forCase(caseId);
+    });
 
 /// Active staff members of the org, name-sorted — the carer/handoff pickers.
 @riverpod

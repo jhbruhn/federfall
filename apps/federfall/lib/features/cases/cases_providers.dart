@@ -7,11 +7,44 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'cases_providers.g.dart';
 
-/// A single case by id (case detail).
+/// The case detail's whole data set — case, animal, finder and all twelve
+/// timeline sources — in ONE request (federfall-kh0u). Every per-case provider
+/// derives from this, so opening a case costs a single round trip instead of
+/// ~17, and a realtime event refetches once instead of per collection.
+///
+/// This is the ONLY provider to invalidate after a case-scoped write or
+/// realtime event: invalidating a derived provider merely re-reads the cached
+/// bundle.
+@riverpod
+Future<CaseBundle> caseBundle(Ref ref, String caseId) async {
+  final repo = await ref.watch(casesRepositoryProvider.future);
+  return repo.bundle(caseId);
+}
+
+/// A single case by id (case detail) — served from the [caseBundle], so the
+/// header and the timeline share one fetch. Refresh by invalidating
+/// [caseBundleProvider], not this.
 @riverpod
 Future<Case> caseById(Ref ref, String id) async {
-  final repo = await ref.watch(casesRepositoryProvider.future);
-  return repo.getOne(id);
+  final bundle = await ref.watch(caseBundleProvider(id).future);
+  return bundle.medicalCase;
+}
+
+/// Serves one timeline list off the [caseBundle]. PocketBase truncates each
+/// expanded relation at [pbExpandListCap]; a list of exactly that length may
+/// be incomplete, so only then does [fetchAll] re-run the paged
+/// per-collection query. The per-case leaf providers are thin wrappers over
+/// this, keeping the fallback rule in one place.
+Future<List<T>> caseBundleList<T>(
+  Ref ref,
+  String caseId,
+  List<T> Function(CaseBundle) pick,
+  Future<List<T>> Function() fetchAll,
+) async {
+  final bundle = await ref.watch(caseBundleProvider(caseId).future);
+  final items = pick(bundle);
+  if (items.length < pbExpandListCap) return items;
+  return fetchAll();
 }
 
 /// Whether the current user may write to case [caseId] (edit it and its

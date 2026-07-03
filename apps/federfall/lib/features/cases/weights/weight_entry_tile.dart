@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
@@ -60,7 +61,7 @@ class WeightEntryTile extends ConsumerWidget {
     await runQuickAction(context, () async {
       final repo = await ref.read(weightsRepositoryProvider.future);
       await repo.delete(weight.id);
-      ref.invalidate(weightsForCaseProvider(caseId));
+      ref.invalidate(caseBundleProvider(caseId));
     });
   }
 

@@ -1,4 +1,5 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -8,10 +9,11 @@ part 'weights_providers.g.dart';
 /// by measurement date so the same list feeds both the trend chart and — once
 /// re-sorted — the case chronology.
 @riverpod
-Future<List<Weight>> weightsForCase(Ref ref, String caseId) async {
-  final repo = await ref.watch(weightsRepositoryProvider.future);
-  return repo.forCase(caseId);
-}
+Future<List<Weight>> weightsForCase(Ref ref, String caseId) =>
+    caseBundleList(ref, caseId, (b) => b.weights, () async {
+      final repo = await ref.watch(weightsRepositoryProvider.future);
+      return repo.forCase(caseId);
+    });
 
 /// Every weight for an animal across its whole life (5yg.5), oldest first —
 /// the life-long trend, independent of any single case.

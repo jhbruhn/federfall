@@ -26,6 +26,12 @@ abstract interface class CasesRepository implements Repository<Case> {
   /// The case with the given per-year number, or `null`.
   Future<Case?> byCaseNumber(String caseNumber);
 
+  /// The case detail's whole data set in ONE request (federfall-kh0u): the
+  /// case plus its animal, finder and all twelve timeline collections via
+  /// relation expand ([caseBundleExpand]). Expanded rows honor each
+  /// collection's view rule, so this changes nothing about access control.
+  Future<CaseBundle> bundle(String id);
+
   /// Atomic case intake via `POST /api/federfall/intake`: creates the animal
   /// (or reuses `payload['animal']`), the optional finder and the case — plus
   /// an intake weight and a quarantine override when given — in one
@@ -76,6 +82,13 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   @override
   Future<Case?> byCaseNumber(String caseNumber) => firstWhere(
     filterExpr('case_number = {:n}', {'n': caseNumber}),
+  );
+
+  @override
+  Future<CaseBundle> bundle(String id) => guard(
+    () async => CaseBundle.fromRecord(
+      await service.getOne(id, expand: caseBundleExpand),
+    ),
   );
 
   @override

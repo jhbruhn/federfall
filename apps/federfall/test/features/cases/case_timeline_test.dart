@@ -1,5 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart' hide Finder;
@@ -81,6 +82,27 @@ void main() {
   }) async {
     final container = ProviderContainer(
       overrides: [
+        // The timeline reads everything off the case bundle (federfall-kh0u);
+        // assemble it from the leaf repo mocks, so the per-test `forCase`
+        // stubs keep driving what the chronology shows.
+        caseBundleProvider(medicalCase.id).overrideWith((ref) async {
+          final id = medicalCase.id;
+          return CaseBundle(
+            medicalCase: medicalCase,
+            journal: await journal.forCase(id),
+            weights: await weights.forCase(id),
+            caseConditions: await caseConditions.forCase(id),
+            medications: await medications.forCase(id),
+            administrations: await administrations.forCase(id),
+            markings: await markings.forAnimal(medicalCase.animal),
+            placements: await placements.forCase(id),
+            dispositions: await dispositions.forCase(id),
+            followUps: await followUps.forCase(id),
+            exams: await exams.forCase(id),
+            examFindings: await examFindings.forCase(id),
+            quarantines: await quarantine.forCase(id),
+          );
+        }),
         journalRepositoryProvider.overrideWith((ref) async => journal),
         weightsRepositoryProvider.overrideWith((ref) async => weights),
         caseConditionsRepositoryProvider.overrideWith(

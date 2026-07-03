@@ -147,7 +147,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
         'intake_notes': _notes.text.trim(),
       });
       ref
-        ..invalidate(caseByIdProvider(widget.medicalCase.id))
+        ..invalidate(caseBundleProvider(widget.medicalCase.id))
         ..invalidate(casesBrowserDataProvider)
         ..invalidate(dashboardSummaryProvider);
       if (!mounted) return;

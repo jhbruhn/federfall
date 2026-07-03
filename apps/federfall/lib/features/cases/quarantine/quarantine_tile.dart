@@ -1,5 +1,6 @@
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_sheet.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
@@ -49,7 +50,7 @@ class QuarantineTile extends ConsumerWidget {
           'quarantine_until': DateTime.now().toUtc().toIso8601String(),
         });
         ref
-          ..invalidate(quarantineForCaseProvider(caseId))
+          ..invalidate(caseBundleProvider(caseId))
           ..invalidate(caseQuarantineUntilProvider);
       });
 
@@ -78,7 +79,7 @@ class QuarantineTile extends ConsumerWidget {
       final repo = await ref.read(quarantineRepositoryProvider.future);
       await repo.delete(entry.id);
       ref
-        ..invalidate(quarantineForCaseProvider(caseId))
+        ..invalidate(caseBundleProvider(caseId))
         ..invalidate(caseQuarantineUntilProvider);
     });
   }

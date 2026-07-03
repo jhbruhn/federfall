@@ -1,7 +1,7 @@
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/follow_ups/follow_up_sheet.dart';
-import 'package:federfall/features/cases/follow_ups/follow_ups_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -36,7 +36,7 @@ class FollowUpTile extends ConsumerWidget {
               : '',
         });
         ref
-          ..invalidate(followUpsForCaseProvider(caseId))
+          ..invalidate(caseBundleProvider(caseId))
           ..invalidate(worklistSourceProvider);
       });
 
@@ -64,7 +64,7 @@ class FollowUpTile extends ConsumerWidget {
       final repo = await ref.read(followUpsRepositoryProvider.future);
       await repo.delete(followUp.id);
       ref
-        ..invalidate(followUpsForCaseProvider(caseId))
+        ..invalidate(caseBundleProvider(caseId))
         ..invalidate(worklistSourceProvider);
     });
   }

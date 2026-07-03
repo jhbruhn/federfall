@@ -2,8 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
-import 'package:federfall/features/cases/exams/exams_providers.dart';
-import 'package:federfall/features/cases/weights/weights_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -173,13 +172,8 @@ class _ExamSheetState extends ConsumerState<ExamSheet> with DiscardGuard {
         ],
         if (weight != null && weight > 0) 'weight_g': weight,
       });
-      if (weight != null && weight > 0) {
-        ref.invalidate(weightsForCaseProvider(widget.caseId));
-      }
-
-      ref
-        ..invalidate(examsForCaseProvider(widget.caseId))
-        ..invalidate(examFindingsForCaseProvider(widget.caseId));
+      // One bundle refetch covers the exam, its findings and the exam weight.
+      ref.invalidate(caseBundleProvider(widget.caseId));
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {
       if (!mounted) return;

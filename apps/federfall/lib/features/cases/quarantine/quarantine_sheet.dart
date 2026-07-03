@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -139,7 +140,7 @@ class _QuarantineSheetState extends ConsumerState<QuarantineSheet>
       }
 
       ref
-        ..invalidate(quarantineForCaseProvider(widget.caseId))
+        ..invalidate(caseBundleProvider(widget.caseId))
         ..invalidate(caseQuarantineUntilProvider);
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {

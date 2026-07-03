@@ -1,5 +1,6 @@
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/placements/placement_sheet.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
@@ -49,7 +50,7 @@ class PlacementTile extends ConsumerWidget {
     await runQuickAction(context, () async {
       final repo = await ref.read(placementsRepositoryProvider.future);
       await repo.delete(placement.id);
-      ref.invalidate(placementsForCaseProvider(medicalCase.id));
+      ref.invalidate(caseBundleProvider(medicalCase.id));
     });
   }
 

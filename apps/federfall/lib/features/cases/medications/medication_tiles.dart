@@ -1,6 +1,7 @@
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
@@ -52,7 +53,7 @@ class PrescriptionTile extends ConsumerWidget {
     await runQuickAction(context, () async {
       final repo = await ref.read(medicationsRepositoryProvider.future);
       await repo.delete(plan.id);
-      ref.invalidate(medicationsForCaseProvider(caseId));
+      ref.invalidate(caseBundleProvider(caseId));
     });
   }
 
@@ -218,7 +219,7 @@ class AdministrationTile extends ConsumerWidget {
       final repo =
           await ref.read(medicationAdministrationsRepositoryProvider.future);
       await repo.delete(administration.id);
-      ref.invalidate(administrationsForCaseProvider(caseId));
+      ref.invalidate(caseBundleProvider(caseId));
     });
   }
 

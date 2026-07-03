@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -140,8 +141,8 @@ class _WeightEntrySheetState extends ConsumerState<WeightEntrySheet>
       }
 
       ref.invalidate(weightsForAnimalProvider(widget.animalId));
-      if (widget.caseId != null) {
-        ref.invalidate(weightsForCaseProvider(widget.caseId!));
+      if (widget.caseId case final caseId?) {
+        ref.invalidate(caseBundleProvider(caseId));
       }
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {

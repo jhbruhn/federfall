@@ -1,4 +1,5 @@
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/conditions/condition_entry_tile.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
@@ -26,29 +27,13 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Invalidates every provider the [CaseTimeline] reads for [caseId] (and the
-/// animal-scoped markings for [animalId]), so a pull-to-refresh or a realtime
-/// event rebuilds the whole chronology from the server. Kept here, next to the
-/// list of sources, so the two never drift. Driven from the [Ref] of the
-/// case-live notifier, which both the screen refresh and realtime go through.
-void invalidateCaseTimeline(
-  Ref ref, {
-  required String caseId,
-  required String animalId,
-}) {
-  ref
-    ..invalidate(journalForCaseProvider(caseId))
-    ..invalidate(weightsForCaseProvider(caseId))
-    ..invalidate(caseConditionsForCaseProvider(caseId))
-    ..invalidate(medicationsForCaseProvider(caseId))
-    ..invalidate(administrationsForCaseProvider(caseId))
-    ..invalidate(markingsForAnimalProvider(animalId))
-    ..invalidate(placementsForCaseProvider(caseId))
-    ..invalidate(dispositionsForCaseProvider(caseId))
-    ..invalidate(followUpsForCaseProvider(caseId))
-    ..invalidate(examsForCaseProvider(caseId))
-    ..invalidate(examFindingsForCaseProvider(caseId))
-    ..invalidate(quarantineForCaseProvider(caseId));
+/// Refetches everything the [CaseTimeline] (and the case header) shows, so a
+/// pull-to-refresh or a realtime event rebuilds the whole chronology from the
+/// server. Every per-case source derives from the one [caseBundleProvider]
+/// (federfall-kh0u), so this is a single request — invalidating a derived
+/// leaf provider would only re-read the cached bundle.
+void invalidateCaseTimeline(Ref ref, {required String caseId}) {
+  ref.invalidate(caseBundleProvider(caseId));
 }
 
 /// The case's single, unified chronology (FED-4.3 + FED-4.7): intake milestones
@@ -95,7 +80,7 @@ class CaseTimeline extends ConsumerWidget {
     final conditions = ref.watch(caseConditionsForCaseProvider(caseId));
     final meds = ref.watch(medicationsForCaseProvider(caseId));
     final doses = ref.watch(administrationsForCaseProvider(caseId));
-    final markings = ref.watch(markingsForAnimalProvider(medicalCase.animal));
+    final markings = ref.watch(markingsForCaseProvider(caseId));
     final placements = ref.watch(placementsForCaseProvider(caseId));
     final dispositions = ref.watch(dispositionsForCaseProvider(caseId));
     final followUps = ref.watch(followUpsForCaseProvider(caseId));

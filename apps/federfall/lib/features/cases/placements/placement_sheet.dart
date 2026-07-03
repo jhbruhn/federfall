@@ -218,12 +218,11 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
 
       if (handoff) {
         ref
-          ..invalidate(caseByIdProvider(caseId))
           ..invalidate(casesBrowserDataProvider)
           ..invalidate(dashboardSummaryProvider);
       }
 
-      ref.invalidate(placementsForCaseProvider(caseId));
+      ref.invalidate(caseBundleProvider(caseId));
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {
       if (!mounted) return;

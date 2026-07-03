@@ -73,18 +73,17 @@ class CaseLive extends _$CaseLive {
     });
   }
 
+  // One request: header, timeline and every other per-case provider derive
+  // from the case bundle (federfall-kh0u).
   void _refetch() {
-    invalidateCaseTimeline(ref, caseId: _caseId, animalId: _animalId);
-    ref.invalidate(caseByIdProvider(_caseId));
+    invalidateCaseTimeline(ref, caseId: _caseId);
   }
 
   /// Manual pull-to-refresh: rebuild the timeline and header, awaiting the case
   /// re-fetch so the refresh spinner lasts until the data is back.
   Future<void> refresh() async {
-    invalidateCaseTimeline(ref, caseId: _caseId, animalId: _animalId);
-    ref
-      ..invalidate(animalByIdProvider(_animalId))
-      ..invalidate(caseByIdProvider(_caseId));
+    invalidateCaseTimeline(ref, caseId: _caseId);
+    ref.invalidate(animalByIdProvider(_animalId));
     try {
       await ref.read(caseByIdProvider(_caseId).future);
     } on Object {

@@ -1,7 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
-import 'package:federfall/features/cases/follow_ups/follow_ups_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -105,7 +105,7 @@ class _FollowUpSheetState extends ConsumerState<FollowUpSheet>
       }
 
       ref
-        ..invalidate(followUpsForCaseProvider(widget.caseId))
+        ..invalidate(caseBundleProvider(widget.caseId))
         ..invalidate(worklistSourceProvider);
       if (mounted) Navigator.of(context).pop(true);
     } on RepositoryException catch (e) {

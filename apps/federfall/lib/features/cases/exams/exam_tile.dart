@@ -1,8 +1,8 @@
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/exams/exam_sheet.dart';
-import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -56,9 +56,7 @@ class ExamTile extends ConsumerWidget {
     await runQuickAction(context, () async {
       final repo = await ref.read(examsRepositoryProvider.future);
       await repo.delete(exam.id);
-      ref
-        ..invalidate(examsForCaseProvider(caseId))
-        ..invalidate(examFindingsForCaseProvider(caseId));
+      ref.invalidate(caseBundleProvider(caseId));
     });
   }
 

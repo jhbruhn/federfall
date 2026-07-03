@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
-import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -54,7 +54,7 @@ class JournalEntryTile extends ConsumerWidget {
     await runQuickAction(context, () async {
       final repo = await ref.read(journalRepositoryProvider.future);
       await repo.delete(entry.id);
-      ref.invalidate(journalForCaseProvider(caseId));
+      ref.invalidate(caseBundleProvider(caseId));
     });
   }
 

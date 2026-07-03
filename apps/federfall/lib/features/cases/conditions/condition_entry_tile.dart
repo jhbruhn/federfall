@@ -1,6 +1,7 @@
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/conditions/condition_entry_sheet.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
@@ -60,7 +61,7 @@ class ConditionEntryTile extends ConsumerWidget {
     await runQuickAction(context, () async {
       final repo = await ref.read(caseConditionsRepositoryProvider.future);
       await repo.delete(entry.id);
-      ref.invalidate(caseConditionsForCaseProvider(caseId));
+      ref.invalidate(caseBundleProvider(caseId));
     });
   }
 

@@ -1,16 +1,27 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'markings_providers.g.dart';
 
 /// All markings recorded for an animal across its lifetime, newest first
-/// (FED-4.10). Surfaced on the case timeline and in re-identification results.
+/// (FED-4.10) — the animal detail and re-identification source.
 @riverpod
 Future<List<Marking>> markingsForAnimal(Ref ref, String animalId) async {
   final repo = await ref.watch(markingsRepositoryProvider.future);
   return repo.forAnimal(animalId);
 }
+
+/// The same lifetime markings viewed from a case (the timeline source),
+/// served off the [caseBundle] so the case detail needs no extra request.
+@riverpod
+Future<List<Marking>> markingsForCase(Ref ref, String caseId) =>
+    caseBundleList(ref, caseId, (b) => b.markings, () async {
+      final bundle = await ref.watch(caseBundleProvider(caseId).future);
+      final repo = await ref.watch(markingsRepositoryProvider.future);
+      return repo.forAnimal(bundle.medicalCase.animal);
+    });
 
 /// Active marking codes (ring / chip / band) keyed by animal id, in record
 /// order. Shared lookup behind the animals-registry rows and the cases-browser
