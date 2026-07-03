@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:federfall/core/pocketbase/auth_token_storage.dart';
 import 'package:federfall/core/pocketbase/pocketbase_provider.dart';
+import 'package:federfall/core/pocketbase/user_agent_client.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,7 +25,11 @@ void main() {
     FakeAuthTokenStorage storage,
   ) async {
     final container = ProviderContainer(
-      overrides: [authTokenStorageProvider.overrideWithValue(storage)],
+      overrides: [
+        authTokenStorageProvider.overrideWithValue(storage),
+        // PackageInfo has no platform channel in unit tests.
+        userAgentProvider.overrideWith((ref) => 'federfall/test'),
+      ],
     );
     addTearDown(container.dispose);
     await container.read(serverConfigControllerProvider.future);

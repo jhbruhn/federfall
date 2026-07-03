@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall/core/pocketbase/user_agent_client.dart';
 import 'package:federfall/core/server/server_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -103,10 +104,13 @@ final class ProbeNotFederfall extends ServerProbeResult {
 /// networking.
 typedef ServerInfoProber = Future<Object?> Function(String baseUrl);
 
-Future<Object?> _defaultProber(String baseUrl) =>
-    PocketBase(baseUrl).send('/api/federfall/info').timeout(
-      const Duration(seconds: 8),
-    );
+Future<Object?> _defaultProber(String baseUrl) async {
+  final ua = await loadUserAgent();
+  return PocketBase(
+    baseUrl,
+    httpClientFactory: () => UserAgentClient(ua),
+  ).send('/api/federfall/info').timeout(const Duration(seconds: 8));
+}
 
 /// Validates a candidate server address before it is persisted (FED-3.0,
 /// federfall-7nf.1): normalise → fetch `/api/federfall/info` → require the

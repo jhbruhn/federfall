@@ -1,4 +1,5 @@
 import 'package:federfall/core/pocketbase/auth_token_storage.dart';
+import 'package:federfall/core/pocketbase/user_agent_client.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -33,6 +34,7 @@ Future<PocketBase> pocketBase(Ref ref) async {
 
   final storage = ref.watch(authTokenStorageProvider);
   final initial = await storage.read();
+  final ua = await ref.watch(userAgentProvider.future);
 
   final authStore = AsyncAuthStore(
     save: storage.write,
@@ -40,5 +42,9 @@ Future<PocketBase> pocketBase(Ref ref) async {
     initial: initial,
   );
 
-  return PocketBase(baseUrl, authStore: authStore);
+  return PocketBase(
+    baseUrl,
+    authStore: authStore,
+    httpClientFactory: () => UserAgentClient(ua),
+  );
 }
