@@ -87,7 +87,7 @@ jobs:
   android:
     name: Build & attach signed APK
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created && secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
