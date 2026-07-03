@@ -952,6 +952,18 @@ def main():
           and sh.get("Cross-Origin-Embedder-Policy") == "credentialless",
           f"{sh.get('Cross-Origin-Opener-Policy')}/{sh.get('Cross-Origin-Embedder-Policy')}")
 
+    # ── federfall-xvlw: Referrer-Policy + Permissions-Policy on the SPA ──────
+    check("SPA gets Referrer-Policy: same-origin",
+          sh.get("Referrer-Policy") == "same-origin", sh.get("Referrer-Policy"))
+    perms = sh.get("Permissions-Policy") or ""
+    check("SPA Permissions-Policy allows camera/geolocation for self only",
+          "camera=(self)" in perms and "geolocation=(self)" in perms, perms)
+    check("SPA Permissions-Policy denies microphone",
+          "microphone=()" in perms, perms)
+    check("uploaded files get NO Referrer/Permissions-Policy (unchanged)",
+          "Referrer-Policy" not in fh and "Permissions-Policy" not in fh,
+          f"{fh.get('Referrer-Policy')}/{fh.get('Permissions-Policy')}")
+
     # ── federfall-h5m: handoff derived from the placement record ────────────
     print("\n[atomic handoff via placement]")
     hc = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]

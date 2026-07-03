@@ -116,6 +116,16 @@ routerUse((e) => {
       h.set("Content-Security-Policy", csp);
     }
     h.set("X-Content-Type-Options", "nosniff");
+    // same-origin: cross-origin navigations get no Referer at all; same-origin
+    // ones still get the full URL (harmless — it's our own origin).
+    h.set("Referrer-Policy", "same-origin");
+    // Deny everything except the device features intake photo capture and
+    // location tagging actually use, and only for this origin (no iframes).
+    h.set(
+      "Permissions-Policy",
+      "camera=(self), geolocation=(self), microphone=(), " +
+        "payment=(), usb=(), magnetometer=(), gyroscope=()",
+    );
   }
   return e.next();
 });
