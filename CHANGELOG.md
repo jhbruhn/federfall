@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/jhbruhn/federfall/compare/v0.2.0...v0.2.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* **routing:** stop stranding users on the profile screen ([ca8a614](https://github.com/jhbruhn/federfall/commit/ca8a61461dd6733c337df21eaba4e773b8268f27))
+* **routing:** use go_router state restoration; fix cross-branch stranding ([f692a4f](https://github.com/jhbruhn/federfall/commit/f692a4f4d43211d6f80ffee7f6ecf88a79a955c7))
+
 ## [0.2.0](https://github.com/jhbruhn/federfall/compare/v0.1.2...v0.2.0) (2026-07-03)
 
 
