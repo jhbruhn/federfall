@@ -113,6 +113,14 @@ Caddy obtains and renews the certificate on its own, streams the realtime update
 
 If you prefer nginx, two settings matter: raise `client_max_body_size` (photos can be a few megabytes) and turn off proxy buffering for `/api/realtime` so server-sent events are not held back.
 
+Whichever proxy you use, also tell PocketBase which header carries the real client address:
+
+```yaml
+FEDERFALL_TRUSTED_PROXY_HEADERS: "X-Forwarded-For"
+```
+
+Behind a proxy, every request otherwise appears to come from the proxy itself, so the per-client rate limit on the geocoding endpoint would be one shared budget for all of your users instead of one per user. Caddy and nginx set `X-Forwarded-For` by default. Only list a header your own proxy overwrites on the way in — a header passed through from the client would let anyone dodge the rate limit. If you chain several proxies, set `FEDERFALL_TRUSTED_PROXY_USE_LEFTMOST_IP: "true"` and make the outermost one strip the header from incoming requests.
+
 ## First login
 
 Registration is invite-only, and every invite is sent by an existing supervisor.

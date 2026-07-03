@@ -40,6 +40,18 @@ services:
       # FEDERFALL_SUPERVISOR_EMAIL: "you@yourdomain.tld"
       # FEDERFALL_SUPERVISOR_PASSWORD: "change-me-strong"
       # FEDERFALL_SUPERVISOR_NAME: "Your Name"
+      # Reverse proxy — tell PocketBase which header carries the real client IP
+      # (your proxy must SET/overwrite it, e.g. Caddy/nginx X-Forwarded-For).
+      # Without this every request appears to come from the proxy itself and
+      # per-client rate limits (the geocode budget) are shared by all users:
+      # FEDERFALL_TRUSTED_PROXY_HEADERS: "X-Forwarded-For"
+      # FEDERFALL_TRUSTED_PROXY_USE_LEFTMOST_IP: "false"  # "true" only for multi-proxy chains
+      # Content-Security-Policy for the SPA (pb_hooks/web_headers.pb.js). Only
+      # needed when you changed MAP_TILE_URL: list the tile origins the policy
+      # should allow (comma-separated). FEDERFALL_CSP replaces the whole policy
+      # ("off" disables it):
+      # FEDERFALL_MAP_TILE_ORIGINS: "https://tile.openstreetmap.org"
+      # FEDERFALL_CSP: ""
       # Geocoding proxy — see backend/pocketbase/README.md:
       # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"
       # FEDERFALL_GEOCODER_KEY: ""

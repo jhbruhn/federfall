@@ -19,6 +19,21 @@
 //   FEDERFALL_SMTP_SENDER_ADDRESS From address (required for real delivery)
 //   FEDERFALL_SMTP_SENDER_NAME    default: the app name (Federfall)
 //
+//   FEDERFALL_TRUSTED_PROXY_HEADERS  comma list of headers carrying the real
+//                                 client IP (e.g. "X-Forwarded-For") when a
+//                                 reverse proxy fronts PocketBase. Without it
+//                                 PB sees the proxy's address for every
+//                                 request, so per-client-IP rate limits (the
+//                                 geocode budget) are shared by ALL users
+//                                 (federfall-223). Only set headers your OWN
+//                                 proxy overwrites — a spoofable header lets
+//                                 clients dodge rate limits.
+//   FEDERFALL_TRUSTED_PROXY_USE_LEFTMOST_IP  "true" to take the leftmost IP
+//                                 from the header (multi-proxy chains);
+//                                 default is the rightmost, the one appended
+//                                 by the proxy directly in front — the only
+//                                 value a client cannot forge.
+//
 //   FEDERFALL_OAUTH2_PROVIDERS    comma list of provider names to register as
 //                                 alternative logins, e.g. "google,oidc". For
 //                                 each NAME, read (NAME upper-cased):
@@ -66,6 +81,20 @@ onBootstrap((e) => {
     if (senderAddress) settings.meta.senderAddress = senderAddress;
     settings.meta.senderName =
       env("FEDERFALL_SMTP_SENDER_NAME") || settings.meta.appName || "Federfall";
+    changed = true;
+  }
+
+  // Trusted proxy — makes PB resolve the real client IP from the proxy's
+  // forwarding header instead of the socket peer (the proxy itself), so
+  // per-client-IP rate limits stay per client behind Caddy/nginx.
+  const proxyHeaders = env("FEDERFALL_TRUSTED_PROXY_HEADERS")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
+  if (proxyHeaders.length > 0) {
+    settings.trustedProxy.headers = proxyHeaders;
+    settings.trustedProxy.useLeftmostIP =
+      env("FEDERFALL_TRUSTED_PROXY_USE_LEFTMOST_IP").toLowerCase() === "true";
     changed = true;
   }
 

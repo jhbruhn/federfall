@@ -368,6 +368,10 @@ cronAdd("geocodeCachePurge", "0 4 * * *", () => {
 // address searches never hits it — while capping sustained extraction. Uses
 // PocketBase's own per-client-IP rate limiter via settings, applied on every
 // start like settings.pb.js.
+//
+// Behind a reverse proxy the "client IP" is the proxy's own address unless
+// FEDERFALL_TRUSTED_PROXY_HEADERS is set (settings.pb.js, federfall-223) —
+// without it this budget is shared by ALL users instead of per client.
 onBootstrap((e) => {
   e.next();
 
