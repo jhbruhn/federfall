@@ -943,8 +943,10 @@ def main():
     check("SPA CSP allows wasm + blocks embedding",
           "'wasm-unsafe-eval'" in spa_csp and "frame-ancestors 'none'" in spa_csp,
           spa_csp)
-    check("SPA CSP allows the default tile origin",
+    check("SPA CSP allows the default raster tile origin",
           "https://tile.openstreetmap.org" in spa_csp, spa_csp)
+    check("SPA CSP allows the default vector style/tile origin",
+          "https://tiles.openfreemap.org" in spa_csp, spa_csp)
     check("SPA CSP lets connect-src read picked-image blobs",
           "connect-src 'self' blob:" in spa_csp, spa_csp)
     check("SPA keeps COOP/COEP isolation",

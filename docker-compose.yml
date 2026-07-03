@@ -46,11 +46,13 @@ services:
       # per-client rate limits (the geocode budget) are shared by all users:
       # FEDERFALL_TRUSTED_PROXY_HEADERS: "X-Forwarded-For"
       # FEDERFALL_TRUSTED_PROXY_USE_LEFTMOST_IP: "false"  # "true" only for multi-proxy chains
-      # Content-Security-Policy for the SPA (pb_hooks/web_headers.pb.js). Only
-      # needed when you changed MAP_TILE_URL: list the tile origins the policy
-      # should allow (comma-separated). FEDERFALL_CSP replaces the whole policy
+      # Content-Security-Policy for the SPA (pb_hooks/web_headers.pb.js).
+      # Default already covers the shipped MAP_STYLE_URL (OpenFreeMap) and
+      # MAP_TILE_URL (OSM raster) origins — only set this if you changed
+      # either to a different host: list the tile origins the policy should
+      # allow (comma-separated). FEDERFALL_CSP replaces the whole policy
       # ("off" disables it):
-      # FEDERFALL_MAP_TILE_ORIGINS: "https://tile.openstreetmap.org"
+      # FEDERFALL_MAP_TILE_ORIGINS: "https://tiles.openfreemap.org,https://tile.openstreetmap.org"
       # FEDERFALL_CSP: ""
       # Geocoding proxy — see backend/pocketbase/README.md:
       # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"

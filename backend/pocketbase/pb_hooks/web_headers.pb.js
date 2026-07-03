@@ -37,9 +37,13 @@
 //
 // Env:
 //   FEDERFALL_MAP_TILE_ORIGINS  comma list of tile-server origins to allow
-//                               (default https://tile.openstreetmap.org, the
-//                               production MAP_TILE_URL). Must match the
-//                               MAP_TILE_URL the web bundle was built with.
+//                               (default covers both shipped defaults:
+//                               https://tiles.openfreemap.org, the default
+//                               MAP_STYLE_URL for vector mode, and
+//                               https://tile.openstreetmap.org, the default
+//                               MAP_TILE_URL for raster mode). Must match
+//                               whichever MAP_STYLE_URL/MAP_TILE_URL the web
+//                               bundle was actually built with.
 //   FEDERFALL_CSP               full replacement policy for the SPA, for
 //                               operators whose setup needs more; "off"
 //                               disables the header entirely.
@@ -94,7 +98,7 @@ routerUse((e) => {
       let csp = cspEnv;
       if (!csp) {
         const tiles = ($os.getenv("FEDERFALL_MAP_TILE_ORIGINS") ||
-          "https://tile.openstreetmap.org")
+          "https://tiles.openfreemap.org,https://tile.openstreetmap.org")
           .split(",")
           .map((s) => s.trim())
           .filter((s) => s !== "")
