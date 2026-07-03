@@ -39,7 +39,8 @@ class WorklistTile extends ConsumerWidget {
       caseId: item.caseId,
       plan: item.medication,
     );
-    if (saved ?? false) ref.invalidate(worklistSourceProvider);
+    if (!(saved ?? false) || !context.mounted) return;
+    ref.invalidate(worklistSourceProvider);
   }
 
   Future<void> _markFollowUpDone(BuildContext context, WidgetRef ref) =>
@@ -48,6 +49,7 @@ class WorklistTile extends ConsumerWidget {
         await repo.update(item.followUp!.id, {
           'done_at': DateTime.now().toUtc().toIso8601String(),
         });
+        if (!context.mounted) return;
         ref.invalidate(worklistSourceProvider);
       });
 
