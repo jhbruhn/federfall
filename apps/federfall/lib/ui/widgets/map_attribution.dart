@@ -4,8 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Tile attribution overlay, pinned bottom-left and kept legible over the map.
 ///
-/// Required by the OpenStreetMap Tile Usage Policy (and most tile providers):
-/// every map must carry visible, non-hidden attribution. The text comes from
+/// Required by the tile provider's usage policy, whichever
+/// [AppEnvironment.mapMode] is active: every map must carry visible,
+/// non-hidden attribution. The text comes from
 /// [AppEnvironment.mapAttribution] and links to
 /// [AppEnvironment.mapAttributionUrl] (the OSM copyright page by default), as
 /// the OSMF attribution guidelines recommend for interactive maps. Drop it in

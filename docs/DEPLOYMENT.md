@@ -86,8 +86,11 @@ FEDERFALL_GEOCODE_RATE_MAX: "30"      # requests per window per client IP; "0" d
 FEDERFALL_GEOCODE_RATE_WINDOW: "60"   # window length in seconds
 ```
 
-Map *tiles* are a separate matter. They are baked into the web build, not read from the environment, and default to the public OpenStreetMap tile server.
-To change them you edit `apps/federfall/dart_defines/production.json` (`MAP_TILE_URL`, `MAP_ATTRIBUTION`) and rebuild the image.
+Map *tiles* are a separate matter. They are baked into the web build, not read from the environment, and default to
+the public [OpenFreeMap](https://openfreemap.org) vector tile style (`MAP_MODE: "vector"`, `MAP_STYLE_URL`).
+To point at a classic raster tile server instead, edit `apps/federfall/dart_defines/production.json`, set
+`MAP_MODE` to `"raster"`, and set `MAP_TILE_URL`/`MAP_ATTRIBUTION`/`MAP_ATTRIBUTION_URL` to that provider, then
+rebuild the image.
 
 ### Time zone
 

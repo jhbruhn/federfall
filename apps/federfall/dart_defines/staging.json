@@ -2,7 +2,9 @@
   "FLAVOR": "staging",
   "APP_NAME": "[STG] Federfall",
   "POCKETBASE_URL": "",
+  "MAP_MODE": "vector",
+  "MAP_STYLE_URL": "https://tiles.openfreemap.org/styles/liberty",
   "MAP_TILE_URL": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-  "MAP_ATTRIBUTION": "© OpenStreetMap contributors",
+  "MAP_ATTRIBUTION": "OpenFreeMap © OpenMapTiles Data from OpenStreetMap",
   "MAP_ATTRIBUTION_URL": "https://www.openstreetmap.org/copyright"
 }

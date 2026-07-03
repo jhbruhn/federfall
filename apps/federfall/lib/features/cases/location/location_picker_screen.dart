@@ -44,7 +44,7 @@ Future<PickedLocation?> showLocationPicker(
   );
 }
 
-/// Find-location picker (FED-4.2, refined in 2fa): an OSM map with a pin fixed
+/// Find-location picker (FED-4.2, refined in 2fa): a map with a pin fixed
 /// at screen centre — the carer drags the map so the target sits under the pin
 /// (reverse geocode on settle), searches for an address (forward geocode), or
 /// taps "my location" (GPS). Tiles come from the shared [MapTileLayer];
