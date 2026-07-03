@@ -97,4 +97,36 @@ void main() {
     expect(settings[finderRetentionMonthsKey], 24);
     expect(settings[quarantineDefaultDaysKey], 14);
   });
+
+  testWidgets('a blanked or zero retention blocks the save with a message',
+      (tester) async {
+    final repo = MockOrgRepo();
+
+    await _pump(
+      tester,
+      role: UserRole.supervisor,
+      org: const Organisation(id: 'org1', name: 'Pigeon Aid'),
+      repo: repo,
+    );
+
+    final retention = find.widgetWithText(
+      TextFormField,
+      'Finder data retention (months)',
+    );
+    final save = find.widgetWithText(FilledButton, 'Save');
+
+    await tester.enterText(retention, '');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.text('This field is required'), findsOneWidget);
+
+    await tester.enterText(retention, '0');
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a number of at least 1'), findsOneWidget);
+
+    verifyNever(() => repo.update(any(), any()));
+  });
 }

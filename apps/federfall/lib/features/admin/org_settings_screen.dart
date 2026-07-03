@@ -106,10 +106,10 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
       _error = null;
     });
 
-    final months =
-        int.tryParse(_retention.text.trim()) ?? defaultFinderRetentionMonths;
-    final quarantineDays =
-        int.tryParse(_quarantineDays.text.trim()) ?? defaultQuarantineDays;
+    // Both fields are validated as required integers >= 1 above, so parsing
+    // cannot fall back to a default behind the supervisor's back.
+    final months = int.parse(_retention.text.trim());
+    final quarantineDays = int.parse(_quarantineDays.text.trim());
     try {
       final repo = await ref.read(organisationsRepositoryProvider.future);
       await repo.update(widget.org.id, {
@@ -197,6 +197,10 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                       FilteringTextInputFormatter.digitsOnly,
                     ],
                     enabled: !_busy,
+                    validator: Validators.compose([
+                      Validators.required(l10n),
+                      Validators.intMin(l10n, 1),
+                    ]),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -222,6 +226,10 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                       FilteringTextInputFormatter.digitsOnly,
                     ],
                     enabled: !_busy,
+                    validator: Validators.compose([
+                      Validators.required(l10n),
+                      Validators.intMin(l10n, 1),
+                    ]),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.xs),

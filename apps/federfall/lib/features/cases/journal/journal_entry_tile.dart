@@ -139,20 +139,24 @@ class _AttachmentStrip extends ConsumerWidget {
         itemBuilder: (context, i) {
           final filename = entry.attachments[i];
           final thumb = repo.fileUrl(entry.id, filename, thumb: '200x200');
-          return GestureDetector(
-            onTap: () => unawaited(
-              showImageViewer(
-                context,
-                imageUrls: [
-                  for (final f in entry.attachments)
-                    repo.fileUrl(entry.id, f).toString(),
-                ],
-                initialIndex: i,
+          return Semantics(
+            button: true,
+            label: context.l10n.photoViewLabel(i + 1, entry.attachments.length),
+            child: GestureDetector(
+              onTap: () => unawaited(
+                showImageViewer(
+                  context,
+                  imageUrls: [
+                    for (final f in entry.attachments)
+                      repo.fileUrl(entry.id, f).toString(),
+                  ],
+                  initialIndex: i,
+                ),
               ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedFileImage(url: thumb, width: 96, height: 96),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedFileImage(url: thumb, width: 96, height: 96),
+              ),
             ),
           );
         },

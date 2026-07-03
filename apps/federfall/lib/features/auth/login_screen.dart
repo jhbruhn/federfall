@@ -522,6 +522,7 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
   final _formKey = GlobalKey<FormState>();
   late final _controller = TextEditingController(text: widget.initialEmail);
   bool _busy = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -531,13 +532,29 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
 
-    // Always report success regardless of the outcome: surfacing a failure
-    // would leak whether the address has an account.
+    // Report success regardless of the server's answer: surfacing it would
+    // leak whether the address has an account. A connectivity failure is the
+    // exception — the request never reached the server, so showing it reveals
+    // nothing and spares the user waiting for an email that cannot arrive.
     try {
       final repo = await ref.read(authRepositoryProvider.future);
       await repo.requestPasswordReset(_controller.text.trim());
+    } on RepositoryException catch (error, stackTrace) {
+      if (error.isNetwork) {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _error = errorMessage(context.l10n, error);
+        });
+        return;
+      }
+      reportCaughtError(error, stackTrace);
+      // Swallowed deliberately (see above).
     } on Object catch (error, stackTrace) {
       reportCaughtError(error, stackTrace);
       // Swallowed deliberately (see above).
@@ -572,6 +589,15 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
               ]),
               onSubmitted: (_) => _busy ? null : _submit(),
             ),
+            if (_error case final error?) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                error,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
           ],
         ),
       ),

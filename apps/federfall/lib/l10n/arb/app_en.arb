@@ -79,6 +79,13 @@
             "min": { "type": "int" }
         }
     },
+    "fieldIntMin": "Enter a number of at least {min}",
+    "@fieldIntMin": {
+        "description": "Validation message for a numeric value below a minimum",
+        "placeholders": {
+            "min": { "type": "int" }
+        }
+    },
     "fieldFoundAfterAdmitted": "The found date cannot be after the admission date",
     "@fieldFoundAfterAdmitted": {
         "description": "Validation message when found_at is later than admitted_at"
@@ -690,6 +697,14 @@
     "@photoAddAction": { "description": "Generic button to pick photos from the gallery" },
     "photoCaptureAction": "Take photo",
     "@photoCaptureAction": { "description": "Generic button to capture a photo with the camera" },
+    "photoViewLabel": "View photo {index} of {total}",
+    "@photoViewLabel": {
+        "description": "Semantic label on a photo thumbnail that opens the full-size viewer",
+        "placeholders": {
+            "index": { "type": "int" },
+            "total": { "type": "int" }
+        }
+    },
     "journalTakePhoto": "Take photo",
     "@journalTakePhoto": { "description": "Button that captures a photo with the camera" },
     "journalEditTitle": "Edit journal entry",

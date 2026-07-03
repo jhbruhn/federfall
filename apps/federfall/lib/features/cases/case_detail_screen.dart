@@ -653,19 +653,24 @@ class _IntakePhotos extends ConsumerWidget {
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (context, i) {
           final thumb = repo.fileUrl(caseId, filenames[i], thumb: '200x200');
-          return GestureDetector(
-            onTap: () => unawaited(
-              showImageViewer(
-                context,
-                imageUrls: [
-                  for (final f in filenames) repo.fileUrl(caseId, f).toString(),
-                ],
-                initialIndex: i,
+          return Semantics(
+            button: true,
+            label: context.l10n.photoViewLabel(i + 1, filenames.length),
+            child: GestureDetector(
+              onTap: () => unawaited(
+                showImageViewer(
+                  context,
+                  imageUrls: [
+                    for (final f in filenames)
+                      repo.fileUrl(caseId, f).toString(),
+                  ],
+                  initialIndex: i,
+                ),
               ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedFileImage(url: thumb, width: 96, height: 96),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedFileImage(url: thumb, width: 96, height: 96),
+              ),
             ),
           );
         },

@@ -33,6 +33,34 @@ class TimelineItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dateText = Text(
+      date,
+      style: theme.textTheme.labelMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+    // The header strip stays a compact 32dp — a 48px action box in the header
+    // row would inflate it and push the body down, making editable entries sit
+    // lower than read-only ones (federfall-533). Instead the action keeps its
+    // full 48dp accessible tap target by overlaying the header strip and the
+    // body's top-right corner (federfall-neym).
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (trailing == null)
+          dateText
+        else
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: _dotSize),
+            padding: const EdgeInsets.only(right: _actionTargetSize),
+            alignment: Alignment.centerLeft,
+            child: dateText,
+          ),
+        const SizedBox(height: AppSpacing.xs),
+        child,
+      ],
+    );
     // The connecting line is painted behind the row rather than stretched
     // alongside it — stretching would need IntrinsicHeight (a second layout
     // pass per row), which is too costly for a chronology with hundreds of
@@ -55,32 +83,22 @@ class TimelineItem extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            date,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
+                child: switch (trailing) {
+                  null => content,
+                  final t => Stack(
+                    children: [
+                      content,
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: SizedBox.square(
+                          dimension: _actionTargetSize,
+                          child: t,
                         ),
-                        // Pin the action to a compact square. Menus/buttons
-                        // otherwise impose a 48px tap target that inflates
-                        // the date header and pushes the body down — making
-                        // editable entries sit lower than read-only ones
-                        // (federfall-533).
-                        if (trailing case final t?)
-                          SizedBox.square(dimension: 32, child: t),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    child,
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                },
               ),
             ),
           ],
@@ -89,6 +107,9 @@ class TimelineItem extends StatelessWidget {
     );
   }
 }
+
+/// Minimum accessible tap target (Material) for the trailing action.
+const double _actionTargetSize = 48;
 
 const double _dotSize = 32;
 

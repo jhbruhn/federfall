@@ -58,11 +58,24 @@ class AnimalAvatar extends ConsumerWidget {
       ),
     );
 
-    if (!editable) return avatar;
-    return InkWell(
-      onTap: () => _editPhoto(context, ref),
-      customBorder: const CircleBorder(),
-      child: avatar,
+    if (!editable) {
+      return Semantics(
+        image: url != null,
+        label: context.l10n.animalPhotoChange,
+        child: avatar,
+      );
+    }
+    // The tooltip doubles as the screen-reader label for the edit action.
+    return Semantics(
+      button: true,
+      child: Tooltip(
+        message: context.l10n.animalPhotoChange,
+        child: InkWell(
+          onTap: () => _editPhoto(context, ref),
+          customBorder: const CircleBorder(),
+          child: avatar,
+        ),
+      ),
     );
   }
 

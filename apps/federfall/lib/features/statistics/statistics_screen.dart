@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
@@ -16,13 +18,34 @@ import 'package:share_plus/share_plus.dart';
 
 /// Reporting statistics (FED-7.2): outcome breakdown, intakes by species,
 /// conditions recorded and average time in care. Reached from the dashboard by
-/// coordinators/supervisors; figures are org-wide for them.
-class StatisticsScreen extends ConsumerWidget {
+/// coordinators/supervisors; figures are org-wide for them. Re-checks the role
+/// so a typed-in URL degrades gracefully — the server rules remain the real
+/// boundary.
+class StatisticsScreen extends ConsumerStatefulWidget {
   const StatisticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StatisticsScreen> createState() => _StatisticsScreenState();
+}
+
+class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
+  bool _exporting = false;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final role = ref.watch(currentUserProvider).value?.role;
+
+    if (!canViewReports(role)) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.statsTitle)),
+        body: EmptyView(
+          icon: Icons.lock_outline,
+          message: l10n.errorUnauthorized,
+        ),
+      );
+    }
+
     ref.liveRefresh(
       const ['cases', 'dispositions'],
       () => ref.invalidate(statisticsProvider),
@@ -36,7 +59,9 @@ class StatisticsScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.download_outlined),
             tooltip: l10n.statsExportCsv,
-            onPressed: () => _exportCsv(context, ref),
+            // Disabled while an export runs — a second tap would launch
+            // another multi-collection load and a second share sheet.
+            onPressed: _exporting ? null : _exportCsv,
           ),
         ],
       ),
@@ -94,9 +119,10 @@ class StatisticsScreen extends ConsumerWidget {
 
   /// Builds the per-case CSV (org-wide for the viewer's role) and hands it to
   /// the platform share/download sheet.
-  Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
+  Future<void> _exportCsv() async {
     final l10n = context.l10n;
     final messenger = ScaffoldMessenger.of(context);
+    setState(() => _exporting = true);
     try {
       // Load inline from the (keep-alive) repositories rather than a dedicated
       // autoDispose provider, which would dispose mid-await on an imperative
@@ -157,6 +183,8 @@ class StatisticsScreen extends ConsumerWidget {
     } on Object catch (e, stackTrace) {
       reportCaughtError(e, stackTrace);
       messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
   }
 }

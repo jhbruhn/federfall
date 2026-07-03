@@ -47,6 +47,17 @@ abstract final class Validators {
     };
   }
 
+  /// Fails when the value is not an integer of at least [min]. Empty passes —
+  /// compose with [required] when the field is mandatory.
+  static String? Function(String?) intMin(AppLocalizations l10n, int min) {
+    return (value) {
+      final v = value?.trim() ?? '';
+      if (v.isEmpty) return null;
+      final n = int.tryParse(v);
+      return (n == null || n < min) ? l10n.fieldIntMin(min) : null;
+    };
+  }
+
   /// Runs [validators] in order, returning the first failure.
   static String? Function(String?) compose(
     List<String? Function(String?)> validators,
