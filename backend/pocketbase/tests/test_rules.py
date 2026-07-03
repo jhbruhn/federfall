@@ -932,6 +932,8 @@ def main():
           spa_csp)
     check("SPA CSP allows the default tile origin",
           "https://tile.openstreetmap.org" in spa_csp, spa_csp)
+    check("SPA CSP lets connect-src read picked-image blobs",
+          "connect-src 'self' blob:" in spa_csp, spa_csp)
     check("SPA keeps COOP/COEP isolation",
           sh.get("Cross-Origin-Opener-Policy") == "same-origin"
           and sh.get("Cross-Origin-Embedder-Policy") == "credentialless",

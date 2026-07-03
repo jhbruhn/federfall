@@ -26,6 +26,12 @@
 //                                         elements at runtime — required.
 //   img-src / connect-src + tile origins  flutter_map fetches tiles as images
 //                                         (JS renderer) or via fetch (wasm).
+//   connect-src blob:                     image_picker_for_web hands the picked
+//                                         file back as a blob: URL; reading its
+//                                         bytes is a fetch of that URL. blob:
+//                                         URLs are minted by the page itself and
+//                                         origin-bound, so this allows nothing
+//                                         cross-origin.
 //   worker-src 'self' blob:               skwasm's render workers.
 //   frame-ancestors 'none'                no embedding → no clickjacking.
 //
@@ -99,7 +105,7 @@ routerUse((e) => {
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' blob: data: " + tiles,
           "font-src 'self'",
-          "connect-src 'self' " + tiles,
+          "connect-src 'self' blob: " + tiles,
           "worker-src 'self' blob:",
           "object-src 'none'",
           "base-uri 'self'",
