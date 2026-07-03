@@ -121,6 +121,10 @@ FEDERFALL_TRUSTED_PROXY_HEADERS: "X-Forwarded-For"
 
 Behind a proxy, every request otherwise appears to come from the proxy itself, so the per-client rate limit on the geocoding endpoint would be one shared budget for all of your users instead of one per user. Caddy and nginx set `X-Forwarded-For` by default. Only list a header your own proxy overwrites on the way in — a header passed through from the client would let anyone dodge the rate limit. If you chain several proxies, set `FEDERFALL_TRUSTED_PROXY_USE_LEFTMOST_IP: "true"` and make the outermost one strip the header from incoming requests.
 
+### Access logs
+
+Protected file downloads (`/api/files/...`) carry a short-lived (~2 minute) access token as a `?token=...` query parameter. Your reverse proxy's access log records the full request URL by default, so it will capture that token alongside every file request. It expires quickly and is scoped to one file, but treat proxy access logs as sensitive and scrub or redact the `token` query parameter if you ship them anywhere (log aggregation, long-term storage). With Caddy, a custom `log_format` that strips the query string (or just the `token` param) avoids storing it in the first place.
+
 ## First login
 
 Registration is invite-only, and every invite is sent by an existing supervisor.

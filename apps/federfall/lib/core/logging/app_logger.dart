@@ -19,6 +19,51 @@ enum LogLevel {
   final int value;
 }
 
+/// Redacts secrets/PII from a string before it reaches a log sink.
+///
+/// `ClientException.toString()` (surfaced via `RepositoryException.cause`)
+/// includes the full request URL — which can carry a short-lived PocketBase
+/// protected-file token (`?token=...`) — and the raw JSON error response,
+/// which can echo back PII the user submitted (finder name/phone/email) in
+/// validation error bodies. This runs on every message/error that passes
+/// through [AppLogger], including the ones that today only reach local
+/// logcat/DevTools.
+///
+/// DO NOT wire a crash-reporting SDK (Sentry etc.) into [AppLogger] without
+/// routing through this first — that would ship tokens/PII off-device
+/// (OWASP A09, sensitive data exposure).
+String scrubLogPayload(String text) {
+  var out = text;
+  // ?token=... / &token=... query params.
+  out = out.replaceAllMapped(
+    RegExp('([?&]token=)[^&\\s"\']+'),
+    (m) => '${m[1]}***',
+  );
+  // Authorization: Bearer ... headers.
+  out = out.replaceAllMapped(
+    RegExp('(Bearer\\s+)[^\\s"\']+', caseSensitive: false),
+    (m) => '${m[1]}***',
+  );
+  // PII field values as echoed in request/response bodies (both JSON
+  // `"key":"value"` and Dart Map.toString() `key: value` shapes).
+  const piiKeys = [
+    'first_name',
+    'last_name',
+    'organisation',
+    'phone',
+    'alt_phone',
+    'email',
+    'notes',
+  ];
+  for (final key in piiKeys) {
+    out = out.replaceAllMapped(
+      RegExp('("?$key"?\\s*:\\s*)("[^"]*"|[^,}]+)'),
+      (m) => '${m[1]}***',
+    );
+  }
+  return out;
+}
+
 /// The app's logging facade.
 ///
 /// Thin wrapper over `dart:developer` so call sites stay simple and a single
@@ -62,10 +107,10 @@ class AppLogger {
   }) {
     if (level.value < minLevel.value) return;
     developer.log(
-      message,
+      scrubLogPayload(message),
       level: level.value,
       name: name ?? 'federfall',
-      error: error,
+      error: error == null ? null : scrubLogPayload(error.toString()),
       stackTrace: stackTrace,
     );
   }
