@@ -75,6 +75,12 @@ class PbJournalRepository extends PbRepository<JournalEntry> {
     filter: filterExpr('case = {:c}', {'c': caseId}),
     sort: '-entry_at',
   );
+
+  /// Aviary-scoped journal entries (flock-level free-text log), newest first.
+  Future<List<JournalEntry>> forAviary(String aviaryId) => list(
+    filter: filterExpr('aviary = {:a}', {'a': aviaryId}),
+    sort: '-entry_at',
+  );
 }
 
 /// Repository over the `follow_ups` collection (one-off rechecks on a case).

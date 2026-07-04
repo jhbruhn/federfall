@@ -91,6 +91,29 @@ void main() {
       expect(body['org'], 'org1');
     });
 
+    testWidgets('saves an aviary-scoped entry with no case link', (
+      tester,
+    ) async {
+      when(() => journal.createWithFiles(any(), any())).thenAnswer(
+        (_) async => const JournalEntry(id: 'j9', aviary: 'av1', text: 'x'),
+      );
+
+      await pump(tester, const JournalEntrySheet(aviaryId: 'av1'));
+
+      await tester.enterText(find.byType(TextField), 'Cleaned the aviary');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      final body =
+          verify(
+                () => journal.createWithFiles(captureAny(), any()),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(body['aviary'], 'av1');
+      expect(body.containsKey('case'), isFalse);
+      expect(body['text'], 'Cleaned the aviary');
+    });
+
     testWidgets('requires note text before saving', (tester) async {
       await pump(tester, const JournalEntrySheet(caseId: 'c1'));
 

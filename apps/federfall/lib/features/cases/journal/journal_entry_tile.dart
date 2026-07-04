@@ -13,22 +13,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// One journal entry as a chronology event (FED-4.7): a [TimelineItem] showing
 /// the entry's date, free-text note, photo thumbnails and an edit/delete menu.
+/// Dual-parent since federfall-d5co.2 — exactly one of [caseId] / [aviaryId]
+/// is set, matching the entry's own parent.
 class JournalEntryTile extends ConsumerWidget {
   const JournalEntryTile({
     required this.entry,
-    required this.caseId,
+    this.caseId,
+    this.aviaryId,
     this.canEdit = true,
     this.isLast = false,
     super.key,
-  });
+  }) : assert(
+         (caseId == null) != (aviaryId == null),
+         'Exactly one of caseId / aviaryId must be set.',
+       );
 
   final JournalEntry entry;
-  final String caseId;
+  final String? caseId;
+  final String? aviaryId;
   final bool canEdit;
   final bool isLast;
 
-  Future<void> _edit(BuildContext context) =>
-      showJournalEntrySheet(context, caseId: caseId, entry: entry);
+  Future<void> _edit(BuildContext context) => showJournalEntrySheet(
+    context,
+    caseId: caseId,
+    aviaryId: aviaryId,
+    entry: entry,
+  );
 
   Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
@@ -40,7 +51,8 @@ class JournalEntryTile extends ConsumerWidget {
       action: () async {
         final repo = await ref.read(journalRepositoryProvider.future);
         await repo.delete(entry.id);
-        ref.invalidate(caseBundleProvider(caseId));
+        final id = caseId;
+        if (id != null) ref.invalidate(caseBundleProvider(id));
       },
     );
   }

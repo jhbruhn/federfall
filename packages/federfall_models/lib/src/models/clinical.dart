@@ -130,12 +130,16 @@ abstract class MedicationDue with _$MedicationDue {
 }
 
 /// A dated free-text journal entry with optional photo/file attachments.
+/// Dual-parent (federfall-d5co.2): exactly one of [caseId] / [aviary] is set,
+/// enforced server-side — a case-scoped clinical note or an aviary-scoped
+/// flock-care log.
 @freezed
 abstract class JournalEntry with _$JournalEntry {
   const factory JournalEntry({
     required String id,
-    required String caseId,
     required String text,
+    String? caseId,
+    String? aviary,
     DateTime? entryAt,
     @Default(<String>[]) List<String> attachments,
     String? author,
@@ -148,7 +152,8 @@ abstract class JournalEntry with _$JournalEntry {
     final d = r.data;
     return JournalEntry(
       id: r.id,
-      caseId: pbString(d['case']) ?? '',
+      caseId: pbString(d['case']),
+      aviary: pbString(d['aviary']),
       text: pbString(d['text']) ?? '',
       entryAt: pbDate(d['entry_at']),
       attachments: pbStringList(d['attachments']),

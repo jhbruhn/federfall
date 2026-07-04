@@ -146,6 +146,20 @@ void main() {
       expect(j.attachments, isEmpty);
       expect(j.entryAt, isNull);
     });
+
+    test('an aviary-scoped entry has no case link (federfall-d5co.2)', () {
+      final j = JournalEntry.fromRecord(
+        RecordModel({
+          'id': 'jrnl0000000002',
+          'aviary': 'avir0000000001',
+          'text': 'cleaned the aviary',
+          'org': 'org00000000001',
+        }),
+      );
+      expect(j.caseId, isNull);
+      expect(j.aviary, 'avir0000000001');
+      expect(j.text, 'cleaned the aviary');
+    });
   });
 
   group('FollowUp.fromRecord', () {

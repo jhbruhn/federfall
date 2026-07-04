@@ -9,27 +9,41 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-/// Opens the journal-entry form as a modal bottom sheet. Pass [entry] to edit
-/// an existing entry; omit it to create a new one. Resolves to `true` when the
+/// Opens the journal-entry form as a modal bottom sheet. Exactly one of
+/// [caseId] / [aviaryId] must be set — a case-scoped clinical note or an
+/// aviary-scoped flock-care log (federfall-d5co.2). Pass [entry] to edit an
+/// existing entry; omit it to create a new one. Resolves to `true` when the
 /// entry was saved, so the caller can refresh.
 Future<bool?> showJournalEntrySheet(
   BuildContext context, {
-  required String caseId,
+  String? caseId,
+  String? aviaryId,
   JournalEntry? entry,
 }) {
+  assert(
+    (caseId == null) != (aviaryId == null),
+    'Exactly one of caseId / aviaryId must be set.',
+  );
   return showAppSheet<bool>(
     context,
-    builder: (_) => JournalEntrySheet(caseId: caseId, entry: entry),
+    builder: (_) =>
+        JournalEntrySheet(caseId: caseId, aviaryId: aviaryId, entry: entry),
   );
 }
 
 /// Form for creating or editing a dated journal entry with photo attachments
-/// (FED-4.7 / journal CRUD). On edit it shows the existing attachments — each
-/// removable — and appends any newly picked photos via a multipart update.
+/// (FED-4.7 / journal CRUD; dual-parent since federfall-d5co.2). On edit it
+/// shows the existing attachments — each removable — and appends any newly
+/// picked photos via a multipart update.
 class JournalEntrySheet extends ConsumerStatefulWidget {
-  const JournalEntrySheet({required this.caseId, this.entry, super.key});
+  const JournalEntrySheet({this.caseId, this.aviaryId, this.entry, super.key})
+    : assert(
+        (caseId == null) != (aviaryId == null),
+        'Exactly one of caseId / aviaryId must be set.',
+      );
 
-  final String caseId;
+  final String? caseId;
+  final String? aviaryId;
   final JournalEntry? entry;
 
   @override
@@ -118,7 +132,8 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
 
       if (entry == null) {
         await repo.createWithFiles({
-          'case': widget.caseId,
+          if (widget.caseId != null) 'case': widget.caseId,
+          if (widget.aviaryId != null) 'aviary': widget.aviaryId,
           'text': _textController.text.trim(),
           'entry_at': _entryAt.toUtc().toIso8601String(),
           'author': user.id,
@@ -134,7 +149,8 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
         }, files);
       }
 
-      ref.invalidate(caseBundleProvider(widget.caseId));
+      final caseId = widget.caseId;
+      if (caseId != null) ref.invalidate(caseBundleProvider(caseId));
     });
     if (ok && mounted) Navigator.of(context).pop(true);
   }

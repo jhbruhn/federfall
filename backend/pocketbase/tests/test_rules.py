@@ -559,6 +559,32 @@ def main():
                {"text": "wound check — healing well"})
     check("journal_entry content stays editable", s == 200, f"status {s}")
 
+    # ── journal_entries: dual-parent (federfall-d5co.2) ─────────────────────
+    print("\n[journal_entries: aviary-scoped entries]")
+    s, _ = req("POST", "/api/collections/journal_entries/records", toks["a"],
+               {"text": "no parent set", "org": ORG})
+    check("journal entry with neither case nor aviary is rejected", s >= 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/journal_entries/records", toks["a"],
+               {"case": case, "aviary": av, "text": "both parents set", "org": ORG})
+    check("journal entry with BOTH case and aviary is rejected", s >= 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/journal_entries/records", toks["a"],
+               {"aviary": av, "text": "carer CANNOT log an aviary entry", "org": ORG})
+    check("plain carer CANNOT create an aviary journal entry", s >= 400, f"status {s}")
+    s, ajr = req("POST", "/api/collections/journal_entries/records", toks["coord"],
+                 {"aviary": av, "text": "cleaned the aviary", "org": ORG})
+    check("coordinator CAN create an aviary journal entry", s == 200, f"{s} {ajr}")
+    s, _ = req("GET", f"/api/collections/journal_entries/records/{ajr['id']}", toks["a"])
+    check("any active member CAN view the aviary journal entry", s == 200, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/journal_entries/records/{ajr['id']}", toks["a"],
+               {"text": "carer cannot edit it"})
+    check("plain carer CANNOT edit the aviary journal entry", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/journal_entries/records/{ajr['id']}", toks["coord"],
+               {"aviary": av2})
+    check("aviary journal_entry.aviary is immutable (no re-pointing)", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/journal_entries/records/{ajr['id']}", toks["coord"],
+               {"text": "cleaned the aviary and refilled feeders"})
+    check("aviary journal entry content stays editable", s == 200, f"status {s}")
+
     # ── case_summaries view (FED-7.6) ───────────────────────────────────────
     # Org-wide, clinical-detail-free projection: an outsider in the same org may
     # read a case's SUMMARY (for the animal lifetime record) but never the full

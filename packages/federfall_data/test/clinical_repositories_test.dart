@@ -88,6 +88,12 @@ void main() {
       verify(() => pb.filter('case = {:c}', {'c': 'case1'})).called(1);
       expect(capturedQuery()[1], '-entry_at');
     });
+
+    test('forAviary filters by aviary, newest first', () async {
+      await PbJournalRepository(pb).forAviary('avir1');
+      verify(() => pb.filter('aviary = {:a}', {'a': 'avir1'})).called(1);
+      expect(capturedQuery()[1], '-entry_at');
+    });
   });
 
   group('PbFollowUpsRepository', () {
