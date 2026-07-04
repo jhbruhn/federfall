@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/jhbruhn/federfall/compare/v0.3.0...v0.3.1) (2026-07-04)
+
+
+### Bug Fixes
+
+* **cases:** clarify share sheet empty state and add carer role hint ([0d41871](https://github.com/jhbruhn/federfall/commit/0d41871ef9bbc4578efea1d4667231496c5d5e9f))
+
 ## [0.3.0](https://github.com/jhbruhn/federfall/compare/v0.2.1...v0.3.0) (2026-07-04)
 
 
