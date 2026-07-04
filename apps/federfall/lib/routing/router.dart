@@ -26,6 +26,7 @@ import 'package:federfall/features/home/nav_shell.dart';
 import 'package:federfall/features/profile/profile_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/features/startup/splash_screen.dart';
+import 'package:federfall/features/statistics/intake_map_screen.dart';
 import 'package:federfall/features/statistics/statistics_screen.dart';
 import 'package:federfall/features/worklist/today_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -328,6 +329,10 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: AppRoutes.statistics,
         builder: (_, _) => const StatisticsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.intakeMap,
+        builder: (_, _) => const IntakeMapScreen(),
       ),
       GoRoute(
         path: AppRoutes.today,

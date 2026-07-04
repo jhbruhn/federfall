@@ -101,6 +101,9 @@ abstract final class AppRoutes {
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 
+  /// Intake find-location overview map, under statistics (federfall-xr8t).
+  static const intakeMap = '/statistics/map';
+
   /// Password-reset confirmation, reached from the invite email (FED-3.2).
   /// Public: usable without a session.
   static const confirmReset = '/auth/confirm-reset';

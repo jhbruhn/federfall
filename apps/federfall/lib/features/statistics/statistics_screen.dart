@@ -11,9 +11,11 @@ import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/statistics/case_report.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Reporting statistics (FED-7.2): outcome breakdown, intakes by species,
@@ -56,6 +58,11 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       appBar: AppBar(
         title: Text(l10n.statsTitle),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            tooltip: l10n.intakeMapTitle,
+            onPressed: () => context.push(AppRoutes.intakeMap),
+          ),
           IconButton(
             icon: const Icon(Icons.download_outlined),
             tooltip: l10n.statsExportCsv,
