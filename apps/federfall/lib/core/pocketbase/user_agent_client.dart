@@ -20,6 +20,14 @@ Future<String> loadUserAgent() async {
 @Riverpod(keepAlive: true)
 Future<String> userAgent(Ref ref) => loadUserAgent();
 
+/// The running build's version (e.g. `1.2.3`), for display on the profile
+/// screen — falls back to `0.0.0` when [PackageInfo] can't resolve one.
+@Riverpod(keepAlive: true)
+Future<String> appVersion(Ref ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return info.version.isEmpty ? '0.0.0' : info.version;
+}
+
 /// An [http.Client] that stamps a fixed `User-Agent` on every request before
 /// delegating to [_inner].
 ///

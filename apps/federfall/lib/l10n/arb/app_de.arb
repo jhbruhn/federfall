@@ -537,6 +537,8 @@
     "profileRoleLabel": "Rolle",
     "profilePhoneLabel": "Telefon",
     "profileMfaTitle": "Zwei-Faktor-Authentifizierung",
+    "profileAppVersionLabel": "App-Version",
+    "profileServerVersionLabel": "Server-Version",
     "profileMfaSubtitle": "Bei der Anmeldung einen Einmalcode per E-Mail verlangen.",
     "profileMfaUpdateFailed": "Zwei-Faktor-Authentifizierung konnte nicht geändert werden. Bitte versuche es erneut.",
     "remindersToggleTitle": "Medikamenten-Erinnerungen",

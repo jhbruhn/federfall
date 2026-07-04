@@ -156,6 +156,10 @@ void main() {
       const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
     );
 
+    await tester.scrollUntilVisible(
+      find.widgetWithText(FilledButton, 'Sign out'),
+      100,
+    );
     await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
     await tester.pumpAndSettle();
 
@@ -181,6 +185,10 @@ void main() {
       const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
     );
 
+    await tester.scrollUntilVisible(
+      find.widgetWithText(FilledButton, 'Sign out'),
+      100,
+    );
     await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));

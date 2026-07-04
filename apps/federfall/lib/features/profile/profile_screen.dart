@@ -2,6 +2,8 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/auth/sign_out.dart';
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/pocketbase/user_agent_client.dart';
+import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/profile/edit_profile_sheet.dart';
 import 'package:federfall/features/reminders/reminder_scheduler.dart';
@@ -113,6 +115,8 @@ class _ProfileBody extends StatelessWidget {
           _MfaToggle(enabled: user.mfaEnabled),
           // Local notifications don't exist on the web build.
           if (!kIsWeb) const _RemindersToggle(),
+          const Divider(height: AppSpacing.lg),
+          const _VersionInfo(),
           const SizedBox(height: AppSpacing.lg),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -128,6 +132,38 @@ class _ProfileBody extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// App + connected-server version, for diagnostics and bug reports. The server
+/// row is blank until `serverInfoProvider` resolves (or stays blank if it
+/// can't be reached) rather than showing a spinner — this is a quiet footnote,
+/// not a load-bearing value.
+class _VersionInfo extends ConsumerWidget {
+  const _VersionInfo();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final appVersion = ref.watch(appVersionProvider).value;
+    final serverVersion = ref.watch(serverInfoProvider).value?.version;
+
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: Text(l10n.profileAppVersionLabel),
+          subtitle: Text(appVersion ?? '—'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.dns_outlined),
+          title: Text(l10n.profileServerVersionLabel),
+          subtitle: Text(
+            serverVersion?.isNotEmpty ?? false ? serverVersion! : '—',
+          ),
+        ),
+      ],
     );
   }
 }
