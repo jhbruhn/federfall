@@ -25,7 +25,11 @@ Future<void> showImageViewer(
   VoidCallback? onEdit,
   String? editTooltip,
 }) {
-  return Navigator.of(context).push<void>(
+  // rootNavigator: true — the two-pane case/animal/aviary layouts push routes
+  // onto a pane-scoped nested Navigator (federfall-zbe); without this, the
+  // viewer would only cover the right-hand detail pane instead of the whole
+  // window.
+  return Navigator.of(context, rootNavigator: true).push<void>(
     MaterialPageRoute(
       fullscreenDialog: true,
       builder: (_) => ImageViewerScreen(
