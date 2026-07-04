@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/jhbruhn/federfall/compare/v0.3.1...v0.4.0) (2026-07-04)
+
+
+### Features
+
+* **cases:** add a consolidated photo gallery to the case Overview tab ([af6fa94](https://github.com/jhbruhn/federfall/commit/af6fa94f38f90ce6de000cbb64ee573685a6d2a6))
+* **statistics:** add intake find-location overview map ([b7cb368](https://github.com/jhbruhn/federfall/commit/b7cb368c512ffd879b43a20f07733bab4ded13b1))
+* **statistics:** show the intake map as a preview card, not a menu action ([08ec449](https://github.com/jhbruhn/federfall/commit/08ec4499ffce370e253aec5eda8e3bdedc2513c9))
+
+
+### Bug Fixes
+
+* **statistics:** enrich the intake pin sheet and fix "Open case" navigation ([395d41b](https://github.com/jhbruhn/federfall/commit/395d41b34d747dd292d24c0bfd0443981031202d))
+* **ui:** open the fullscreen image viewer on the root navigator ([7bbb299](https://github.com/jhbruhn/federfall/commit/7bbb29950e36cb8d4a86b4d7675568a8303d62ad))
+
 ## [0.3.1](https://github.com/jhbruhn/federfall/compare/v0.3.0...v0.3.1) (2026-07-04)
 
 
