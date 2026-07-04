@@ -219,6 +219,54 @@ def main():
     check("placed_in_aviary -> animal in_aviary", an2["lifetime_status"] == "in_aviary", an2["lifetime_status"])
     check("placed_in_aviary -> current_aviary set", an2["current_aviary"] == av, an2["current_aviary"])
 
+    # ── hooks: aviary_stays residency ledger (federfall-d5co.1) ─────────────
+    # The centralized `animals` hook (not the dispositions hook itself) must
+    # open/close ledger rows for every current_aviary writer.
+    print("\n[hooks: aviary_stays residency ledger]")
+    stays = listf(T, "aviary_stays", f'animal="{animal}"')
+    open_stays = [s for s in stays if s["ended_at"] == ""]
+    check("placed_in_aviary opens a stay",
+          len(open_stays) == 1 and open_stays[0]["aviary"] == av, stays)
+
+    # Move the same animal to a second aviary via a fresh case's disposition —
+    # the old stay must close and a new one must open, without touching the
+    # dispositions hook itself (it only ever sets current_aviary).
+    av2 = mk(T, "aviaries", {"name": "Voliere 2", "org": ORG})["id"]
+    c2b = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    mk(T, "dispositions", {"case": c2b, "type": "placed_in_aviary", "aviary": av2, "org": ORG})
+    stays = listf(T, "aviary_stays", f'animal="{animal}"')
+    open_stays = [s for s in stays if s["ended_at"] == ""]
+    closed_av_stays = [s for s in stays if s["aviary"] == av and s["ended_at"] != ""]
+    check("moving aviaries closes the old stay", len(closed_av_stays) == 1, stays)
+    check("moving aviaries opens exactly one new stay",
+          len(open_stays) == 1 and open_stays[0]["aviary"] == av2, stays)
+
+    # Losing residency (a disposition edit that reconciles current_aviary back
+    # to "") must close the stay and open no replacement.
+    rav = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    rac = mk(T, "cases", {"animal": rav, "active_carer": A, "org": ORG})["id"]
+    rad = mk(T, "dispositions", {"case": rac, "type": "placed_in_aviary", "aviary": av, "org": ORG})["id"]
+    stays = listf(T, "aviary_stays", f'animal="{rav}"')
+    check("fresh resident opens a stay",
+          len(stays) == 1 and stays[0]["ended_at"] == "", stays)
+    req("PATCH", f"/api/collections/dispositions/records/{rad}", T, {"type": "died"})
+    stays = listf(T, "aviary_stays", f'animal="{rav}"')
+    open_stays = [s for s in stays if s["ended_at"] == ""]
+    check("losing residency closes the stay with none reopened",
+          len(stays) == 1 and len(open_stays) == 0, stays)
+
+    # The case-less "add resident directly to an aviary" create path
+    # (add_animal_sheet.dart) sets current_aviary on animals.create — same
+    # centralized hook, no disposition involved.
+    zoi = mk(T, "animals", {
+        "species": "Stadttaube", "org": ORG,
+        "current_aviary": av, "lifetime_status": "in_aviary",
+    })["id"]
+    zoi_stays = listf(T, "aviary_stays", f'animal="{zoi}"')
+    check("case-less resident create opens a stay",
+          len(zoi_stays) == 1 and zoi_stays[0]["aviary"] == av
+          and zoi_stays[0]["ended_at"] == "", zoi_stays)
+
     # ── hooks: disposition edit/delete reconciliation (UX Phase B) ──────────
     # Fresh animal/case so we don't disturb the shared `animal` state above.
     ra = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
@@ -765,7 +813,8 @@ def main():
     # any future migration that copies the auth predicate without the guest
     # exclusion). The member check keeps the guest check non-vacuous.
     for coll in ("admission_reasons", "marking_types", "medication_routes",
-                 "quarantine_records", "case_quarantine", "animal_species"):
+                 "quarantine_records", "case_quarantine", "animal_species",
+                 "aviary_stays"):
         n = len(listf(toks["a"], coll, "id != ''"))
         check(f"member sees {coll} (wall check is non-vacuous)", n > 0, "empty")
         check(f"guest sees no {coll}",

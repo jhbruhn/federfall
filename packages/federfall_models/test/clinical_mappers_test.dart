@@ -331,6 +331,32 @@ void main() {
     });
   });
 
+  group('AviaryStay.fromRecord', () {
+    test('maps the residency window and links', () {
+      final r = RecordModel({
+        'id': 'stay0000000001',
+        'animal': 'anml0000000001',
+        'aviary': 'avir0000000001',
+        'started_at': '2026-03-10 09:00:00.000Z',
+        'ended_at': '2026-04-01 09:00:00.000Z',
+        'org': 'org00000000001',
+      });
+      final s = AviaryStay.fromRecord(r);
+      expect(s.animal, 'anml0000000001');
+      expect(s.aviary, 'avir0000000001');
+      expect(s.startedAt?.day, 10);
+      expect(s.endedAt?.month, 4);
+      expect(s.org, 'org00000000001');
+    });
+
+    test('an open stay has no end date', () {
+      final s = AviaryStay.fromRecord(
+        RecordModel({'id': 's', 'animal': 'a', 'aviary': 'v', 'ended_at': ''}),
+      );
+      expect(s.endedAt, isNull);
+    });
+  });
+
   group('AppUser.fromRecord', () {
     test('maps email, role, flags and contact', () {
       final r = RecordModel({

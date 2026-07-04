@@ -9,6 +9,7 @@ export 'src/repositories/animal_species_repository.dart';
 export 'src/repositories/animals_repository.dart';
 export 'src/repositories/auth_repository.dart';
 export 'src/repositories/aviaries_repository.dart';
+export 'src/repositories/aviary_stays_repository.dart';
 export 'src/repositories/case_activity_repository.dart';
 export 'src/repositories/case_shares_repository.dart';
 export 'src/repositories/case_summaries_repository.dart';

@@ -122,6 +122,16 @@ void main() {
     });
   });
 
+  group('PbAviaryStaysRepository', () {
+    setUp(() => wire('aviary_stays'));
+
+    test('forAviary filters by aviary, newest stay first', () async {
+      await PbAviaryStaysRepository(pb).forAviary('avir1');
+      verify(() => pb.filter('aviary = {:a}', {'a': 'avir1'})).called(1);
+      expect(capturedQuery()[1], '-started_at');
+    });
+  });
+
   group('PbCaseSharesRepository', () {
     setUp(() => wire('case_shares'));
 

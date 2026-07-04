@@ -40,3 +40,34 @@ abstract class Aviary with _$Aviary {
     );
   }
 }
+
+/// A single residency period in an [Aviary] (federfall-d5co.1): an
+/// append-only ledger entry mirroring `animals.current_aviary` history.
+/// [endedAt] unset means this is the animal's current residency.
+@freezed
+abstract class AviaryStay with _$AviaryStay {
+  const factory AviaryStay({
+    required String id,
+    required String animal,
+    required String aviary,
+    DateTime? startedAt,
+    DateTime? endedAt,
+    String? org,
+    DateTime? created,
+    DateTime? updated,
+  }) = _AviaryStay;
+
+  factory AviaryStay.fromRecord(RecordModel r) {
+    final d = r.data;
+    return AviaryStay(
+      id: r.id,
+      animal: pbString(d['animal']) ?? '',
+      aviary: pbString(d['aviary']) ?? '',
+      startedAt: pbDate(d['started_at']),
+      endedAt: pbDate(d['ended_at']),
+      org: pbString(d['org']),
+      created: pbDate(d['created']),
+      updated: pbDate(d['updated']),
+    );
+  }
+}
