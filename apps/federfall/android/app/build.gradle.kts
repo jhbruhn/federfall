@@ -3,7 +3,9 @@ import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
+    // Flutter's Gradle plugin applies Kotlin itself (built-in Kotlin); we no
+    // longer apply org.jetbrains.kotlin.android directly. It must come after the
+    // Android plugin.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -23,10 +25,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
         // flutter_local_notifications needs java.time on pre-26 API levels.
         isCoreLibraryDesugaringEnabled = true
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
@@ -91,11 +89,17 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+    }
+}
+
 flutter {
     source = "../.."
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.10")
+    // kotlin-stdlib is provided transitively by Flutter's built-in Kotlin.
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
