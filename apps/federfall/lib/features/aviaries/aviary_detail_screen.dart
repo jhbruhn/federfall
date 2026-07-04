@@ -6,8 +6,11 @@ import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/add_animal_sheet.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
+import 'package:federfall/features/aviaries/aviary_flock_providers.dart';
+import 'package:federfall/features/aviaries/aviary_flock_timeline.dart';
 import 'package:federfall/features/aviaries/aviary_form_sheet.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
@@ -17,8 +20,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Aviary detail / occupancy (FED-6.2): the aviary's identity plus the animals
-/// currently resident in it. Coordinators/supervisors can edit.
+/// Aviary detail (FED-6.2 + federfall-d5co.3): the aviary's identity over two
+/// tabs — **Bestand** (occupancy: current residents) and **Pflege** (the
+/// flock-care chronology: aviary journal entries + a health rollup).
+/// Coordinators/supervisors can edit the aviary, add residents and write
+/// journal entries.
 ///
 /// State-restoration note (federfall-7ev8): the route's restoration id is
 /// pattern-scoped (`/aviaries/:id`), not per-[aviaryId]. If this screen ever
@@ -32,17 +38,25 @@ class AviaryDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    // Same live-sync sources as the registry list: a placement made elsewhere
-    // changes the resident animals' `current_aviary`, a disposition removes
-    // them — keep the open detail as fresh as the list next to it.
+    // Same live-sync sources as the registry list, plus the flock-care
+    // sources (a journal edit, a new diagnosis on a resident's case, or a
+    // residency change all affect the Pflege tab).
     ref.liveRefresh(
-      const ['aviaries', 'dispositions', 'animals'],
+      const [
+        'aviaries',
+        'dispositions',
+        'animals',
+        'journal_entries',
+        'case_conditions',
+        'aviary_stays',
+      ],
       () => ref
         ..invalidate(aviaryByIdProvider(aviaryId))
-        ..invalidate(aviaryResidentsProvider(aviaryId)),
+        ..invalidate(aviaryResidentsProvider(aviaryId))
+        ..invalidate(aviaryJournalProvider(aviaryId))
+        ..invalidate(aviaryHealthRollupProvider(aviaryId)),
     );
     final aviary = ref.watch(aviaryByIdProvider(aviaryId));
-    final residents = ref.watch(aviaryResidentsProvider(aviaryId));
     final canManage = canManageAviaries(
       ref.watch(currentUserProvider).value?.role,
     );
@@ -66,6 +80,94 @@ class AviaryDetailScreen extends ConsumerWidget {
             ),
         ],
       ),
+      body: AsyncValueView<Aviary>(
+        value: aviary,
+        onRetry: () => ref.invalidate(aviaryByIdProvider(aviaryId)),
+        loading: const LinearProgressIndicator(),
+        data: (av) => _AviaryDetail(
+          aviaryId: aviaryId,
+          aviary: av,
+          canManage: canManage,
+        ),
+      ),
+    );
+  }
+}
+
+class _AviaryDetail extends StatelessWidget {
+  const _AviaryDetail({
+    required this.aviaryId,
+    required this.aviary,
+    required this.canManage,
+  });
+
+  final String aviaryId;
+  final Aviary aviary;
+  final bool canManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final bestand = _BestandTab(
+      aviaryId: aviaryId,
+      aviary: aviary,
+      canManage: canManage,
+    );
+    final pflege = _PflegeTab(aviaryId: aviaryId, canEdit: canManage);
+
+    // Wide detail panes show Bestand and Pflege side-by-side; narrow ones
+    // keep them behind tabs — same pane-width-keyed split as case detail.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= kCaseDetailTwoColumnMin) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: bestand),
+              const VerticalDivider(width: 1),
+              Expanded(child: pflege),
+            ],
+          );
+        }
+        return DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              TabBar(
+                tabs: [
+                  Tab(text: l10n.aviaryTabBestand),
+                  Tab(text: l10n.aviaryTabPflege),
+                ],
+              ),
+              Expanded(child: TabBarView(children: [bestand, pflege])),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Bestand: the aviary's identity header plus its current residents, with the
+/// "add resident" FAB (the pre-existing single-scroll body).
+class _BestandTab extends ConsumerWidget {
+  const _BestandTab({
+    required this.aviaryId,
+    required this.aviary,
+    required this.canManage,
+  });
+
+  final String aviaryId;
+  final Aviary aviary;
+  final bool canManage;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final residents = ref.watch(aviaryResidentsProvider(aviaryId));
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () => showAddAnimalSheet(context, aviaryId: aviaryId),
@@ -73,42 +175,65 @@ class AviaryDetailScreen extends ConsumerWidget {
               label: Text(l10n.aviaryAddResident),
             )
           : null,
-      body: AsyncValueView<Aviary>(
-        value: aviary,
-        onRetry: () => ref.invalidate(aviaryByIdProvider(aviaryId)),
-        loading: const LinearProgressIndicator(),
-        data: (av) => ContentBounds(
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            children: [
-              _Header(aviary: av, residentCount: residents.value?.length),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                l10n.aviaryResidentsTitle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // A load failure must not render as "no residents" — route
-              // through the standard error state with a retry (federfall-5cle).
-              AsyncValueView<List<Animal>>(
-                value: residents,
-                onRetry: () =>
-                    ref.invalidate(aviaryResidentsProvider(aviaryId)),
-                loading: const LinearProgressIndicator(),
-                data: (residents) => residents.isEmpty
-                    ? EmptyView(
-                        icon: Icons.pets_outlined,
-                        message: l10n.aviaryNoResidents,
-                      )
-                    : Column(
-                        children: [
-                          for (final animal in residents) _ResidentTile(animal),
-                        ],
-                      ),
-              ),
-            ],
-          ),
+      body: ContentBounds(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            _Header(aviary: aviary, residentCount: residents.value?.length),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              l10n.aviaryResidentsTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            // A load failure must not render as "no residents" — route
+            // through the standard error state with a retry (federfall-5cle).
+            AsyncValueView<List<Animal>>(
+              value: residents,
+              onRetry: () => ref.invalidate(aviaryResidentsProvider(aviaryId)),
+              loading: const LinearProgressIndicator(),
+              data: (residents) => residents.isEmpty
+                  ? EmptyView(
+                      icon: Icons.pets_outlined,
+                      message: l10n.aviaryNoResidents,
+                    )
+                  : Column(
+                      children: [
+                        for (final animal in residents) _ResidentTile(animal),
+                      ],
+                    ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+/// Pflege: the flock-care chronology, with the "add journal entry" FAB.
+class _PflegeTab extends StatelessWidget {
+  const _PflegeTab({required this.aviaryId, required this.canEdit});
+
+  final String aviaryId;
+  final bool canEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: canEdit
+          ? FloatingActionButton.extended(
+              onPressed: () =>
+                  showJournalEntrySheet(context, aviaryId: aviaryId),
+              icon: const Icon(Icons.add),
+              label: Text(l10n.timelineAddEntry),
+            )
+          : null,
+      body: AviaryFlockTimeline(
+        aviaryId: aviaryId,
+        canEdit: canEdit,
+        padding: const EdgeInsets.all(AppSpacing.md),
       ),
     );
   }

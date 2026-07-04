@@ -241,6 +241,44 @@ void main() {
       verify(() => pb.filter('case = {:c}', {'c': 'case1'})).called(1);
       expect(capturedQuery()[1], '-created');
     });
+
+    test('byCases short-circuits to an empty list without querying', () async {
+      final result = await PbCaseConditionsRepository(pb).byCases(const []);
+      expect(result, isEmpty);
+      verifyNever(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+        ),
+      );
+    });
+
+    test('byCases builds an OR filter with one bound param per case', () async {
+      await PbCaseConditionsRepository(pb).byCases(const ['c1', 'c2']);
+      verify(
+        () => pb.filter(
+          'case = {:c0} || case = {:c1}',
+          {'c0': 'c1', 'c1': 'c2'},
+        ),
+      ).called(1);
+    });
+
+    test(
+      'byCases chunks a large case set into several bounded queries',
+      () async {
+        await PbCaseConditionsRepository(pb).byCases([
+          for (var i = 0; i < 150; i++) 'case$i',
+        ]);
+        final filters = verify(() => pb.filter(captureAny(), any())).captured;
+        expect(filters, hasLength(2));
+        expect('case = '.allMatches(filters[0]! as String), hasLength(100));
+        expect('case = '.allMatches(filters[1]! as String), hasLength(50));
+      },
+    );
   });
 
   group('PbOrganisationsRepository', () {
