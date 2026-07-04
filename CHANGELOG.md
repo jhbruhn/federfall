@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/jhbruhn/federfall/compare/v0.2.1...v0.3.0) (2026-07-04)
+
+
+### Features
+
+* **animals:** supervisor duplicate-merge flow (federfall-eqy6) ([e02a819](https://github.com/jhbruhn/federfall/commit/e02a819589cf581ee3ed9952a3f89ff890634bf1))
+* **aviaries:** aviary residency ledger (aviary_stays) + centralized hook ([d487ddb](https://github.com/jhbruhn/federfall/commit/d487ddba1bbd93dbcef865660267f22acdd0819b))
+* **aviaries:** Bestand/Pflege tabs + flock-care timeline ([82b382b](https://github.com/jhbruhn/federfall/commit/82b382b0198fee0286e16ac74426977f85484c2f))
+* **aviaries:** dual-parent journal_entries (case OR aviary) ([ba4be01](https://github.com/jhbruhn/federfall/commit/ba4be018d102ca3a4476acf66481cdfc37607a6d))
+* **conditions:** add a contagious flag, distinct from notifiable ([c00b788](https://github.com/jhbruhn/federfall/commit/c00b7881077ee58b31040aed30fe215c234d2b43))
+* **profile:** show app and server version ([e8ba472](https://github.com/jhbruhn/federfall/commit/e8ba4729b04ffc6e59c8a0d04b8edefcd85a008d))
+
+
+### Performance Improvements
+
+* **aviaries:** fix N+1 query in the flock health rollup ([ba4db6b](https://github.com/jhbruhn/federfall/commit/ba4db6b74c6c69b8ec659e24755ab1b36f4a4fe4))
+* **data:** trim the flock rollup's fetches to columns it reads ([93b2962](https://github.com/jhbruhn/federfall/commit/93b29627995303f9774c51a46920313e1eda2331))
+
 ## [0.2.1](https://github.com/jhbruhn/federfall/compare/v0.2.0...v0.2.1) (2026-07-03)
 
 
