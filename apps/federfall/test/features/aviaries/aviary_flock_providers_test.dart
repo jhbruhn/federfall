@@ -64,7 +64,7 @@ void main() {
       );
 
       expect(result, isEmpty);
-      verifyNever(() => animals.byIds(any()));
+      verifyNever(() => animals.byIds(any(), fields: any(named: 'fields')));
     });
 
     test('includes a condition dated inside the residency window', () async {
@@ -79,13 +79,15 @@ void main() {
           ),
         ],
       );
-      when(() => animals.byIds(any())).thenAnswer(
+      when(() => animals.byIds(any(), fields: any(named: 'fields'))).thenAnswer(
         (_) async => const [Animal(id: 'a1', species: 'Taube', name: 'Pip')],
       );
       when(
-        () => cases.byAnimals(any()),
+        () => cases.byAnimals(any(), fields: any(named: 'fields')),
       ).thenAnswer((_) async => const [Case(id: 'case1', animal: 'a1')]);
-      when(() => conditions.byCases(any())).thenAnswer(
+      when(
+        () => conditions.byCases(any(), fields: any(named: 'fields')),
+      ).thenAnswer(
         (_) async => [
           CaseCondition(
             id: 'cc1',
@@ -105,6 +107,48 @@ void main() {
       expect(result.single.animal?.name, 'Pip');
     });
 
+    test(
+      'trims every fetch to the columns the rollup actually reads',
+      () async {
+        when(() => stays.forAviary('av1')).thenAnswer(
+          (_) async => [
+            AviaryStay(id: 's1', animal: 'a1', aviary: 'av1'),
+          ],
+        );
+        when(
+          () => animals.byIds(any(), fields: any(named: 'fields')),
+        ).thenAnswer((_) async => const []);
+        when(
+          () => cases.byAnimals(any(), fields: any(named: 'fields')),
+        ).thenAnswer((_) async => const []);
+        when(
+          () => conditions.byCases(any(), fields: any(named: 'fields')),
+        ).thenAnswer((_) async => const []);
+
+        await container.read(aviaryHealthRollupProvider('av1').future);
+
+        final animalsFields =
+            verify(
+                  () => animals.byIds(
+                    any(),
+                    fields: captureAny(named: 'fields'),
+                  ),
+                ).captured.single
+                as String;
+        expect(animalsFields, 'id,name,species');
+
+        final casesFields =
+            verify(
+                  () => cases.byAnimals(
+                    any(),
+                    fields: captureAny(named: 'fields'),
+                  ),
+                ).captured.single
+                as String;
+        expect(casesFields, 'id,animal');
+      },
+    );
+
     test('excludes a condition dated outside the residency window', () async {
       when(() => stays.forAviary('av1')).thenAnswer(
         (_) async => [
@@ -118,12 +162,14 @@ void main() {
         ],
       );
       when(
-        () => animals.byIds(any()),
+        () => animals.byIds(any(), fields: any(named: 'fields')),
       ).thenAnswer((_) async => const [Animal(id: 'a1', species: 'Taube')]);
       when(
-        () => cases.byAnimals(any()),
+        () => cases.byAnimals(any(), fields: any(named: 'fields')),
       ).thenAnswer((_) async => const [Case(id: 'case1', animal: 'a1')]);
-      when(() => conditions.byCases(any())).thenAnswer(
+      when(
+        () => conditions.byCases(any(), fields: any(named: 'fields')),
+      ).thenAnswer(
         (_) async => [
           // Diagnosed well after this residency ended.
           CaseCondition(
@@ -158,12 +204,14 @@ void main() {
           ],
         );
         when(
-          () => animals.byIds(any()),
+          () => animals.byIds(any(), fields: any(named: 'fields')),
         ).thenAnswer((_) async => const [Animal(id: 'a1', species: 'Taube')]);
         when(
-          () => cases.byAnimals(any()),
+          () => cases.byAnimals(any(), fields: any(named: 'fields')),
         ).thenAnswer((_) async => const [Case(id: 'case1', animal: 'a1')]);
-        when(() => conditions.byCases(any())).thenAnswer(
+        when(
+          () => conditions.byCases(any(), fields: any(named: 'fields')),
+        ).thenAnswer(
           (_) async => [
             // While resident in av1.
             CaseCondition(
@@ -217,17 +265,21 @@ void main() {
             ),
           ],
         );
-        when(() => animals.byIds(any())).thenAnswer((_) async => const []);
         when(
-          () => cases.byAnimals(any()),
+          () => animals.byIds(any(), fields: any(named: 'fields')),
         ).thenAnswer((_) async => const []);
         when(
-          () => conditions.byCases(any()),
+          () => cases.byAnimals(any(), fields: any(named: 'fields')),
+        ).thenAnswer((_) async => const []);
+        when(
+          () => conditions.byCases(any(), fields: any(named: 'fields')),
         ).thenAnswer((_) async => const []);
 
         await container.read(aviaryHealthRollupProvider('av1').future);
 
-        verify(() => cases.byAnimals(any())).called(1);
+        verify(
+          () => cases.byAnimals(any(), fields: any(named: 'fields')),
+        ).called(1);
         verifyNever(() => cases.forAnimal(any()));
       },
     );
@@ -244,12 +296,14 @@ void main() {
         ],
       );
       when(
-        () => animals.byIds(any()),
+        () => animals.byIds(any(), fields: any(named: 'fields')),
       ).thenAnswer((_) async => const [Animal(id: 'a1', species: 'Taube')]);
       when(
-        () => cases.byAnimals(any()),
+        () => cases.byAnimals(any(), fields: any(named: 'fields')),
       ).thenAnswer((_) async => const [Case(id: 'case1', animal: 'a1')]);
-      when(() => conditions.byCases(any())).thenAnswer(
+      when(
+        () => conditions.byCases(any(), fields: any(named: 'fields')),
+      ).thenAnswer(
         (_) async => [
           CaseCondition(
             id: 'cc1',

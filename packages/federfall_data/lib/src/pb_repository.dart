@@ -11,8 +11,16 @@ abstract interface class ReadOnlyRepository<T> {
   /// Fetches a single record by id, optionally expanding relations.
   Future<T> getOne(String id, {String? expand});
 
-  /// Fetches all matching records (auto-paginated).
-  Future<List<T>> list({PbFilter? filter, String? sort, String? expand});
+  /// Fetches all matching records (auto-paginated). [fields] restricts the
+  /// response to a comma-separated subset of fields (PocketBase server-side
+  /// projection) — use it when a caller only reads a couple of columns off a
+  /// wide collection, so the unread ones never cross the wire.
+  Future<List<T>> list({
+    PbFilter? filter,
+    String? sort,
+    String? expand,
+    String? fields,
+  });
 }
 
 /// Read/write contract every mutable collection repository exposes. Generic
@@ -92,7 +100,12 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
       guard(() async => fromRecord(await service.getOne(id, expand: expand)));
 
   @override
-  Future<List<T>> list({PbFilter? filter, String? sort, String? expand}) async {
+  Future<List<T>> list({
+    PbFilter? filter,
+    String? sort,
+    String? expand,
+    String? fields,
+  }) async {
     // Paged manually (not getFullList) so each round trip gets its own
     // [networkTimeout] budget: a large result on a slow link is many fast
     // requests instead of one long fetch that trips the shared timeout and
@@ -108,6 +121,7 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
           filter: filter?.expression,
           sort: sort,
           expand: expand,
+          fields: fields,
         );
         return result.items.map(fromRecord).toList();
       });

@@ -37,10 +37,14 @@ class PbCaseConditionsRepository extends PbRepository<CaseCondition> {
   /// per request, fetched concurrently, so a large case set can never overflow
   /// the URL length limit. Diagnoses across many cases in one call (the
   /// aviary flock health rollup, federfall-d5co.3). Empty input short-circuits
-  /// to no request.
+  /// to no request. Pass `fields` (always include `id`) when the caller only
+  /// reads a couple of columns off the full record.
   static const int _byCasesChunkSize = 100;
 
-  Future<List<CaseCondition>> byCases(Iterable<String> caseIds) async {
+  Future<List<CaseCondition>> byCases(
+    Iterable<String> caseIds, {
+    String? fields,
+  }) async {
     final wanted = caseIds.toSet().toList();
     if (wanted.isEmpty) return const [];
     final chunks = <Future<List<CaseCondition>>>[];
@@ -56,7 +60,9 @@ class PbCaseConditionsRepository extends PbRepository<CaseCondition> {
         clauses.add('case = {:c$i}');
         params['c$i'] = chunk[i];
       }
-      chunks.add(list(filter: filterExpr(clauses.join(' || '), params)));
+      chunks.add(
+        list(filter: filterExpr(clauses.join(' || '), params), fields: fields),
+      );
     }
     final results = await Future.wait(chunks);
     return [for (final r in results) ...r];

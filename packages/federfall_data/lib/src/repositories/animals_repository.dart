@@ -37,8 +37,9 @@ class PbAnimalsRepository extends PbRepository<Animal> {
   /// into chunks of [_byIdsChunkSize] fetched concurrently, so the filter can
   /// never overflow the URL length limit. Returns an empty list for no ids
   /// rather than fetching the whole collection; duplicate ids are fetched (and
-  /// returned) once.
-  Future<List<Animal>> byIds(Iterable<String> ids) async {
+  /// returned) once. Pass [fields] (always include `id`) when the caller only
+  /// reads a couple of columns off the full record.
+  Future<List<Animal>> byIds(Iterable<String> ids, {String? fields}) async {
     final wanted = ids.toSet().toList();
     if (wanted.isEmpty) return const [];
     final chunks = <Future<List<Animal>>>[];
@@ -54,7 +55,9 @@ class PbAnimalsRepository extends PbRepository<Animal> {
         clauses.add('id = {:id$i}');
         params['id$i'] = chunk[i];
       }
-      chunks.add(list(filter: filterExpr(clauses.join(' || '), params)));
+      chunks.add(
+        list(filter: filterExpr(clauses.join(' || '), params), fields: fields),
+      );
     }
     final results = await Future.wait(chunks);
     return [for (final r in results) ...r];

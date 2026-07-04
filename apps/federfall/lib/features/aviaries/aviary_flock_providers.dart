@@ -37,14 +37,22 @@ Future<List<AviaryConditionRollupEntry>> aviaryHealthRollup(
   final stays = await staysRepo.forAviary(aviaryId);
   if (stays.isEmpty) return const [];
 
+  // Each fetch is trimmed to the columns this rollup actually reads (via
+  // PocketBase's `fields` projection) — the tile only ever shows a resident's
+  // name/species and a condition's label/date, not the other ~20 columns a
+  // full Case or Animal record carries.
   final animalIds = {for (final s in stays) s.animal};
   final animalsRepo = await ref.watch(animalsRepositoryProvider.future);
   final animalsById = {
-    for (final a in await animalsRepo.byIds(animalIds)) a.id: a,
+    for (final a in await animalsRepo.byIds(
+      animalIds,
+      fields: 'id,name,species',
+    ))
+      a.id: a,
   };
 
   final casesRepo = await ref.watch(casesRepositoryProvider.future);
-  final cases = await casesRepo.byAnimals(animalIds);
+  final cases = await casesRepo.byAnimals(animalIds, fields: 'id,animal');
   if (cases.isEmpty) return const [];
   final animalIdByCaseId = {for (final c in cases) c.id: c.animal};
 
@@ -53,6 +61,7 @@ Future<List<AviaryConditionRollupEntry>> aviaryHealthRollup(
   );
   final conditions = await conditionsRepo.byCases(
     cases.map((c) => c.id),
+    fields: 'id,case,condition,free_text,onset_date,created',
   );
 
   final windowsByAnimal = <String, List<AviaryStay>>{};

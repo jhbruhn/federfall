@@ -25,7 +25,9 @@ abstract interface class CasesRepository implements Repository<Case> {
   /// `PbCaseConditionsRepository.byCases`, so a multi-animal rollup (the
   /// aviary flock health rollup, federfall-d5co.3) costs O(1) requests
   /// instead of one per animal. Empty input short-circuits to no request.
-  Future<List<Case>> byAnimals(Iterable<String> animalIds);
+  /// Pass [fields] (always include `id`) when the caller only reads a
+  /// couple of columns off the full record.
+  Future<List<Case>> byAnimals(Iterable<String> animalIds, {String? fields});
 
   /// Cases where [carerId] is the active carer ("my cases"), newest first.
   Future<List<Case>> forCarer(String carerId);
@@ -83,7 +85,10 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   static const int _byAnimalsChunkSize = 100;
 
   @override
-  Future<List<Case>> byAnimals(Iterable<String> animalIds) async {
+  Future<List<Case>> byAnimals(
+    Iterable<String> animalIds, {
+    String? fields,
+  }) async {
     final wanted = animalIds.toSet().toList();
     if (wanted.isEmpty) return const [];
     final chunks = <Future<List<Case>>>[];
@@ -99,7 +104,9 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
         clauses.add('animal = {:a$i}');
         params['a$i'] = chunk[i];
       }
-      chunks.add(list(filter: filterExpr(clauses.join(' || '), params)));
+      chunks.add(
+        list(filter: filterExpr(clauses.join(' || '), params), fields: fields),
+      );
     }
     final results = await Future.wait(chunks);
     return [for (final r in results) ...r];
