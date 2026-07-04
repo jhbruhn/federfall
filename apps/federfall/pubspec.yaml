@@ -1,6 +1,6 @@
 name: federfall
 description: Federfall — pigeon rehab case management
-version: 0.3.0
+version: 0.3.1
 publish_to: none
 environment:
   sdk: ^3.12.0
