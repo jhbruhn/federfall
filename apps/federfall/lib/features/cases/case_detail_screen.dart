@@ -8,6 +8,7 @@ import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/add_entry_sheet.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/carer_line.dart';
+import 'package:federfall/features/cases/case_photo_gallery.dart';
 import 'package:federfall/features/cases/case_realtime.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
@@ -247,6 +248,7 @@ class _OverviewTab extends StatelessWidget {
         children: [
           WeightTrendChart.forCase(medicalCase.id),
           _IntakeSection(medicalCase: medicalCase, animal: animal),
+          _CasePhotoGallery(caseId: medicalCase.id),
           _PriorCasesSection(medicalCase: medicalCase),
           _CaseActions(medicalCase: medicalCase),
         ],
@@ -567,13 +569,6 @@ class _IntakeSection extends ConsumerWidget {
             else
               for (final row in rows) row,
             if (medicalCase.finder case final finderId?) _FinderRow(finderId),
-            if (medicalCase.intakePhotos.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
-              _IntakePhotos(
-                caseId: medicalCase.id,
-                filenames: medicalCase.intakePhotos,
-              ),
-            ],
             if (medicalCase.findGeo case final geo?) ...[
               const SizedBox(height: AppSpacing.sm),
               _FindMap(geo: geo),
@@ -631,55 +626,77 @@ class _FindMap extends StatelessWidget {
   }
 }
 
-/// Thumbnails of a case's intake photos; tapping one opens it full-size.
-class _IntakePhotos extends ConsumerWidget {
-  const _IntakePhotos({required this.caseId, required this.filenames});
+/// The case's consolidated photo gallery (federfall-6rdd): every intake and
+/// journal photo in one chronological grid, replacing the inline intake-photo
+/// strip that used to live in [_IntakeSection]
+/// (federfall-ui-prefers-unified-consistent-views). Renders nothing while
+/// loading or when the case has no photos at all.
+class _CasePhotoGallery extends ConsumerWidget {
+  const _CasePhotoGallery({required this.caseId});
 
   final String caseId;
-  final List<String> filenames;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(casesRepositoryProvider).value;
-    if (repo == null) {
-      return const SizedBox(
-        height: 96,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
+    final photos = ref.watch(caseGalleryProvider(caseId)).value;
+    if (photos == null || photos.isEmpty) return const SizedBox.shrink();
 
-    // Intake photos are a Protected file field (FED-8.1), but the access token
-    // is appended at download time (ProtectedFileCacheManager), so the URLs
-    // here stay token-free and cached thumbnails render without a token mint.
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: filenames.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) {
-          final thumb = repo.fileUrl(caseId, filenames[i], thumb: '200x200');
-          return Semantics(
-            button: true,
-            label: context.l10n.photoViewLabel(i + 1, filenames.length),
-            child: GestureDetector(
-              onTap: () => unawaited(
-                showImageViewer(
-                  context,
-                  imageUrls: [
-                    for (final f in filenames)
-                      repo.fileUrl(caseId, f).toString(),
-                  ],
-                  initialIndex: i,
-                ),
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.l10n.caseSectionPhotos,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CachedFileImage(url: thumb, width: 96, height: 96),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final (i, photo) in photos.indexed)
+                    Semantics(
+                      button: true,
+                      label: context.l10n.photoViewLabel(i + 1, photos.length),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          key: ValueKey('casePhoto-${photo.thumb}'),
+                          // Opaque: the default deferToChild only registers a
+                          // hit once the image has actually decoded a frame,
+                          // leaving the tile untappable while it's still
+                          // loading (or if it errors) — see federfall-6rdd.
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => unawaited(
+                            showImageViewer(
+                              context,
+                              imageUrls: [
+                                for (final p in photos) p.full.toString(),
+                              ],
+                              initialIndex: i,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedFileImage(
+                              url: photo.thumb,
+                              width: 96,
+                              height: 96,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     );
   }

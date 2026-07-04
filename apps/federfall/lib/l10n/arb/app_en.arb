@@ -669,6 +669,8 @@
     "@caseSectionAnimal": { "description": "Intake form section heading for animal identity" },
     "caseSectionIntake": "Intake",
     "@caseSectionIntake": { "description": "Intake form/detail section heading for admission details" },
+    "caseSectionPhotos": "Photos",
+    "@caseSectionPhotos": { "description": "Case detail Overview section heading for the consolidated photo gallery" },
     "caseSectionFinder": "Finder (optional)",
     "@caseSectionFinder": { "description": "Intake form section heading for the finder's contact details" },
     "caseStepFinish": "Documentation & finder",

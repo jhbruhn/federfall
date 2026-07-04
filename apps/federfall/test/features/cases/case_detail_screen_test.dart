@@ -4,6 +4,7 @@ import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -142,6 +143,10 @@ void main() {
     AnimalLifetime? lifetime,
     AppUser? currentUser,
     double width = 420,
+    // Photo tiles show a perpetually-spinning placeholder for images that
+    // never resolve in tests (no real network), so pumpAndSettle would hang
+    // whenever a case has photos — pass false and settle with bounded pumps.
+    bool settle = true,
   }) async {
     // A tall surface so the whole scroll view (incl. the timeline) is built.
     // [width] defaults narrow so the case detail renders its compact, tabbed
@@ -198,7 +203,13 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
   }
 
   testWidgets('renders a name-first header with species and case number', (
@@ -321,5 +332,103 @@ void main() {
     );
 
     expect(find.text('Mark ready for release'), findsNothing);
+  });
+
+  testWidgets(
+    'Overview shows a consolidated, chronologically-ordered photo gallery; '
+    'tapping a tile opens the viewer',
+    (tester) async {
+      Uri urlFor(
+        String recordId,
+        String filename, {
+        String? thumb,
+      }) => Uri.parse(
+        'https://x.test/$recordId/$filename${thumb == null ? '' : '?thumb=$thumb'}',
+      );
+      when(
+        () => cases.fileUrl(any(), any(), thumb: any(named: 'thumb')),
+      ).thenAnswer(
+        (inv) => urlFor(
+          inv.positionalArguments[0] as String,
+          inv.positionalArguments[1] as String,
+          thumb: inv.namedArguments[#thumb] as String?,
+        ),
+      );
+      when(() => cases.fileUrl(any(), any())).thenAnswer(
+        (inv) => urlFor(
+          inv.positionalArguments[0] as String,
+          inv.positionalArguments[1] as String,
+        ),
+      );
+      when(
+        () => journal.fileUrl(any(), any(), thumb: any(named: 'thumb')),
+      ).thenAnswer(
+        (inv) => urlFor(
+          inv.positionalArguments[0] as String,
+          inv.positionalArguments[1] as String,
+          thumb: inv.namedArguments[#thumb] as String?,
+        ),
+      );
+      when(() => journal.fileUrl(any(), any())).thenAnswer(
+        (inv) => urlFor(
+          inv.positionalArguments[0] as String,
+          inv.positionalArguments[1] as String,
+        ),
+      );
+      when(() => cases.getOne(any())).thenAnswer(
+        (_) async => medicalCase.copyWith(intakePhotos: const ['intake.jpg']),
+      );
+      when(() => journal.forCase(any())).thenAnswer(
+        (_) async => [
+          // Before the intake date (2026-06-21) — sorts first.
+          JournalEntry(
+            id: 'j1',
+            text: 'early',
+            entryAt: DateTime.utc(2026, 6, 20),
+            attachments: const ['early.jpg'],
+          ),
+          // After the intake date — sorts last.
+          JournalEntry(
+            id: 'j2',
+            text: 'late',
+            entryAt: DateTime.utc(2026, 6, 25),
+            attachments: const ['late.jpg'],
+          ),
+        ],
+      );
+
+      await pump(tester, settle: false);
+
+      expect(find.text('Photos'), findsOneWidget);
+      expect(find.bySemanticsLabel('View photo 1 of 3'), findsOneWidget);
+      expect(find.bySemanticsLabel('View photo 3 of 3'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(
+          const ValueKey('casePhoto-https://x.test/j1/early.jpg?thumb=200x200'),
+        ),
+      );
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      final viewer = tester.widget<ImageViewerScreen>(
+        find.byType(ImageViewerScreen),
+      );
+      expect(viewer.imageUrls, [
+        'https://x.test/j1/early.jpg',
+        'https://x.test/c1/intake.jpg',
+        'https://x.test/j2/late.jpg',
+      ]);
+      expect(viewer.initialIndex, 0);
+    },
+  );
+
+  testWidgets('Overview renders no photo gallery when the case has none', (
+    tester,
+  ) async {
+    await pump(tester);
+
+    expect(find.text('Photos'), findsNothing);
   });
 }

@@ -272,6 +272,7 @@
     "caseStatusDisposed": "Abgeschlossen",
     "caseSectionAnimal": "Tier",
     "caseSectionIntake": "Aufnahme",
+    "caseSectionPhotos": "Fotos",
     "caseSectionFinder": "Finder (optional)",
     "caseStepFinish": "Dokumentation & Finder",
     "caseStepLabel": "Schritt {current} von {total}",
