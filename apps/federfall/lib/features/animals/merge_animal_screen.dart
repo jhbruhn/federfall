@@ -549,12 +549,22 @@ class _FieldDiffSection extends StatelessWidget {
                 segments: [
                   ButtonSegment(
                     value: _PhotoChoice.current,
-                    label: AnimalAvatar(animalId: current.id, radius: 16),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.xs,
+                      ),
+                      child: AnimalAvatar(animalId: current.id),
+                    ),
                     enabled: currentPhoto,
                   ),
                   ButtonSegment(
                     value: _PhotoChoice.other,
-                    label: AnimalAvatar(animalId: candidate.id, radius: 16),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.xs,
+                      ),
+                      child: AnimalAvatar(animalId: candidate.id),
+                    ),
                     enabled: candidatePhoto,
                   ),
                   ButtonSegment(

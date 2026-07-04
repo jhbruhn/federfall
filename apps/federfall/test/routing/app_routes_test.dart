@@ -6,7 +6,7 @@ void main() {
     expect(AppRoutes.aviaryDetail('av1'), '/aviaries/av1');
     expect(AppRoutes.animalDetail('a1'), '/animals/a1');
     expect(AppRoutes.caseDetail('c1'), '/cases/c1');
-    expect(AppRoutes.newCaseForAnimal('a1'), '/cases/new?animal=a1');
+    expect(AppRoutes.mergeAnimal('a1'), '/animals/a1/merge');
     expect(
       AppRoutes.casesBrowse('scope=all&activity=active'),
       '/cases/browse?scope=all&activity=active',

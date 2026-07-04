@@ -81,21 +81,13 @@ class AnimalDetailScreen extends ConsumerWidget {
               tooltip: l10n.animalEditTitle,
               onPressed: () => showEditAnimalSheet(context, data.animal),
             ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: l10n.animalNewCase,
-            onPressed: () => context.push(AppRoutes.newCaseForAnimal(animalId)),
-          ),
+          // Direct icon, not tucked in an overflow menu: a one-item overflow
+          // is just extra chrome around a single action.
           if (canMergeAnimals(role))
-            PopupMenuButton<void>(
-              icon: const Icon(Icons.more_vert),
-              tooltip: l10n.animalMenuTooltip,
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  onTap: () => context.push(AppRoutes.mergeAnimal(animalId)),
-                  child: Text(l10n.animalMergeAction),
-                ),
-              ],
+            IconButton(
+              icon: const Icon(Icons.merge_outlined),
+              tooltip: l10n.animalMergeAction,
+              onPressed: () => context.push(AppRoutes.mergeAnimal(animalId)),
             ),
         ],
       ),
