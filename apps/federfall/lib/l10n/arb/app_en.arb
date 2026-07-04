@@ -455,6 +455,66 @@
     "@animalPhotoGallery": { "description": "Pick the animal photo from the gallery" },
     "animalPhotoRemove": "Remove photo",
     "@animalPhotoRemove": { "description": "Clear the animal's photo" },
+    "animalMenuTooltip": "Options",
+    "@animalMenuTooltip": { "description": "Tooltip on the animal detail screen's overflow menu" },
+    "animalMergeAction": "Merge duplicate…",
+    "@animalMergeAction": { "description": "Overflow-menu action opening the animal-merge flow" },
+    "animalMergeTitle": "Merge animals",
+    "@animalMergeTitle": { "description": "App-bar title of the animal-merge screen" },
+    "animalMergeCurrentSubtitle": "Opened from this record",
+    "@animalMergeCurrentSubtitle": { "description": "Subtitle on the animal the merge flow was opened from" },
+    "animalMergeSearchLabel": "Find the duplicate",
+    "@animalMergeSearchLabel": { "description": "Label for the merge flow's search field" },
+    "animalMergeSearchHint": "Ring code or name",
+    "@animalMergeSearchHint": { "description": "Hint for the merge flow's search field" },
+    "animalMergeCandidateSubtitle": "Picked as the duplicate",
+    "@animalMergeCandidateSubtitle": { "description": "Subtitle on the picked merge candidate" },
+    "animalMergeChangeCandidate": "Change",
+    "@animalMergeChangeCandidate": { "description": "Action that clears the picked merge candidate" },
+    "animalMergeSurvivorLabel": "Keep as the primary record",
+    "@animalMergeSurvivorLabel": { "description": "Label for the survivor-choice control" },
+    "animalMergeEmptyValue": "(empty)",
+    "@animalMergeEmptyValue": { "description": "Placeholder shown for a blank field value in the merge diff" },
+    "animalMergePhotoLabel": "Photo",
+    "@animalMergePhotoLabel": { "description": "Label for the photo choice in the merge diff" },
+    "animalMergeNoPhoto": "No photo",
+    "@animalMergeNoPhoto": { "description": "Option that clears the surviving record's photo" },
+    "animalMergeNoConflicts": "The two records agree on every field.",
+    "@animalMergeNoConflicts": { "description": "Shown when the merge diff has nothing to resolve" },
+    "animalMergeMovesTitle": "This will move to the surviving record",
+    "@animalMergeMovesTitle": { "description": "Heading over the merge move-counts summary" },
+    "animalMergeCasesCount": "{count, plural, =0{No cases} =1{1 case} other{{count} cases}}",
+    "@animalMergeCasesCount": {
+        "description": "Count of cases moving in a merge",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalMergeMarkingsCount": "{count, plural, =0{No markings} =1{1 marking} other{{count} markings}}",
+    "@animalMergeMarkingsCount": {
+        "description": "Count of markings moving in a merge",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalMergeWeightsCount": "{count, plural, =0{No weight entries} =1{1 weight entry} other{{count} weight entries}}",
+    "@animalMergeWeightsCount": {
+        "description": "Count of weight entries moving in a merge",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalMergeExamsCount": "{count, plural, =0{No exams} =1{1 exam} other{{count} exams}}",
+    "@animalMergeExamsCount": {
+        "description": "Count of exams moving in a merge",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalMergeConfirmTitle": "Merge these animals?",
+    "@animalMergeConfirmTitle": { "description": "Title of the merge confirmation dialog" },
+    "animalMergeConfirmBody": "{duplicate} will be permanently deleted; its cases, markings, weights and exams move to {survivor}. This cannot be undone.",
+    "@animalMergeConfirmBody": {
+        "description": "Body of the merge confirmation dialog",
+        "placeholders": {
+            "duplicate": { "type": "String" },
+            "survivor": { "type": "String" }
+        }
+    },
+    "animalMergeConfirmAction": "Merge",
+    "@animalMergeConfirmAction": { "description": "Confirm action / primary button label that performs the merge" },
     "lifetimeStatusInCare": "In care",
     "@lifetimeStatusInCare": { "description": "Animal lifetime status: currently in care" },
     "lifetimeStatusAtLargeReleased": "Released",

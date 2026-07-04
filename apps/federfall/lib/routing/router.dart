@@ -11,6 +11,7 @@ import 'package:federfall/features/admin/org_settings_screen.dart';
 import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
+import 'package:federfall/features/animals/merge_animal_screen.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/auth/pending_approval_screen.dart';
@@ -230,6 +231,17 @@ GoRouter router(Ref ref) {
                         builder: (_, state) => AnimalDetailScreen(
                           animalId: state.pathParameters['id']!,
                         ),
+                        routes: [
+                          // `/animals/:id/merge` — full-screen over the shell,
+                          // push-only (never restored after a process kill).
+                          GoRoute(
+                            path: AppRoutes.mergeAnimalSegment,
+                            parentNavigatorKey: rootNavigatorKey,
+                            builder: (_, state) => MergeAnimalScreen(
+                              animalId: state.pathParameters['id']!,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

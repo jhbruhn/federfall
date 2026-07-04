@@ -1,3 +1,5 @@
+import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
@@ -65,6 +67,7 @@ class AnimalDetailScreen extends ConsumerWidget {
       },
     );
     final lifetime = ref.watch(animalLifetimeProvider(animalId));
+    final role = ref.watch(currentUserProvider).value?.role;
 
     return Scaffold(
       appBar: AppBar(
@@ -83,6 +86,17 @@ class AnimalDetailScreen extends ConsumerWidget {
             tooltip: l10n.animalNewCase,
             onPressed: () => context.push(AppRoutes.newCaseForAnimal(animalId)),
           ),
+          if (canMergeAnimals(role))
+            PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              tooltip: l10n.animalMenuTooltip,
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  onTap: () => context.push(AppRoutes.mergeAnimal(animalId)),
+                  child: Text(l10n.animalMergeAction),
+                ),
+              ],
+            ),
         ],
       ),
       body: AsyncValueView<AnimalLifetime>(

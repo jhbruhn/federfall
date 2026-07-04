@@ -1,4 +1,5 @@
 import 'package:federfall_data/src/pb_repository.dart';
+import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -58,4 +59,35 @@ class PbAnimalsRepository extends PbRepository<Animal> {
     final results = await Future.wait(chunks);
     return [for (final r in results) ...r];
   }
+
+  /// Atomic supervisor merge (federfall-eqy6) via
+  /// `POST /api/federfall/merge-animals`: re-points every animal-scoped child
+  /// record (cases, markings, weights, exams) from [duplicate] to [survivor],
+  /// applies [fields] (each value `'survivor'`, `'duplicate'`, or — for
+  /// `photo` only — `'none'`) on a conflict, re-derives the survivor's
+  /// lifetime status from the merged case history, and deletes [duplicate] —
+  /// all in one server-side transaction. Returns the survivor's id.
+  Future<String> merge({
+    required String survivor,
+    required String duplicate,
+    Map<String, String> fields = const {},
+  }) => guard(() async {
+    final res = await pb.send<Map<String, dynamic>>(
+      '/api/federfall/merge-animals',
+      method: 'POST',
+      body: {
+        'survivor': survivor,
+        'duplicate': duplicate,
+        'fields': fields,
+      },
+    );
+    final id = res['id'];
+    if (id is! String || id.isEmpty) {
+      throw const RepositoryException(
+        'Merge response is missing the surviving animal id',
+        kind: RepositoryErrorKind.unknownOutcome,
+      );
+    }
+    return id;
+  }, write: true);
 }

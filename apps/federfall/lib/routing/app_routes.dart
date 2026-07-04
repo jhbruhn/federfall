@@ -35,6 +35,9 @@ abstract final class AppRoutes {
   /// Builds the concrete animal-detail path for [id] (FED-7.6).
   static String animalDetail(String id) => '/animals/$id';
 
+  /// Supervisor-only duplicate-merge flow for the animal [id] (federfall-eqy6).
+  static String mergeAnimal(String id) => '/animals/$id/merge';
+
   /// Default authenticated landing destination.
   static const String home = cases;
 
@@ -67,6 +70,9 @@ abstract final class AppRoutes {
 
   /// `:id` — detail page, child of the cases / animals branch.
   static const detailSegment = ':id';
+
+  /// `merge` — supervisor duplicate-merge flow, child of the animal detail.
+  static const mergeAnimalSegment = 'merge';
 
   /// Signed-in user's profile (FED-3.3).
   static const profile = '/profile';

@@ -10,6 +10,11 @@ import 'package:federfall_models/federfall_models.dart';
 /// Whether the role may manage team members and invites (supervisor only).
 bool canManageTeam(UserRole? role) => role == UserRole.supervisor;
 
+/// Whether the role may merge duplicate animal records (federfall-eqy6).
+/// Mirrors the server `animals` delete rule (1700000010_access_rules.js) — a
+/// merge deletes the duplicate, so it needs the same authority.
+bool canMergeAnimals(UserRole? role) => role == UserRole.supervisor;
+
 /// Whether [me] may write to [medicalCase] — edit the case itself and
 /// create/edit/delete its child records (timeline entries, etc.). Mirrors the
 /// server `caseEdit` / `childEdit` access rules (1700000010_access_rules.js):
