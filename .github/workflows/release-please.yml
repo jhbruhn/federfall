@@ -19,7 +19,10 @@ env:
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
+    # No Docker, no build step — just the release-please API call. Fits the
+    # unprivileged, 1 vCPU ubuntu-slim runner; every other job here needs
+    # Docker (buildx/DinD) or heavier compute, which ubuntu-slim can't do.
+    runs-on: ubuntu-slim
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
