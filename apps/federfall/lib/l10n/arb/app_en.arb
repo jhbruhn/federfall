@@ -243,6 +243,11 @@
     "@statsExportEmpty": { "description": "Shown when there are no cases to export" },
     "intakeMapTitle": "Intake map",
     "@intakeMapTitle": { "description": "Title of the intake find-location overview map (federfall-xr8t)" },
+    "intakeMapCardCount": "{count, plural, =0{No mapped intakes} =1{1 mapped intake} other{{count} mapped intakes}}",
+    "@intakeMapCardCount": {
+        "description": "Subtitle on the statistics screen's intake-map preview card: how many intakes have a plotted find-location",
+        "placeholders": { "count": { "type": "int" } }
+    },
     "intakeMapPeriodThisYear": "This year",
     "@intakeMapPeriodThisYear": { "description": "Intake map period filter: the current calendar year" },
     "intakeMapPeriodLast12Months": "Last 12 months",

@@ -9,11 +9,13 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/statistics/case_report.dart';
+import 'package:federfall/features/statistics/intake_map_providers.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -59,11 +61,6 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         title: Text(l10n.statsTitle),
         actions: [
           IconButton(
-            icon: const Icon(Icons.map_outlined),
-            tooltip: l10n.intakeMapTitle,
-            onPressed: () => context.push(AppRoutes.intakeMap),
-          ),
-          IconButton(
             icon: const Icon(Icons.download_outlined),
             tooltip: l10n.statsExportCsv,
             // Disabled while an export runs — a second tap would launch
@@ -99,6 +96,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
+                const _IntakeMapCard(),
+                const SizedBox(height: AppSpacing.md),
                 _Breakdown(
                   title: l10n.statsSectionOutcomes,
                   rows: [
@@ -264,6 +263,125 @@ class _Breakdown extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Entry point into the intake map screen (federfall-xr8t): a title + pin
+/// count over a small non-interactive preview map, the whole card tappable.
+/// All intakes with a find-location (no period filter — the full screen
+/// offers that), so the preview reads as a stable "where things are" snapshot
+/// rather than shifting with the screen's own segmented filter.
+class _IntakeMapCard extends ConsumerWidget {
+  const _IntakeMapCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final locations = ref.watch(intakeLocationsProvider()).value;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push(AppRoutes.intakeMap),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.intakeMapTitle,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        Text(
+                          l10n.intakeMapCardCount(locations?.length ?? 0),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  height: 140,
+                  child: locations == null || locations.isEmpty
+                      ? ColoredBox(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                        )
+                      : _MapPreview(locations: locations),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small, non-interactive, un-attributed map thumbnail plotting every given
+/// point, fitted to their bounds. Attribution is dropped here — it belongs on
+/// the interactive intake map screen this card links to, not on a thumbnail
+/// too small to make it legible without cluttering the card.
+class _MapPreview extends StatelessWidget {
+  const _MapPreview({required this.locations});
+
+  final List<IntakeLocation> locations;
+
+  @override
+  Widget build(BuildContext context) {
+    final points = [for (final l in locations) l.point];
+    final bounds = points.length == 1
+        ? LatLngBounds(points.single, points.single)
+        : LatLngBounds.fromPoints(points);
+
+    return FlutterMap(
+      options: MapOptions(
+        initialCameraFit: CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(AppSpacing.md),
+          maxZoom: 14,
+        ),
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.none,
+        ),
+      ),
+      children: [
+        const MapTileLayer(),
+        MarkerLayer(
+          markers: [
+            for (final point in points)
+              Marker(
+                point: point,
+                width: 12,
+                height: 12,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Theme.of(context).colorScheme.error,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
