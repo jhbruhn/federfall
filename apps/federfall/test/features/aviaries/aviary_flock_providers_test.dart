@@ -83,7 +83,7 @@ void main() {
         (_) async => const [Animal(id: 'a1', species: 'Taube', name: 'Pip')],
       );
       when(
-        () => cases.forAnimal('a1'),
+        () => cases.byAnimals(any()),
       ).thenAnswer((_) async => const [Case(id: 'case1', animal: 'a1')]);
       when(() => conditions.byCases(any())).thenAnswer(
         (_) async => [
@@ -121,7 +121,7 @@ void main() {
         () => animals.byIds(any()),
       ).thenAnswer((_) async => const [Animal(id: 'a1', species: 'Taube')]);
       when(
-        () => cases.forAnimal('a1'),
+        () => cases.byAnimals(any()),
       ).thenAnswer((_) async => const [Case(id: 'case1', animal: 'a1')]);
       when(() => conditions.byCases(any())).thenAnswer(
         (_) async => [
@@ -161,7 +161,7 @@ void main() {
           () => animals.byIds(any()),
         ).thenAnswer((_) async => const [Animal(id: 'a1', species: 'Taube')]);
         when(
-          () => cases.forAnimal('a1'),
+          () => cases.byAnimals(any()),
         ).thenAnswer((_) async => const [Case(id: 'case1', animal: 'a1')]);
         when(() => conditions.byCases(any())).thenAnswer(
           (_) async => [
@@ -191,6 +191,47 @@ void main() {
       },
     );
 
+    test(
+      "fetches every resident animal's cases in ONE call, not one per "
+      'animal (no N+1)',
+      () async {
+        when(() => stays.forAviary('av1')).thenAnswer(
+          (_) async => [
+            AviaryStay(
+              id: 's1',
+              animal: 'a1',
+              aviary: 'av1',
+              startedAt: DateTime.utc(2026),
+            ),
+            AviaryStay(
+              id: 's2',
+              animal: 'a2',
+              aviary: 'av1',
+              startedAt: DateTime.utc(2026),
+            ),
+            AviaryStay(
+              id: 's3',
+              animal: 'a3',
+              aviary: 'av1',
+              startedAt: DateTime.utc(2026),
+            ),
+          ],
+        );
+        when(() => animals.byIds(any())).thenAnswer((_) async => const []);
+        when(
+          () => cases.byAnimals(any()),
+        ).thenAnswer((_) async => const []);
+        when(
+          () => conditions.byCases(any()),
+        ).thenAnswer((_) async => const []);
+
+        await container.read(aviaryHealthRollupProvider('av1').future);
+
+        verify(() => cases.byAnimals(any())).called(1);
+        verifyNever(() => cases.forAnimal(any()));
+      },
+    );
+
     test('an ongoing (unended) residency covers up to now', () async {
       when(() => stays.forAviary('av1')).thenAnswer(
         (_) async => [
@@ -206,7 +247,7 @@ void main() {
         () => animals.byIds(any()),
       ).thenAnswer((_) async => const [Animal(id: 'a1', species: 'Taube')]);
       when(
-        () => cases.forAnimal('a1'),
+        () => cases.byAnimals(any()),
       ).thenAnswer((_) async => const [Case(id: 'case1', animal: 'a1')]);
       when(() => conditions.byCases(any())).thenAnswer(
         (_) async => [

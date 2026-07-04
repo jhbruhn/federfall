@@ -20,6 +20,13 @@ abstract interface class CasesRepository implements Repository<Case> {
   /// Every case for one animal (its admission history), newest first.
   Future<List<Case>> forAnimal(String animalId);
 
+  /// Cases across many animals in one call — same chunked `animal = {:x} ||
+  /// …` pattern as `PbAnimalsRepository.byIds` and
+  /// `PbCaseConditionsRepository.byCases`, so a multi-animal rollup (the
+  /// aviary flock health rollup, federfall-d5co.3) costs O(1) requests
+  /// instead of one per animal. Empty input short-circuits to no request.
+  Future<List<Case>> byAnimals(Iterable<String> animalIds);
+
   /// Cases where [carerId] is the active carer ("my cases"), newest first.
   Future<List<Case>> forCarer(String carerId);
 
@@ -72,6 +79,31 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
     filter: filterExpr('animal = {:a}', {'a': animalId}),
     sort: '-created',
   );
+
+  static const int _byAnimalsChunkSize = 100;
+
+  @override
+  Future<List<Case>> byAnimals(Iterable<String> animalIds) async {
+    final wanted = animalIds.toSet().toList();
+    if (wanted.isEmpty) return const [];
+    final chunks = <Future<List<Case>>>[];
+    for (var start = 0; start < wanted.length; start += _byAnimalsChunkSize) {
+      final end = start + _byAnimalsChunkSize;
+      final chunk = wanted.sublist(
+        start,
+        end > wanted.length ? wanted.length : end,
+      );
+      final params = <String, Object?>{};
+      final clauses = <String>[];
+      for (var i = 0; i < chunk.length; i++) {
+        clauses.add('animal = {:a$i}');
+        params['a$i'] = chunk[i];
+      }
+      chunks.add(list(filter: filterExpr(clauses.join(' || '), params)));
+    }
+    final results = await Future.wait(chunks);
+    return [for (final r in results) ...r];
+  }
 
   @override
   Future<List<Case>> forCarer(String carerId) => list(

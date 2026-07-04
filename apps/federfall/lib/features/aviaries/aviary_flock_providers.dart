@@ -44,8 +44,7 @@ Future<List<AviaryConditionRollupEntry>> aviaryHealthRollup(
   };
 
   final casesRepo = await ref.watch(casesRepositoryProvider.future);
-  final caseLists = await Future.wait(animalIds.map(casesRepo.forAnimal));
-  final cases = [for (final list in caseLists) ...list];
+  final cases = await casesRepo.byAnimals(animalIds);
   if (cases.isEmpty) return const [];
   final animalIdByCaseId = {for (final c in cases) c.id: c.animal};
 

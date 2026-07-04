@@ -74,6 +74,64 @@ void main() {
     verify(() => pb.filter('animal = {:a}', {'a': 'anml1'})).called(1);
   });
 
+  group('byAnimals()', () {
+    setUp(() {
+      when(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+        ),
+      ).thenAnswer((_) async => ResultList());
+    });
+
+    test('short-circuits to an empty list without querying', () async {
+      final result = await repo.byAnimals(const []);
+      expect(result, isEmpty);
+      verifyNever(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+        ),
+      );
+    });
+
+    test('builds an OR filter with one bound param per animal', () async {
+      await repo.byAnimals(const ['a', 'b', 'c']);
+      verify(
+        () => pb.filter(
+          'animal = {:a0} || animal = {:a1} || animal = {:a2}',
+          {'a0': 'a', 'a1': 'b', 'a2': 'c'},
+        ),
+      ).called(1);
+    });
+
+    test('chunks a large animal set into several bounded queries', () async {
+      await repo.byAnimals([for (var i = 0; i < 150; i++) 'animal$i']);
+      final filters = verify(() => pb.filter(captureAny(), any())).captured;
+      expect(filters, hasLength(2));
+      expect('animal = '.allMatches(filters[0]! as String), hasLength(100));
+      expect('animal = '.allMatches(filters[1]! as String), hasLength(50));
+    });
+
+    test('fetches duplicate animal ids only once', () async {
+      await repo.byAnimals(const ['a', 'b', 'a']);
+      verify(
+        () => pb.filter(
+          'animal = {:a0} || animal = {:a1}',
+          {'a0': 'a', 'a1': 'b'},
+        ),
+      ).called(1);
+    });
+  });
+
   test(
     'forCarer() filters by the active_carer relation, newest first',
     () async {
