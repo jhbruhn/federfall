@@ -111,7 +111,7 @@ void main() {
       'trims every fetch to the columns the rollup actually reads',
       () async {
         when(() => stays.forAviary('av1')).thenAnswer(
-          (_) async => [
+          (_) async => const [
             AviaryStay(id: 's1', animal: 'a1', aviary: 'av1'),
           ],
         );
