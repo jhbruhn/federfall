@@ -113,6 +113,7 @@ class AnimalDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               _CasesSection(
+                animalId: data.animal.id,
                 cases: data.cases,
                 accessibleIds: data.accessibleCaseIds,
               ),
@@ -444,8 +445,13 @@ class _MarkingsSection extends ConsumerWidget {
 }
 
 class _CasesSection extends StatelessWidget {
-  const _CasesSection({required this.cases, required this.accessibleIds});
+  const _CasesSection({
+    required this.animalId,
+    required this.cases,
+    required this.accessibleIds,
+  });
 
+  final String animalId;
   final List<CaseSummary> cases;
   final Set<String> accessibleIds;
 
@@ -460,7 +466,23 @@ class _CasesSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.animalSectionCases, style: theme.textTheme.titleMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.animalSectionCases,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: l10n.animalNewCase,
+                  onPressed: () => context.push(
+                    AppRoutes.newCaseForAnimal(animalId),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: AppSpacing.sm),
             if (cases.isEmpty)
               Text(

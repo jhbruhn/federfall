@@ -44,6 +44,10 @@ abstract final class AppRoutes {
   /// Create-case form (FED-3.4).
   static const newCase = '/cases/new';
 
+  /// Create-case form pre-linked to an existing animal (5yg.3).
+  static String newCaseForAnimal(String animalId) =>
+      '/cases/new?animal=$animalId';
+
   /// Builds the concrete case-detail path for [id] (FED-3.4).
   static String caseDetail(String id) => '/cases/$id';
 
