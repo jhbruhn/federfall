@@ -73,7 +73,69 @@ void main() {
     expect(find.text('Not shared with anyone yet'), findsOneWidget);
     // Self (u1) and the active carer (u1) are excluded; Bob & Cara remain, so
     // the picker is offered rather than the no-members hint.
-    expect(find.text('No other members to share with'), findsNothing);
+    expect(
+      find.text(
+        'Everyone else in your organisation already has access '
+        'to this case.',
+      ),
+      findsNothing,
+    );
     expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+    // Carers see the role hint explaining supervisors/coordinators always
+    // have access without being shared with.
+    expect(find.textContaining('Supervisors and coordinators'), findsOneWidget);
+  });
+
+  testWidgets('shows the no-members message when no one is eligible', (
+    tester,
+  ) async {
+    // Only the carer (me=u1, also the active carer) and Bob are in the org, and
+    // Bob is already shared with — so no eligible members remain.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentUserProvider.overrideWith((ref) async => _me),
+          orgMembersProvider.overrideWith((ref) async => [_me, _bob]),
+          caseSharesProvider('c1').overrideWith(
+            (ref) async => const [
+              CaseShare(
+                id: 's1',
+                caseId: 'c1',
+                sharedWith: 'u2',
+                access: ShareAccess.read,
+              ),
+            ],
+          ),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => showCaseShareSheet(
+                  context,
+                  caseId: 'c1',
+                  activeCarer: 'u1',
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Everyone else in your organisation already has access '
+        'to this case.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
   });
 }
