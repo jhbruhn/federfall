@@ -15,6 +15,7 @@ class IntakeLocation {
     required this.caseId,
     required this.point,
     this.caseNumber,
+    this.animalName,
     this.species,
     this.city,
     this.admittedAt,
@@ -23,6 +24,7 @@ class IntakeLocation {
   final String caseId;
   final LatLng point;
   final String? caseNumber;
+  final String? animalName;
   final String? species;
   final String? city;
   final DateTime? admittedAt;
@@ -36,6 +38,7 @@ class IntakeLocation {
 List<IntakeLocation> filterIntakeLocations({
   required List<Case> cases,
   required Map<String, String> speciesByAnimal,
+  Map<String, String> nameByAnimal = const {},
   DateTimeRange? admittedRange,
 }) {
   final locations = <IntakeLocation>[];
@@ -55,6 +58,7 @@ List<IntakeLocation> filterIntakeLocations({
         caseId: c.id,
         point: LatLng(geo.lat, geo.lon),
         caseNumber: c.caseNumber,
+        animalName: nameByAnimal[c.animal],
         species: speciesByAnimal[c.animal],
         city: c.city,
         admittedAt: admittedAt,
@@ -82,6 +86,10 @@ Future<List<IntakeLocation>> intakeLocations(
   return filterIntakeLocations(
     cases: cases,
     speciesByAnimal: {for (final a in animals) a.id: a.species},
+    nameByAnimal: {
+      for (final a in animals)
+        if (a.name case final name? when name.isNotEmpty) a.id: name,
+    },
     admittedRange: admittedRange,
   );
 }

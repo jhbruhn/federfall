@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
@@ -197,12 +195,25 @@ class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
     );
   }
 
+  /// Shows the pin's detail sheet, then — only once it has fully closed —
+  /// navigates to the case if "Open case" was tapped, via `context.go` (every
+  /// other case-detail call site in the app uses `go`, never `push` — see
+  /// e.g. `worklist_tile.dart`, `cases_screen.dart`). `caseDetail` is nested
+  /// under the cases tab's `StatefulShellRoute` branch, which preserves that
+  /// branch's own navigation stack in the background; `push`ing it from
+  /// outside the shell added a second page for a route the branch could
+  /// already hold, and go_router asserts on the resulting duplicate page key.
+  /// `go` recomputes the whole location instead of stacking a page, so it
+  /// can't collide like that.
   Future<void> _showLocationSheet(
     BuildContext context,
     IntakeLocation location,
-  ) {
+  ) async {
     final l10n = context.l10n;
-    return showModalBottomSheet<void>(
+    final materialL10n = MaterialLocalizations.of(context);
+    final admittedAt = location.admittedAt;
+
+    final openCase = await showModalBottomSheet<bool>(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: Padding(
@@ -212,27 +223,66 @@ class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                location.caseNumber ?? l10n.intakeMapUnnamedCase,
+                location.animalName ?? l10n.intakeMapUnnamedCase,
                 style: Theme.of(sheetContext).textTheme.titleMedium,
               ),
+              if (location.caseNumber case final caseNumber?)
+                Text(
+                  caseNumber,
+                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(
+                      sheetContext,
+                    ).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              const SizedBox(height: AppSpacing.sm),
               if (location.species case final species? when species.isNotEmpty)
-                Text(species),
+                _SheetRow(icon: Icons.pets_outlined, text: species),
+              if (admittedAt != null)
+                _SheetRow(
+                  icon: Icons.event_available_outlined,
+                  text:
+                      '${l10n.caseFieldAdmittedAt} '
+                      '${materialL10n.formatMediumDate(admittedAt)}',
+                ),
               if (location.city case final city? when city.isNotEmpty)
-                Text(city),
+                _SheetRow(icon: Icons.place_outlined, text: city),
               const SizedBox(height: AppSpacing.md),
               PrimaryButton(
                 label: l10n.intakeMapOpenCase,
                 icon: Icons.arrow_forward,
-                onPressed: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(
-                    context.push(AppRoutes.caseDetail(location.caseId)),
-                  );
-                },
+                onPressed: () => Navigator.of(sheetContext).pop(true),
               ),
             ],
           ),
         ),
+      ),
+    );
+
+    if (openCase == true && context.mounted) {
+      context.go(AppRoutes.caseDetail(location.caseId));
+    }
+  }
+}
+
+/// One icon + text line in the pin detail sheet.
+class _SheetRow extends StatelessWidget {
+  const _SheetRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(child: Text(text)),
+        ],
       ),
     );
   }

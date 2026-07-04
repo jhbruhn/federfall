@@ -71,6 +71,21 @@ void main() {
     expect(result.single.species, 'Pigeon');
   });
 
+  test('resolves the animal name via the name lookup, when given', () {
+    final withName = filterIntakeLocations(
+      cases: [_case('c1', findGeo: geo)],
+      speciesByAnimal: const {},
+      nameByAnimal: const {'a1': 'Pip'},
+    );
+    expect(withName.single.animalName, 'Pip');
+
+    final withoutName = filterIntakeLocations(
+      cases: [_case('c1', findGeo: geo)],
+      speciesByAnimal: const {},
+    );
+    expect(withoutName.single.animalName, isNull);
+  });
+
   test('projects lat/lon into a LatLng point', () {
     final result = filterIntakeLocations(
       cases: [_case('c1', findGeo: geo)],
