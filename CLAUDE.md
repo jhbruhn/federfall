@@ -155,8 +155,14 @@ fragmented sections.
 - **Releases** (`.github/workflows/release-please.yml`): version is driven by Conventional
   Commits via release-please — never hand-bump `apps/federfall/pubspec.yaml`'s `version:` or
   create tags manually. Merging the standing release PR tags `vX.Y.Z`, then builds/pushes the
-  Docker image to `ghcr.io/<repo>` (tags `latest`/`vX.Y.Z`/`vX.Y`/`vX`) and attaches a signed
-  release APK to the GitHub Release. The image build is split across `docker-build` (a matrix:
+  Docker image to `ghcr.io/<repo>` (tags `latest`/`vX.Y.Z`/`vX.Y`/`vX`) and attaches signed
+  release APKs to the GitHub Release: a universal (fat) `federfall-<v>-universal.apk` plus
+  per-ABI `-arm64-v8a`/`-armeabi-v7a` splits (built in a second `flutter build apk
+  --split-per-abi` pass; x86_64 split is skipped, the universal covers it). Flutter offsets the
+  per-ABI versionCode (armeabi-v7a→1xxx, arm64-v8a→2xxx) and its legacy override wins over an
+  AGP `onVariants` reset, so the offset stays — Obtainium users should keep their APK filter on
+  ONE variant (cross-variant switches like arm64→universal read as a downgrade). The image build
+  is split across `docker-build` (a matrix:
   amd64 on `ubuntu-latest`, arm64 on the native `ubuntu-24.04-arm` runner — no QEMU, since this
   repo is public those hosted arm64 runners are free) and `docker-merge` (stitches both digests
   into one multi-arch manifest via `docker buildx imagetools create`). Provenance/SBOM

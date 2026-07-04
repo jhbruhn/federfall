@@ -194,7 +194,21 @@ jobs:
 
       # build.gradle.kts already reads these exact env var names (see
       # apps/federfall/android/app/build.gradle.kts) — no gradle changes needed.
-      - name: Build signed release APK
+      #
+      # Two builds: a universal (fat, all-ABI) APK for maximum compatibility, plus
+      # per-ABI splits that are ~⅓ the native-lib weight. `--split-per-abi` renames
+      # the outputs to app-<abi>-production-release.apk, so it can't share an
+      # invocation with the universal build. We restrict the splits to the two ABIs
+      # real phones ship (arm64-v8a, armeabi-v7a) — the universal APK still covers
+      # the rare x86_64 case, so we don't emit a separate x86_64 split.
+      #
+      # Flutter offsets versionCode per ABI for `--split-per-abi` (armeabi-v7a→1xxx,
+      # arm64-v8a→2xxx) so the variants stay distinct — verified: with build number
+      # 777 the splits come out 1777/2777. Obtainium users should keep their APK
+      # filter on ONE variant (universal / arm64-v8a / armeabi-v7a); each stream then
+      # stays monotonic via the build number. Switching universal→arm64 upgrades
+      # cleanly; arm64→universal reads as a downgrade and needs a reinstall.
+      - name: Build signed release APKs (universal + per-ABI)
         working-directory: apps/federfall
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
@@ -202,21 +216,33 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD }}
         run: |
-          flutter build apk --release --flavor production \
-            --target lib/main_production.dart \
-            --dart-define-from-file=dart_defines/production.json \
-            --build-name="${{ needs.release-please.outputs.version }}" \
+          common=(
+            --release
+            --flavor production
+            --target lib/main_production.dart
+            --dart-define-from-file=dart_defines/production.json
+            --build-name="${{ needs.release-please.outputs.version }}"
             --build-number="${{ github.run_number }}"
+          )
+          flutter build apk "${common[@]}"
+          flutter build apk "${common[@]}" \
+            --split-per-abi \
+            --target-platform android-arm64,android-arm
 
       - name: Remove decoded keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
 
-      - name: Attach APK to GitHub Release
+      - name: Attach APKs to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          apk="apps/federfall/build/app/outputs/flutter-apk/app-production-release.apk"
-          renamed="federfall-${{ needs.release-please.outputs.version }}.apk"
-          mv "$apk" "$renamed"
-          gh release upload "${{ needs.release-please.outputs.tag_name }}" "$renamed"
+          v="${{ needs.release-please.outputs.version }}"
+          out="apps/federfall/build/app/outputs/flutter-apk"
+          cp "$out/app-production-release.apk"              "federfall-${v}-universal.apk"
+          cp "$out/app-arm64-v8a-production-release.apk"    "federfall-${v}-arm64-v8a.apk"
+          cp "$out/app-armeabi-v7a-production-release.apk"  "federfall-${v}-armeabi-v7a.apk"
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            "federfall-${v}-universal.apk" \
+            "federfall-${v}-arm64-v8a.apk" \
+            "federfall-${v}-armeabi-v7a.apk"
