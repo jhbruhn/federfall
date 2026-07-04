@@ -162,7 +162,23 @@ class _ConditionRollupTile extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: theme.textTheme.bodyLarge),
+          Row(
+            children: [
+              Flexible(child: Text(label, style: theme.textTheme.bodyLarge)),
+              // Flags a diagnosis that risks spreading to other flock
+              // residents — the reason this rollup exists in the first
+              // place (a coordinator scanning Pflege needs this at a
+              // glance, not just on the source case).
+              if (code?.isContagious ?? false) ...[
+                const SizedBox(width: AppSpacing.sm),
+                TagChip(
+                  label: l10n.conditionContagious,
+                  color: theme.colorScheme.tertiaryContainer,
+                  onColor: theme.colorScheme.onTertiaryContainer,
+                ),
+              ],
+            ],
+          ),
           if (animalLabel != null)
             Text(
               animalLabel,

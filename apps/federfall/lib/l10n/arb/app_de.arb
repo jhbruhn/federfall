@@ -362,6 +362,7 @@
     "certaintySuspected": "Verdacht",
     "certaintyConfirmed": "Bestätigt",
     "conditionNotifiable": "Meldepflichtig",
+    "conditionContagious": "Ansteckend",
     "conditionResolvedOn": "Abgeklungen {date}",
     "@conditionResolvedOn": {
         "placeholders": { "date": { "type": "String" } }
@@ -577,6 +578,8 @@
     "conditionDescriptionLabel": "Beschreibung (optional)",
     "conditionNotifiableLabel": "Meldepflichtig",
     "conditionNotifiableHelp": "Den Behörden zu melden (z. B. Vogelgrippe).",
+    "conditionContagiousLabel": "Ansteckend",
+    "conditionContagiousHelp": "Kann auf andere Bestandsvögel übertragen werden — wird im Bestandsverlauf der Voliere hervorgehoben.",
     "conditionActiveLabel": "Aktiv",
     "conditionActiveHelp": "Inaktive Diagnosen bleiben in früheren Fällen erhalten, werden aber bei neuen Diagnosen ausgeblendet.",
     "conditionInactiveBadge": "Inaktiv",

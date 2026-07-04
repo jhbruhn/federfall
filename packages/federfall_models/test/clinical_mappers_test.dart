@@ -487,11 +487,12 @@ void main() {
   });
 
   group('Condition.fromRecord', () {
-    test('maps a notifiable code-list entry', () {
+    test('maps a notifiable, contagious code-list entry', () {
       final r = RecordModel({
         'id': 'cond0000000001',
         'label': 'Trichomoniasis',
         'is_notifiable': true,
+        'is_contagious': true,
         'description': 'protozoal',
         'active': true,
         'org': 'org00000000001',
@@ -499,15 +500,17 @@ void main() {
       final c = Condition.fromRecord(r);
       expect(c.label, 'Trichomoniasis');
       expect(c.isNotifiable, isTrue);
+      expect(c.isContagious, isTrue);
       expect(c.description, 'protozoal');
       expect(c.active, isTrue);
     });
 
-    test('defaults notifiable false and reads inactive', () {
+    test('defaults notifiable/contagious false and reads inactive', () {
       final c = Condition.fromRecord(
         RecordModel({'id': 'c', 'label': 'X', 'active': false}),
       );
       expect(c.isNotifiable, isFalse);
+      expect(c.isContagious, isFalse);
       expect(c.active, isFalse);
     });
   });

@@ -55,27 +55,31 @@ void main() {
     expect(find.text('You are not authorized to do that'), findsOneWidget);
   });
 
-  testWidgets('lists conditions with notifiable and inactive badges', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      role: UserRole.supervisor,
-      screen: CodelistAdminScreen(spec: conditionsCodelistSpec),
-      overrides: [
-        conditionsProvider.overrideWith(
-          (ref) async => const [
-            Condition(id: 'c1', label: 'Trichomoniasis', isNotifiable: true),
-            Condition(id: 'c2', label: 'Old entry', active: false),
-          ],
-        ),
-      ],
-    );
-    expect(find.text('Trichomoniasis'), findsOneWidget);
-    expect(find.text('Old entry'), findsOneWidget);
-    expect(find.textContaining('Notifiable'), findsOneWidget);
-    expect(find.textContaining('Inactive'), findsOneWidget);
-  });
+  testWidgets(
+    'lists conditions with notifiable, contagious and inactive badges',
+    (tester) async {
+      await _pump(
+        tester,
+        role: UserRole.supervisor,
+        screen: CodelistAdminScreen(spec: conditionsCodelistSpec),
+        overrides: [
+          conditionsProvider.overrideWith(
+            (ref) async => const [
+              Condition(id: 'c1', label: 'Trichomoniasis', isNotifiable: true),
+              Condition(id: 'c2', label: 'Old entry', active: false),
+              Condition(id: 'c3', label: 'Kokzidiose', isContagious: true),
+            ],
+          ),
+        ],
+      );
+      expect(find.text('Trichomoniasis'), findsOneWidget);
+      expect(find.text('Old entry'), findsOneWidget);
+      expect(find.text('Kokzidiose'), findsOneWidget);
+      expect(find.textContaining('Notifiable'), findsOneWidget);
+      expect(find.textContaining('Contagious'), findsOneWidget);
+      expect(find.textContaining('Inactive'), findsOneWidget);
+    },
+  );
 
   testWidgets('adding a condition creates it scoped to the org, including '
       'the condition-only fields', (tester) async {
@@ -103,7 +107,9 @@ void main() {
       find.widgetWithText(TextFormField, 'Name'),
       'Paramyxovirus',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    final saveButton = find.widgetWithText(FilledButton, 'Save');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
     final data =
@@ -112,9 +118,10 @@ void main() {
     expect(data['label'], 'Paramyxovirus');
     expect(data['org'], 'org1');
     expect(data['active'], true);
-    // The conditions spec carries the two extra fields.
+    // The conditions spec carries the three extra fields.
     expect(data['description'], '');
     expect(data['is_notifiable'], false);
+    expect(data['is_contagious'], false);
   });
 
   testWidgets('a label-only list omits the condition-only fields on create', (
@@ -144,7 +151,9 @@ void main() {
     expect(find.byType(SwitchListTile), findsOneWidget);
 
     await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Ring');
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    final saveButton = find.widgetWithText(FilledButton, 'Save');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
     final data =
@@ -155,6 +164,44 @@ void main() {
     expect(data['active'], true);
     expect(data.containsKey('description'), isFalse);
     expect(data.containsKey('is_notifiable'), isFalse);
+    expect(data.containsKey('is_contagious'), isFalse);
+  });
+
+  testWidgets('editing a condition can flip the contagious switch', (
+    tester,
+  ) async {
+    final repo = MockConditionsRepo();
+    when(() => repo.update(any(), any())).thenAnswer(
+      (_) async =>
+          const Condition(id: 'c1', label: 'Kokzidiose', isContagious: true),
+    );
+
+    await _pump(
+      tester,
+      role: UserRole.supervisor,
+      screen: CodelistAdminScreen(spec: conditionsCodelistSpec),
+      overrides: [
+        conditionsProvider.overrideWith(
+          (ref) async => const [Condition(id: 'c1', label: 'Kokzidiose')],
+        ),
+        conditionsRepositoryProvider.overrideWith((ref) async => repo),
+      ],
+    );
+
+    await tester.tap(find.text('Kokzidiose'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Contagious'));
+    final saveButton = find.widgetWithText(FilledButton, 'Save');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    final data =
+        verify(() => repo.update('c1', captureAny())).captured.single
+            as Map<String, dynamic>;
+    expect(data['is_contagious'], true);
+    expect(data['is_notifiable'], false);
   });
 
   testWidgets('deleting a condition confirms and calls the repo', (

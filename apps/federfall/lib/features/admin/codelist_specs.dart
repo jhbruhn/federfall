@@ -7,8 +7,9 @@ import 'package:federfall/features/cases/medications/medication_routes_providers
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 
-/// The org's diagnosis vocabulary — the only list with a description and a
-/// notifiable flag on top of the shared `{label, active}` shape.
+/// The org's diagnosis vocabulary — the only list with a description, a
+/// notifiable flag and a contagious flag on top of the shared
+/// `{label, active}` shape.
 final conditionsCodelistSpec = CodelistSpec<Condition>(
   watchList: (ref) => ref.watch(conditionsProvider),
   refresh: (ref) => ref.invalidate(conditionsProvider),
@@ -18,6 +19,7 @@ final conditionsCodelistSpec = CodelistSpec<Condition>(
   active: (c) => c.active,
   description: (c) => c.description,
   notifiable: (c) => c.isNotifiable,
+  contagious: (c) => c.isContagious,
   tileIcon: Icons.label_outline,
   emptyIcon: Icons.checklist_outlined,
   title: (l10n) => l10n.conditionsAdminTitle,

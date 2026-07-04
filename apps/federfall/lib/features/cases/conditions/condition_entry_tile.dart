@@ -13,8 +13,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// One diagnosis as a chronology event (FED-4.5): a [TimelineItem] showing the
 /// condition label (resolved from the code list, or free text), a certainty
-/// chip, a notifiable badge when applicable, optional notes and resolved date,
-/// and an edit/delete menu.
+/// chip, notifiable/contagious badges when applicable, optional notes and
+/// resolved date, and an edit/delete menu.
 class ConditionEntryTile extends ConsumerWidget {
   const ConditionEntryTile({
     required this.entry,
@@ -93,6 +93,12 @@ class ConditionEntryTile extends ConsumerWidget {
                   label: l10n.conditionNotifiable,
                   color: theme.colorScheme.errorContainer,
                   onColor: theme.colorScheme.onErrorContainer,
+                ),
+              if (code?.isContagious ?? false)
+                TagChip(
+                  label: l10n.conditionContagious,
+                  color: theme.colorScheme.tertiaryContainer,
+                  onColor: theme.colorScheme.onTertiaryContainer,
                 ),
               if (entry.resolvedDate case final r?)
                 Text(
