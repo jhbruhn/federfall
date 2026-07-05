@@ -1141,6 +1141,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.28.0"
+  scanwedge:
+    dependency: transitive
+    description:
+      name: scanwedge
+      sha256: "5e2fc8202b7b5cdb7ba65a3f3f5fcb0888da562264c2bb35dd6507f210208da9"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.5"
   sembast:
     dependency: transitive
     description:

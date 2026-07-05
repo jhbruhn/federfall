@@ -1,4 +1,5 @@
 import 'package:federfall/config/app_environment.dart';
+import 'package:federfall/core/scanner/hardware_scan_listener.dart';
 import 'package:federfall/features/reminders/medication_reminders.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
@@ -12,8 +13,11 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Activate the (lazy) reminder reconciler for the app's lifetime: listen
-    // rather than watch, so its rebuilds never rebuild the MaterialApp.
-    ref.listen(medicationRemindersProvider, (_, _) {});
+    // rather than watch, so its rebuilds never rebuild the MaterialApp. Same
+    // shape for hardware-scanner deep links below (federfall-gdp8).
+    ref
+      ..listen(medicationRemindersProvider, (_, _) {})
+      ..listen(hardwareScanListenerProvider, (_, _) {});
     return MaterialApp.router(
       // Root of the state-restoration tree. Paired with the
       // `restorationScopeId` on GoRouter and the branch/shell/list-detail

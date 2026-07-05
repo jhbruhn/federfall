@@ -38,6 +38,7 @@ dependencies:
   package_info_plus: ^10.2.0
   pocketbase: ^0.24.0
   riverpod_annotation: ^4.0.3
+  scanwedge: ^1.1.5
   share_plus: ^13.2.0
   shared_preferences: ^2.5.5
   timezone: ^0.11.1
