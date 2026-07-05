@@ -87,10 +87,14 @@ void main() {
     var probed = false;
     await _pump(
       tester,
-      ServerProbe((_) async {
+      // Pinned to `false` (simulating production): AppEnvironment.flavor
+      // defaults to "development" with no --dart-define, which is exactly how
+      // `flutter test` runs — the real (non-test) constructor would let this
+      // through and defeat the assertion below.
+      ServerProbe.forTest((_) async {
         probed = true;
         return _infoBody();
-      }),
+      }, allowInsecureHttp: false),
     );
 
     await tester.enterText(

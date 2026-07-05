@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/pocketbase/user_agent_client.dart';
 import 'package:federfall/core/server/server_info.dart';
 import 'package:flutter/foundation.dart';
@@ -117,9 +118,24 @@ Future<Object?> _defaultProber(String baseUrl) async {
 /// Federfall identity marker → classify the outcome. A generic PocketBase has
 /// no such route (404) and is rejected as not-Federfall.
 class ServerProbe {
-  const ServerProbe([this._prober = _defaultProber]);
+  const ServerProbe([
+    this._prober = _defaultProber,
+  ]) : _allowInsecureHttpOverride = null;
+
+  /// Test-only constructor: pins the flavor-based check below to a fixed
+  /// value instead of deferring to [AppEnvironment.flavor].
+  @visibleForTesting
+  const ServerProbe.forTest(this._prober, {required bool allowInsecureHttp})
+    : _allowInsecureHttpOverride = allowInsecureHttp;
 
   final ServerInfoProber _prober;
+
+  /// Overrides the flavor-based check below — `null` (the real app's only
+  /// constructor call, `serverProbe`) defers to [AppEnvironment.flavor];
+  /// tests pin it to a fixed `true`/`false` so the assertion doesn't depend on
+  /// which flavor happens to be compiled in when the suite runs (defaults to
+  /// `development` with no `--dart-define`, per [AppEnvironment.flavorName]).
+  final bool? _allowInsecureHttpOverride;
 
   Future<ServerProbeResult> probe(String input) async {
     final normalized = normalizeServerUrl(input);
@@ -129,12 +145,20 @@ class ServerProbe {
     // in release builds (no usesCleartextTraffic/ATS exception), which just
     // surfaces as an opaque connection failure — reject it here instead with
     // a clear reason. Loopback stays allowed as the local-dev escape hatch
-    // (the development flavor points at http://localhost:8090).
+    // (the development flavor points at http://localhost:8090); the whole
+    // development flavor is additionally exempt so it can reach a plain-http
+    // PocketBase on the local network too (Android's development-flavor
+    // manifest carries the matching usesCleartextTraffic — see
+    // android/app/src/development/AndroidManifest.xml — so both layers agree).
     final uri = Uri.parse(normalized);
     final host = uri.host.toLowerCase();
     final isLoopback =
         host == 'localhost' || host == '127.0.0.1' || host == '::1';
-    if (uri.scheme == 'http' && !isLoopback) {
+    final allowInsecureHttp =
+        isLoopback ||
+        (_allowInsecureHttpOverride ??
+            AppEnvironment.flavor == AppFlavor.development);
+    if (uri.scheme == 'http' && !allowInsecureHttp) {
       return const ServerProbeResult.insecureHttp();
     }
 

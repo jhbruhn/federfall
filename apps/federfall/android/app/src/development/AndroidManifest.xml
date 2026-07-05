@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Dev-only: Android blocks plain-HTTP (cleartext) traffic by default
+         since API 28, so a `development`-flavor build pointed at a local
+         network PocketBase (dart_defines/development.json's POCKETBASE_URL,
+         typically an http:// LAN address, no TLS) fails to reach it at all —
+         not a login/credentials problem, the OS refuses the connection before
+         it leaves the device. Scoped to this flavor only (NOT staging/
+         production, which stay TLS-only); merges into the `development`
+         variant's <application> regardless of debug/release build type. -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>

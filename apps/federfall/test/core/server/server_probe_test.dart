@@ -132,16 +132,35 @@ void main() {
       'explicit http:// on a non-loopback host is rejected unprobed',
       () async {
         var probed = false;
-        final probe = ServerProbe((_) async {
+        // Pinned to `false` (simulating production) rather than relying on
+        // AppEnvironment.flavor, which defaults to "development" with no
+        // --dart-define — i.e. exactly how `flutter test` runs this suite.
+        final probe = ServerProbe.forTest((_) async {
           probed = true;
           return _infoBody();
-        });
+        }, allowInsecureHttp: false);
 
         expect(
           await probe.probe('http://pigeons.example'),
           isA<ProbeInsecureHttp>(),
         );
         expect(probed, isFalse);
+      },
+    );
+
+    test(
+      'explicit http:// on a non-loopback host is probed in the '
+      'development flavor',
+      () async {
+        final probe = ServerProbe.forTest(
+          (_) async => _infoBody(),
+          allowInsecureHttp: true,
+        );
+
+        expect(
+          await probe.probe('http://pigeons.example'),
+          isA<ProbeReachable>(),
+        );
       },
     );
 
