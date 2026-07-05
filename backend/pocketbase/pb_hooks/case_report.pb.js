@@ -92,31 +92,47 @@ routerAdd(
 
     // ── Date parts: the template constructs a Typst `datetime` from these and
     // formats/localizes it itself. Converted from PocketBase's stored UTC to
-    // Europe/Berlin wall-clock time — the org this report serves (matches the
-    // app's own hardcoded German locale, federfall-qdsa). goja/JSVM has no
+    // the CALLER's wall-clock time via `?tzOffsetMinutes=` (signed minutes,
+    // e.g. 120 for UTC+2) rather than a hard-coded zone — goja/JSVM has no
     // Intl at all (verified empirically: `typeof Intl` is "undefined", and
-    // calling into it doesn't even throw a catchable JS error — it silently
-    // aborts the response), so this can't use a real IANA tzdata lookup.
-    // Instead it hard-codes the EU's own DST rule (CEST from the last Sunday
-    // of March 01:00 UTC to the last Sunday of October 01:00 UTC, else CET) —
-    // that rule is set by EU regulation, not a place-specific tzdata quirk,
-    // so it's stable to hard-code without a real timezone database.
+    // calling into it doesn't even throw a catchable JS error, it silently
+    // empties the response), so there's no real IANA tzdata to resolve a zone
+    // NAME against server-side. The Flutter client already knows its own
+    // correct offset — DST and all — via `DateTime.now().timeZoneOffset`
+    // (case_detail_screen.dart), so it's simplest to just have it say so
+    // directly instead of guessing a zone here. Falls back to the EU's own
+    // DST rule for Europe/Berlin (CEST from the last Sunday of March 01:00
+    // UTC to the last Sunday of October 01:00 UTC, else CET) when the param
+    // is absent/invalid — e.g. a direct API/curl call, or an older client
+    // build that predates this parameter.
     const lastSundayUTC = (year, monthIndex) => {
       const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
       return lastDay.getUTCDate() - lastDay.getUTCDay();
     };
-    const berlinOffsetMs = (utcMs) => {
+    const berlinOffsetMinutes = (utcMs) => {
       const year = new Date(utcMs).getUTCFullYear();
       const dstStart = Date.UTC(year, 2, lastSundayUTC(year, 2), 1, 0, 0);
       const dstEnd = Date.UTC(year, 9, lastSundayUTC(year, 9), 1, 0, 0);
       const isDst = utcMs >= dstStart && utcMs < dstEnd;
-      return (isDst ? 2 : 1) * 3600000;
+      return (isDst ? 2 : 1) * 60;
     };
+    const tzOffsetParam = parseInt(e.request.url.query().get("tzOffsetMinutes"), 10);
+    // A real-world UTC offset is always within [-12h, +14h]; reject anything
+    // outside that (or NaN from a missing/garbled param) rather than silently
+    // shifting dates by some huge, clearly-wrong amount.
+    const explicitOffsetMinutes =
+      !isNaN(tzOffsetParam) && tzOffsetParam >= -720 && tzOffsetParam <= 840
+        ? tzOffsetParam
+        : null;
     const dateParts = (value) => {
       if (!value) return null;
       const d = new Date(String(value).replace(" ", "T"));
       if (isNaN(d.getTime())) return null;
-      const local = new Date(d.getTime() + berlinOffsetMs(d.getTime()));
+      const offsetMinutes =
+        explicitOffsetMinutes !== null
+          ? explicitOffsetMinutes
+          : berlinOffsetMinutes(d.getTime());
+      const local = new Date(d.getTime() + offsetMinutes * 60000);
       return {
         y: local.getUTCFullYear(),
         mo: local.getUTCMonth() + 1,

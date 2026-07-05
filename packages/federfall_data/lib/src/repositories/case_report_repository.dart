@@ -35,24 +35,35 @@ class PbCaseReportRepository {
   /// [lang] picks the report's translation dict (`typst/report.typ`'s
   /// `STRINGS`) — an unmapped value falls back to German server-side, so
   /// there's no need to validate it here.
-  Future<Uint8List> fetchPdf(String caseId, {String lang = 'de'}) =>
-      _guard(() async {
-        final uri = pb.buildURL('/api/federfall/cases/$caseId/report.pdf', {
-          'lang': lang,
-        });
-        final res = await http.get(
-          uri,
-          headers: {
-            if (pb.authStore.isValid) 'Authorization': pb.authStore.token,
-          },
-        );
-        if (res.statusCode != 200) {
-          throw RepositoryException.fromClient(
-            ClientException(url: uri, statusCode: res.statusCode),
-          );
-        }
-        return res.bodyBytes;
-      });
+  ///
+  /// [tzOffsetMinutes] is the caller's own UTC offset (e.g.
+  /// `DateTime.now().timeZoneOffset.inMinutes`) — the server has no timezone
+  /// database to resolve a zone name against (see case_report.pb.js), so it
+  /// asks the client to just say its offset directly rather than guessing a
+  /// zone. `null` (the default) omits the param entirely and falls back to a
+  /// hard-coded Europe/Berlin rule server-side.
+  Future<Uint8List> fetchPdf(
+    String caseId, {
+    String lang = 'de',
+    int? tzOffsetMinutes,
+  }) => _guard(() async {
+    final uri = pb.buildURL('/api/federfall/cases/$caseId/report.pdf', {
+      'lang': lang,
+      if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',
+    });
+    final res = await http.get(
+      uri,
+      headers: {
+        if (pb.authStore.isValid) 'Authorization': pb.authStore.token,
+      },
+    );
+    if (res.statusCode != 200) {
+      throw RepositoryException.fromClient(
+        ClientException(url: uri, statusCode: res.statusCode),
+      );
+    }
+    return res.bodyBytes;
+  });
 
   /// Mirrors `PbGeocodingRepository._guard`: timeout → network,
   /// [ClientException] → [RepositoryException.fromClient], any other failure

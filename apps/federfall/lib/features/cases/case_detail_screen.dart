@@ -111,12 +111,19 @@ class _ShareReportButtonState extends ConsumerState<_ShareReportButton> {
     final messenger = ScaffoldMessenger.of(context);
     // The report's language follows the app's own UI language, same as
     // `medication_reminders.dart` does for notification text — captured
-    // before the first await, matching l10n/messenger above.
+    // before the first await, matching l10n/messenger above. The server has
+    // no timezone database (see case_report.pb.js), so this device's own
+    // offset (DST and all) is sent directly rather than a zone name.
     final lang = Localizations.localeOf(context).languageCode;
+    final tzOffsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
     setState(() => _busy = true);
     try {
       final repo = await ref.read(caseReportRepositoryProvider.future);
-      final bytes = await repo.fetchPdf(widget.medicalCase.id, lang: lang);
+      final bytes = await repo.fetchPdf(
+        widget.medicalCase.id,
+        lang: lang,
+        tzOffsetMinutes: tzOffsetMinutes,
+      );
       final filename =
           'case-${widget.medicalCase.caseNumber ?? widget.medicalCase.id}.pdf';
       await SharePlus.instance.share(
