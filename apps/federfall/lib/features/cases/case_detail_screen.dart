@@ -31,6 +31,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:share_plus/share_plus.dart';
 
 /// Case detail (FED-4.3): a persistent name-first identity header over two
 /// tabs — **Overview** (intake summary + weight trend) and **History** (the
@@ -60,6 +61,11 @@ class CaseDetailScreen extends ConsumerWidget {
         automaticallyImplyLeading: !context.isExpanded,
         title: Text(l10n.caseDetailTitle),
         actions: [
+          // The PDF report is a READ action (unlike the edit/share/status
+          // controls in the Overview actions card, which are canEdit-gated) —
+          // a view-only sharee must be able to pull it too, so it lives here
+          // rather than in _CaseActions.
+          if (medicalCase != null) _ShareReportButton(medicalCase: medicalCase),
           // Edit / share / status moved into the Overview actions card; the
           // app bar keeps only navigation to the animal.
           if (medicalCase != null)
@@ -79,6 +85,69 @@ class CaseDetailScreen extends ConsumerWidget {
         loading: const LinearProgressIndicator(),
         data: _CaseDetail.new,
       ),
+    );
+  }
+}
+
+/// App-bar action that fetches the server-rendered PDF report
+/// (`pb_hooks/case_report.pb.js`, federfall-gdp8) and hands it to the OS share
+/// sheet. Its own small busy-state, mirroring `_CaseActionsState._setStatus`'s
+/// try/catch/finally shape — but unlike that card, this isn't canEdit-gated:
+/// it's a read action, so a view-only sharee gets it too.
+class _ShareReportButton extends ConsumerStatefulWidget {
+  const _ShareReportButton({required this.medicalCase});
+
+  final Case medicalCase;
+
+  @override
+  ConsumerState<_ShareReportButton> createState() => _ShareReportButtonState();
+}
+
+class _ShareReportButtonState extends ConsumerState<_ShareReportButton> {
+  bool _busy = false;
+
+  Future<void> _share() async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    // The report's language follows the app's own UI language, same as
+    // `medication_reminders.dart` does for notification text — captured
+    // before the first await, matching l10n/messenger above.
+    final lang = Localizations.localeOf(context).languageCode;
+    setState(() => _busy = true);
+    try {
+      final repo = await ref.read(caseReportRepositoryProvider.future);
+      final bytes = await repo.fetchPdf(widget.medicalCase.id, lang: lang);
+      final filename =
+          'case-${widget.medicalCase.caseNumber ?? widget.medicalCase.id}.pdf';
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(bytes, mimeType: 'application/pdf', name: filename),
+          ],
+          fileNameOverrides: [filename],
+        ),
+      );
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: _busy
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.picture_as_pdf_outlined),
+      tooltip: context.l10n.caseShareReportAction,
+      onPressed: _busy ? null : _share,
     );
   }
 }

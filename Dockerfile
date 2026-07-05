@@ -105,11 +105,38 @@ RUN set -eux; \
     rm /tmp/pb.zip; \
     chmod +x /pb/pocketbase
 
+# ── Typst fetch stage ───────────────────────────────────────────────────────────
+# Typst ships a single static Rust binary; fetch + verify the pinned release.
+# Same rigor as pbfetch above, EXCEPT Typst does not publish a checksums.txt —
+# these SHA256s were computed by hand from the v0.15.0 release assets (there is
+# no upstream file to diff a version bump against, so bumping TYPST_VERSION
+# means re-downloading and re-hashing both arches yourself).
+FROM alpine:3.20 AS typstfetch
+ARG TYPST_VERSION=0.15.0
+ARG TARGETARCH
+RUN apk add --no-cache wget xz ca-certificates
+WORKDIR /typst
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64) TT_TARGET=x86_64-unknown-linux-musl; TT_SHA256=59b207df01be2dab9f13e80f73d04d7ff8273ffd46b3dd1b9eef5c60f3eeabea ;; \
+        arm64) TT_TARGET=aarch64-unknown-linux-musl; TT_SHA256=cdf50ffc7b8ba759ed02200632eda3d78eb8b99aacb6611f4f75684990647620 ;; \
+        *)     echo "unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    wget -q "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-${TT_TARGET}.tar.xz" -O /tmp/typst.tar.xz; \
+    echo "${TT_SHA256}  /tmp/typst.tar.xz" | sha256sum -c -; \
+    tar -xJf /tmp/typst.tar.xz -C /typst --strip-components=1; \
+    rm /tmp/typst.tar.xz; \
+    chmod +x /typst/typst
+
 # ── Backend runtime (lean: PB + migrations + hooks, NO web) ─────────────────────
 # This stage IS the rule-test image (built via `--target backend`).
 FROM alpine:3.20 AS backend
 RUN apk add --no-cache ca-certificates tzdata wget
 COPY --from=pbfetch /pb/pocketbase /usr/local/bin/pocketbase
+# federfall-gdp8 — the per-case PDF report hook shells out to this. Bundled
+# here (not fetched at runtime) so PDF generation works fully offline/
+# reproducibly, same stance as the pinned Flutter SDK and the PB binary above.
+COPY --from=typstfetch /typst/typst /usr/local/bin/typst
 WORKDIR /pb
 # Released images get this set to the release-please version (e.g. "1.4.2") via
 # --build-arg in the release workflow. info.pb.js reads it at request time
@@ -125,6 +152,7 @@ RUN mkdir -p /pb/pb_data
 # automigrate + hot-reload still work.)
 COPY backend/pocketbase/pb_migrations/ /pb/pb_migrations/
 COPY backend/pocketbase/pb_hooks/      /pb/pb_hooks/
+COPY backend/pocketbase/typst/         /pb/typst/
 EXPOSE 8090
 # Production default: automigrate OFF — schema only ever changes via the committed
 # migration files baked above, never drifts from the Admin UI. The dev override

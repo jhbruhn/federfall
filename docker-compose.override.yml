@@ -5,8 +5,10 @@
 # Dev builds the SAME full image as production (PocketBase + the baked Flutter web
 # SPA), so `docker compose up` serves the whole app on http://localhost:8090. The
 # override only relaxes the RUNTIME, not the image:
-#   - bind-mount pb_migrations/ + pb_hooks/ so host edits take effect without a
-#     rebuild (hooks hot-reload; new Admin-UI migrations land back on the host),
+#   - bind-mount pb_migrations/ + pb_hooks/ + typst/ so host edits take effect
+#     without a rebuild (hooks hot-reload; new Admin-UI migrations land back on
+#     the host; the case-report .typ template is read fresh on every request —
+#     no reload needed at all),
 #   - bind-mount the existing local pb_data so dev data persists on the host,
 #   - automigrate ON so Admin-UI schema changes are written as .js migration files.
 #
@@ -26,6 +28,7 @@ services:
       - ./backend/pocketbase/pb_data:/pb/pb_data
       - ./backend/pocketbase/pb_migrations:/pb/pb_migrations
       - ./backend/pocketbase/pb_hooks:/pb/pb_hooks
+      - ./backend/pocketbase/typst:/pb/typst
     command:
       - "serve"
       - "--http=0.0.0.0:8090"

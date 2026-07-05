@@ -62,6 +62,22 @@ def req(method, path, token=None, body=None):
             return e.code, None
 
 
+def req_bytes(method, path, token=None):
+    """Like [req], but for a binary (non-JSON) response body — e.g. the PDF
+    case report. Return (status, raw_bytes_or_None, headers). `req`'s
+    `.decode()` would raise on PDF bytes (not valid UTF-8), hence a separate
+    helper rather than a mode flag on the shared one."""
+    headers = {}
+    if token:
+        headers["Authorization"] = token
+    r = urllib.request.Request(BASE + path, headers=headers, method=method)
+    try:
+        resp = urllib.request.urlopen(r)
+        return resp.status, resp.read(), dict(resp.headers)
+    except urllib.error.HTTPError as e:
+        return e.code, e.read(), dict(e.headers)
+
+
 def upload_file(method, path, token, field, filename, content_type, blob):
     """Multipart upload of a single [blob] to [field]. Returns (status, json)."""
     boundary = "----fedtestboundary"
@@ -1172,6 +1188,46 @@ def main():
                {"case": aex_case, "animal": fanimal})
     check("exam save CANNOT denormalize a foreign-org animal", s == 400,
           f"status {s}")
+
+    # ── federfall-gdp8: per-case PDF report route ────────────────────────────
+    # Reuses aex_case (active carer A; C has a read-share, B an edit-share from
+    # the exam block above) — its own view-rule permission mirror is the one
+    # new edge here: a read-only share must ALSO get the report (unlike
+    # editing, which the edit-share-only checks above already cover).
+    print("\n[case report PDF route]")
+    s, _, _ = req_bytes("GET", f"/api/federfall/cases/{aex_case}/report.pdf")
+    check("report route requires auth", s == 401, f"status {s}")
+    s, _, _ = req_bytes("GET", f"/api/federfall/cases/{aex_case}/report.pdf", gtok)
+    check("guest CANNOT fetch the report", s == 403, f"status {s}")
+    s, _, _ = req_bytes("GET", f"/api/federfall/cases/{aex_case}/report.pdf", td)
+    check("same-org outsider (no share) CANNOT fetch the report", s == 403,
+          f"status {s}")
+    s, _, _ = req_bytes("GET", "/api/federfall/cases/nonexistent0000000/report.pdf",
+                         toks["a"])
+    check("unknown case is rejected", s >= 400, f"status {s}")
+
+    for label, tok in [("active carer", toks["a"]), ("read-share", tc),
+                       ("edit-share", toks["b"]), ("supervisor", toks["sup"]),
+                       ("coordinator", toks["coord"])]:
+        s, body, hdrs = req_bytes(
+            "GET", f"/api/federfall/cases/{aex_case}/report.pdf", tok)
+        check(f"{label} can fetch the report (200, application/pdf)",
+              s == 200 and hdrs.get("Content-Type") == "application/pdf"
+              and bool(body) and body[:5] == b"%PDF-",
+              f"status {s} content-type {hdrs.get('Content-Type')} "
+              f"len {len(body) if body else 0}")
+
+    # `?lang=` picks the translation dict in report.typ (all localization now
+    # lives there, not in the hook — federfall-gdp8's refactor); unmapped
+    # values fall back to German rather than erroring.
+    s, body, _ = req_bytes(
+        "GET", f"/api/federfall/cases/{aex_case}/report.pdf?lang=en", toks["a"])
+    check("?lang=en renders (200, application/pdf)",
+          s == 200 and bool(body) and body[:5] == b"%PDF-", f"status {s}")
+    s, body, _ = req_bytes(
+        "GET", f"/api/federfall/cases/{aex_case}/report.pdf?lang=fr", toks["a"])
+    check("unmapped ?lang= falls back to German (200, application/pdf)",
+          s == 200 and bool(body) and body[:5] == b"%PDF-", f"status {s}")
 
     # ── federfall-oxqk / federfall-zdcb: member removal ──────────────────────
     # oxqk turned out to be a false positive (users.deleteRule IS
