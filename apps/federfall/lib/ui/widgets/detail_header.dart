@@ -18,11 +18,20 @@ class DetailHeader extends StatelessWidget {
     this.chipAlert = false,
     this.leading,
     this.trailing,
+    this.onTitleTap,
+    this.titleTapTooltip,
     super.key,
   });
 
   /// The dominant headline (animal name, falling back to species).
   final String title;
+
+  /// When set, [title] becomes tappable (e.g. a case header linking to the
+  /// animal's own lifetime record) instead of being plain text.
+  final VoidCallback? onTitleTap;
+
+  /// Tooltip shown on the tappable title; only meaningful with [onTitleTap].
+  final String? titleTapTooltip;
 
   /// Muted secondary line (e.g. "Species · 2026-014"); omitted when null/empty.
   final String? subtitle;
@@ -49,11 +58,24 @@ class DetailHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final hasSubtitle = subtitle != null && subtitle!.isNotEmpty;
 
+    Widget titleText = Text(title, style: theme.textTheme.headlineSmall);
+    if (onTitleTap != null) {
+      titleText = InkWell(
+        onTap: onTitleTap,
+        borderRadius: BorderRadius.circular(4),
+        mouseCursor: SystemMouseCursors.click,
+        child: titleText,
+      );
+      if (titleTapTooltip != null) {
+        titleText = Tooltip(message: titleTapTooltip, child: titleText);
+      }
+    }
+
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(title, style: theme.textTheme.headlineSmall),
+        titleText,
         if (hasSubtitle) ...[
           const SizedBox(height: AppSpacing.xs),
           Text(

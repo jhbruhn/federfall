@@ -22,10 +22,13 @@ import 'package:federfall/features/cases/placements/placement_sheet.dart';
 import 'package:federfall/features/cases/sharing/case_share_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
+import 'package:federfall/features/printing/printer_service.dart';
+import 'package:federfall/features/printing/printer_settings.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,15 +69,14 @@ class CaseDetailScreen extends ConsumerWidget {
           // a view-only sharee must be able to pull it too, so it lives here
           // rather than in _CaseActions.
           if (medicalCase != null) _ShareReportButton(medicalCase: medicalCase),
+          // Receipt printing has no web implementation at all
+          // (unified_esc_pos_printer, federfall-i0wq) — same !kIsWeb guard as
+          // the profile screen's printer section.
+          if (medicalCase != null && !kIsWeb)
+            _PrintReportButton(medicalCase: medicalCase),
           // Edit / share / status moved into the Overview actions card; the
-          // app bar keeps only navigation to the animal.
-          if (medicalCase != null)
-            IconButton(
-              icon: const Icon(Icons.pets_outlined),
-              tooltip: l10n.caseOpenAnimal,
-              onPressed: () =>
-                  context.go(AppRoutes.animalDetail(medicalCase.animal)),
-            ),
+          // app bar no longer has a dedicated animal-navigation action — the
+          // header's name is tappable instead (see _Header).
         ],
       ),
       body: AsyncValueView<Case>(
@@ -155,6 +157,95 @@ class _ShareReportButtonState extends ConsumerState<_ShareReportButton> {
           : const Icon(Icons.picture_as_pdf_outlined),
       tooltip: context.l10n.caseShareReportAction,
       onPressed: _busy ? null : _share,
+    );
+  }
+}
+
+/// App-bar action that prints the case's receipt on the configured thermal
+/// printer (federfall-i0wq): fetches the narrow receipt PNG rendered by the
+/// same server-side Typst pipeline as [_ShareReportButton]'s PDF (just a
+/// different `?widthDots=`) and hands it to [PrinterService.printReceipt],
+/// sized to the saved `ReceiptPaperSize`. A read action like the PDF share
+/// button — not canEdit-gated, so a view-only sharee gets it too. No printer
+/// configured yet? Say so and hand off to the profile screen's printer
+/// section rather than failing silently.
+class _PrintReportButton extends ConsumerStatefulWidget {
+  const _PrintReportButton({required this.medicalCase});
+
+  final Case medicalCase;
+
+  @override
+  ConsumerState<_PrintReportButton> createState() => _PrintReportButtonState();
+}
+
+class _PrintReportButtonState extends ConsumerState<_PrintReportButton> {
+  bool _busy = false;
+
+  Future<void> _print() async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    // maybeOf (not of): a bare test harness with no GoRouter must still be
+    // able to pump this button — matches profile_screen.dart's own exit
+    // logic for the same reason.
+    final router = GoRouter.maybeOf(context);
+    // Same "capture before the first await" shape as _ShareReportButton:
+    // the report language follows the app's own UI language, and the server
+    // has no timezone database (see case_report.pb.js), so this device's own
+    // offset is sent directly rather than a zone name.
+    final lang = Localizations.localeOf(context).languageCode;
+    final tzOffsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    setState(() => _busy = true);
+    final service = ref.read(printerServiceProvider);
+    try {
+      // Await the notifier's OWN future rather than a synchronous
+      // ref.read(...).value snapshot: on the very first tap after app start
+      // (if this is the first printer-touching screen the session visits)
+      // the shared_preferences read hasn't resolved yet, and `.value` would
+      // read as null — "no printer configured" — even though one WAS saved
+      // in a previous session. `.future` awaits the pending load instead of
+      // racing it (keepAlive means every later read is instant and cached).
+      final settings = await ref.read(printerSettingsProvider.future);
+      final device = settings.device;
+      if (device == null) {
+        if (!mounted) return;
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.printerNotConfigured)),
+        );
+        if (router != null) unawaited(router.push(AppRoutes.profile));
+        return;
+      }
+
+      final repo = await ref.read(caseReportRepositoryProvider.future);
+      final pngBytes = await repo.fetchReceiptPng(
+        widget.medicalCase.id,
+        widthDots: settings.paperSize.widthPixels,
+        lang: lang,
+        tzOffsetMinutes: tzOffsetMinutes,
+      );
+      await service.connect(device);
+      await service.printReceipt(pngBytes, settings.paperSize);
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
+    } finally {
+      await service.disconnect();
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: _busy
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.print_outlined),
+      tooltip: context.l10n.caseReportPrintAction,
+      onPressed: _busy ? null : _print,
     );
   }
 }
@@ -559,6 +650,10 @@ class _Header extends StatelessWidget {
       // rendering it unconditionally keeps the header left-aligned instead of
       // briefly centring while the Animal record loads.
       leading: AnimalAvatar(animalId: medicalCase.animal, editable: !readOnly),
+      // The name links to the animal's own lifetime record — replaces the
+      // app bar's old dedicated pets_outlined action.
+      onTitleTap: () => context.go(AppRoutes.animalDetail(medicalCase.animal)),
+      titleTapTooltip: l10n.caseOpenAnimal,
       trailing: readOnly
           ? Tooltip(
               message: l10n.caseReadOnlyTooltip,

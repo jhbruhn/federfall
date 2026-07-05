@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/printing/printer_service.dart';
 import 'package:federfall/features/profile/profile_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -9,6 +10,9 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../printing/fake_printer_service.dart';
 
 class FakeAuthRepository implements AuthRepository {
   bool signedOut = false;
@@ -88,13 +92,30 @@ class FakeAuthRepository implements AuthRepository {
 Future<void> _pump(
   WidgetTester tester,
   FakeAuthRepository repo,
-  AppUser user,
-) async {
+  AppUser user, {
+  FakePrinterService? printerService,
+}) async {
+  // A configured printer is read via printerSettingsProvider, which reads
+  // shared_preferences directly (no override seam) — seed it here so
+  // printer-section tests can pre-populate a device the same way an earlier
+  // app session would have saved one.
+  SharedPreferences.setMockInitialValues(
+    printerService == null
+        ? {}
+        : {
+            'printer_device_type': 'network',
+            'printer_device_name': 'Epson TM-T88IV',
+            'printer_device_host': '10.0.0.5',
+            'printer_device_port': 9100,
+          },
+  );
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWith((ref) async => repo),
         currentUserProvider.overrideWith((ref) async => user),
+        if (printerService != null)
+          printerServiceProvider.overrideWithValue(printerService),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -195,5 +216,91 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.signedOut, isFalse);
+  });
+
+  testWidgets('shows a prompt to configure when no printer is saved', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+    );
+
+    expect(find.text('No printer configured'), findsOneWidget);
+    expect(find.text('Test print'), findsNothing);
+  });
+
+  testWidgets('shows the saved device and offers a test print', (
+    tester,
+  ) async {
+    final printer = FakePrinterService();
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+      printerService: printer,
+    );
+
+    expect(find.textContaining('Epson TM-T88IV'), findsOneWidget);
+    expect(find.textContaining('10.0.0.5:9100'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Test print'), 100);
+    await tester.tap(find.text('Test print'));
+    await tester.pumpAndSettle();
+
+    expect(printer.connected, hasLength(1));
+    expect(printer.testTicketsPrinted, hasLength(1));
+    expect(printer.disconnectCalls, 1);
+    expect(find.text('Test print sent'), findsOneWidget);
+  });
+
+  testWidgets('a failed test print surfaces an error and still disconnects', (
+    tester,
+  ) async {
+    final printer = FakePrinterService()
+      ..connectError = Exception('unreachable');
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+      printerService: printer,
+    );
+
+    await tester.scrollUntilVisible(find.text('Test print'), 100);
+    await tester.tap(find.text('Test print'));
+    await tester.pumpAndSettle();
+
+    expect(printer.testTicketsPrinted, isEmpty);
+    expect(printer.disconnectCalls, 1);
+    expect(find.text('Test print sent'), findsNothing);
+  });
+
+  testWidgets('removing the printer asks for confirmation first', (
+    tester,
+  ) async {
+    final printer = FakePrinterService();
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+      printerService: printer,
+    );
+
+    await tester.tap(find.byTooltip('Remove printer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove printer?'), findsOneWidget);
+
+    // Cancelling keeps the device configured.
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Epson TM-T88IV'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Remove printer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Remove printer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No printer configured'), findsOneWidget);
   });
 }

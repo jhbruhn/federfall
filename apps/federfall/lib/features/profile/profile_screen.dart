@@ -5,6 +5,10 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/pocketbase/user_agent_client.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/printing/printer_config_sheet.dart';
+import 'package:federfall/features/printing/printer_labels.dart';
+import 'package:federfall/features/printing/printer_service.dart';
+import 'package:federfall/features/printing/printer_settings.dart';
 import 'package:federfall/features/profile/edit_profile_sheet.dart';
 import 'package:federfall/features/reminders/reminder_scheduler.dart';
 import 'package:federfall/features/reminders/reminder_settings.dart';
@@ -115,6 +119,11 @@ class _ProfileBody extends StatelessWidget {
           _MfaToggle(enabled: user.mfaEnabled),
           // Local notifications don't exist on the web build.
           if (!kIsWeb) const _RemindersToggle(),
+          // unified_esc_pos_printer has no web support (federfall-i0wq).
+          if (!kIsWeb) ...[
+            const Divider(height: AppSpacing.lg),
+            const _PrinterSection(),
+          ],
           const Divider(height: AppSpacing.lg),
           const _VersionInfo(),
           const SizedBox(height: AppSpacing.lg),
@@ -211,6 +220,107 @@ class _RemindersToggle extends ConsumerWidget {
       onChanged: enabled.isLoading
           ? null
           : (v) => _toggle(context, ref, enabled: v),
+    );
+  }
+}
+
+/// Configured receipt printer (federfall-i0wq): shows the saved device (or a
+/// prompt to set one up), a Test print action, and a way to forget it. Tap
+/// the row itself to open the configuration sheet — same "tap to configure"
+/// affordance as the rest of this screen's rows.
+class _PrinterSection extends ConsumerWidget {
+  const _PrinterSection();
+
+  Future<void> _testPrint(
+    BuildContext context,
+    WidgetRef ref,
+    PrinterDeviceRef device,
+    ReceiptPaperSize paperSize,
+  ) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    final service = ref.read(printerServiceProvider);
+    try {
+      await service.connect(device);
+      await service.printTestTicket(l10n.printerTestPrintText, paperSize);
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.printerTestPrintSuccess)),
+      );
+    } on Object catch (e, stackTrace) {
+      reportCaughtError(e, stackTrace);
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
+    } finally {
+      await service.disconnect();
+    }
+  }
+
+  Future<void> _remove(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.printerRemoveConfirmTitle),
+        content: Text(l10n.printerRemoveConfirmMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.printerRemoveAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(printerSettingsProvider.notifier).clearDevice();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final settings = ref.watch(printerSettingsProvider).value;
+    final device = settings?.device;
+
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.print_outlined),
+          title: Text(l10n.printerSectionTitle),
+          subtitle: Text(
+            device != null
+                ? '${device.name} · ${printerDeviceDetail(l10n, device)}'
+                : l10n.printerNotConfigured,
+          ),
+          trailing: device == null
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: l10n.printerRemoveAction,
+                  onPressed: () => _remove(context, ref),
+                ),
+          onTap: () => showPrinterConfigSheet(context),
+        ),
+        if (device != null && settings != null)
+          Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.md,
+              right: AppSpacing.md,
+              bottom: AppSpacing.sm,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: Text(l10n.printerTestPrintAction),
+                onPressed: () =>
+                    _testPrint(context, ref, device, settings.paperSize),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

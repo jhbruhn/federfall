@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/realtime/collection_events.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
+import 'package:federfall/features/printing/printer_service.dart';
+import 'package:federfall/features/printing/printer_settings.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -11,6 +16,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart' hide Finder;
 import 'package:mocktail/mocktail.dart';
+import 'package:pocketbase/pocketbase.dart';
+
+import '../printing/fake_printer_service.dart';
+import '../printing/fake_printer_settings.dart';
+
+class MockCaseReportRepo extends Mock implements PbCaseReportRepository {}
 
 class MockCasesRepo extends Mock implements PbCasesRepository {}
 
@@ -147,6 +158,8 @@ void main() {
     // never resolve in tests (no real network), so pumpAndSettle would hang
     // whenever a case has photos — pass false and settle with bounded pumps.
     bool settle = true,
+    PbCaseReportRepository? caseReport,
+    FakePrinterService? printerService,
   }) async {
     // A tall surface so the whole scroll view (incl. the timeline) is built.
     // [width] defaults narrow so the case detail renders its compact, tabbed
@@ -158,6 +171,34 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
+        // case_realtime.dart's live-refresh listens to collectionEventsProvider
+        // for 14 collections, which chains through pocketBaseProvider (a real
+        // client construction reading stored server config). Left
+        // un-isolated, tests implicitly depended on that whole chain failing
+        // silently rather than actually being decoupled from it — harmless
+        // until something (e.g. an explicit SharedPreferences mock install
+        // elsewhere in the same test) perturbed the timing enough to turn a
+        // latent retry loop into a hard "Timer still pending" failure.
+        // Mirrors medication_reminders_test.dart's isolation of the same
+        // family provider.
+        collectionEventsProvider.overrideWith(
+          (ref, collection) => const Stream<RecordSubscriptionEvent>.empty(),
+        ),
+        // Overrides the abstraction instead of seeding real
+        // shared_preferences (see fake_printer_settings.dart) — avoids ever
+        // touching the platform channel from this widget test.
+        printerSettingsProvider.overrideWith(
+          () => FakePrinterSettingsNotifier(
+            PrinterSettings(
+              device: printerService == null
+                  ? null
+                  : const NetworkPrinterDeviceRef(
+                      name: 'Epson TM-T88IV',
+                      host: '10.0.0.5',
+                    ),
+            ),
+          ),
+        ),
         casesRepositoryProvider.overrideWith((ref) async => cases),
         admissionReasonsProvider.overrideWith(
           (ref) async => const [AdmissionReason(id: 'adre1', label: 'Injury')],
@@ -188,6 +229,10 @@ void main() {
           animalLifetimeProvider('a1').overrideWith((ref) async => lifetime),
         if (currentUser != null)
           currentUserProvider.overrideWith((ref) async => currentUser),
+        if (caseReport != null)
+          caseReportRepositoryProvider.overrideWith((ref) async => caseReport),
+        if (printerService != null)
+          printerServiceProvider.overrideWithValue(printerService),
       ],
     );
     addTearDown(container.dispose);
@@ -430,5 +475,80 @@ void main() {
     await pump(tester);
 
     expect(find.text('Photos'), findsNothing);
+  });
+
+  testWidgets('printing with no printer configured shows a snackbar', (
+    tester,
+  ) async {
+    final caseReport = MockCaseReportRepo();
+    await pump(tester, caseReport: caseReport);
+
+    await tester.tap(find.byTooltip('Print receipt'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No printer configured'), findsOneWidget);
+    verifyNever(
+      () => caseReport.fetchReceiptPng(
+        any(),
+        widthDots: any(named: 'widthDots'),
+      ),
+    );
+  });
+
+  testWidgets(
+    'printing with a configured printer fetches the receipt and prints it',
+    (tester) async {
+      final caseReport = MockCaseReportRepo();
+      final receiptBytes = Uint8List.fromList([1, 2, 3]);
+      when(
+        () => caseReport.fetchReceiptPng(
+          any(),
+          widthDots: any(named: 'widthDots'),
+          lang: any(named: 'lang'),
+          tzOffsetMinutes: any(named: 'tzOffsetMinutes'),
+        ),
+      ).thenAnswer((_) async => receiptBytes);
+      final printer = FakePrinterService();
+      await pump(tester, caseReport: caseReport, printerService: printer);
+
+      await tester.tap(find.byTooltip('Print receipt'));
+      await tester.pumpAndSettle();
+
+      final captured = verify(
+        () => caseReport.fetchReceiptPng(
+          'c1',
+          widthDots: captureAny(named: 'widthDots'),
+          lang: any(named: 'lang'),
+          tzOffsetMinutes: any(named: 'tzOffsetMinutes'),
+        ),
+      ).captured;
+      expect(captured.single, ReceiptPaperSize.mm72.widthPixels);
+      expect(printer.connected, hasLength(1));
+      expect(printer.receiptsPrinted, hasLength(1));
+      expect(printer.receiptsPrinted.single.$1, receiptBytes);
+      expect(printer.disconnectCalls, 1);
+    },
+  );
+
+  testWidgets('a failed print surfaces an error and still disconnects', (
+    tester,
+  ) async {
+    final caseReport = MockCaseReportRepo();
+    when(
+      () => caseReport.fetchReceiptPng(
+        any(),
+        widthDots: any(named: 'widthDots'),
+        lang: any(named: 'lang'),
+        tzOffsetMinutes: any(named: 'tzOffsetMinutes'),
+      ),
+    ).thenThrow(Exception('offline'));
+    final printer = FakePrinterService();
+    await pump(tester, caseReport: caseReport, printerService: printer);
+
+    await tester.tap(find.byTooltip('Print receipt'));
+    await tester.pumpAndSettle();
+
+    expect(printer.receiptsPrinted, isEmpty);
+    expect(printer.disconnectCalls, 1);
   });
 }

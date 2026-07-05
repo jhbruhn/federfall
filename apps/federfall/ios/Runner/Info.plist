@@ -52,6 +52,12 @@
 	<string>Federfall accesses your photo library to attach photos to a case's journal entries.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Federfall uses your location to centre the map when recording where an animal was found.</string>
+	<!-- federfall-i0wq: receipt-printer connectivity (unified_esc_pos_printer,
+	     BLE + network transports on iOS). -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Federfall uses Bluetooth to discover and connect to a receipt printer.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Federfall uses your local network to discover and connect to a receipt printer.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

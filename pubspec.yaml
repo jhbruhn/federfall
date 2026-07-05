@@ -12,3 +12,30 @@ workspace:
   - apps/federfall
   - packages/federfall_models
   - packages/federfall_data
+
+# federfall-i0wq — unified_esc_pos_printer pins network_info_plus ^7.0.0 (->
+# win32 ^5.5.3), which conflicts with package_info_plus/share_plus/geolocator
+# already requiring win32 ^6.0.1+. federfall doesn't ship a Windows desktop
+# build (no windows/ dir) so network_info_plus's Windows-specific code never
+# runs here; forcing it to a version that agrees with everything else's win32
+# floor is a version-solver fix, not a behavior change for us.
+#
+# usb_serial 0.5.2 (pulled in transitively for unified_esc_pos_printer's
+# Android USB support) is unmaintained since 2024-07 and its android/
+# build.gradle still calls the Gradle-9-removed `jcenter()` DSL method,
+# breaking the Android build outright (this project pins Gradle 9.0.0).
+# AppsDevTeam/usbserial is a same-name fork under active maintenance
+# (v0.6.0-v0.8.0) that fixes the Gradle file (AGP -> 8.12.1, jcenter() ->
+# mavenCentral()). Diffed its lib/ against the hosted 0.5.2: the API surface
+# unified_esc_pos_printer's usb_connector_android.dart actually calls
+# (UsbSerial.listDevices, UsbDevice's fields/create(), UsbPort incl. the
+# DATABITS_8/STOPBITS_1/PARITY_NONE constants) is unchanged; the fork is
+# purely additive (a new raw bulk-transfer path for non-serial USB devices
+# like ESC/POS printers). Pinned to the v0.8.0 tag for reproducibility. Swap
+# back to the hosted package once upstream fixes its Gradle file.
+dependency_overrides:
+  network_info_plus: ^8.2.0
+  usb_serial:
+    git:
+      url: https://github.com/AppsDevTeam/usbserial.git
+      ref: v0.8.0

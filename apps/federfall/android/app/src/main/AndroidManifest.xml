@@ -16,6 +16,21 @@
          settings page for no clinical gain. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- federfall-i0wq: receipt-printer connectivity (unified_esc_pos_printer).
+         ACCESS_FINE_LOCATION/ACCESS_COARSE_LOCATION are already declared above
+         unscoped (map picker), which also covers legacy Bluetooth scanning on
+         API <= 30 — no separate maxSdkVersion="30" copies needed for that. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <!-- neverForLocation: this app's BLE scan only looks for printers, never
+         derives physical location from scan results (unlike the unscoped
+         ACCESS_FINE_LOCATION above, which is for the actual GPS map picker). -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <application
         android:label="${appName}"
         android:name="${applicationName}"
