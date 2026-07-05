@@ -464,13 +464,26 @@
 #set text(font: "Libertinus Serif", size: 10.5pt, lang: lang)
 #set heading(numbering: none)
 
-// Header: title + animal/case identity on the left, QR (bare case number)
-// top-right so a phone camera can jump straight to this case.
+// Header: the animal's photo (this case's own intake photo if it has one,
+// else the animal's lifetime photo — see case_report.pb.js) and identity on
+// the left, QR (bare case number) top-right so a phone camera can jump
+// straight to this case.
 #let animalName = data.animal.at("name", default: none)
 #let statusLabel = lbl(S.caseStatus, data.case.at("status", default: none))
+#let photoPath = data.animal.at("photoPath", default: none)
 #grid(
-  columns: (1fr, auto),
-  align: (left, top),
+  columns: (auto, 1fr, auto),
+  align: (left, left, top),
+  column-gutter: 10pt,
+  if photoPath != none [
+    #box(
+      width: 2.2cm,
+      height: 2.2cm,
+      radius: 50%,
+      clip: true,
+      image(photoPath, width: 2.2cm, height: 2.2cm, fit: "cover"),
+    )
+  ],
   [
     #text(size: 18pt, weight: "bold")[#S.title]
     #v(2pt)

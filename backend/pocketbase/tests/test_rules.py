@@ -18,10 +18,17 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# Smallest valid 1x1 PNG, for exercising file-field uploads.
+# A real 1x1 PNG (RGBA, Pillow-encoded — CRC-correct), for exercising file-
+# field uploads. The previous fixture here decoded as an image fine everywhere
+# it was only ever stored/served, but had a broken IDAT CRC that Typst's
+# stricter PNG decoder rejects outright — surfaced by federfall-gdp8's report
+# photo (backend/pocketbase/tests's own `docker logs` showed "CRC error...
+# decoding IDAT chunk" once a case's animal photo actually got embedded via
+# `image()`). A real photo from any camera/phone would never have this
+# problem; only this hand-crafted fixture did.
 _PNG_1X1 = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
-    "+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4"
+    "z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=="
 )
 
 BASE = os.environ.get("FED_TEST_URL", "http://localhost:8090")

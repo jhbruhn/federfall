@@ -117,6 +117,77 @@ routerAdd(
       }
     }
 
+    // ── Photo: this case's own intake photo (tied to THIS admission) if it
+    // has one, else the animal's lifetime photo. Read via PocketBase's own
+    // filesystem abstraction (e.app.newFilesystem() + fsys.getFile()) rather
+    // than assuming local disk storage — this is the only path that also
+    // works if the instance is ever configured for S3. The reader must be
+    // drained into a Uint8Array (NOT a plain Array — reader.read(buf) only
+    // fills a typed array in place; verified byte-for-byte against a real
+    // upload with a throwaway diagnostic route before writing this). Written
+    // to a temp file under the *new* typst --root (see below) so report.typ
+    // can `image()` it — a bare "/pb/typst" root would mean writing runtime
+    // files into the static template directory.
+    let photoRec = null;
+    let photoFilename = null;
+    const intakePhotos = caseRec.get("intake_photos") || [];
+    if (intakePhotos.length > 0) {
+      photoRec = caseRec;
+      photoFilename = intakePhotos[0];
+    } else if (animalRec && animalRec.getString("photo")) {
+      photoRec = animalRec;
+      photoFilename = animalRec.getString("photo");
+    }
+    let photoRootRelativePath = null;
+    let photoTempDir = null;
+    if (photoRec && photoFilename) {
+      let fsys, reader;
+      try {
+        fsys = e.app.newFilesystem();
+        reader = fsys.getFile(photoRec.baseFilesPath() + "/" + photoFilename);
+        const size = reader.size();
+        const bytes = new Uint8Array(size);
+        const chunkSize = 65536;
+        let total = 0;
+        while (total < size) {
+          const chunk = new Uint8Array(Math.min(chunkSize, size - total));
+          const n = reader.read(chunk);
+          if (n <= 0) break;
+          bytes.set(chunk.subarray(0, n), total);
+          total += n;
+        }
+
+        const ext = photoFilename.includes(".")
+          ? photoFilename.slice(photoFilename.lastIndexOf("."))
+          : "";
+        photoTempDir =
+          "/pb/report-tmp/photo-" +
+          caseId +
+          "-" +
+          Date.now() +
+          "-" +
+          Math.floor(Math.random() * 1e9);
+        $os.mkdirAll(photoTempDir, 0o755);
+        $os.writeFile(photoTempDir + "/photo" + ext, bytes, 0o644);
+        photoRootRelativePath = "/" + photoTempDir.slice("/pb/".length) + "/photo" + ext;
+      } catch (err) {
+        // missing/unreadable file (moved, deleted, ...) — the report renders
+        // without a photo rather than failing outright.
+        photoRootRelativePath = null;
+      } finally {
+        try {
+          reader?.close();
+        } catch (_) {
+          // best-effort
+        }
+        try {
+          fsys?.close();
+        } catch (_) {
+          // best-effort
+        }
+      }
+    }
+
     // DB-authored labels (NOT enums — read as stored, same as the Flutter app
     // does for these code lists; never translated by report language).
     const reasonLabels = (caseRec.get("admission_reasons") || [])
@@ -346,6 +417,7 @@ routerAdd(
         species: animalRec ? animalRec.getString("species") : "",
         name: animalRec ? animalRec.getString("name") || null : null,
         sex: animalRec ? animalRec.getString("sex") || null : null,
+        photoPath: photoRootRelativePath,
       },
       finder: finderRec
         ? {
@@ -365,9 +437,11 @@ routerAdd(
     };
 
     // ── Render: Typst writes the PDF to a file (not stdout) so the binary
-    // response never round-trips through a JS string. `--root` stays the
-    // static, shared /pb/typst — only the per-request output lives in the OS
-    // temp dir, cleaned up below.
+    // response never round-trips through a JS string. `--root` is "/pb" (not
+    // just "/pb/typst") so report.typ can reach the per-request photo temp
+    // dir above via a root-relative path while the template itself stays a
+    // static, shared file — only the per-request output + photo live under
+    // the OS temp dir / /pb/report-tmp, both cleaned up below.
     const outPath =
       $os.tempDir() +
       "/federfall-report-" +
@@ -377,24 +451,56 @@ routerAdd(
       "-" +
       Math.floor(Math.random() * 1e9) +
       ".pdf";
-    try {
+    const compile = (p) =>
       $os
         .cmd(
           "typst",
           "compile",
           "--root",
-          "/pb/typst",
+          "/pb",
           "--input",
-          "data=" + JSON.stringify(payload),
+          "data=" + JSON.stringify(p),
           "/pb/typst/report.typ",
           outPath,
         )
         .run();
+    try {
+      try {
+        compile(payload);
+      } catch (err) {
+        // A photo that fails to decode (corrupt upload, format Typst's
+        // stricter image crates reject, ...) shouldn't take down the WHOLE
+        // report — retry once without it before giving up. Anything else
+        // wrong with the data/template fails the same way on retry.
+        if (payload.animal.photoPath) {
+          e.app
+            .logger()
+            .warn(
+              "case report: compile failed with photo, retrying without it",
+              "error",
+              String(err),
+              "case",
+              caseId,
+            );
+          payload.animal.photoPath = null;
+          compile(payload);
+        } else {
+          throw err;
+        }
+      }
     } catch (err) {
       e.app
         .logger()
         .error("case report: typst compile failed", "error", String(err), "case", caseId);
       return e.json(500, { error: "Report generation failed." });
+    } finally {
+      if (photoTempDir) {
+        try {
+          $os.removeAll(photoTempDir);
+        } catch (_) {
+          // best-effort cleanup
+        }
+      }
     }
 
     let bytes;
