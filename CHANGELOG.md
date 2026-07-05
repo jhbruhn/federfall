@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.0](https://github.com/jhbruhn/federfall/compare/v0.4.0...v0.5.0) (2026-07-05)
+
+
+### Features
+
+* **cases:** add a server-side PDF case report (Typst) ([b43116d](https://github.com/jhbruhn/federfall/commit/b43116de71c11f9d815e2a1a1e36c6a654f8a412))
+* **cases:** deep-link QR + Europe/Berlin timezone in the case report ([52a6397](https://github.com/jhbruhn/federfall/commit/52a6397ba71a7d04e26e6c729beca5b4d55f4f2a))
+* **cases:** include the animal's photo in the PDF case report ([b4e10ef](https://github.com/jhbruhn/federfall/commit/b4e10efab9261b01e51c7adadaa2d1737b8b03ba))
+* **cases:** open cases from hardware barcode-scanner hardware ([219da1d](https://github.com/jhbruhn/federfall/commit/219da1d56ebab9c4e6814d146ff83a98d5dcf6c8))
+* **cases:** switch the case-report QR to a federfall:// deep link ([1bfa526](https://github.com/jhbruhn/federfall/commit/1bfa5262c538d7c15f9f323fb9cb1fb6ccf8705b))
+* **printing:** connect and print to ESC/POS receipt printers ([b9515b9](https://github.com/jhbruhn/federfall/commit/b9515b9755a69709ab336cc2db1780b51ef0d300))
+* **reports:** render receipt-printer PNGs alongside the PDF report ([5686188](https://github.com/jhbruhn/federfall/commit/5686188408369eff03db0b186e6e8a54d914cf2c))
+
+
+### Bug Fixes
+
+* **cases:** drive the report's timezone from the client, not a hard-coded zone ([3819304](https://github.com/jhbruhn/federfall/commit/38193040d72c7ee133820f5c05eb9acfddadc191))
+* **cases:** resolve federfall:// deep links via go_router directly ([9e78cc7](https://github.com/jhbruhn/federfall/commit/9e78cc756498b7a7eabe9234bb26e168cced3fc7))
+* **server-setup:** allow plain http:// on the development flavor ([cb24b0c](https://github.com/jhbruhn/federfall/commit/cb24b0c54df3c8649f5475ef0a4ed2d9a7f23663))
+
 ## [0.4.0](https://github.com/jhbruhn/federfall/compare/v0.3.1...v0.4.0) (2026-07-04)
 
 
