@@ -58,6 +58,21 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- federfall-gdp8: the case-report QR encodes federfall://case/<caseNumber>
+	     (see AndroidManifest.xml's matching intent-filter for why this is a
+	     custom scheme, not a Universal Link). Handled in Dart via app_links
+	     (lib/routing/case_deep_link.dart). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>de.jhbruhn.federfall</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>federfall</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

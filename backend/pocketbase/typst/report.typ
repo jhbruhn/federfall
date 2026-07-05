@@ -466,9 +466,9 @@
 
 // Header: the animal's photo (this case's own intake photo if it has one,
 // else the animal's lifetime photo — see case_report.pb.js) and identity on
-// the left, a QR deep link (data.case.url — same-origin as the API, opens
-// straight to this case in the web app or, if native app links are ever
-// configured, the app) top-right.
+// the left, a QR deep link (data.case.deepLinkUrl, a federfall:// custom
+// scheme the app registers — see case_report.pb.js's comment for why not an
+// https:// App Link) top-right.
 #let animalName = data.animal.at("name", default: none)
 #let statusLabel = lbl(S.caseStatus, data.case.at("status", default: none))
 #let photoPath = data.animal.at("photoPath", default: none)
@@ -501,7 +501,7 @@
       #if statusLabel != none [ · #statusLabel ]
     ]
   ],
-  qrcode(data.case.url, width: 2.2cm),
+  qrcode(data.case.deepLinkUrl, width: 2.2cm),
 )
 
 #v(8pt)

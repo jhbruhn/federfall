@@ -39,24 +39,6 @@ routerAdd(
     const langParam = e.request.url.query().get("lang");
     const lang = langParam === "en" ? "en" : "de";
 
-    // ── Public origin: the case-report QR encodes a deep link (not just the
-    // bare case number) so scanning it opens the case directly — same origin
-    // as this API, per the single-container architecture (root Dockerfile:
-    // PocketBase serves the REST API AND the built Flutter web SPA on ONE
-    // origin), so the web app resolves `/cases/{id}` (AppRoutes.caseDetail)
-    // without any extra native app-link/deep-link registration; if that's
-    // ever added later the exact same https:// URL keeps working, unlike a
-    // custom `federfall://` scheme, which does nothing without it.
-    // FEDERFALL_PUBLIC_URL overrides this — needed behind a reverse proxy
-    // that terminates TLS (e.request.tls is only non-null when THIS process
-    // terminates TLS itself); NB `e.isTLS` looked right per the JSVM docs but
-    // silently breaks the whole response when read (empty 200, no error at
-    // all) — use `e.request.tls` instead, verified against a real request.
-    const publicUrlOverride = $os.getenv("FEDERFALL_PUBLIC_URL");
-    const origin = publicUrlOverride
-      ? publicUrlOverride.replace(/\/+$/, "")
-      : (e.request.tls ? "https" : "http") + "://" + e.request.host;
-
     const caseId = e.request.pathValue("id");
     let caseRec;
     try {
@@ -458,7 +440,22 @@ routerAdd(
       generatedAt: dateParts(new Date().toISOString()),
       case: {
         caseNumber: caseRec.getString("case_number") || caseRec.id,
-        url: origin + "/cases/" + caseId,
+        // Deep link for the QR: federfall://case/<caseNumber> — a custom
+        // scheme rather than an https:// App Link, because this app's server
+        // address is chosen per-install at runtime (native
+        // ServerConfigController, self-hosted), so no fixed domain exists for
+        // a shared build to ever verify an Android App Link / iOS Universal
+        // Link against. Handled app-side by
+        // apps/federfall/lib/routing/case_deep_link.dart, which resolves the
+        // human case number back to a real case id via
+        // CasesRepository.byCaseNumber (org-scoped by the normal view rule,
+        // same as everything else here).
+        // No fallback to caseRec.id here (unlike caseNumber's display
+        // fallback above): the app resolves this path segment via
+        // byCaseNumber(), which wouldn't find anything by a raw PB id
+        // anyway — an empty case_number degrades to a link that resolves to
+        // nothing, same net effect either way.
+        deepLinkUrl: "federfall://case/" + caseRec.getString("case_number"),
         status: caseRec.getString("status") || null,
         admittedAt: dateParts(caseRec.getString("admitted_at")),
         foundAt: dateParts(caseRec.getString("found_at")),

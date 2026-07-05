@@ -48,6 +48,19 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- federfall-gdp8: the case-report QR encodes federfall://case/<caseNumber>
+                 (not an https:// App Link — see case_report.pb.js's comment: this app's
+                 server address is chosen per-install at runtime, so there is no single
+                 fixed domain to verify an Android App Link against). Handled in Dart via
+                 app_links (lib/routing/case_deep_link.dart); android:launchMode
+                 "singleTop" above means a link tapped while the app is already running
+                 redelivers via onNewIntent instead of spawning a second instance. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="federfall" android:host="case"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
