@@ -102,21 +102,32 @@
 #line(length: 100%, stroke: 1pt + black)
 #v(6pt)
 
-// Chronology — stacked blocks (date/kind header line, detail line below)
-// instead of report.typ's 3-column table; a narrow receipt has no room for
-// columns. Same oldest-first ordering as the PDF (a hand-off document reads
-// as a narrative).
+// Chronology — one line-item per event (date left, kind right, like a
+// classic receipt's item/price line) with a rule under each, and the detail
+// text below. NOT report.typ's 3-column table: at this width (~40-45 mono
+// chars/line) a real date|kind|detail table would leave the detail column
+// only ~15-20 chars wide, wrapping almost every entry across many narrow
+// lines — worse than a stacked layout. This keeps the "itemized" look
+// without that cost. Same oldest-first ordering as the PDF (a hand-off
+// document reads as a narrative).
 #heading(level: 2)[#text(size: 10pt)[#S.sectionTimeline]]
 #if data.timeline.len() == 0 [
   #text(size: 8pt)[#S.emptyTimeline]
 ] else [
   #for e in data.timeline [
     #let (title, detail) = renderEvent(S, e)
-    #block(below: 5pt)[
-      #text(size: 8pt)[#fmtAt(S, e) — #title]
-      #if detail != none and detail != "" [
-        \ #text(size: 8pt, weight: "regular")[#detail]
-      ]
+    #line(length: 100%, stroke: 1pt + black)
+    #v(3pt)
+    #grid(
+      columns: (auto, 1fr),
+      align: (left, right),
+      text(size: 8pt)[#fmtAt(S, e)],
+      text(size: 8pt)[#title],
+    )
+    #if detail != none and detail != "" [
+      #v(2pt)
+      #text(size: 8pt, weight: "regular")[#detail]
     ]
+    #v(5pt)
   ]
 ]
