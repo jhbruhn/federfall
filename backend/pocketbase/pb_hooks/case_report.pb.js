@@ -39,6 +39,24 @@ routerAdd(
     const langParam = e.request.url.query().get("lang");
     const lang = langParam === "en" ? "en" : "de";
 
+    // ── Public origin: the case-report QR encodes a deep link (not just the
+    // bare case number) so scanning it opens the case directly — same origin
+    // as this API, per the single-container architecture (root Dockerfile:
+    // PocketBase serves the REST API AND the built Flutter web SPA on ONE
+    // origin), so the web app resolves `/cases/{id}` (AppRoutes.caseDetail)
+    // without any extra native app-link/deep-link registration; if that's
+    // ever added later the exact same https:// URL keeps working, unlike a
+    // custom `federfall://` scheme, which does nothing without it.
+    // FEDERFALL_PUBLIC_URL overrides this — needed behind a reverse proxy
+    // that terminates TLS (e.request.tls is only non-null when THIS process
+    // terminates TLS itself); NB `e.isTLS` looked right per the JSVM docs but
+    // silently breaks the whole response when read (empty 200, no error at
+    // all) — use `e.request.tls` instead, verified against a real request.
+    const publicUrlOverride = $os.getenv("FEDERFALL_PUBLIC_URL");
+    const origin = publicUrlOverride
+      ? publicUrlOverride.replace(/\/+$/, "")
+      : (e.request.tls ? "https" : "http") + "://" + e.request.host;
+
     const caseId = e.request.pathValue("id");
     let caseRec;
     try {
@@ -73,20 +91,38 @@ routerAdd(
     }
 
     // ── Date parts: the template constructs a Typst `datetime` from these and
-    // formats/localizes it itself. Parsed in UTC as PocketBase stores it —
-    // goja/JSVM has no reliable Intl/timezone-conversion primitive, and this
-    // is a hand-off summary, not a legal record, so a ~1-2h skew near local
-    // midnight is an accepted known limitation.
+    // formats/localizes it itself. Converted from PocketBase's stored UTC to
+    // Europe/Berlin wall-clock time — the org this report serves (matches the
+    // app's own hardcoded German locale, federfall-qdsa). goja/JSVM has no
+    // Intl at all (verified empirically: `typeof Intl` is "undefined", and
+    // calling into it doesn't even throw a catchable JS error — it silently
+    // aborts the response), so this can't use a real IANA tzdata lookup.
+    // Instead it hard-codes the EU's own DST rule (CEST from the last Sunday
+    // of March 01:00 UTC to the last Sunday of October 01:00 UTC, else CET) —
+    // that rule is set by EU regulation, not a place-specific tzdata quirk,
+    // so it's stable to hard-code without a real timezone database.
+    const lastSundayUTC = (year, monthIndex) => {
+      const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
+      return lastDay.getUTCDate() - lastDay.getUTCDay();
+    };
+    const berlinOffsetMs = (utcMs) => {
+      const year = new Date(utcMs).getUTCFullYear();
+      const dstStart = Date.UTC(year, 2, lastSundayUTC(year, 2), 1, 0, 0);
+      const dstEnd = Date.UTC(year, 9, lastSundayUTC(year, 9), 1, 0, 0);
+      const isDst = utcMs >= dstStart && utcMs < dstEnd;
+      return (isDst ? 2 : 1) * 3600000;
+    };
     const dateParts = (value) => {
       if (!value) return null;
       const d = new Date(String(value).replace(" ", "T"));
       if (isNaN(d.getTime())) return null;
+      const local = new Date(d.getTime() + berlinOffsetMs(d.getTime()));
       return {
-        y: d.getUTCFullYear(),
-        mo: d.getUTCMonth() + 1,
-        d: d.getUTCDate(),
-        h: d.getUTCHours(),
-        mi: d.getUTCMinutes(),
+        y: local.getUTCFullYear(),
+        mo: local.getUTCMonth() + 1,
+        d: local.getUTCDate(),
+        h: local.getUTCHours(),
+        mi: local.getUTCMinutes(),
       };
     };
 
@@ -406,6 +442,7 @@ routerAdd(
       generatedAt: dateParts(new Date().toISOString()),
       case: {
         caseNumber: caseRec.getString("case_number") || caseRec.id,
+        url: origin + "/cases/" + caseId,
         status: caseRec.getString("status") || null,
         admittedAt: dateParts(caseRec.getString("admitted_at")),
         foundAt: dateParts(caseRec.getString("found_at")),
