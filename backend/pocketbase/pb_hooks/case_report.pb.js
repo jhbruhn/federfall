@@ -2,15 +2,19 @@
 
 // federfall-gdp8 — per-case PDF report: the full case chronology rendered
 // server-side with Typst (bundled into the image by the root Dockerfile's
-// typstfetch stage; template + vendored QR package in ../typst/).
+// typstfetch stage; templates + vendored QR package in ../typst/). Also
+// serves the federfall-i0wq narrow thermal-receipt PNG variant off the same
+// route (see the `widthDots` branch below) — same payload, a different
+// template.
 //
 // This hook does NOT localize or format anything for display — it only sends
 // structured, untranslated data: stable wire enum values (e.g. "in_care",
 // "male"), raw date parts, and free text / DB-authored labels (drug names,
 // medication-route/marking-type/condition/admission-reason labels, user
 // names) that are never translated regardless of report language. ALL
-// translation, date formatting and text joining lives in ../typst/report.typ
-// (its STRINGS dict, keyed by `data.lang`) — the standard Typst i18n pattern.
+// translation, date formatting and text joining lives in
+// ../typst/report_common.typ (its STRINGS dict, keyed by `data.lang`,
+// shared by report.typ and receipt.typ) — the standard Typst i18n pattern.
 // Keeping that split means adding a language is a template-only change.
 //
 // `?lang=` picks the report language (falls back to "de" for anything else,
@@ -38,6 +42,32 @@ routerAdd(
 
     const langParam = e.request.url.query().get("lang");
     const lang = langParam === "en" ? "en" : "de";
+
+    // ── Receipt (thermal, narrow) branch selection: federfall-i0wq. Presence
+    // of `?widthDots=` switches this endpoint from the A4 PDF to a PNG raster
+    // sized to exactly that many pixels wide — 1 image px = 1 printer dot for
+    // ESC/POS raster printing, so widthDots is the only thing that matters
+    // for paper fit; dpi/mm are irrelevant. The client derives it from the
+    // user's stored paper-size choice (see profile/settings), so a caller
+    // that sends widthDots always means it, hence the strict validation
+    // below rather than silently falling back to a guessed width — a wrong
+    // guess would print off the edge of the paper on real hardware.
+    // `.get()` returns "" (falsy), not null, for a param that's absent —
+    // see geocode.pb.js's `if (!q)` for the same convention — so the check
+    // below must be truthiness, not a `!== null` comparison (which let ""
+    // through to parseInt as NaN and made EVERY plain PDF request without
+    // ?widthDots= fail the range check below).
+    const widthDotsParam = e.request.url.query().get("widthDots");
+    let widthDots = null;
+    if (widthDotsParam) {
+      const parsed = parseInt(widthDotsParam, 10);
+      if (isNaN(parsed) || parsed < 200 || parsed > 1024) {
+        throw new BadRequestError(
+          "widthDots must be an integer between 200 and 1024.",
+        );
+      }
+      widthDots = parsed;
+    }
 
     const caseId = e.request.pathValue("id");
     let caseRec;
@@ -486,12 +516,21 @@ routerAdd(
       timeline: timeline,
     };
 
-    // ── Render: Typst writes the PDF to a file (not stdout) so the binary
+    // ── Render: Typst writes the output to a file (not stdout) so the binary
     // response never round-trips through a JS string. `--root` is "/pb" (not
-    // just "/pb/typst") so report.typ can reach the per-request photo temp
-    // dir above via a root-relative path while the template itself stays a
-    // static, shared file — only the per-request output + photo live under
+    // just "/pb/typst") so the templates can reach the per-request photo temp
+    // dir above via a root-relative path while the templates themselves stay
+    // static, shared files — only the per-request output + photo live under
     // the OS temp dir / /pb/report-tmp, both cleaned up below.
+    //
+    // The receipt (widthDots != null) branch is the ONLY thing that differs
+    // from the PDF path below: a different template, a `--format png --ppi`
+    // pair (dot-for-dot raster; see the receipt.typ header comment for why
+    // ppi need not match the physical printer), and an extra `widthDots`
+    // template input. Everything above (payload assembly, auth, photo temp
+    // file) is shared — JSVM handlers can't share file-level helpers across
+    // routes, so branching only here avoids duplicating ~300 lines.
+    const RECEIPT_PPI = 203;
     const outPath =
       $os.tempDir() +
       "/federfall-report-" +
@@ -500,20 +539,39 @@ routerAdd(
       Date.now() +
       "-" +
       Math.floor(Math.random() * 1e9) +
-      ".pdf";
+      (widthDots !== null ? ".png" : ".pdf");
     const compile = (p) =>
-      $os
-        .cmd(
-          "typst",
-          "compile",
-          "--root",
-          "/pb",
-          "--input",
-          "data=" + JSON.stringify(p),
-          "/pb/typst/report.typ",
-          outPath,
-        )
-        .run();
+      widthDots !== null
+        ? $os
+            .cmd(
+              "typst",
+              "compile",
+              "--root",
+              "/pb",
+              "--input",
+              "data=" + JSON.stringify(p),
+              "--input",
+              "widthDots=" + widthDots,
+              "--format",
+              "png",
+              "--ppi",
+              String(RECEIPT_PPI),
+              "/pb/typst/receipt.typ",
+              outPath,
+            )
+            .run()
+        : $os
+            .cmd(
+              "typst",
+              "compile",
+              "--root",
+              "/pb",
+              "--input",
+              "data=" + JSON.stringify(p),
+              "/pb/typst/report.typ",
+              outPath,
+            )
+            .run();
     try {
       try {
         compile(payload);
@@ -562,6 +620,13 @@ routerAdd(
       } catch (_) {
         // best-effort cleanup
       }
+    }
+
+    // Receipt PNGs are fed straight to the printer library, not downloaded —
+    // no Content-Disposition; Content-Type is what's authoritative here (the
+    // route path segment stays ".pdf" for both branches, cosmetically).
+    if (widthDots !== null) {
+      return e.blob(200, "image/png", bytes);
     }
 
     const caseNumber = caseRec.getString("case_number") || caseRec.id;

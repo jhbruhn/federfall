@@ -22,13 +22,18 @@ class PbCaseReportRepository {
   PbCaseReportRepository(
     this.pb, {
     this.networkTimeout = const Duration(seconds: 30),
-  });
+    http.Client? httpClient,
+  }) : _httpClient = httpClient ?? http.Client();
 
   final PocketBase pb;
 
   /// Longer than the 15s used for geocoding (`PbGeocodingRepository`) — Typst
   /// compiles the whole case timeline server-side before responding.
   final Duration networkTimeout;
+
+  /// Injectable so tests can supply a `package:http/testing.dart` MockClient
+  /// instead of hitting the network (see case_report_repository_test.dart).
+  final http.Client _httpClient;
 
   /// The compiled PDF bytes for [caseId], or throws [RepositoryException].
   ///
@@ -51,7 +56,34 @@ class PbCaseReportRepository {
       'lang': lang,
       if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',
     });
-    final res = await http.get(
+    return _get(uri);
+  });
+
+  /// The compiled receipt PNG bytes for [caseId] (federfall-i0wq), rendered
+  /// server-side at exactly [widthDots] pixels wide by `typst/receipt.typ`.
+  ///
+  /// [widthDots] is the printer head's raster width in dots — the caller's
+  /// stored paper-size setting (see the printer-connectivity settings
+  /// screen), NOT a named format: for raster ESC/POS printing 1 image px = 1
+  /// printer dot, so this is the only thing that determines paper fit
+  /// server-side (see case_report.pb.js). [lang] and [tzOffsetMinutes] mirror
+  /// [fetchPdf].
+  Future<Uint8List> fetchReceiptPng(
+    String caseId, {
+    required int widthDots,
+    String lang = 'de',
+    int? tzOffsetMinutes,
+  }) => _guard(() async {
+    final uri = pb.buildURL('/api/federfall/cases/$caseId/report.pdf', {
+      'widthDots': '$widthDots',
+      'lang': lang,
+      if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',
+    });
+    return _get(uri);
+  });
+
+  Future<Uint8List> _get(Uri uri) async {
+    final res = await _httpClient.get(
       uri,
       headers: {
         if (pb.authStore.isValid) 'Authorization': pb.authStore.token,
@@ -63,7 +95,7 @@ class PbCaseReportRepository {
       );
     }
     return res.bodyBytes;
-  });
+  }
 
   /// Mirrors `PbGeocodingRepository._guard`: timeout → network,
   /// [ClientException] → [RepositoryException.fromClient], any other failure
