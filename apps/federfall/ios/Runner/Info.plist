@@ -60,8 +60,9 @@
 	<true/>
 	<!-- federfall-gdp8: the case-report QR encodes federfall://case/<caseNumber>
 	     (see AndroidManifest.xml's matching intent-filter for why this is a
-	     custom scheme, not a Universal Link). Handled in Dart via app_links
-	     (lib/routing/case_deep_link.dart). -->
+	     custom scheme, not a Universal Link). Flutter's engine forwards the
+	     incoming URI straight to go_router automatically (see _resolveDeepLink
+	     in lib/routing/router.dart) — no plugin needed. -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

@@ -1,9 +1,11 @@
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/codelist_admin.dart';
 import 'package:federfall/features/admin/codelist_specs.dart';
 import 'package:federfall/features/admin/management_screen.dart';
@@ -99,7 +101,19 @@ GoRouter router(Ref ref) {
     restorationScopeId: _RestoreIds.router,
     initialLocation: AppRoutes.home,
     refreshListenable: refresh,
-    redirect: (context, state) => _gate(ref, state.uri),
+    // Kept synchronous for the overwhelming majority of navigations (every
+    // normal in-app path): go_router's process-death state restoration
+    // resolves the redirect synchronously to rebuild the restored page in
+    // the same frame, and forcing every redirect through an async gap broke
+    // that (federfall-7ev8's router_test.dart). Only a federfall:// URI
+    // needs the async case-number lookup.
+    redirect: (context, state) =>
+        state.uri.scheme == 'federfall' && state.uri.host == 'case'
+        ? _resolveDeepLink(
+            ref,
+            state.uri,
+          ).then((resolved) => resolved ?? _gate(ref, state.uri))
+        : _gate(ref, state.uri),
     routes: [
       GoRoute(
         path: AppRoutes.splash,
@@ -373,6 +387,41 @@ const Set<String> _gatePaths = {
   AppRoutes.pending,
   '/',
 };
+
+/// Translates a `federfall://case/<caseNumber>` deep link (the case-report
+/// PDF's QR code, federfall-gdp8) into a real in-app location, or `null` if
+/// [uri] isn't one of these.
+///
+/// Handled here, in go_router's own redirect, rather than via a separate
+/// `app_links`-based listener calling `router.go()` on the side: Flutter's
+/// `FlutterActivity` forwards ANY incoming platform intent's URI straight to
+/// go_router automatically, regardless of scheme (confirmed empirically — a
+/// `federfall://case/<x>` intent that no route matches renders
+/// [NotFoundScreen] with that exact scheme-and-all URI). A separate listener
+/// reacting to the very same intent and calling `.go()` independently raced
+/// against that automatic delivery and reproducibly corrupted the render
+/// pipeline into a permanently blank screen — a real, self-inflicted bug from
+/// two navigation paths fighting over one event, not a Flutter engine issue.
+/// Teaching go_router's existing redirect to recognize the scheme makes it
+/// the single source of truth again.
+Future<String?> _resolveDeepLink(Ref ref, Uri uri) async {
+  if (uri.scheme != 'federfall' || uri.host != 'case') return null;
+  if (uri.pathSegments.isEmpty) return AppRoutes.home;
+  final caseNumber = uri.pathSegments.first;
+  try {
+    final repo = await ref.read(casesRepositoryProvider.future);
+    final medicalCase = await repo.byCaseNumber(caseNumber);
+    // Not found (wrong org/instance, deleted case, ...) — land on the home
+    // tab rather than a dead-end error screen; the case number is still
+    // visible as plain text on the printed report as a manual fallback.
+    return medicalCase == null
+        ? AppRoutes.home
+        : AppRoutes.caseDetail(medicalCase.id);
+  } on Object catch (error, stackTrace) {
+    reportCaughtError(error, stackTrace);
+    return AppRoutes.home;
+  }
+}
 
 /// Redirect decision given the requested [uri] (path + query). Returns the
 /// location to send to, or `null` to stay put.
