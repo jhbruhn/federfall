@@ -117,7 +117,7 @@
   #for e in data.timeline [
     #let (title, detail) = renderEvent(S, e)
     #line(length: 100%, stroke: 1pt + black)
-    #v(3pt)
+    #v(2pt)
     #grid(
       columns: (auto, 1fr),
       align: (left, right),
@@ -125,9 +125,8 @@
       text(size: 8pt)[#title],
     )
     #if detail != none and detail != "" [
-      #v(2pt)
       #text(size: 8pt, weight: "regular")[#detail]
     ]
-    #v(5pt)
+    #v(2pt)
   ]
 ]
