@@ -7,6 +7,7 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 /// Seeds [pendingCaseQueryProvider] with a value, as if a dashboard KPI had
 /// queued a filter before switching to the Cases tab.
@@ -60,6 +61,53 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+/// Pumps [CasesScreen] behind a [GoRouter] parked at `/cases/<selectedId>`,
+/// mimicking the shell where the list pane stays mounted while a case detail
+/// route is open (the two-pane web layout) — [CasesScreen] reads the open
+/// case's id via [GoRouterState], as it does in production.
+Future<void> _pumpWithSelection(
+  WidgetTester tester, {
+  required String selectedId,
+  required List<Case> cases,
+  Map<String, Animal> animalsById = const {},
+  String myUserId = 'me',
+}) async {
+  tester.view.physicalSize = const Size(420, 1400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  final router = GoRouter(
+    initialLocation: '/cases/$selectedId',
+    routes: [
+      GoRoute(path: '/cases/:id', builder: (_, _) => const CasesScreen()),
+    ],
+  );
+  addTearDown(router.dispose);
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        casesBrowserDataProvider.overrideWith(
+          (ref) async => CasesBrowserData(
+            cases: cases,
+            animalsById: animalsById,
+            myUserId: myUserId,
+          ),
+        ),
+        currentUserProvider.overrideWith((ref) async => null),
+      ],
+      child: MaterialApp.router(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('shows the empty state when there are no cases', (tester) async {
     await _pump(tester);
@@ -85,6 +133,66 @@ void main() {
 
     expect(find.text('2026-099'), findsOneWidget);
   });
+
+  testWidgets(
+    'opening a case excluded by "mine" scope widens to all cases',
+    (tester) async {
+      await _pumpWithSelection(
+        tester,
+        selectedId: 'c2',
+        cases: const [
+          Case(
+            id: 'c1',
+            animal: 'a1',
+            caseNumber: '2026-001',
+            activeCarer: 'me',
+            status: CaseStatus.inCare,
+          ),
+          Case(
+            id: 'c2',
+            animal: 'a2',
+            caseNumber: '2026-099',
+            activeCarer: 'other',
+            status: CaseStatus.inCare,
+          ),
+        ],
+      );
+
+      // c2 belongs to another carer, so the default "mine" scope would
+      // otherwise hide it from the list while its detail is open.
+      expect(find.text('2026-001'), findsOneWidget);
+      expect(find.text('2026-099'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    "doesn't re-widen after the user manually narrows back to mine",
+    (tester) async {
+      await _pumpWithSelection(
+        tester,
+        selectedId: 'c2',
+        cases: const [
+          Case(
+            id: 'c2',
+            animal: 'a2',
+            caseNumber: '2026-099',
+            activeCarer: 'other',
+            status: CaseStatus.inCare,
+          ),
+        ],
+      );
+      expect(find.text('2026-099'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mine'));
+      await tester.pumpAndSettle();
+
+      // Narrowed back to "mine" on purpose — the auto-widen must not
+      // immediately re-trigger for the same still-open case.
+      expect(find.text('2026-099'), findsNothing);
+    },
+  );
 
   testWidgets('applies a pending KPI filter on mount', (tester) async {
     await _pump(

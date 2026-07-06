@@ -36,6 +36,11 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   final _searchController = TextEditingController();
   late CaseQuery _query;
 
+  /// The case id (if any) this screen has already auto-widened the scope for
+  /// — so a manual switch back to "mine" while still viewing that same case
+  /// isn't immediately overridden. Reset by moving on to a different case.
+  String? _autoWidenedFor;
+
   @override
   void initState() {
     super.initState();
@@ -73,6 +78,28 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   }
 
   void _update(CaseQuery query) => setState(() => _query = query);
+
+  /// Opening a case from outside this screen (dashboard KPI, animal history,
+  /// worklist, notification, deep link, ...) can land on a case the current
+  /// "mine" scope excludes. Most noticeable on the expanded two-pane layout,
+  /// where the list sits right next to the open detail — the case would
+  /// otherwise look absent from its own list. Widen to "all cases" once per
+  /// case so it stays visible/highlighted; deferred so it never mutates state
+  /// during build.
+  void _maybeWidenScopeForSelection(
+    String? selectedId,
+    List<Case> filtered,
+    List<Case> accessible,
+  ) {
+    if (selectedId == null || _query.allScope) return;
+    if (_autoWidenedFor == selectedId) return;
+    if (filtered.any((c) => c.id == selectedId)) return;
+    if (!accessible.any((c) => c.id == selectedId)) return;
+    _autoWidenedFor = selectedId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _update(_query.copyWith(allScope: true));
+    });
+  }
 
   void _clear() {
     _searchController.clear();
@@ -137,6 +164,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
             query: _query,
             codesByAnimal: d.codesByAnimal,
           );
+          _maybeWidenScopeForSelection(selectedId, results, d.cases);
           return Column(
             children: [
               Padding(
