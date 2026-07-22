@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/jhbruhn/federfall/compare/v0.6.2...v0.7.0) (2026-07-22)
+
+
+### Features
+
+* **exams:** add recognition hints for hydration and mucous membranes ([1e5bf76](https://github.com/jhbruhn/federfall/commit/1e5bf765de7f6ee5656513bb0c8a83802c5ab42e))
+
+
+### Bug Fixes
+
+* **cases:** render Overview intake dates in local time ([75b3db6](https://github.com/jhbruhn/federfall/commit/75b3db6863b6c1ffae0c7a88894046c6093ddfef))
+
 ## [0.6.2](https://github.com/jhbruhn/federfall/compare/v0.6.1...v0.6.2) (2026-07-22)
 
 
