@@ -278,6 +278,43 @@ void main() {
     expect(find.text('Klein · 0151'), findsOneWidget);
   });
 
+  testWidgets(
+    'Overview renders intake dates in local time, matching the History tab',
+    (tester) async {
+      // PocketBase stores UTC; the Overview used to format it without
+      // .toLocal(), so a near-midnight-UTC instant showed a different
+      // calendar day than the History timeline (which converts to local).
+      // Regression guard for that split — both must agree.
+      final foundInstant = DateTime.utc(2026, 6, 20, 23, 30);
+      when(() => cases.getOne(any())).thenAnswer(
+        // Same instant for found + admitted so the Overview intake rows and the
+        // History "Admitted" milestone must all resolve to the same day; a
+        // distinct `created` keeps the History count unambiguous.
+        (_) async => medicalCase.copyWith(
+          foundAt: foundInstant,
+          admittedAt: foundInstant,
+          created: DateTime.utc(2026, 3, 10, 9),
+        ),
+      );
+
+      await pump(tester);
+
+      // Expected string via the shared helper against the real localizations,
+      // so this holds in any timezone (in UTC CI toLocal is a no-op; on a
+      // machine at UTC+2 the un-converted code would render the prior day).
+      final ml = MaterialLocalizations.of(tester.element(find.text('Pauli')));
+      final expected = formatEventDate(ml, foundInstant);
+      // Overview: both the "Found on" and "Admitted on" rows show that day.
+      expect(find.text(expected), findsNWidgets(2));
+
+      await tester.tap(find.text('History'));
+      await tester.pumpAndSettle();
+
+      // History: the "Admitted" milestone shows the very same day.
+      expect(find.text(expected), findsOneWidget);
+    },
+  );
+
   testWidgets('lists intake milestones in the History tab', (tester) async {
     await pump(tester);
 

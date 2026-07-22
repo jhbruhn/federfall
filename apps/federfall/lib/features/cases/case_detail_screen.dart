@@ -682,7 +682,7 @@ class _IntakeSection extends ConsumerWidget {
     final materialL10n = MaterialLocalizations.of(context);
 
     String? date(DateTime? d) =>
-        d == null ? null : materialL10n.formatMediumDate(d);
+        d == null ? null : formatEventDate(materialL10n, d);
 
     final reasonsById =
         ref.watch(admissionReasonsByIdProvider).value ?? const {};
