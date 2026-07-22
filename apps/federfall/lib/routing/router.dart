@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/core/auth/session_refresh.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
@@ -59,6 +60,10 @@ GoRouter router(Ref ref) {
     ..listen(serverInfoProvider, (_, _) => refresh.value++)
     ..listen(authStatusProvider, (_, _) => refresh.value++)
     ..listen(currentUserProvider, (_, _) => refresh.value++)
+    // Not a gating signal: listening just activates (and keeps alive) the
+    // silent session refresher for the app's lifetime. It rolls the token so
+    // active users are not logged out when it expires.
+    ..listen(sessionRefreshProvider, (_, _) {})
     ..onDispose(refresh.dispose);
 
   // Create routes (and the transient browser) live on the root navigator so
