@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/jhbruhn/federfall/compare/v0.6.0...v0.6.1) (2026-07-22)
+
+
+### Bug Fixes
+
+* **auth:** use deep-link code-exchange for mobile OAuth2 sign-in ([58bf624](https://github.com/jhbruhn/federfall/commit/58bf624ea6c50de369d8f82e1ede93031427ff9b))
+
 ## [0.6.0](https://github.com/jhbruhn/federfall/compare/v0.5.0...v0.6.0) (2026-07-22)
 
 
