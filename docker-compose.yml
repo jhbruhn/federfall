@@ -25,8 +25,8 @@ services:
       dockerfile: Dockerfile
       # default target = `full` (backend + web); used by both dev and prod.
       args:
-        PB_VERSION: "0.39.4"
-    image: federfall:0.39.4
+        PB_VERSION: "0.39.8"
+    image: federfall:latest
     container_name: federfall
     restart: unless-stopped
     environment:

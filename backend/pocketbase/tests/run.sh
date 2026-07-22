@@ -12,7 +12,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PB_DIR="$(cd "$HERE/.." && pwd)" # backend/pocketbase
 ROOT="$(cd "$PB_DIR/../.." && pwd)" # repo root (holds the unified Dockerfile)
-IMAGE="federfall-pocketbase:0.39.4"
+IMAGE="federfall-pocketbase:0.39.8"
 PORT="${FED_TEST_PORT:-8097}"
 NAME="fed_test_$$"
 DATA="$(mktemp -d)"

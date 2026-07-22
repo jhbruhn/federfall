@@ -14,7 +14,7 @@
 #                       This is what the compose stack ships.
 #
 # Bump PB_VERSION here and in the root docker-compose.yml to upgrade PocketBase.
-ARG PB_VERSION=0.39.4
+ARG PB_VERSION=0.39.8
 
 # ── Flutter web build stage ────────────────────────────────────────────────────
 # Self-installed, version-pinned Flutter SDK (mirrors the pinned-fetch pattern —
@@ -94,9 +94,9 @@ RUN apk add --no-cache unzip wget ca-certificates
 WORKDIR /pb
 RUN set -eux; \
     case "${TARGETARCH}" in \
-        amd64) PB_ARCH=amd64; PB_SHA256=06a3ec70205b3eaf8343e226ab74c132013f7b1e9102e898dbca034bdd622d62 ;; \
-        arm64) PB_ARCH=arm64; PB_SHA256=a03f3771e487174140e2360e3b7d0500618380cd3e338e4dc012f356ba5db5cf ;; \
-        arm)   PB_ARCH=armv7; PB_SHA256=56a4c6fc9765345808422df16ee8f0f6173d724c42a34297c97935758181a843 ;; \
+        amd64) PB_ARCH=amd64; PB_SHA256=3b675575ff0e6dcc5befc85a9644aea6b04ac617ce125ecb2b6989a3c5b5664f ;; \
+        arm64) PB_ARCH=arm64; PB_SHA256=d9e44e40f2483b468bb4dd64e12b554aa85941dc5ee9c4bb87aee8fa9e469425 ;; \
+        arm)   PB_ARCH=armv7; PB_SHA256=4824b6999c93227a2a544783e4007e57f43b72aac37f2aebbc99fe75055328b9 ;; \
         *)     echo "unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     wget -q "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_${PB_ARCH}.zip" -O /tmp/pb.zip; \

@@ -171,7 +171,8 @@ docker compose -f docker-compose.yml up -d --build
 ```
 
 Database migrations are applied automatically when the new container starts.
-To move to a newer PocketBase, bump `PB_VERSION` in the root `Dockerfile` and the image tag in `docker-compose.yml`, then run the same command.
+To move to a newer PocketBase, bump `PB_VERSION` in the root `Dockerfile` (and its
+per-arch `PB_SHA256` checksums) and in `docker-compose.yml`, then run the same command.
 
 ## Sign-in options
 

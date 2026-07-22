@@ -1,6 +1,6 @@
 # Federfall — PocketBase backend (containerized)
 
-Self-hosted [PocketBase](https://pocketbase.io) **v0.39.4**, run entirely via Docker —
+Self-hosted [PocketBase](https://pocketbase.io) **v0.39.8**, run entirely via Docker —
 no host binary, no `.env` files. Orchestration lives in the **repo-root compose stack**
 (`../../docker-compose.yml` + `../../docker-compose.override.yml`); this directory only
 holds the committed schema (migrations + hooks) and the backend rule tests.
@@ -181,8 +181,12 @@ assertion suite against it.
 
 Bump the version in **two** places, then rebuild:
 
-1. root `Dockerfile` → `ARG PB_VERSION=...`
-2. root `docker-compose.yml` → `app.build.args.PB_VERSION` and the `image:` tag
+1. root `Dockerfile` → `ARG PB_VERSION=...` (also update the per-arch `PB_SHA256`
+   values in the `pbfetch` stage from the release's `checksums.txt`)
+2. root `docker-compose.yml` → `app.build.args.PB_VERSION`
+
+(The compose `image:` tag is `federfall:latest` — it names the app image, which is
+versioned by release-please, not by PocketBase, so it is not bumped here.)
 
 ```bash
 docker compose -f docker-compose.yml up -d --build
