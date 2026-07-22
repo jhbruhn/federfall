@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/jhbruhn/federfall/compare/v0.6.1...v0.6.2) (2026-07-22)
+
+
+### Bug Fixes
+
+* **auth:** pre-open OAuth2 window on web so iOS Safari doesn't block it ([c09e340](https://github.com/jhbruhn/federfall/commit/c09e3401a6525148683d244062f71a38974f6de0))
+
 ## [0.6.1](https://github.com/jhbruhn/federfall/compare/v0.6.0...v0.6.1) (2026-07-22)
 
 
