@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/jhbruhn/federfall/compare/v0.5.0...v0.6.0) (2026-07-22)
+
+
+### Features
+
+* **auth:** keep sessions alive with a token bump + silent refresh ([8670b00](https://github.com/jhbruhn/federfall/commit/8670b00a111f9720b7444887c0f1b3e0db97104f))
+
+
+### Bug Fixes
+
+* **cases:** widen scope to all cases when opening a case outside "mine" ([b678798](https://github.com/jhbruhn/federfall/commit/b67879875839ecf7313b10d85f1b992881b80017))
+
 ## [0.5.0](https://github.com/jhbruhn/federfall/compare/v0.4.0...v0.5.0) (2026-07-05)
 
 
