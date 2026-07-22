@@ -5,6 +5,7 @@ import 'package:federfall/core/server/server_info.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/auth/oauth_launcher.dart';
+import 'package:federfall/features/auth/oauth_popup.dart';
 import 'package:federfall/features/auth/oauth_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -49,6 +50,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // wait — its eventual completion is ignored instead of touching state.
   bool _oauthPending = false;
   int _oauthAttempt = 0;
+
+  // Web only: the provider window opened synchronously on tap (see OAuthPopup),
+  // held so it can be closed if the user cancels or the flow fails.
+  OAuthPopup? _oauthPopup;
 
   // MFA second step: set once a password succeeds on an MFA-enabled account.
   // While non-null the form shows the one-time-code field instead of password.
@@ -119,6 +124,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _signInWithProvider(OAuthProvider provider) async {
     final l10n = context.l10n;
     final attempt = ++_oauthAttempt;
+    // Web: open the provider window NOW, inside the tap gesture, so Safari
+    // doesn't block it — the realtime flow only produces the URL after an
+    // await, and a window opened then reads as a blocked popup. Navigated below
+    // once we have the URL. Null off web / if refused (then we fall back).
+    final popup = kIsWeb ? openBlankOAuthPopup() : null;
+    _oauthPopup = popup;
     setState(() {
       _busy = true;
       _oauthPending = true;
@@ -128,13 +139,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final repo = await ref.read(authRepositoryProvider.future);
       if (kIsWeb) {
         // Web is not backgrounded during the flow, so the all-in-one realtime
-        // flow works and needs no deep-link setup: open the provider page in an
-        // in-app browser tab and let it complete over PocketBase's realtime
-        // channel.
-        await repo.signInWithOAuth2(
-          provider.name,
-          (url) => launchUrl(url, mode: LaunchMode.inAppBrowserView),
-        );
+        // flow works and needs no deep-link setup: point the pre-opened window
+        // at the provider (or, if none, open one) and let it complete over
+        // PocketBase's realtime channel.
+        await repo.signInWithOAuth2(provider.name, (url) async {
+          if (popup != null) {
+            popup.navigateTo(url);
+          } else {
+            await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+          }
+        });
       } else {
         // Mobile: the realtime channel is dropped the moment the OS backgrounds
         // the app for the browser, which raced the provider's redirect and
@@ -151,6 +165,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Success: the auth-store change drives the router gate (to /home, or
       // /pending for a freshly self-registered guest).
     } on Object catch (error, stackTrace) {
+      popup?.closeIfOpen();
       if (!mounted || attempt != _oauthAttempt) return;
       // Dismissing the in-app browser is not a failure — just unlock the form.
       final cancelled = error is PlatformException && error.code == 'CANCELED';
@@ -168,6 +183,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// change drives the router gate, not this screen.
   void _cancelOAuth() {
     _oauthAttempt++;
+    _oauthPopup?.closeIfOpen();
+    _oauthPopup = null;
     setState(() {
       _busy = false;
       _oauthPending = false;
