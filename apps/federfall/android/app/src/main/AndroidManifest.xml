@@ -79,6 +79,27 @@
                 <data android:scheme="federfall" android:host="case"/>
             </intent-filter>
         </activity>
+        <!-- OAuth2 sign-in redirect (flutter_web_auth_2). On mobile the app uses
+             the manual code-exchange flow (AuthRepository.signInWithOAuth2Code):
+             the provider redirects to federfall://oauth-callback and this
+             activity captures it, instead of relying on PocketBase's realtime
+             channel — which Android drops when the app is backgrounded for the
+             browser (the "Auth failed on first try" bug). The intent filter is
+             pinned to host "oauth-callback" so it never intercepts the
+             federfall://case QR deep links (host "case") handled above. The
+             matching redirect URI must be whitelisted in the OAuth2 provider —
+             see docs/DEPLOYMENT.md. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="federfall" android:host="oauth-callback"/>
+            </intent-filter>
+        </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

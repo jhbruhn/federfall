@@ -4,12 +4,14 @@ import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/auth/oauth_launcher.dart';
 import 'package:federfall/features/auth/oauth_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -124,27 +126,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     try {
       final repo = await ref.read(authRepositoryProvider.future);
-      // Opens the provider URL in an in-app browser tab (Custom Tabs on
-      // Android / SFSafariViewController on iOS) rather than a fully separate
-      // browser app: the flow completes over PocketBase's realtime (SSE)
-      // channel while we wait, and backgrounding the whole app via
-      // LaunchMode.externalApplication can suspend that connection long
-      // enough to race the provider's redirect back to PocketBase — which
-      // shows as "Auth failed" in the browser even though the app signs in
-      // moments later once the channel recovers. The auth-store change drives
-      // the router gate (to /home, or /pending for a freshly self-registered
-      // guest).
-      await repo.signInWithOAuth2(
-        provider.name,
-        (url) => launchUrl(url, mode: LaunchMode.inAppBrowserView),
-      );
+      if (kIsWeb) {
+        // Web is not backgrounded during the flow, so the all-in-one realtime
+        // flow works and needs no deep-link setup: open the provider page in an
+        // in-app browser tab and let it complete over PocketBase's realtime
+        // channel.
+        await repo.signInWithOAuth2(
+          provider.name,
+          (url) => launchUrl(url, mode: LaunchMode.inAppBrowserView),
+        );
+      } else {
+        // Mobile: the realtime channel is dropped the moment the OS backgrounds
+        // the app for the browser, which raced the provider's redirect and
+        // showed as "Auth failed" (typically on the first attempt). Use the
+        // manual code-exchange flow instead — the provider redirects back via a
+        // deep link (federfall://oauth-callback) that the OS delivers to the
+        // app regardless. See AuthRepository.signInWithOAuth2Code.
+        await repo.signInWithOAuth2Code(
+          provider.name,
+          redirectUrl: oauthRedirectUrl,
+          authenticate: authenticateOAuth,
+        );
+      }
+      // Success: the auth-store change drives the router gate (to /home, or
+      // /pending for a freshly self-registered guest).
     } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
       if (!mounted || attempt != _oauthAttempt) return;
+      // Dismissing the in-app browser is not a failure — just unlock the form.
+      final cancelled = error is PlatformException && error.code == 'CANCELED';
+      if (!cancelled) reportCaughtError(error, stackTrace);
       setState(() {
         _busy = false;
         _oauthPending = false;
-        _error = l10n.authOauthFailed;
+        _error = cancelled ? null : l10n.authOauthFailed;
       });
     }
   }

@@ -87,6 +87,13 @@ class FakeAuthRepository implements AuthRepository {
     String provider,
     Future<void> Function(Uri url) openUrl,
   ) async => throw UnimplementedError();
+
+  @override
+  Future<AppUser> signInWithOAuth2Code(
+    String provider, {
+    required String redirectUrl,
+    required Future<String> Function(Uri authorizationUrl) authenticate,
+  }) async => throw UnimplementedError();
 }
 
 Future<void> _pump(

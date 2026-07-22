@@ -243,6 +243,109 @@ void main() {
     },
   );
 
+  AuthMethodsList oidcMethods({
+    String state = 'st4te',
+    String codeVerifier = 'verifier',
+  }) => AuthMethodsList(
+    oauth2: AuthMethodOAuth2(
+      providers: [
+        AuthMethodProvider(
+          name: 'oidc',
+          state: state,
+          codeVerifier: codeVerifier,
+          authURL:
+              'https://id.example/authorize'
+              '?client_id=x&state=$state&redirect_uri=',
+        ),
+      ],
+    ),
+  );
+
+  test(
+    'signInWithOAuth2Code appends the deep link, exchanges the code and '
+    'returns the mapped user',
+    () async {
+      when(
+        () => users.listAuthMethods(),
+      ).thenAnswer((_) async => oidcMethods());
+      final record = RecordModel({'id': 'oa2', 'email': 'sso@example.de'});
+      when(
+        () => users.authWithOAuth2Code(any(), any(), any(), any()),
+      ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
+
+      late Uri opened;
+      final user = await repo.signInWithOAuth2Code(
+        'oidc',
+        redirectUrl: 'federfall://oauth-callback',
+        authenticate: (url) async {
+          opened = url;
+          return 'federfall://oauth-callback?state=st4te&code=the-code';
+        },
+      );
+
+      expect(user.id, 'oa2');
+      expect(
+        opened.queryParameters['redirect_uri'],
+        'federfall://oauth-callback',
+      );
+      verify(
+        () => users.authWithOAuth2Code(
+          'oidc',
+          'the-code',
+          'verifier',
+          'federfall://oauth-callback',
+        ),
+      ).called(1);
+    },
+  );
+
+  test('signInWithOAuth2Code rejects a mismatched state (CSRF guard) and '
+      'never exchanges the code', () async {
+    when(() => users.listAuthMethods()).thenAnswer((_) async => oidcMethods());
+
+    await expectLater(
+      () => repo.signInWithOAuth2Code(
+        'oidc',
+        redirectUrl: 'federfall://oauth-callback',
+        authenticate: (_) async =>
+            'federfall://oauth-callback?state=forged&code=c',
+      ),
+      throwsA(isA<RepositoryException>()),
+    );
+    verifyNever(() => users.authWithOAuth2Code(any(), any(), any(), any()));
+  });
+
+  test('signInWithOAuth2Code surfaces a provider error and never exchanges '
+      'the code', () async {
+    when(() => users.listAuthMethods()).thenAnswer((_) async => oidcMethods());
+
+    await expectLater(
+      () => repo.signInWithOAuth2Code(
+        'oidc',
+        redirectUrl: 'federfall://oauth-callback',
+        authenticate: (_) async =>
+            'federfall://oauth-callback?state=st4te&error=access_denied',
+      ),
+      throwsA(isA<RepositoryException>()),
+    );
+    verifyNever(() => users.authWithOAuth2Code(any(), any(), any(), any()));
+  });
+
+  test('signInWithOAuth2Code rejects an unknown provider', () async {
+    when(
+      () => users.listAuthMethods(),
+    ).thenAnswer((_) async => AuthMethodsList());
+
+    expect(
+      () => repo.signInWithOAuth2Code(
+        'ghost',
+        redirectUrl: 'federfall://oauth-callback',
+        authenticate: (_) async => '',
+      ),
+      throwsA(isA<RepositoryException>()),
+    );
+  });
+
   test('requestOtp returns the otpId', () async {
     when(
       () => users.requestOTP('a@b.de'),

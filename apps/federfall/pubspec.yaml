@@ -25,6 +25,7 @@ dependencies:
   flutter_map: ^8.3.1
   flutter_riverpod: ^3.3.2
   flutter_secure_storage: ^10.3.1
+  flutter_web_auth_2: ^5.0.3
   flutter_web_plugins:
     sdk: flutter
   freezed_annotation: ^3.1.0

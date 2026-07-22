@@ -30,10 +30,39 @@ abstract interface class AuthRepository {
   /// authorization URL — the caller opens it (a browser tab / external app); the
   /// flow then completes over PocketBase's realtime channel and the auth store
   /// is updated, so no app-side deep-link wiring is needed.
+  ///
+  /// This "all-in-one" flow depends on that realtime (SSE) channel staying
+  /// connected while the user is on the provider's page, which does not hold on
+  /// mobile — Android backgrounds the app the moment the browser opens and the
+  /// connection is dropped, so the redirect is never delivered and sign-in
+  /// "fails" (typically on the first attempt). Use it on web, where the app is
+  /// not backgrounded; on mobile prefer [signInWithOAuth2Code].
   Future<AppUser> signInWithOAuth2(
     String provider,
     Future<void> Function(Uri url) openUrl,
   );
+
+  /// Signs in via the OAuth2 [provider] using the manual authorization-code
+  /// flow with a deep-link redirect — the reliable path on mobile (see
+  /// [signInWithOAuth2] for why the all-in-one flow is not).
+  ///
+  /// The provider redirects back to [redirectUrl] (e.g.
+  /// `federfall://oauth-callback`), which the OS delivers to the app as a deep
+  /// link, independent of any realtime connection. [redirectUrl] MUST be
+  /// registered as an allowed redirect URI with the OAuth2 provider.
+  ///
+  /// [authenticate] is handed the provider's authorization URL; it must open it
+  /// (an in-app browser session), wait for the provider to redirect back to
+  /// [redirectUrl], and return that full callback URL. It is injected by the
+  /// caller so this package need not depend on a browser plugin.
+  ///
+  /// Throws a [RepositoryException] if the returned `state` does not match
+  /// (CSRF guard), the provider reports an `error`, or no `code` comes back.
+  Future<AppUser> signInWithOAuth2Code(
+    String provider, {
+    required String redirectUrl,
+    required Future<String> Function(Uri authorizationUrl) authenticate,
+  });
 
   /// Sends a one-time password to [email] (the MFA second factor) and returns
   /// the `otpId` to pair with the emailed code in [authWithOtp].
@@ -214,6 +243,63 @@ class PbAuthRepository implements AuthRepository {
       final auth = await _users.authWithOAuth2(
         provider,
         (url) => openUrl(url),
+      );
+      return AppUser.fromRecord(auth.record);
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
+  @override
+  Future<AppUser> signInWithOAuth2Code(
+    String provider, {
+    required String redirectUrl,
+    required Future<String> Function(Uri authorizationUrl) authenticate,
+  }) async {
+    // Resolve the provider's authorization URL + PKCE material. Capped at the
+    // network timeout like every other server call; the browser wait below is
+    // deliberately not — it depends on the user.
+    final AuthMethodProvider p;
+    try {
+      final methods = await _withTimeout(_users.listAuthMethods);
+      p = methods.oauth2.providers.firstWhere(
+        (x) => x.name == provider,
+        orElse: AuthMethodProvider.new,
+      );
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+    if (p.name.isEmpty) {
+      throw RepositoryException('unknown OAuth2 provider "$provider"');
+    }
+
+    // p.authURL ends with `redirect_uri=`; appending our deep link points the
+    // provider back at the app instead of PocketBase's realtime relay. The
+    // `state` already baked into the URL is the CSRF token to match on return.
+    final authorizationUrl = Uri.parse(p.authURL + redirectUrl);
+    final expectedState = authorizationUrl.queryParameters['state'] ?? p.state;
+
+    final callback = Uri.parse(await authenticate(authorizationUrl));
+    if (callback.queryParameters['state'] != expectedState) {
+      throw const RepositoryException('OAuth2 state mismatch');
+    }
+    final error = callback.queryParameters['error'] ?? '';
+    if (error.isNotEmpty) {
+      throw RepositoryException('OAuth2 provider error: $error');
+    }
+    final code = callback.queryParameters['code'] ?? '';
+    if (code.isEmpty) {
+      throw const RepositoryException('OAuth2 redirect returned no code');
+    }
+
+    try {
+      final auth = await _withTimeout(
+        () => _users.authWithOAuth2Code(
+          p.name,
+          code,
+          p.codeVerifier,
+          redirectUrl,
+        ),
       );
       return AppUser.fromRecord(auth.record);
     } on ClientException catch (e) {

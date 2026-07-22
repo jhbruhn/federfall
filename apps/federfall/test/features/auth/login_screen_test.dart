@@ -109,6 +109,17 @@ class FakeAuthRepository implements AuthRepository {
     if (onSignInWithOAuth2 != null) return onSignInWithOAuth2!();
     return const AppUser(id: 'u1', email: 'staff@example.org');
   }
+
+  @override
+  Future<AppUser> signInWithOAuth2Code(
+    String provider, {
+    required String redirectUrl,
+    required Future<String> Function(Uri authorizationUrl) authenticate,
+  }) async {
+    oauthProviderUsed = provider;
+    if (onSignInWithOAuth2 != null) return onSignInWithOAuth2!();
+    return const AppUser(id: 'u1', email: 'staff@example.org');
+  }
 }
 
 Future<ProviderContainer> _pump(

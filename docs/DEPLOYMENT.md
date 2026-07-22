@@ -215,7 +215,16 @@ The full set of per-provider variables:
 | `FEDERFALL_OAUTH2_<NAME>_USERINFO_URL` | OIDC | Userinfo endpoint |
 | `FEDERFALL_OAUTH2_<NAME>_PKCE` | OIDC | `"true"` or `"false"` |
 
-The one URL to register with your provider is the redirect/callback `<your app URL>/api/oauth2-redirect`. You don't need to register anything app-specific beyond that: when someone taps a provider button the app opens the provider in a browser, and after the user approves, the provider returns to that callback on your own server, which hands the result back to the waiting app over its realtime connection. The app then lands signed in on its own — on web in the same tab, on mobile back in the app — with no custom URL scheme or deep-link setup on your side. If the provider also asks for allowed origins, add your app URL there too.
+Register **two** redirect/callback URIs with your provider — both, so the flow works from every client:
+
+| Redirect URI | Used by | Why |
+| --- | --- | --- |
+| `<your app URL>/api/oauth2-redirect` | Web | The provider returns to this callback on your own server, which hands the result back to the waiting browser tab over its realtime connection. |
+| `federfall://oauth-callback` | Android & iOS | The mobile apps use a deep link instead: the provider redirects straight back into the app. |
+
+The mobile app needs the second one because it can't rely on the server-relay-over-realtime path the web app uses — while the user is on the provider's page the phone backgrounds the app and drops that connection, so the redirect would be lost (it surfaced as "Auth failed", usually on the first attempt). The deep link sidesteps that: the OS hands the result to the app directly. `federfall://oauth-callback` is a fixed value baked into the app — enter it verbatim; there is nothing to configure on your server for it, only in the provider's allowed-redirect-URI list. Providers word this field differently ("Redirect URIs", "Sign-in redirect URIs", "Valid redirect URIs", "Callback URLs") and most accept a custom scheme like this directly; a strict few only allow `https`, in which case host an `https` page that 302-redirects to `federfall://oauth-callback` and register that instead.
+
+If the provider also asks for allowed origins, add your app URL there too.
 
 When `FEDERFALL_OAUTH2_PROVIDERS` is set, the environment is the source of truth and is re-applied on every start. If you would rather not keep the credentials in the compose file, leave it unset and register providers in the admin dashboard instead, under the `users` collection's auth settings. Either way, once a provider is registered it becomes a sign-in option.
 
