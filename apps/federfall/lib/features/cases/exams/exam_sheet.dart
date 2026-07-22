@@ -259,6 +259,15 @@ class _ExamSheetState extends ConsumerState<ExamSheet>
               markDirty();
             },
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              l10n.examHydrationHelp,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           _ChipRow<Mentation>(
             label: l10n.examMentationLabel,
@@ -283,6 +292,15 @@ class _ExamSheetState extends ConsumerState<ExamSheet>
               markDirty();
             },
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              l10n.examMmColorHelp,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           _ChipRow<MmTexture>(
             label: l10n.examMmTextureLabel,
@@ -294,6 +312,15 @@ class _ExamSheetState extends ConsumerState<ExamSheet>
               setState(() => _mmTexture = v);
               markDirty();
             },
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              l10n.examMmTextureHelp,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
 
