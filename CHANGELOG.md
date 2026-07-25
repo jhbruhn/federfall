@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.0](https://github.com/jhbruhn/federfall/compare/v0.7.0...v0.8.0) (2026-07-25)
+
+
+### Features
+
+* **animals:** let supervisors delete animals and cases ([878359d](https://github.com/jhbruhn/federfall/commit/878359d1e06ecfe582dfed2927ead69f59773770))
+* **backend:** add egg_records collection with org-scoped rules ([b7823d3](https://github.com/jhbruhn/federfall/commit/b7823d36d69cb166ba95982ae473f034dcf5d39b))
+* **cases:** log egg-laying events on the case timeline ([4e5c170](https://github.com/jhbruhn/federfall/commit/4e5c1700959943ecde60c3838a24c7cacfbfc317))
+* **cases:** re-attribute eggs and show a laying history per animal ([17b16ba](https://github.com/jhbruhn/federfall/commit/17b16ba2780904afa4a4613a320aceb6aa0f02e2))
+* **models:** add EggRecord model, enums and repository ([fa14cf6](https://github.com/jhbruhn/federfall/commit/fa14cf6e51fab3d4758863de85d99a4d6d4e4751))
+
+
+### Bug Fixes
+
+* **backend:** delete finders no case references any more ([11869e7](https://github.com/jhbruhn/federfall/commit/11869e74a87cab3e4b2ad6c5a2824bcdb8b37aa3))
+* **backend:** reject an animal relation from another organisation ([452776d](https://github.com/jhbruhn/federfall/commit/452776d7b641a7bedef7c1b5084c735a124221be))
+
 ## [0.7.0](https://github.com/jhbruhn/federfall/compare/v0.6.2...v0.7.0) (2026-07-22)
 
 
