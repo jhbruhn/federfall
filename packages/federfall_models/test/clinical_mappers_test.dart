@@ -573,4 +573,112 @@ void main() {
       expect(a.lastActivity, isNull);
     });
   });
+
+  group('EggRecord.fromRecord', () {
+    test('maps a full laying event', () {
+      final e = EggRecord.fromRecord(
+        RecordModel({
+          'id': 'eggr0000000001',
+          'animal': 'anml0000000001',
+          'count': 2,
+          'laid_at': '2026-06-02 06:15:00.000Z',
+          'fertility': 'infertile',
+          'fate': 'dummy_swapped',
+          'attribution': 'presumed',
+          'photos': ['a.jpg', 'b.jpg'],
+          'notes': 'Windei',
+          'author': 'user0000000001',
+          'org': 'org00000000001',
+          'created': '2026-06-02 07:00:00.000Z',
+          'updated': '2026-06-02 08:00:00.000Z',
+        }),
+      );
+      expect(e.id, 'eggr0000000001');
+      expect(e.animal, 'anml0000000001');
+      expect(e.count, 2);
+      expect(e.laidAt?.minute, 15);
+      expect(e.fertility, EggFertility.infertile);
+      expect(e.fate, EggFate.dummySwapped);
+      expect(e.attribution, EggAttribution.presumed);
+      expect(e.photos, ['a.jpg', 'b.jpg']);
+      expect(e.notes, 'Windei');
+      expect(e.author, 'user0000000001');
+      expect(e.org, 'org00000000001');
+      expect(e.created?.hour, 7);
+      expect(e.updated?.hour, 8);
+    });
+
+    test('a missing or garbage count still means one egg', () {
+      expect(
+        EggRecord.fromRecord(RecordModel({'id': 'e', 'animal': 'a'})).count,
+        1,
+      );
+      expect(
+        EggRecord.fromRecord(
+          RecordModel({'id': 'e', 'animal': 'a', 'count': ''}),
+        ).count,
+        1,
+      );
+      expect(
+        EggRecord.fromRecord(
+          RecordModel({'id': 'e', 'animal': 'a', 'count': 'zwei'}),
+        ).count,
+        1,
+      );
+    });
+
+    test('an unknown enum wire value maps to null, not a wrong constant', () {
+      final e = EggRecord.fromRecord(
+        RecordModel({
+          'id': 'e',
+          'animal': 'a',
+          'fertility': 'schroedinger',
+          'fate': 'eaten',
+        }),
+      );
+      expect(e.fertility, isNull);
+      expect(e.fate, isNull);
+    });
+
+    test('attribution defaults to confirmed when absent or unknown', () {
+      expect(
+        EggRecord.fromRecord(
+          RecordModel({'id': 'e', 'animal': 'a'}),
+        ).attribution,
+        EggAttribution.confirmed,
+      );
+      expect(
+        EggRecord.fromRecord(
+          RecordModel({'id': 'e', 'animal': 'a', 'attribution': 'maybe'}),
+        ).attribution,
+        EggAttribution.confirmed,
+      );
+    });
+
+    test('an absent laid_at leaves the created fallback to the caller', () {
+      final e = EggRecord.fromRecord(
+        RecordModel({
+          'id': 'e',
+          'animal': 'a',
+          'laid_at': '',
+          'created': '2026-06-02 06:00:00.000Z',
+        }),
+      );
+      expect(e.laidAt, isNull);
+      expect(e.laidAt ?? e.created, DateTime.utc(2026, 6, 2, 6));
+    });
+
+    test('absent photos map to an empty list, never null', () {
+      expect(
+        EggRecord.fromRecord(RecordModel({'id': 'e', 'animal': 'a'})).photos,
+        isEmpty,
+      );
+      expect(
+        EggRecord.fromRecord(
+          RecordModel({'id': 'e', 'animal': 'a', 'photos': 'solo.jpg'}),
+        ).photos,
+        ['solo.jpg'],
+      );
+    });
+  });
 }

@@ -2,6 +2,7 @@ import 'package:federfall_models/src/models/animal.dart';
 import 'package:federfall_models/src/models/clinical.dart';
 import 'package:federfall_models/src/models/condition.dart';
 import 'package:federfall_models/src/models/disposition.dart';
+import 'package:federfall_models/src/models/egg_record.dart';
 import 'package:federfall_models/src/models/exam.dart';
 import 'package:federfall_models/src/models/finder.dart';
 import 'package:federfall_models/src/models/marking.dart';
@@ -18,7 +19,7 @@ part 'case_bundle.freezed.dart';
 /// (`<collection>_via_<field>`). Expanded rows honor each collection's view
 /// rule, so the org/share security boundary is unchanged.
 const String caseBundleExpand =
-    'animal,animal.markings_via_animal,finder,'
+    'animal,animal.markings_via_animal,animal.egg_records_via_animal,finder,'
     'journal_entries_via_case,weights_via_case,case_conditions_via_case,'
     'medications_via_case,medication_administrations_via_case,'
     'placements_via_case,dispositions_via_case,follow_ups_via_case,'
@@ -50,6 +51,10 @@ abstract class CaseBundle with _$CaseBundle {
     @Default(<MedicationAdministration>[])
     List<MedicationAdministration> administrations,
     @Default(<Marking>[]) List<Marking> markings,
+
+    /// The animal's whole laying history, like [markings] — eggs carry no case
+    /// relation, so a case timeline narrows this to its own window itself.
+    @Default(<EggRecord>[]) List<EggRecord> eggs,
     @Default(<Placement>[]) List<Placement> placements,
     @Default(<Disposition>[]) List<Disposition> dispositions,
     @Default(<FollowUp>[]) List<FollowUp> followUps,
@@ -140,6 +145,15 @@ abstract class CaseBundle with _$CaseBundle {
               'markings_via_animal',
               Marking.fromRecord,
               by: (m) => m.appliedAt ?? m.created,
+              descending: true,
+            ),
+      eggs: animalRec == null
+          ? const []
+          : rel(
+              animalRec,
+              'egg_records_via_animal',
+              EggRecord.fromRecord,
+              by: (e) => e.laidAt ?? e.created,
               descending: true,
             ),
       placements: rel(

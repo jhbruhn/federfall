@@ -60,6 +60,16 @@ void main() {
     });
   });
 
+  group('PbEggRecordsRepository', () {
+    setUp(() => wire('egg_records'));
+
+    test('forAnimal filters by animal, oldest first', () async {
+      await PbEggRecordsRepository(pb).forAnimal('anml1');
+      verify(() => pb.filter('animal = {:a}', {'a': 'anml1'})).called(1);
+      expect(capturedQuery()[1], 'laid_at');
+    });
+  });
+
   group('PbMedicationsRepository', () {
     setUp(() => wire('medications'));
 

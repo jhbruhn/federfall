@@ -24,6 +24,20 @@ void main() {
                   'applied_at': '2026-06-01 10:00:00.000Z',
                 },
               ],
+              'egg_records_via_animal': [
+                {
+                  'id': 'eggr0000000001',
+                  'animal': 'anml0000000001',
+                  'count': 1,
+                  'laid_at': '2026-06-02 06:00:00.000Z',
+                },
+                {
+                  'id': 'eggr0000000002',
+                  'animal': 'anml0000000001',
+                  'count': 2,
+                  'laid_at': '2026-06-20 06:00:00.000Z',
+                },
+              ],
             },
           },
           'finder': {'id': 'fndr0000000001', 'last_name': 'Meyer'},
@@ -119,6 +133,8 @@ void main() {
       expect(b.animal?.name, 'Paula');
       expect(b.finder?.lastName, 'Meyer');
       expect(b.markings.single.code, 'DV-123');
+      // Eggs come off the ANIMAL, newest first — they carry no case relation.
+      expect(b.eggs.map((e) => e.id), ['eggr0000000002', 'eggr0000000001']);
       expect(b.caseConditions.single.id, 'ccnd0000000001');
       expect(b.medications.single.drug, 'Baytril');
       expect(b.administrations.single.id, 'admn0000000001');
@@ -148,6 +164,7 @@ void main() {
       expect(b.medications, isEmpty);
       expect(b.administrations, isEmpty);
       expect(b.markings, isEmpty);
+      expect(b.eggs, isEmpty);
       expect(b.placements, isEmpty);
       expect(b.dispositions, isEmpty);
       expect(b.followUps, isEmpty);

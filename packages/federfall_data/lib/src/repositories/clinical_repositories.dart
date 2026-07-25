@@ -28,6 +28,28 @@ class PbWeightsRepository extends PbRepository<Weight> {
   );
 }
 
+/// Repository over the `egg_records` collection (federfall-4agw) — egg-laying
+/// as a longitudinal property of the animal.
+///
+/// There is no `forCase`: egg records carry no case relation at all, so a case
+/// timeline derives its own membership from the animal (see [EggRecord]).
+class PbEggRecordsRepository extends PbRepository<EggRecord> {
+  PbEggRecordsRepository(PocketBase pb)
+    : super(
+        pb: pb,
+        collection: 'egg_records',
+        fromRecord: EggRecord.fromRecord,
+      );
+
+  /// Every laying event recorded for an animal, oldest first (like
+  /// [PbWeightsRepository.forAnimal]) — the order both the per-month chart and
+  /// clutch grouping need.
+  Future<List<EggRecord>> forAnimal(String animalId) => list(
+    filter: filterExpr('animal = {:a}', {'a': animalId}),
+    sort: 'laid_at',
+  );
+}
+
 /// Repository over the `medications` collection (prescriptions).
 class PbMedicationsRepository extends PbRepository<Medication> {
   PbMedicationsRepository(PocketBase pb)

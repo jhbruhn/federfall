@@ -226,3 +226,52 @@ enum MmTexture {
 
   static MmTexture? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
 }
+
+/// Whether an egg was fertile (`egg_records.fertility`).
+enum EggFertility {
+  unknown('unknown'),
+  fertile('fertile'),
+  infertile('infertile');
+
+  const EggFertility(this.wire);
+
+  final String wire;
+
+  static EggFertility? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}
+
+/// What happened to an egg after it was laid (`egg_records.fate`).
+enum EggFate {
+  inNest('in_nest'),
+
+  /// Replaced with a dummy egg so the pair keeps brooding without breeding.
+  dummySwapped('dummy_swapped'),
+  removed('removed'),
+  hatched('hatched'),
+  broken('broken'),
+  discarded('discarded'),
+  unknown('unknown');
+
+  const EggFate(this.wire);
+
+  final String wire;
+
+  static EggFate? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}
+
+/// How sure we are that this animal is the layer (`egg_records.attribution`).
+///
+/// In a pair you often cannot tell which hen laid a clutch until later, so the
+/// doubt is recorded rather than silently asserted as fact. Reassigning the
+/// record flips it to [confirmed].
+enum EggAttribution {
+  confirmed('confirmed'),
+  presumed('presumed');
+
+  const EggAttribution(this.wire);
+
+  final String wire;
+
+  static EggAttribution? fromWire(Object? v) =>
+      pbEnum(values, (e) => e.wire, v);
+}
