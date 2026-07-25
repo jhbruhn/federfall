@@ -128,6 +128,10 @@ that copies the shared auth predicate MUST use the guest-safe form — append
 in `test_rules.py` catches omissions). Rule tests are
 Python (`backend/pocketbase/tests/test_rules.py`, run via `run.sh`) and **need a live PB** —
 they can't run in the Flutter test suite, so verify migrations/hooks against a running stack.
+**`cronAdd` jobs are invisible to that suite** (nothing can trigger them): `finder_retention`
+(PII scrub + deletion of finders no case references), `geocodeCachePurge` and
+`idempotencyKeyPurge`. Verify one by copying `pb_hooks` to a tempdir, rewriting its schedule
+to `* * * * *`, and running a throwaway container against that copy.
 
 **Case timeline pattern:** every clinical record (weight, condition, medication +
 administration, journal, marking, placement, disposition) is one unified chronology. Each
