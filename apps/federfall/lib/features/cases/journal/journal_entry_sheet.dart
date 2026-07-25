@@ -121,6 +121,15 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
     return files;
   }
 
+  /// Resolves stored attachment thumbnails; null until the repository (and, on
+  /// create, the record) exists.
+  Uri Function(String)? _thumbUrl() {
+    final repo = ref.watch(journalRepositoryProvider).value;
+    final entryId = widget.entry?.id;
+    if (repo == null || entryId == null) return null;
+    return (filename) => repo.fileUrl(entryId, filename, thumb: '200x200');
+  }
+
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
@@ -187,10 +196,10 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
           ),
           const SizedBox(height: AppSpacing.md),
           if (_existingPhotos.isNotEmpty || _newPhotos.isNotEmpty)
-            _PhotoStrip(
-              entryId: widget.entry?.id,
+            EditablePhotoStrip(
               existing: _existingPhotos,
               newPhotos: _newPhotos,
+              thumbUrl: _thumbUrl(),
               onRemoveExisting: isBusy
                   ? null
                   : (i) {
@@ -222,98 +231,6 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Preview of the photos staged for the entry: existing server attachments
-/// first (network thumbnails), then newly picked local photos. Each is
-/// removable.
-class _PhotoStrip extends ConsumerWidget {
-  const _PhotoStrip({
-    required this.entryId,
-    required this.existing,
-    required this.newPhotos,
-    required this.onRemoveExisting,
-    required this.onRemoveNew,
-  });
-
-  final String? entryId;
-  final List<String> existing;
-  final List<XFile> newPhotos;
-  final ValueChanged<int>? onRemoveExisting;
-  final ValueChanged<int>? onRemoveNew;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(journalRepositoryProvider).value;
-
-    return SizedBox(
-      height: 88,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          // Keys on both loops: removing photo i must not remount (and
-          // re-fetch / re-read) every thumbnail after it.
-          for (var i = 0; i < existing.length; i++)
-            Padding(
-              key: ValueKey(existing[i]),
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
-              child: _Thumb(
-                onRemove: onRemoveExisting == null
-                    ? null
-                    : () => onRemoveExisting!(i),
-                child: (repo == null || entryId == null)
-                    ? const SizedBox(width: 88, height: 88)
-                    : CachedFileImage(
-                        url: repo.fileUrl(
-                          entryId!,
-                          existing[i],
-                          thumb: '200x200',
-                        ),
-                        width: 88,
-                        height: 88,
-                      ),
-              ),
-            ),
-          for (var i = 0; i < newPhotos.length; i++)
-            Padding(
-              key: ObjectKey(newPhotos[i]),
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
-              child: _Thumb(
-                onRemove: onRemoveNew == null ? null : () => onRemoveNew!(i),
-                child: LocalPhotoThumb(photo: newPhotos[i]),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A rounded thumbnail with an optional remove badge.
-class _Thumb extends StatelessWidget {
-  const _Thumb({required this.child, this.onRemove});
-
-  final Widget child;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        ClipRRect(borderRadius: BorderRadius.circular(8), child: child),
-        if (onRemove != null)
-          Positioned(
-            top: -8,
-            right: -8,
-            child: IconButton(
-              icon: const Icon(Icons.cancel),
-              iconSize: 20,
-              onPressed: onRemove,
-            ),
-          ),
-      ],
     );
   }
 }

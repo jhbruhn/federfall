@@ -1,6 +1,7 @@
 import 'package:federfall/features/cases/conditions/condition_entry_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
+import 'package:federfall/features/cases/eggs/egg_entry_sheet.dart';
 import 'package:federfall/features/cases/exams/exam_sheet.dart';
 import 'package:federfall/features/cases/follow_ups/follow_up_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
@@ -22,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 enum _AddKind {
   note,
   weight,
+  egg,
   exam,
   condition,
   quarantine,
@@ -55,6 +57,8 @@ Future<void> showAddEntrySheet(
       await showJournalEntrySheet(context, caseId: caseId);
     case _AddKind.weight:
       await showWeightEntrySheet(context, animalId: animalId, caseId: caseId);
+    case _AddKind.egg:
+      await showEggEntrySheet(context, animalId: animalId);
     case _AddKind.exam:
       await showExamSheet(context, caseId: caseId, animalId: animalId);
     case _AddKind.condition:
@@ -130,6 +134,10 @@ class _AddEntrySheet extends ConsumerWidget {
             Icons.monitor_heart_outlined,
             l10n.timelineAddExam,
           ),
+          // Enabled whatever the animal's recorded sex says: pigeon sex is
+          // often unknown or wrong at intake, and a bird recorded as male that
+          // lays an egg is exactly the case worth logging.
+          _Entry(_AddKind.egg, Icons.egg_outlined, l10n.timelineAddEgg),
           _Entry(
             _AddKind.condition,
             Icons.coronavirus_outlined,

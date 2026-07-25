@@ -40,6 +40,16 @@ bool weightDeletableBy(Weight weight, AppUser? me) =>
     (me.role == UserRole.supervisor ||
         (weight.author != null && weight.author == me.id));
 
+/// Whether [me] may delete [egg]. Mirrors the server delete rule
+/// (1700000056, which copies 1700000047's stance for weights): a laying record
+/// is shared history of the animal, so destroying one is reserved for its
+/// author or a supervisor. Logging, editing and re-attributing stay open to the
+/// whole org like the rest of the identity layer.
+bool eggDeletableBy(EggRecord egg, AppUser? me) =>
+    me != null &&
+    (me.role == UserRole.supervisor ||
+        (egg.author != null && egg.author == me.id));
+
 /// Whether the role may view org-wide reports/statistics (FED-7.2). Coordinators
 /// and supervisors oversee the whole org; carers only see their own cases, so
 /// org-wide aggregates aren't meaningful (or fully readable) for them.

@@ -16,6 +16,7 @@ export 'widgets/async_value_view.dart';
 export 'widgets/cached_file_image.dart';
 export 'widgets/date_field.dart';
 export 'widgets/detail_header.dart';
+export 'widgets/editable_photo_strip.dart';
 export 'widgets/empty_view.dart';
 export 'widgets/error_view.dart';
 export 'widgets/image_viewer.dart';

@@ -25,6 +25,7 @@ const _caseTimelineCollections = [
   'exams',
   'exam_findings',
   'markings',
+  'egg_records',
   'quarantine_records',
 ];
 
@@ -55,6 +56,11 @@ class CaseLive extends _$CaseLive {
         final belongs = switch (collection) {
           'cases' => event.record?.id == caseId,
           'markings' => data['animal'] == animalId,
+          // NOT an animal-id match: a reassignment event carries the NEW
+          // animal, so the case that just LOST the egg would never refresh and
+          // other viewers would keep showing it. Refetch on any event, the
+          // escape exam_findings already takes.
+          'egg_records' => true,
           // exam_findings has no `case` field (it points at an exam); refetch
           // on any of its events rather than resolve the parent.
           'exam_findings' => true,

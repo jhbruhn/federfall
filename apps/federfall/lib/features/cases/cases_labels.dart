@@ -132,3 +132,19 @@ String mmTextureLabel(AppLocalizations l10n, MmTexture t) => switch (t) {
   MmTexture.tacky => l10n.mmTextureTacky,
   MmTexture.dry => l10n.mmTextureDry,
 };
+
+String eggFertilityLabel(AppLocalizations l10n, EggFertility f) => switch (f) {
+  EggFertility.unknown => l10n.eggFertilityUnknown,
+  EggFertility.fertile => l10n.eggFertilityFertile,
+  EggFertility.infertile => l10n.eggFertilityInfertile,
+};
+
+String eggFateLabel(AppLocalizations l10n, EggFate f) => switch (f) {
+  EggFate.inNest => l10n.eggFateInNest,
+  EggFate.dummySwapped => l10n.eggFateDummySwapped,
+  EggFate.removed => l10n.eggFateRemoved,
+  EggFate.hatched => l10n.eggFateHatched,
+  EggFate.broken => l10n.eggFateBroken,
+  EggFate.discarded => l10n.eggFateDiscarded,
+  EggFate.unknown => l10n.eggFateUnknown,
+};

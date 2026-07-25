@@ -4,6 +4,8 @@ import 'package:federfall/features/cases/conditions/condition_entry_tile.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_tile.dart';
+import 'package:federfall/features/cases/eggs/egg_entry_tile.dart';
+import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exam_tile.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/follow_ups/follow_up_tile.dart';
@@ -81,6 +83,7 @@ class CaseTimeline extends ConsumerWidget {
     final meds = ref.watch(medicationsForCaseProvider(caseId));
     final doses = ref.watch(administrationsForCaseProvider(caseId));
     final markings = ref.watch(markingsForCaseProvider(caseId));
+    final eggs = ref.watch(eggsForCaseProvider(caseId));
     final placements = ref.watch(placementsForCaseProvider(caseId));
     final dispositions = ref.watch(dispositionsForCaseProvider(caseId));
     final followUps = ref.watch(followUpsForCaseProvider(caseId));
@@ -94,6 +97,7 @@ class CaseTimeline extends ConsumerWidget {
         meds.isLoading ||
         doses.isLoading ||
         markings.isLoading ||
+        eggs.isLoading ||
         placements.isLoading ||
         dispositions.isLoading ||
         followUps.isLoading ||
@@ -107,6 +111,7 @@ class CaseTimeline extends ConsumerWidget {
         meds.error ??
         doses.error ??
         markings.error ??
+        eggs.error ??
         placements.error ??
         dispositions.error ??
         followUps.error ??
@@ -141,6 +146,7 @@ class CaseTimeline extends ConsumerWidget {
             _AdministrationEvent(dose),
           for (final marking in markings.value ?? const <Marking>[])
             _MarkingEvent(marking),
+          for (final egg in eggs.value ?? const <EggRecord>[]) _EggEvent(egg),
           for (final placement in placements.value ?? const <Placement>[])
             _PlacementEvent(placement),
           for (final disposition in dispositions.value ?? const <Disposition>[])
@@ -260,6 +266,12 @@ class CaseTimeline extends ConsumerWidget {
       ),
       _MarkingEvent(:final marking) => MarkingTile(
         marking: marking,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _EggEvent(:final egg) => EggEntryTile(
+        egg: egg,
         caseId: caseId,
         canEdit: canEdit,
         isLast: isLast,
@@ -401,6 +413,17 @@ class _MarkingEvent extends _Event {
       marking.appliedAt ??
       marking.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A laying event placed on the timeline by when the egg was laid.
+class _EggEvent extends _Event {
+  const _EggEvent(this.egg);
+
+  final EggRecord egg;
+
+  @override
+  DateTime get at =>
+      egg.laidAt ?? egg.created ?? DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 /// A placement / handoff placed on the timeline by when the move happened.
