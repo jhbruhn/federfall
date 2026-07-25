@@ -104,7 +104,12 @@ Three layers (see `federfall-implementation-is-planned-in-beads-9-phase` memory 
 memory): PocketBase with JS migrations (`backend/pocketbase/pb_migrations/*.js`, numbered,
 committed) and hooks (`pb_hooks/*.pb.js`). Schema changes = new migration, never hand-edit.
 Hooks own case-number/quarantine defaults, share-on-handoff, and disposition side-effects
-(case `status`, animal `lifetime_status`). Multi-record writes are atomic server-side:
+(case `status`, animal `lifetime_status`). They also enforce the invariants rules
+*cannot* express, because a plain field reference in an UPDATE rule resolves against
+the STORED record (1700000043's finding): `animal_org_scope.pb.js` rejects any
+`animal` relation naming another org's bird (cases / weights / markings / exams /
+egg_records — it only fires when the field actually changes, so pre-existing rows
+pointing at a hard-deleted animal stay saveable). Multi-record writes are atomic server-side:
 case intake goes through `POST /api/federfall/intake` (`pb_hooks/intake.pb.js`, one
 transaction for animal+finder+case+weight+quarantine; `cases.finder` is locked against
 direct client writes), and a handoff is just a placement with `to_user` — the hook derives

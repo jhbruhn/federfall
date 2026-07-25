@@ -51,8 +51,9 @@
 // org's bird. A field reference in an update rule is evaluated against the
 // STORED record (1700000043), so `animal.org = @request.auth.org` here would
 // check the old animal, not the new one. That invariant is enforced in
-// pb_hooks/egg_records.pb.js instead, the way intake.pb.js / exam.pb.js
-// validate their referenced records.
+// pb_hooks/animal_org_scope.pb.js instead (federfall-ti77, which found the same
+// hole in cases / weights / markings / exams), the way intake.pb.js and
+// exam.pb.js validate their other referenced records.
 //
 // PocketBase has no schema-level field defaults, so the documented defaults
 // (`count` 1, `fertility`/`fate` "unknown", `attribution` "confirmed") live in

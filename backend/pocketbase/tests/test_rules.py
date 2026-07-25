@@ -761,7 +761,8 @@ def main():
                toks["a"], {"org": org2})
     check("egg.org is immutable", s >= 400, f"status {s}")
     # ...but not across orgs. A rule can't express this (a field ref in an
-    # update rule sees the STORED animal), so egg_records.pb.js enforces it.
+    # update rule sees the STORED animal), so animal_org_scope.pb.js enforces
+    # it — for every collection with an `animal`, swept below.
     s, _ = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}",
                toks["a"], {"animal": animal_org2})
     check("reassignment to another org's animal is rejected", s >= 400,
@@ -811,6 +812,84 @@ def main():
     check("a supervisor can delete any egg record", s == 204, f"status {s}")
     # Leave one row behind so the guest sweep's member check stays non-vacuous.
     mk(T, "egg_records", {"animal": animal, "count": 1, "org": ORG})
+
+    # ── animal org scope (federfall-ti77) ───────────────────────────────────
+    # Every collection carrying an `animal` relation must reject a bird from
+    # another org, on create and on update. `animal` is deliberately exempt from
+    # 1700000043's :isset guards on the identity-layer collections, and an
+    # UPDATE rule's field references resolve against the STORED record, so no
+    # rule can see the incoming value — animal_org_scope.pb.js does.
+    #
+    # Without it a row scoped to org A could hang off org B's animal, whose
+    # cascadeDelete would then destroy A's clinical history.
+    print("\n[animal org scope]")
+    # `markings.type` became a relation into the marking_types code list
+    # (1700000040), so a wire string no longer validates.
+    ti77_type = listf(T, "marking_types", "id != ''")[0]["id"]
+    # One in-org row per collection to PATCH, each created the way the app does.
+    ti77_rows = {
+        "weights": mk(T, "weights", {
+            "animal": animal, "weight_g": 300, "org": ORG,
+        })["id"],
+        "markings": mk(T, "markings", {
+            "animal": animal, "type": ti77_type, "org": ORG,
+        })["id"],
+        "exams": mk(T, "exams", {
+            "case": case, "animal": animal, "org": ORG,
+        })["id"],
+        "cases": mk(T, "cases", {
+            "animal": animal, "active_carer": A, "org": ORG,
+        })["id"],
+        "egg_records": mk(T, "egg_records", {
+            "animal": animal, "count": 1, "org": ORG,
+        })["id"],
+    }
+    ti77_creates = {
+        "weights": {"weight_g": 301, "org": ORG},
+        "markings": {"type": ti77_type, "org": ORG},
+        "exams": {"case": case, "org": ORG},
+        "cases": {"active_carer": A, "org": ORG},
+        "egg_records": {"count": 1, "org": ORG},
+    }
+    for coll, rec_id in ti77_rows.items():
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{rec_id}", T,
+                   {"animal": animal_org2})
+        check(f"{coll}.animal cannot be re-pointed across orgs", s >= 400,
+              f"status {s}")
+        s, _ = req("POST", f"/api/collections/{coll}/records", T,
+                   {"animal": animal_org2, **ti77_creates[coll]})
+        check(f"{coll} cannot be created on another org's animal", s >= 400,
+              f"status {s}")
+        # Same-org moves stay legitimate (merge_animals re-points cases and
+        # markings at a surviving animal, and eggs are re-attributed by design).
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{rec_id}", T,
+                   {"animal": animal2})
+        check(f"{coll}.animal still moves within the org", s == 200,
+              f"status {s}")
+    # An exam carries an optional `org`; the guard then falls back to the parent
+    # case's, so the check cannot be dodged by simply omitting it.
+    s, _ = req("POST", "/api/collections/exams/records", T,
+               {"case": case, "animal": animal_org2})
+    check("an exam with no org still cannot name a foreign animal", s >= 400,
+          f"status {s}")
+    # The hook only validates when `animal` changes, so a row already pointing
+    # at a hard-deleted bird stays editable (cases.animal does not cascade, so
+    # such rows exist) — otherwise the dispositions hook's own case saves would
+    # start failing on them.
+    # A throwaway animal, not `animal2`: deleting one still in use would cascade
+    # away rows later sections depend on (the guest sweep needs an egg record).
+    ti77_doomed = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    ti77_orphan = mk(T, "cases", {
+        "animal": ti77_doomed, "active_carer": A, "org": ORG,
+    })
+    req("DELETE", f"/api/collections/animals/records/{ti77_doomed}", T)
+    s, _ = req("PATCH", f"/api/collections/cases/records/{ti77_orphan['id']}", T,
+               {"intake_notes": "animal since deleted"})
+    check("a row whose animal is gone stays editable", s == 200, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/cases/records/{ti77_orphan['id']}", T,
+               {"animal": animal_org2})
+    check("...but still cannot be re-pointed across orgs", s >= 400,
+          f"status {s}")
 
     # ── case_activity view (cr3.5) ──────────────────────────────────────────
     # last_activity reflects the newest child-record touch and is org-scoped
