@@ -109,7 +109,15 @@ Hooks own case-number/quarantine defaults, share-on-handoff, and disposition sid
 the STORED record (1700000043's finding): `animal_org_scope.pb.js` rejects any
 `animal` relation naming another org's bird (cases / weights / markings / exams /
 egg_records — it only fires when the field actually changes, so pre-existing rows
-pointing at a hard-deleted animal stay saveable). Multi-record writes are atomic server-side:
+pointing at a hard-deleted animal stay saveable). **Deletion is supervisor-only
+and cascades:** `animals.delete` / `cases.delete` are `SUP`-gated in
+1700000010, `cases.animal` cascades since 1700000057, and every `case` relation
+already did — so deleting an animal takes its cases and their whole timeline
+with it, while `weights` / `markings` / `egg_records` are animal-level and
+survive a *case* delete. Hooks that reconcile a parent on delete must tolerate
+that parent being gone (`main.pb.js`'s disposition reconcile) — it runs
+`onRecordAfterDeleteSuccess`, so throwing there turns a committed delete into a
+400 rather than rolling anything back. Multi-record writes are atomic server-side:
 case intake goes through `POST /api/federfall/intake` (`pb_hooks/intake.pb.js`, one
 transaction for animal+finder+case+weight+quarantine; `cases.finder` is locked against
 direct client writes), and a handoff is just a placement with `to_user` — the hook derives

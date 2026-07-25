@@ -5,6 +5,7 @@ import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/delete_record_dialogs.dart';
 import 'package:federfall/features/animals/edit_animal_sheet.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
@@ -40,6 +41,18 @@ class AnimalDetailScreen extends ConsumerWidget {
   const AnimalDetailScreen({required this.animalId, super.key});
 
   final String animalId;
+
+  /// Deletes the animal this screen is showing and leaves for the registry —
+  /// the subject is gone, so staying on a detail view of it makes no sense.
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    Animal? animal,
+  ) async {
+    if (animal == null) return;
+    final deleted = await confirmDeleteAnimal(context, ref, animal);
+    if (deleted && context.mounted) context.go(AppRoutes.animals);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -87,13 +100,23 @@ class AnimalDetailScreen extends ConsumerWidget {
               tooltip: l10n.animalEditTitle,
               onPressed: () => showEditAnimalSheet(context, data.animal),
             ),
-          // Direct icon, not tucked in an overflow menu: a one-item overflow
-          // is just extra chrome around a single action.
-          if (canMergeAnimals(role))
-            IconButton(
-              icon: const Icon(Icons.merge_outlined),
-              tooltip: l10n.animalMergeAction,
-              onPressed: () => context.push(AppRoutes.mergeAnimal(animalId)),
+          // Merge used to be a direct icon, on the reasoning that a one-item
+          // overflow is just chrome around a single action. Delete makes two
+          // supervisor actions, which flips that — and keeps an irreversible
+          // one out of thumb's reach of the edit icon.
+          if (canDeleteRecords(role))
+            PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: () => context.push(AppRoutes.mergeAnimal(animalId)),
+                  child: Text(l10n.animalMergeAction),
+                ),
+                PopupMenuItem(
+                  onTap: () => _delete(context, ref, lifetime.value?.animal),
+                  child: Text(l10n.animalDeleteAction),
+                ),
+              ],
             ),
         ],
       ),

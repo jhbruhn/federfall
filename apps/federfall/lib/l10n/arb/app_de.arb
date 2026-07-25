@@ -419,6 +419,47 @@
     "@eggReassignPartial": {
         "placeholders": { "done": { "type": "int" }, "total": { "type": "int" } }
     },
+    "animalDeleteAction": "Tier löschen",
+    "animalDeleteTitle": "Tier löschen?",
+    "animalDeleteIntro": "{name} und alle dazu erfassten Daten werden endgültig gelöscht:",
+    "@animalDeleteIntro": {
+        "placeholders": { "name": { "type": "String" } }
+    },
+    "animalDeleteCases": "{count, plural, =0{Keine Fälle} =1{1 Fall} other{{count} Fälle}}",
+    "@animalDeleteCases": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalDeleteCasesOpen": "{count, plural, =1{1 davon ist NOCH IN PFLEGE} other{{count} davon sind NOCH IN PFLEGE}}",
+    "@animalDeleteCasesOpen": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalDeleteRecordCounts": "{weights} Gewichte · {eggs} Eier · {markings} Kennzeichnungen · {exams} Untersuchungen",
+    "@animalDeleteRecordCounts": {
+        "placeholders": {
+            "weights": { "type": "int" },
+            "eggs": { "type": "int" },
+            "markings": { "type": "int" },
+            "exams": { "type": "int" }
+        }
+    },
+    "animalDeleteCaseContents": "Auch alles in diesen Fällen — Notizen, Medikamente, Abschlüsse, Quarantäne und Fotos.",
+    "animalDeleteIrreversible": "Das kann nicht rückgängig gemacht werden.",
+    "caseDeleteAction": "Fall löschen",
+    "caseDeleteTitle": "Fall löschen?",
+    "caseDeleteIntro": "Fall {number} und der komplette Verlauf werden endgültig gelöscht:",
+    "@caseDeleteIntro": {
+        "placeholders": { "number": { "type": "String" } }
+    },
+    "caseDeleteCounts": "{journal} Notizen · {meds} Medikamente · {doses} Gaben · {exams} Untersuchungen",
+    "@caseDeleteCounts": {
+        "placeholders": {
+            "journal": { "type": "int" },
+            "meds": { "type": "int" },
+            "doses": { "type": "int" },
+            "exams": { "type": "int" }
+        }
+    },
+    "caseDeleteKeeps": "Das Tier selbst bleibt erhalten, samt Gewichten, Eiern und Kennzeichnungen.",
     "animalSectionEggs": "Eier",
     "animalNoEggs": "Keine Ei-Ablagen erfasst",
     "animalEggsSummary": "{recent, plural, =1{1 Ei in 12 Monaten} other{{recent} Eier in 12 Monaten}} · {total} insgesamt",

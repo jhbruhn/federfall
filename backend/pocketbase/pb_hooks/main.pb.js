@@ -229,7 +229,17 @@ onRecordAfterUpdateSuccess((e) => {
 onRecordAfterDeleteSuccess((e) => {
   function reconcile(app, caseId) {
     if (!caseId) return;
-    const caseRec = app.findRecordById("cases", caseId);
+    // The parent may be gone: deleting a case (or, since 1700000057, an animal)
+    // cascades its dispositions, firing this hook with nothing left to
+    // reconcile. Because this runs AFTER a successful delete, letting the
+    // lookup throw does not roll anything back — it just turns a completed
+    // delete into a 400 for the client (federfall-vfl7).
+    let caseRec;
+    try {
+      caseRec = app.findRecordById("cases", caseId);
+    } catch (_) {
+      return;
+    }
     const remaining = app.findRecordsByFilter(
       "dispositions", "case = {:c}", "-created", 200, 0, { c: caseId },
     );
@@ -251,7 +261,13 @@ onRecordAfterDeleteSuccess((e) => {
         }
       }
     }
-    const animal = app.findRecordById("animals", animalId);
+    // Likewise gone when the delete started at the animal.
+    let animal;
+    try {
+      animal = app.findRecordById("animals", animalId);
+    } catch (_) {
+      return;
+    }
     let lifetime = "in_care";
     let aviary = "";
     if (latest) {

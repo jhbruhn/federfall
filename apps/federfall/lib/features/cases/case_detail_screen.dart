@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/delete_record_dialogs.dart';
 import 'package:federfall/features/cases/add_entry_sheet.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/carer_line.dart';
@@ -462,6 +465,18 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
     }
   }
 
+  /// Deletes the case and leaves for the cases list — the screen's subject is
+  /// gone, so staying on its detail view makes no sense.
+  Future<void> _delete() async {
+    final deleted = await confirmDeleteCase(context, ref, widget.medicalCase);
+    if (deleted && mounted) {
+      ref
+        ..invalidate(casesBrowserDataProvider)
+        ..invalidate(dashboardSummaryProvider);
+      if (context.mounted) context.go(AppRoutes.cases);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -552,6 +567,23 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
                 icon: const Icon(Icons.share_outlined),
                 label: Text(l10n.caseShareAction),
               ),
+              // Supervisor-only and irreversible, so it sits last, behind a
+              // divider and in the error colour rather than looking like a
+              // sibling of "edit intake". A supervisor always satisfies
+              // canEditCase, so it is reachable whenever this card renders.
+              if (canDeleteRecords(
+                ref.watch(currentUserProvider).value?.role,
+              )) ...[
+                const Divider(height: AppSpacing.lg),
+                OutlinedButton.icon(
+                  onPressed: _delete,
+                  icon: const Icon(Icons.delete_outline),
+                  label: Text(l10n.caseDeleteAction),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

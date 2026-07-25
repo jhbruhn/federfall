@@ -78,12 +78,13 @@ onRecordUpdate(
   (e) => {
     const animalId = e.record.getString("animal");
 
-    // Only when `animal` is actually being changed. Two reasons: a cross-org
-    // re-point always changes it, so nothing is lost — and `cases.animal` has
-    // cascadeDelete false (1700000004), so a case can already point at a
-    // hard-deleted bird. Re-validating every save would turn those pre-existing
-    // dangling rows into permanently unsaveable ones, breaking unrelated writes
-    // like the dispositions hook bumping `case.status`.
+    // Only when `animal` is actually being changed. A cross-org re-point always
+    // changes it, so nothing is lost — and rows pointing at a hard-deleted bird
+    // may still exist: `cases.animal` only started cascading in 1700000057, so
+    // any database older than that can hold cases orphaned by an earlier animal
+    // delete. Re-validating every save would make those permanently unsaveable
+    // and break unrelated writes like the dispositions hook bumping
+    // `case.status`.
     if (animalId === e.record.original().getString("animal")) {
       e.next();
       return;

@@ -15,6 +15,14 @@ bool canManageTeam(UserRole? role) => role == UserRole.supervisor;
 /// merge deletes the duplicate, so it needs the same authority.
 bool canMergeAnimals(UserRole? role) => role == UserRole.supervisor;
 
+/// Whether the role may hard-delete an animal or a case (federfall-vfl7).
+/// Mirrors the server `animals` / `cases` delete rules
+/// (1700000010_access_rules.js). Destroying an animal takes its whole case
+/// history with it (`cases.animal` cascades since 1700000057), so this is
+/// deliberately the narrowest role, separate from `canEditCase` — an active
+/// carer may write a case's timeline without being able to erase it.
+bool canDeleteRecords(UserRole? role) => role == UserRole.supervisor;
+
 /// Whether [me] may write to [medicalCase] — edit the case itself and
 /// create/edit/delete its child records (timeline entries, etc.). Mirrors the
 /// server `caseEdit` / `childEdit` access rules (1700000010_access_rules.js):

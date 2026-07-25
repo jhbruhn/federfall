@@ -1,3 +1,4 @@
+import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
@@ -22,6 +23,7 @@ Future<void> _pump(
   List<EggRecord> eggs = const [],
   bool eggsError = false,
   List<Exam> exams = const [],
+  UserRole? role,
   PbAnimalsRepository? animals,
 }) async {
   // The detail is a lazy ListView of cards; the default 600x800 test viewport
@@ -41,6 +43,11 @@ Future<void> _pump(
           (ref) async => eggsError ? throw Exception('boom') : eggs,
         ),
         examsForAnimalProvider('a1').overrideWith((ref) async => exams),
+        currentUserProvider.overrideWith(
+          (ref) async => role == null
+              ? null
+              : AppUser(id: 'me', email: 'me@x.org', org: 'org1', role: role),
+        ),
         markingTypesProvider.overrideWith(
           (ref) async => const [
             MarkingType(id: 'mktp_assoc', label: 'Association ring'),
@@ -397,5 +404,33 @@ void main() {
     );
 
     expect(find.textContaining('Show all'), findsNothing);
+  });
+
+  // One role per test on purpose: `_pump`'s subtree is a const MaterialApp, so
+  // pumping it twice in one test lets Flutter reuse the element and the screen
+  // never re-reads the new ProviderScope.
+  const roleLifetime = AnimalLifetime(
+    animal: Animal(id: 'a1', species: 'Columba livia'),
+    markings: [],
+    cases: [],
+    accessibleCaseIds: {},
+  );
+
+  testWidgets('a carer sees no destructive overflow', (tester) async {
+    await _pump(tester, roleLifetime, role: UserRole.carer);
+    expect(find.byType(PopupMenuButton<void>), findsNothing);
+  });
+
+  testWidgets('a coordinator sees no destructive overflow', (tester) async {
+    await _pump(tester, roleLifetime, role: UserRole.coordinator);
+    expect(find.byType(PopupMenuButton<void>), findsNothing);
+  });
+
+  testWidgets('a supervisor can reach merge and delete', (tester) async {
+    await _pump(tester, roleLifetime, role: UserRole.supervisor);
+    await tester.tap(find.byType(PopupMenuButton<void>));
+    await tester.pumpAndSettle();
+    expect(find.text('Merge duplicate…'), findsOneWidget);
+    expect(find.text('Delete animal'), findsOneWidget);
   });
 }

@@ -950,6 +950,60 @@
         "description": "Reported when some rows moved and others failed — re-running covers the rest",
         "placeholders": { "done": { "type": "int" }, "total": { "type": "int" } }
     },
+    "animalDeleteAction": "Delete animal",
+    "@animalDeleteAction": { "description": "Supervisor action that permanently deletes an animal and its whole history" },
+    "animalDeleteTitle": "Delete animal?",
+    "@animalDeleteTitle": { "description": "Title of the delete-animal confirmation dialog" },
+    "animalDeleteIntro": "{name} and everything recorded for it will be permanently deleted:",
+    "@animalDeleteIntro": {
+        "description": "Lead-in above the list of records an animal deletion destroys",
+        "placeholders": { "name": { "type": "String" } }
+    },
+    "animalDeleteCases": "{count, plural, =0{No cases} =1{1 case} other{{count} cases}}",
+    "@animalDeleteCases": {
+        "description": "How many cases an animal deletion destroys",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalDeleteCasesOpen": "{count, plural, =1{1 of them is STILL IN CARE} other{{count} of them are STILL IN CARE}}",
+    "@animalDeleteCasesOpen": {
+        "description": "Warning that some of the destroyed cases are not closed yet",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalDeleteRecordCounts": "{weights} weights · {eggs} eggs · {markings} markings · {exams} exams",
+    "@animalDeleteRecordCounts": {
+        "description": "The animal-level records an animal deletion destroys",
+        "placeholders": {
+            "weights": { "type": "int" },
+            "eggs": { "type": "int" },
+            "markings": { "type": "int" },
+            "exams": { "type": "int" }
+        }
+    },
+    "animalDeleteCaseContents": "Everything on those cases too — journal entries, medications, outcomes, quarantine and photos.",
+    "@animalDeleteCaseContents": { "description": "Prose covering the per-case children an animal deletion cascades to" },
+    "animalDeleteIrreversible": "This cannot be undone.",
+    "@animalDeleteIrreversible": { "description": "Final warning in a delete confirmation dialog" },
+    "caseDeleteAction": "Delete case",
+    "@caseDeleteAction": { "description": "Supervisor action that permanently deletes a case and its timeline" },
+    "caseDeleteTitle": "Delete case?",
+    "@caseDeleteTitle": { "description": "Title of the delete-case confirmation dialog" },
+    "caseDeleteIntro": "Case {number} and its whole timeline will be permanently deleted:",
+    "@caseDeleteIntro": {
+        "description": "Lead-in above the list of records a case deletion destroys",
+        "placeholders": { "number": { "type": "String" } }
+    },
+    "caseDeleteCounts": "{journal} journal entries · {meds} medications · {doses} doses · {exams} exams",
+    "@caseDeleteCounts": {
+        "description": "The case children a case deletion destroys",
+        "placeholders": {
+            "journal": { "type": "int" },
+            "meds": { "type": "int" },
+            "doses": { "type": "int" },
+            "exams": { "type": "int" }
+        }
+    },
+    "caseDeleteKeeps": "The animal itself is kept, along with its weights, eggs and markings.",
+    "@caseDeleteKeeps": { "description": "Reassurance that animal-level history survives a case deletion" },
     "animalSectionEggs": "Eggs",
     "@animalSectionEggs": { "description": "Heading of the animal detail's egg-laying card" },
     "animalNoEggs": "No egg records",

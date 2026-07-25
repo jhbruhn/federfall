@@ -872,24 +872,116 @@ def main():
                {"case": case, "animal": animal_org2})
     check("an exam with no org still cannot name a foreign animal", s >= 400,
           f"status {s}")
-    # The hook only validates when `animal` changes, so a row already pointing
-    # at a hard-deleted bird stays editable (cases.animal does not cascade, so
-    # such rows exist) — otherwise the dispositions hook's own case saves would
-    # start failing on them.
+    # The hook only validates when `animal` CHANGES, so an unrelated field edit
+    # never re-checks the relation. That matters for rows orphaned before
+    # 1700000057 made `cases.animal` cascade: re-validating every save would
+    # make them permanently unsaveable and break unrelated writes such as the
+    # dispositions hook bumping `case.status`. Such a row can no longer be
+    # produced through the API (deleting the animal now takes the case with it —
+    # asserted below), so what is checked here is the change-only behaviour
+    # itself: editing another field passes, re-pointing still does not.
     # A throwaway animal, not `animal2`: deleting one still in use would cascade
     # away rows later sections depend on (the guest sweep needs an egg record).
     ti77_doomed = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
     ti77_orphan = mk(T, "cases", {
         "animal": ti77_doomed, "active_carer": A, "org": ORG,
     })
-    req("DELETE", f"/api/collections/animals/records/{ti77_doomed}", T)
     s, _ = req("PATCH", f"/api/collections/cases/records/{ti77_orphan['id']}", T,
-               {"intake_notes": "animal since deleted"})
-    check("a row whose animal is gone stays editable", s == 200, f"status {s}")
+               {"intake_notes": "unrelated edit"})
+    check("an unrelated edit does not re-validate the animal", s == 200,
+          f"status {s}")
     s, _ = req("PATCH", f"/api/collections/cases/records/{ti77_orphan['id']}", T,
                {"animal": animal_org2})
-    check("...but still cannot be re-pointed across orgs", s >= 400,
+    check("...but a re-point across orgs is still rejected", s >= 400,
           f"status {s}")
+    req("DELETE", f"/api/collections/animals/records/{ti77_doomed}", T)
+
+    # ── supervisor deletion + animal cascade (federfall-vfl7) ────────────────
+    # `animals.delete` and `cases.delete` have been supervisor-only since
+    # 1700000010; 1700000057 makes `cases.animal` cascade so deleting a bird
+    # actually takes its whole history, rather than orphaning cases whose
+    # children hang off `case` and would otherwise survive.
+    print("\n[supervisor deletion & cascade]")
+    del_animal = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    del_case = mk(T, "cases", {
+        "animal": del_animal, "active_carer": A, "org": ORG,
+    })["id"]
+    del_journal = mk(T, "journal_entries", {
+        "case": del_case, "text": "wound check", "org": ORG,
+    })["id"]
+    del_disp = mk(T, "dispositions", {
+        "case": del_case, "type": "released",
+        "disposed_at": "2026-06-01 09:00:00.000Z", "org": ORG,
+    })["id"]
+    del_weight = mk(T, "weights", {
+        "animal": del_animal, "case": del_case, "weight_g": 300, "org": ORG,
+    })["id"]
+    del_egg = mk(T, "egg_records", {
+        "animal": del_animal, "count": 1, "org": ORG,
+    })["id"]
+    # The hook creates a quarantine row per case; grab it to prove it goes too.
+    del_quar = listf(T, "quarantine_records", f'case = "{del_case}"')
+
+    # Only supervisors may delete either record.
+    s, _ = req("DELETE", f"/api/collections/cases/records/{del_case}", toks["a"])
+    check("the active carer CANNOT delete their own case", s != 204,
+          f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/animals/records/{del_animal}",
+               toks["a"])
+    check("a carer CANNOT delete an animal", s != 204, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/animals/records/{del_animal}",
+               toks["coord"])
+    check("a coordinator CANNOT delete an animal", s != 204, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/animals/records/{del_animal}", te)
+    check("another org's supervisor CANNOT delete this animal", s != 204,
+          f"status {s}")
+
+    # A case delete leaves the animal-level history on the bird.
+    s, _ = req("DELETE", f"/api/collections/cases/records/{del_case}",
+               toks["sup"])
+    check("a supervisor can delete a case", s == 204, f"status {s}")
+    s, _ = req("GET", f"/api/collections/journal_entries/records/{del_journal}",
+               T)
+    check("the case's journal entry is cascaded away", s == 404, f"status {s}")
+    s, _ = req("GET", f"/api/collections/dispositions/records/{del_disp}", T)
+    check("the case's disposition is cascaded away", s == 404, f"status {s}")
+    if del_quar:
+        s, _ = req(
+            "GET",
+            f"/api/collections/quarantine_records/records/{del_quar[0]['id']}",
+            T,
+        )
+        check("the case's quarantine record is cascaded away", s == 404,
+              f"status {s}")
+    s, _ = req("GET", f"/api/collections/weights/records/{del_weight}", T)
+    check("a weight SURVIVES its case (animal-level history)", s == 200,
+          f"status {s}")
+    s, _ = req("GET", f"/api/collections/egg_records/records/{del_egg}", T)
+    check("an egg record survives its case (it has no case link)", s == 200,
+          f"status {s}")
+
+    # Deleting the animal takes everything, including a second live case.
+    del_case2 = mk(T, "cases", {
+        "animal": del_animal, "active_carer": A, "org": ORG,
+    })["id"]
+    del_journal2 = mk(T, "journal_entries", {
+        "case": del_case2, "text": "still in care", "org": ORG,
+    })["id"]
+    del_marking = mk(T, "markings", {
+        "animal": del_animal, "type": ti77_type, "org": ORG,
+    })["id"]
+    s, _ = req("DELETE", f"/api/collections/animals/records/{del_animal}",
+               toks["sup"])
+    check("a supervisor can delete an animal", s == 204, f"status {s}")
+    for coll, rec_id, label in [
+        ("cases", del_case2, "its open case"),
+        ("journal_entries", del_journal2, "that case's journal entry"),
+        ("weights", del_weight, "its weights"),
+        ("egg_records", del_egg, "its egg records"),
+        ("markings", del_marking, "its markings"),
+    ]:
+        s, _ = req("GET", f"/api/collections/{coll}/records/{rec_id}", T)
+        check(f"deleting the animal removes {label}", s == 404, f"status {s}")
 
     # ── case_activity view (cr3.5) ──────────────────────────────────────────
     # last_activity reflects the newest child-record touch and is org-scoped
