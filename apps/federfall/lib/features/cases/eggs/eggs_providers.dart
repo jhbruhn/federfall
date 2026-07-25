@@ -38,6 +38,36 @@ Future<List<EggRecord>> eggsForCase(Ref ref, String caseId) async {
   return eggsInCaseWindow(eggs, bundle);
 }
 
+/// The other animals sharing an enclosure with [animalId] on [at] — the
+/// one-tap candidate list when re-attributing an egg.
+///
+/// Resolved from the `aviary_stays` residency ledger (1700000052), which is
+/// exactly why no aviary is denormalised onto an egg record: the ledger already
+/// answers "where was this bird on that date" and a copy would drift. Empty
+/// when the bird was not housed in an aviary then (a carer's home, say) — the
+/// sheet falls back to search.
+@riverpod
+Future<List<Animal>> eggCoResidents(
+  Ref ref,
+  String animalId,
+  DateTime at,
+) async {
+  final stays = await ref.watch(aviaryStaysRepositoryProvider.future);
+  final own = await stays.forAnimalAt(animalId, at);
+  if (own.isEmpty) return const [];
+
+  final ids = <String>{};
+  for (final aviary in own.map((s) => s.aviary).toSet()) {
+    for (final stay in await stays.residentsAt(aviary, at)) {
+      if (stay.animal != animalId) ids.add(stay.animal);
+    }
+  }
+  if (ids.isEmpty) return const [];
+
+  final animals = await ref.watch(animalsRepositoryProvider.future);
+  return Future.wait(ids.map(animals.getOne));
+}
+
 /// Narrows a lifetime of laying events to the ones belonging to [bundle]'s
 /// case: from its admission (unbounded before it if none is recorded) to its
 /// latest disposition, or to now while the case is still open.

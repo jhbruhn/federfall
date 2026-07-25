@@ -130,6 +130,36 @@ void main() {
       verify(() => pb.filter('aviary = {:a}', {'a': 'avir1'})).called(1);
       expect(capturedQuery()[1], '-started_at');
     });
+
+    test(
+      'forAnimalAt bounds the date and treats an unset end as open',
+      () async {
+        await PbAviaryStaysRepository(
+          pb,
+        ).forAnimalAt('anml1', DateTime.utc(2026, 6, 2, 7));
+        verify(
+          () => pb.filter(
+            'animal = {:a} && started_at <= {:t}'
+            " && (ended_at = '' || ended_at >= {:t})",
+            {'a': 'anml1', 't': '2026-06-02T07:00:00.000Z'},
+          ),
+        ).called(1);
+      },
+    );
+
+    test('residentsAt rosters one aviary on one date', () async {
+      await PbAviaryStaysRepository(
+        pb,
+      ).residentsAt('avir1', DateTime.utc(2026, 6, 2, 7));
+      verify(
+        () => pb.filter(
+          'aviary = {:v} && started_at <= {:t}'
+          " && (ended_at = '' || ended_at >= {:t})",
+          {'v': 'avir1', 't': '2026-06-02T07:00:00.000Z'},
+        ),
+      ).called(1);
+      expect(capturedQuery()[1], 'started_at');
+    });
   });
 
   group('PbCaseSharesRepository', () {

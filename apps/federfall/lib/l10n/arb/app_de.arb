@@ -387,6 +387,58 @@
     "eggDeleteAction": "Löschen",
     "eggDeleteTitle": "Ei-Ablage löschen?",
     "eggDeleteConfirm": "Dieser Eintrag und seine Fotos werden endgültig gelöscht.",
+    "eggConfirmAction": "Legerin bestätigen",
+    "eggReassignAction": "Umbuchen",
+    "eggReassignTitle": "Ei umbuchen",
+    "eggReassignScopeTitle": "Was umgebucht wird",
+    "eggReassignScopeSingle": "Nur dieses Ei",
+    "eggReassignScopeClutch": "{count, plural, =1{Ganzes Gelege (1 Ei)} other{Ganzes Gelege ({count} Eier)}}",
+    "@eggReassignScopeClutch": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "eggReassignCandidatesTitle": "Mitbewohner am {date}",
+    "@eggReassignCandidatesTitle": {
+        "placeholders": { "date": { "type": "String" } }
+    },
+    "eggReassignNoCandidates": "Für dieses Datum sind keine Mitbewohner erfasst.",
+    "eggReassignSearchLabel": "Anderes Tier suchen",
+    "eggReassignTargetTitle": "Neue Legerin",
+    "eggReassignChangeTarget": "Ändern",
+    "eggReassignSummaryTitle": "Das schreibt in die Akte eines anderen Tieres",
+    "eggReassignSummaryMoves": "{records, plural, =1{1 Eintrag} other{{records} Einträge}} · {eggs, plural, =1{1 Ei} other{{eggs} Eier}} gehen an {target}, als bestätigt markiert.",
+    "@eggReassignSummaryMoves": {
+        "placeholders": {
+            "records": { "type": "int" },
+            "eggs": { "type": "int" },
+            "target": { "type": "String" }
+        }
+    },
+    "eggReassignSplitHint": "Ein Eintrag wandert vollständig. Gehört nur ein Teil zum anderen Tier, zuerst die Anzahl verringern und dort einen Eintrag anlegen.",
+    "eggReassignConfirmAction": "Umbuchen",
+    "eggReassignPartial": "{done} von {total} umgebucht",
+    "@eggReassignPartial": {
+        "placeholders": { "done": { "type": "int" }, "total": { "type": "int" } }
+    },
+    "animalSectionEggs": "Eier",
+    "animalNoEggs": "Keine Ei-Ablagen erfasst",
+    "animalEggsSummary": "{recent, plural, =1{1 Ei in 12 Monaten} other{{recent} Eier in 12 Monaten}} · {total} insgesamt",
+    "@animalEggsSummary": {
+        "placeholders": { "recent": { "type": "int" }, "total": { "type": "int" } }
+    },
+    "animalEggsPresumed": "{count} unbestätigt",
+    "@animalEggsPresumed": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "eggClutchHeader": "Gelege · {dates} · {count, plural, =1{1 Ei} other{{count} Eier}}",
+    "@eggClutchHeader": {
+        "placeholders": { "dates": { "type": "String" }, "count": { "type": "int" } }
+    },
+    "eggHistoryTitle": "Ei-Ablagen",
+    "eggShowAllAction": "Alle anzeigen ({count})",
+    "@eggShowAllAction": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "eggChartTitle": "Eier pro Monat",
     "eggFertilityUnknown": "Unbekannt",
     "eggFertilityFertile": "Befruchtet",
     "eggFertilityInfertile": "Unbefruchtet",

@@ -4,11 +4,14 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/eggs/egg_entry_sheet.dart';
 import 'package:federfall/features/cases/eggs/egg_entry_tile.dart';
+import 'package:federfall/features/cases/eggs/egg_month_chart.dart';
+import 'package:federfall/features/cases/eggs/egg_reassign_sheet.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart' hide Finder;
@@ -19,6 +22,12 @@ import 'package:mocktail/mocktail.dart';
 class MockEggRepo extends Mock implements PbEggRecordsRepository {}
 
 class MockPicker extends Mock implements ImagePicker {}
+
+class MockStaysRepo extends Mock implements PbAviaryStaysRepository {}
+
+class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
+
+class MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
 
 EggRecord _egg(
   String id, {
@@ -462,6 +471,253 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => eggs.delete('e1')).called(1);
+    });
+  });
+
+  group('EggMonthChart', () {
+    Future<void> pumpChart(
+      WidgetTester tester,
+      List<EggRecord> eggs,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: EggMonthChart(eggs: eggs, now: DateTime.utc(2026, 7, 15)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('renders nothing when the window holds no eggs', (
+      tester,
+    ) async {
+      await pumpChart(tester, [_egg('e1', laidAt: DateTime.utc(2020, 6))]);
+      expect(find.byType(BarChart), findsNothing);
+    });
+
+    testWidgets('renders once the window holds an egg', (tester) async {
+      await pumpChart(tester, [_egg('e1', laidAt: DateTime.utc(2026, 6, 2))]);
+      expect(find.byType(BarChart), findsOneWidget);
+      expect(find.text('Eggs per month'), findsOneWidget);
+    });
+  });
+
+  group('EggReassignSheet', () {
+    late MockEggRepo eggs;
+    late MockStaysRepo stays;
+    late MockAnimalsRepo animals;
+    late MockMarkingsRepo markings;
+
+    final clutch = [
+      _egg('e1', laidAt: DateTime.utc(2026, 6, 2)),
+      _egg('e2', laidAt: DateTime.utc(2026, 6, 4)),
+      // A separate clutch weeks later — must never move with the first.
+      _egg('e3', laidAt: DateTime.utc(2026, 6, 25)),
+    ];
+
+    setUp(() {
+      eggs = MockEggRepo();
+      stays = MockStaysRepo();
+      animals = MockAnimalsRepo();
+      markings = MockMarkingsRepo();
+      when(
+        () => stays.forAnimalAt(any(), any()),
+      ).thenAnswer((_) async => const []);
+      // reidSearch (the fallback search) hits both repos.
+      when(
+        () => markings.activeByCode(any()),
+      ).thenAnswer((_) async => const []);
+      when(() => markings.forAnimal(any())).thenAnswer((_) async => const []);
+      when(() => animals.searchByName(any())).thenAnswer((_) async => const []);
+    });
+
+    Future<void> pump(WidgetTester tester, EggRecord egg) async {
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWith(
+            (ref) async =>
+                const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+          ),
+          eggRecordsRepositoryProvider.overrideWith((ref) async => eggs),
+          aviaryStaysRepositoryProvider.overrideWith((ref) async => stays),
+          animalsRepositoryProvider.overrideWith((ref) async => animals),
+          markingsRepositoryProvider.overrideWith((ref) async => markings),
+          eggsForAnimalProvider('anml1').overrideWith((ref) async => clutch),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      tester.view.physicalSize = const Size(1000, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      // Pushed as its own route over a host screen, the way a bottom sheet
+      // really sits: popping it has to land somewhere, and a SnackBar raised on
+      // the way out needs a Scaffold left standing to render in.
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<bool>(
+                      builder: (_) => Scaffold(
+                        body: EggReassignSheet(egg: egg, caseId: 'c1'),
+                      ),
+                    ),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('lists the enclosure mates at the laying date', (tester) async {
+      when(() => stays.forAnimalAt('anml1', any())).thenAnswer(
+        (_) async => [
+          const AviaryStay(id: 's1', animal: 'anml1', aviary: 'avir1'),
+        ],
+      );
+      when(() => stays.residentsAt('avir1', any())).thenAnswer(
+        (_) async => [
+          const AviaryStay(id: 's1', animal: 'anml1', aviary: 'avir1'),
+          const AviaryStay(id: 's2', animal: 'anml2', aviary: 'avir1'),
+        ],
+      );
+      when(() => animals.getOne('anml2')).thenAnswer(
+        (_) async =>
+            const Animal(id: 'anml2', species: 'Stadttaube', name: 'Ida'),
+      );
+
+      await pump(tester, clutch.first);
+
+      // The bird itself is never offered as its own new layer.
+      expect(find.text('Ida · Stadttaube'), findsOneWidget);
+      verifyNever(() => animals.getOne('anml1'));
+    });
+
+    testWidgets('falls back to search when no residency is recorded', (
+      tester,
+    ) async {
+      await pump(tester, clutch.first);
+      expect(
+        find.text('No enclosure mates recorded for that date.'),
+        findsOneWidget,
+      );
+      expect(find.text('Search for another animal'), findsOneWidget);
+    });
+
+    testWidgets('moves one record, marking it confirmed', (tester) async {
+      when(() => stays.forAnimalAt('anml1', any())).thenAnswer(
+        (_) async => [
+          const AviaryStay(id: 's1', animal: 'anml1', aviary: 'avir1'),
+        ],
+      );
+      when(() => stays.residentsAt('avir1', any())).thenAnswer(
+        (_) async => [
+          const AviaryStay(id: 's2', animal: 'anml2', aviary: 'avir1'),
+        ],
+      );
+      when(() => animals.getOne('anml2')).thenAnswer(
+        (_) async => const Animal(id: 'anml2', species: 'Stadttaube'),
+      );
+      when(() => eggs.update(any(), any())).thenAnswer((_) async => _egg('e1'));
+
+      await pump(tester, clutch.first);
+      await tester.tap(find.text('Stadttaube'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Re-attribute'));
+      await tester.pumpAndSettle();
+
+      verify(
+        () => eggs.update('e1', {
+          'animal': 'anml2',
+          'attribution': 'confirmed',
+        }),
+      ).called(1);
+      verifyNever(() => eggs.update('e2', any()));
+    });
+
+    testWidgets('the clutch scope moves every record in that clutch only', (
+      tester,
+    ) async {
+      when(() => eggs.update(any(), any())).thenAnswer((_) async => _egg('e1'));
+      when(() => animals.searchByName(any())).thenAnswer(
+        (_) async => const [Animal(id: 'anml2', species: 'Stadttaube')],
+      );
+      when(() => animals.getOne('anml2')).thenAnswer(
+        (_) async => const Animal(id: 'anml2', species: 'Stadttaube'),
+      );
+
+      await pump(tester, clutch.first);
+
+      await tester.tap(find.text('Whole clutch (2 eggs)'));
+      await tester.pumpAndSettle();
+
+      // Reached via search rather than the (empty) co-resident list.
+      await tester.enterText(
+        find.byType(TextField).first,
+        'Stadttaube',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Stadttaube').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Re-attribute'));
+      await tester.pumpAndSettle();
+
+      verify(() => eggs.update('e1', any())).called(1);
+      verify(() => eggs.update('e2', any())).called(1);
+      // e3 is three weeks later: a different clutch.
+      verifyNever(() => eggs.update('e3', any()));
+    });
+
+    testWidgets('reports how many moved when one row fails', (tester) async {
+      when(() => animals.searchByName(any())).thenAnswer(
+        (_) async => const [Animal(id: 'anml2', species: 'Stadttaube')],
+      );
+      when(() => animals.getOne('anml2')).thenAnswer(
+        (_) async => const Animal(id: 'anml2', species: 'Stadttaube'),
+      );
+      when(() => eggs.update('e1', any())).thenAnswer((_) async => _egg('e1'));
+      when(
+        () => eggs.update('e2', any()),
+      ).thenThrow(Exception('conflict'));
+
+      await pump(tester, clutch.first);
+      await tester.tap(find.text('Whole clutch (2 eggs)'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Stadttaube');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Stadttaube').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Re-attribute'));
+      // Explicit frames, not pumpAndSettle: the latter keeps pumping past the
+      // SnackBar's four-second display timer and would settle it away again.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 750));
+
+      verify(() => eggs.update('e1', any())).called(1);
+      verify(() => eggs.update('e2', any())).called(1);
+      // A partial failure is retryable, so it reports rather than rolls back.
+      expect(find.text('1 of 2 re-attributed'), findsOneWidget);
     });
   });
 }

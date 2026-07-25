@@ -325,7 +325,7 @@ class _CandidateSearch extends ConsumerWidget {
                         for (final m in results)
                           ListTile(
                             leading: const Icon(Icons.pets_outlined),
-                            title: Text(_animalTitle(m.animal)),
+                            title: Text(animalTitle(m.animal)),
                             onTap: enabled ? () => onPick(m.animal) : null,
                           ),
                       ],
@@ -335,11 +335,6 @@ class _CandidateSearch extends ConsumerWidget {
               ),
       ],
     );
-  }
-
-  String _animalTitle(Animal a) {
-    final name = a.name;
-    return name == null || name.isEmpty ? a.species : '$name · ${a.species}';
   }
 }
 

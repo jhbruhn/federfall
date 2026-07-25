@@ -7,6 +7,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/eggs/egg_entry_sheet.dart';
+import 'package:federfall/features/cases/eggs/egg_reassign_sheet.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -39,32 +40,11 @@ class EggEntryTile extends ConsumerWidget {
   final bool canEdit;
   final bool isLast;
 
-  void _invalidate(WidgetRef ref) {
-    ref.invalidate(eggsForAnimalProvider(egg.animal));
-    if (caseId case final id?) ref.invalidate(caseBundleProvider(id));
-  }
-
-  Future<void> _delete(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    return confirmAndDelete(
-      context,
-      title: l10n.eggDeleteTitle,
-      message: l10n.eggDeleteConfirm,
-      confirmLabel: l10n.eggDeleteAction,
-      action: () async {
-        final repo = await ref.read(eggRecordsRepositoryProvider.future);
-        await repo.delete(egg.id);
-        _invalidate(ref);
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
-    final me = ref.watch(currentUserProvider).value;
     final notes = egg.notes;
 
     final detail = [
@@ -78,18 +58,7 @@ class EggEntryTile extends ConsumerWidget {
       icon: Icons.egg_outlined,
       date: formatEventDate(materialL10n, egg.laidAt ?? egg.created),
       isLast: isLast,
-      trailing: canEdit
-          ? TimelineEntryMenu(
-              editLabel: l10n.eggEditAction,
-              onEdit: () => unawaited(
-                showEggEntrySheet(context, animalId: egg.animal, egg: egg),
-              ),
-              deleteLabel: l10n.eggDeleteAction,
-              onDelete: eggDeletableBy(egg, me)
-                  ? () => _delete(context, ref)
-                  : null,
-            )
-          : null,
+      trailing: canEdit ? EggEntryMenu(egg: egg, caseId: caseId) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -117,6 +86,81 @@ class EggEntryTile extends ConsumerWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The overflow menu shared by the case-timeline tile and the animal detail's
+/// egg rows: edit, confirm a presumed layer, re-attribute, delete.
+///
+/// Delete only appears for the record's author or a supervisor, mirroring the
+/// server rule (1700000056).
+class EggEntryMenu extends ConsumerWidget {
+  const EggEntryMenu({required this.egg, this.caseId, super.key});
+
+  final EggRecord egg;
+
+  /// The case timeline this menu was opened from, if any — invalidated after a
+  /// write so the timeline reflects it. Never stored on the record.
+  final String? caseId;
+
+  void _invalidate(WidgetRef ref) {
+    ref.invalidate(eggsForAnimalProvider(egg.animal));
+    if (caseId case final id?) ref.invalidate(caseBundleProvider(id));
+  }
+
+  /// Promotes a presumed record to confirmed — the one-field version of a
+  /// re-attribution, for when the recorded layer turns out to be right.
+  Future<void> _confirm(BuildContext context, WidgetRef ref) {
+    return runQuickAction(context, () async {
+      final repo = await ref.read(eggRecordsRepositoryProvider.future);
+      await repo.update(egg.id, {
+        'attribution': EggAttribution.confirmed.wire,
+      });
+      _invalidate(ref);
+    });
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    return confirmAndDelete(
+      context,
+      title: l10n.eggDeleteTitle,
+      message: l10n.eggDeleteConfirm,
+      confirmLabel: l10n.eggDeleteAction,
+      action: () async {
+        final repo = await ref.read(eggRecordsRepositoryProvider.future);
+        await repo.delete(egg.id);
+        _invalidate(ref);
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final me = ref.watch(currentUserProvider).value;
+
+    return TimelineEntryMenu(
+      editLabel: l10n.eggEditAction,
+      onEdit: () => unawaited(
+        showEggEntrySheet(context, animalId: egg.animal, egg: egg),
+      ),
+      middleItems: [
+        if (egg.attribution == EggAttribution.presumed)
+          PopupMenuItem(
+            onTap: () => _confirm(context, ref),
+            child: Text(l10n.eggConfirmAction),
+          ),
+        PopupMenuItem(
+          onTap: () => unawaited(
+            showEggReassignSheet(context, egg: egg, caseId: caseId),
+          ),
+          child: Text(l10n.eggReassignAction),
+        ),
+      ],
+      deleteLabel: l10n.eggDeleteAction,
+      onDelete: eggDeletableBy(egg, me) ? () => _delete(context, ref) : null,
     );
   }
 }

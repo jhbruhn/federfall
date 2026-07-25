@@ -902,6 +902,82 @@
     "@eggDeleteTitle": { "description": "Title of the delete-egg confirmation dialog" },
     "eggDeleteConfirm": "This egg record and its photos will be permanently deleted.",
     "@eggDeleteConfirm": { "description": "Body of the delete-egg confirmation dialog" },
+    "eggConfirmAction": "Confirm layer",
+    "@eggConfirmAction": { "description": "Menu action that promotes a presumed egg record to confirmed" },
+    "eggReassignAction": "Re-attribute",
+    "@eggReassignAction": { "description": "Menu action that moves an egg record to another animal" },
+    "eggReassignTitle": "Re-attribute egg",
+    "@eggReassignTitle": { "description": "Title of the egg re-attribution sheet" },
+    "eggReassignScopeTitle": "What moves",
+    "@eggReassignScopeTitle": { "description": "Heading above the single-egg / whole-clutch choice" },
+    "eggReassignScopeSingle": "This record only",
+    "@eggReassignScopeSingle": { "description": "Re-attribute just the one selected egg record" },
+    "eggReassignScopeClutch": "{count, plural, =1{Whole clutch (1 egg)} other{Whole clutch ({count} eggs)}}",
+    "@eggReassignScopeClutch": {
+        "description": "Re-attribute every record in the derived clutch",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "eggReassignCandidatesTitle": "Housed together on {date}",
+    "@eggReassignCandidatesTitle": {
+        "description": "Heading above the co-resident candidate list, from the aviary residency ledger",
+        "placeholders": { "date": { "type": "String" } }
+    },
+    "eggReassignNoCandidates": "No enclosure mates recorded for that date.",
+    "@eggReassignNoCandidates": { "description": "Shown when the residency ledger has no co-residents at the laying date" },
+    "eggReassignSearchLabel": "Search for another animal",
+    "@eggReassignSearchLabel": { "description": "Label of the re-attribution search field" },
+    "eggReassignTargetTitle": "New layer",
+    "@eggReassignTargetTitle": { "description": "Heading above the picked target animal" },
+    "eggReassignChangeTarget": "Change",
+    "@eggReassignChangeTarget": { "description": "Clears the picked target animal" },
+    "eggReassignSummaryTitle": "This writes to another animal's record",
+    "@eggReassignSummaryTitle": { "description": "Heading of the re-attribution summary card" },
+    "eggReassignSummaryMoves": "{records, plural, =1{1 record} other{{records} records}} · {eggs, plural, =1{1 egg} other{{eggs} eggs}} move to {target}, marked confirmed.",
+    "@eggReassignSummaryMoves": {
+        "description": "What the re-attribution will change",
+        "placeholders": {
+            "records": { "type": "int" },
+            "eggs": { "type": "int" },
+            "target": { "type": "String" }
+        }
+    },
+    "eggReassignSplitHint": "A record moves whole. If only part of it belongs to the other bird, lower its egg count first and add a record there.",
+    "@eggReassignSplitHint": { "description": "Hint that a multi-egg row cannot be split by re-attribution" },
+    "eggReassignConfirmAction": "Re-attribute",
+    "@eggReassignConfirmAction": { "description": "Commits the re-attribution" },
+    "eggReassignPartial": "{done} of {total} re-attributed",
+    "@eggReassignPartial": {
+        "description": "Reported when some rows moved and others failed — re-running covers the rest",
+        "placeholders": { "done": { "type": "int" }, "total": { "type": "int" } }
+    },
+    "animalSectionEggs": "Eggs",
+    "@animalSectionEggs": { "description": "Heading of the animal detail's egg-laying card" },
+    "animalNoEggs": "No egg records",
+    "@animalNoEggs": { "description": "Empty state of the animal detail's egg card" },
+    "animalEggsSummary": "{recent, plural, =1{1 egg in 12 months} other{{recent} eggs in 12 months}} · {total} in total",
+    "@animalEggsSummary": {
+        "description": "Egg counts on the animal detail card",
+        "placeholders": { "recent": { "type": "int" }, "total": { "type": "int" } }
+    },
+    "animalEggsPresumed": "{count} unconfirmed",
+    "@animalEggsPresumed": {
+        "description": "How many of the counted eggs have only a presumed layer",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "eggClutchHeader": "Clutch · {dates} · {count, plural, =1{1 egg} other{{count} eggs}}",
+    "@eggClutchHeader": {
+        "description": "Subheading above the records of one derived clutch on the animal detail's egg card",
+        "placeholders": { "dates": { "type": "String" }, "count": { "type": "int" } }
+    },
+    "eggHistoryTitle": "Egg history",
+    "@eggHistoryTitle": { "description": "Title of the full egg-laying history sheet" },
+    "eggShowAllAction": "Show all ({count})",
+    "@eggShowAllAction": {
+        "description": "Opens the full laying history from the animal detail's egg card",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "eggChartTitle": "Eggs per month",
+    "@eggChartTitle": { "description": "Heading of the 12-month egg bar chart" },
     "eggFertilityUnknown": "Unknown",
     "@eggFertilityUnknown": { "description": "Egg fertility: not determined" },
     "eggFertilityFertile": "Fertile",

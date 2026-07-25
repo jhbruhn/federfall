@@ -199,3 +199,10 @@ Future<AnimalLifetime> animalLifetime(Ref ref, String animalId) async {
     accessibleCaseIds: {for (final c in accessible) c.id},
   );
 }
+
+/// "Name · Species", falling back to the species alone for an unnamed bird —
+/// the one-line identity every picker, candidate list and summary card shows.
+String animalTitle(Animal a) {
+  final name = a.name;
+  return name == null || name.isEmpty ? a.species : '$name · ${a.species}';
+}

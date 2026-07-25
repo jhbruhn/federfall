@@ -1,6 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
@@ -18,9 +19,17 @@ Future<void> _pump(
   WidgetTester tester,
   AnimalLifetime lifetime, {
   List<Weight> weights = const [],
+  List<EggRecord> eggs = const [],
+  bool eggsError = false,
   List<Exam> exams = const [],
   PbAnimalsRepository? animals,
 }) async {
+  // The detail is a lazy ListView of cards; the default 600x800 test viewport
+  // stops building at the weight card, so later sections would never mount.
+  tester.view.physicalSize = const Size(1000, 3000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -28,6 +37,9 @@ Future<void> _pump(
           'a1',
         ).overrideWith((ref) async => lifetime),
         weightsForAnimalProvider('a1').overrideWith((ref) async => weights),
+        eggsForAnimalProvider('a1').overrideWith(
+          (ref) async => eggsError ? throw Exception('boom') : eggs,
+        ),
         examsForAnimalProvider('a1').overrideWith((ref) async => exams),
         markingTypesProvider.overrideWith(
           (ref) async => const [
@@ -261,5 +273,129 @@ void main() {
     expect(find.text('No markings recorded'), findsOneWidget);
     expect(find.text('No cases recorded'), findsOneWidget);
     expect(find.text('No exams recorded'), findsOneWidget);
+    expect(find.text('No egg records'), findsOneWidget);
+  });
+
+  testWidgets('summarises the laying history with the unconfirmed count', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      eggs: [
+        EggRecord(
+          id: 'e1',
+          animal: 'a1',
+          count: 2,
+          laidAt: DateTime(2026, 6, 2),
+        ),
+        EggRecord(
+          id: 'e2',
+          animal: 'a1',
+          laidAt: DateTime(2026, 6, 24),
+          attribution: EggAttribution.presumed,
+        ),
+      ],
+    );
+
+    // Counts sum `count`, so two rows are three eggs.
+    expect(find.text('3 eggs in 12 months · 3 in total'), findsOneWidget);
+    // The two records are 22 days apart, so they read as two clutches — but
+    // only a clutch holding more than one record earns a subheading; a
+    // one-record header would just repeat its row.
+    expect(find.text('CLUTCH · JUN 2, 2026 · 2 EGGS'), findsNothing);
+    expect(find.text('CLUTCH · JUN 24, 2026 · 1 EGG'), findsNothing);
+    // A guess stays flagged instead of hardening into the totals above it.
+    expect(find.text('1 unconfirmed'), findsOneWidget);
+    expect(find.text('presumed'), findsOneWidget);
+    expect(find.text('No egg records'), findsNothing);
+  });
+
+  testWidgets('an egg load failure is an error with a retry, not "no eggs"', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      eggsError: true,
+    );
+
+    expect(find.text('No egg records'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Retry'), findsWidgets);
+  });
+
+  testWidgets('the egg card caps its rows however long a clutch runs', (
+    tester,
+  ) async {
+    // Ten records two days apart derive as ONE clutch (the gap is five days),
+    // so without a row cap the card would render all ten.
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      eggs: [
+        for (var i = 0; i < 10; i++)
+          EggRecord(
+            id: 'e$i',
+            animal: 'a1',
+            laidAt: DateTime(2026, 6, 1 + i * 2),
+          ),
+      ],
+    );
+
+    // Every egg still counts toward the totals...
+    expect(find.text('10 eggs in 12 months · 10 in total'), findsOneWidget);
+    // ...but only the capped number of rows is listed, under the one
+    // subheading that names the whole (10-egg) clutch.
+    expect(find.text('1 egg'), findsNWidgets(6));
+    expect(
+      find.text('CLUTCH · JUN 1, 2026 – JUN 19, 2026 · 10 EGGS'),
+      findsOneWidget,
+    );
+
+    // The capped rows must not be the only way in: "Show all" opens the whole
+    // ledger in its own scrollable sheet.
+    await tester.tap(find.text('Show all (10)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Egg history'), findsOneWidget);
+    // Scoped to the sheet: the capped card is still mounted behind it.
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('1 egg'),
+      ),
+      findsNWidgets(10),
+    );
+  });
+
+  testWidgets('no "show all" while the card already shows everything', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      eggs: [EggRecord(id: 'e1', animal: 'a1', laidAt: DateTime(2026, 6, 2))],
+    );
+
+    expect(find.textContaining('Show all'), findsNothing);
   });
 }

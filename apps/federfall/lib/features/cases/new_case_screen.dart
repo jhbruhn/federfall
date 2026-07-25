@@ -1,6 +1,7 @@
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/org_settings_providers.dart';
+import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
@@ -1124,7 +1125,7 @@ class _ReidSearchField extends ConsumerWidget {
                             for (final m in matches)
                               ListTile(
                                 leading: const Icon(Icons.pets_outlined),
-                                title: Text(_animalTitle(m.animal)),
+                                title: Text(animalTitle(m.animal)),
                                 subtitle: Text(
                                   _markingsLine(
                                     l10n,
@@ -1141,11 +1142,6 @@ class _ReidSearchField extends ConsumerWidget {
               ),
       ],
     );
-  }
-
-  String _animalTitle(Animal a) {
-    final name = a.name;
-    return name == null || name.isEmpty ? a.species : '$name · ${a.species}';
   }
 
   String _markingsLine(

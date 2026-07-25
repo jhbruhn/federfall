@@ -9,6 +9,10 @@ import 'package:federfall/features/animals/edit_animal_sheet.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/eggs/egg_clutch_list.dart';
+import 'package:federfall/features/cases/eggs/egg_entry_sheet.dart';
+import 'package:federfall/features/cases/eggs/egg_month_chart.dart';
+import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
@@ -49,6 +53,7 @@ class AnimalDetailScreen extends ConsumerWidget {
         'case_shares',
         'markings',
         'weights',
+        'egg_records',
         'exams',
         'exam_findings',
       ],
@@ -63,6 +68,7 @@ class AnimalDetailScreen extends ConsumerWidget {
           ..invalidate(caseSummariesForAnimalProvider(animalId))
           ..invalidate(markingsForAnimalProvider(animalId))
           ..invalidate(weightsForAnimalProvider(animalId))
+          ..invalidate(eggsForAnimalProvider(animalId))
           ..invalidate(examsForAnimalProvider(animalId));
       },
     );
@@ -104,6 +110,8 @@ class AnimalDetailScreen extends ConsumerWidget {
               _Identity(data.animal),
               const SizedBox(height: AppSpacing.md),
               _WeightSection(animalId: data.animal.id),
+              const SizedBox(height: AppSpacing.md),
+              _EggSection(animalId: data.animal.id),
               const SizedBox(height: AppSpacing.md),
               _ExamsSection(animalId: data.animal.id),
               const SizedBox(height: AppSpacing.md),
@@ -221,6 +229,115 @@ class _WeightSection extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     WeightTrendChart.forAnimal(animalId),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Life-long egg laying (federfall-4agw): the totals, the most recent clutches
+/// and a per-month chart. Available with or without an open case — chronic
+/// laying is the input to calcium-depletion / egg-binding risk, and the history
+/// belongs to the bird as it moves between carers and aviaries.
+class _EggSection extends ConsumerWidget {
+  const _EggSection({required this.animalId});
+
+  final String animalId;
+
+  /// How many clutches the card lists before it stops; the rest stay in the
+  /// counts and the chart.
+  static const int _recentClutches = 3;
+
+  /// Hard cap on the record rows the card renders. A clutch is derived
+  /// (anything within [kClutchGapDays] of the previous egg joins it), so a hen
+  /// laying every few days for weeks would otherwise grow one clutch — and this
+  /// card — without bound. Three normal two-egg clutches still fit.
+  static const int _maxRows = 6;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final eggs = ref.watch(eggsForAnimalProvider(animalId));
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.animalSectionEggs,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                // Only when the card's caps actually hide something —
+                // otherwise the sheet would just repeat what is already here.
+                if (eggs.value case final all? when all.length > _maxRows)
+                  TextButton(
+                    onPressed: () =>
+                        showEggHistorySheet(context, animalId: animalId),
+                    child: Text(l10n.eggShowAllAction(all.length)),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: l10n.timelineAddEgg,
+                  onPressed: () =>
+                      showEggEntrySheet(context, animalId: animalId),
+                ),
+              ],
+            ),
+            // A load failure must not render as "no eggs" — route through the
+            // standard error state with a retry (federfall-5cle).
+            AsyncValueView<List<EggRecord>>(
+              value: eggs,
+              onRetry: () => ref.invalidate(eggsForAnimalProvider(animalId)),
+              loading: const LinearProgressIndicator(),
+              data: (eggs) {
+                final summary = EggLayingSummary.from(eggs);
+                if (summary.isEmpty) {
+                  return Text(
+                    l10n.animalNoEggs,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.animalEggsSummary(
+                        summary.eggsLast12Months,
+                        summary.totalEggs,
+                      ),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    // Guesses stay visible as guesses rather than hardening
+                    // into the totals above them unremarked.
+                    if (summary.presumedEggs > 0) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      TagChip(
+                        label: l10n.animalEggsPresumed(summary.presumedEggs),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.sm),
+                    EggClutchList(
+                      eggs: eggs,
+                      maxClutches: _recentClutches,
+                      maxRows: _maxRows,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    EggMonthChart(eggs: eggs),
                   ],
                 );
               },
