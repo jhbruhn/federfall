@@ -716,6 +716,102 @@ def main():
     check("PNG upload to journal_entries.attachments still works",
           s == 200 and bool(d.get("attachments")), f"{s} {d}")
 
+    # ── egg_records (federfall-4agw.1) ──────────────────────────────────────
+    # Egg-laying is an animal identity-layer ledger (5yg.4's stance for
+    # weights): org-wide read/create/update, author-or-supervisor delete
+    # (1700000047). The reassignment feature depends on `animal` staying
+    # MUTABLE — it is deliberately exempt from 1700000043's :isset guards, so
+    # that exemption is asserted here rather than left to be "fixed" later.
+    print("\n[egg_records]")
+    animal2 = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    animal_org2 = mk(T, "animals", {"species": "Stadttaube", "org": org2})["id"]
+    s, egg = req("POST", "/api/collections/egg_records/records", toks["a"], {
+        "animal": animal, "laid_at": "2026-06-01 07:00:00.000Z", "count": 2,
+        "fertility": "unknown", "fate": "in_nest", "attribution": "presumed",
+        "author": A, "org": ORG,
+    })
+    check("org member can log an egg record", s == 200, f"{s} {egg}")
+    s, _ = req("POST", "/api/collections/egg_records/records", toks["a"],
+               {"animal": animal, "count": 0, "org": ORG})
+    check("count below the minimum is rejected", s >= 400, f"status {s}")
+    s, _ = req("GET", f"/api/collections/egg_records/records/{egg['id']}", toks["d"])
+    check("any org member can view an egg record", s == 200, f"status {s}")
+    check("egg records are org-scoped readable",
+          len(listf(toks["d"], "egg_records", f"id = \"{egg['id']}\"")) == 1)
+    s, _ = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}",
+               toks["d"], {"notes": "Windei"})
+    check("any org member can edit an egg record", s == 200, f"status {s}")
+    # Cross-org: neither readable nor writable.
+    s, _ = req("GET", f"/api/collections/egg_records/records/{egg['id']}", te)
+    check("other-org member CANNOT view an egg record", s != 200, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}", te,
+               {"notes": "x"})
+    check("other-org member CANNOT edit an egg record", s >= 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/egg_records/records", te,
+               {"animal": animal, "count": 1, "org": ORG})
+    check("other-org member CANNOT create in this org", s >= 400, f"status {s}")
+
+    # Reassignment: `animal` IS mutable (the 1700000043 exemption), `org` is not.
+    s, moved = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}",
+                   toks["b"], {"animal": animal2, "attribution": "confirmed"})
+    check("egg.animal IS mutable (reassignment)",
+          s == 200 and moved.get("animal") == animal2
+          and moved.get("attribution") == "confirmed", f"{s} {moved}")
+    s, _ = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}",
+               toks["a"], {"org": org2})
+    check("egg.org is immutable", s >= 400, f"status {s}")
+    # ...but not across orgs. A rule can't express this (a field ref in an
+    # update rule sees the STORED animal), so egg_records.pb.js enforces it.
+    s, _ = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}",
+               toks["a"], {"animal": animal_org2})
+    check("reassignment to another org's animal is rejected", s >= 400,
+          f"status {s}")
+    s, _ = req("POST", "/api/collections/egg_records/records", toks["a"],
+               {"animal": animal_org2, "count": 1, "org": ORG})
+    check("an egg CANNOT be created on another org's animal", s >= 400,
+          f"status {s}")
+    s, _ = req("POST", "/api/collections/egg_records/records", toks["a"],
+               {"animal": "doesnotexist000", "count": 1, "org": ORG})
+    check("an egg on an unknown animal is rejected", s >= 400, f"status {s}")
+
+    # photos: born protected + MIME-allowlisted (no retrofit migration needed).
+    s, d = upload_file(
+        "PATCH", f"/api/collections/egg_records/records/{egg['id']}",
+        toks["a"], "photos", "evil.svg", "image/svg+xml", _SVG,
+    )
+    check("SVG upload to egg_records.photos is rejected", s >= 400, f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/egg_records/records/{egg['id']}",
+        toks["a"], "photos", "egg.png", "image/png", _PNG_1X1,
+    )
+    check("PNG upload to egg_records.photos works",
+          s == 200 and bool(d.get("photos")), f"{s} {d}")
+    egg_photo = (d or {}).get("photos") or [None]
+    egg_file = f"/api/files/egg_records/{egg['id']}/{egg_photo[0]}"
+    check("egg photo URL WITHOUT a token is rejected",
+          file_status(egg_file) != 200, file_status(egg_file))
+    check("same-org member's file token serves the egg photo",
+          file_status(f"{egg_file}?token={file_token(toks['d'])}") == 200)
+    check("the 200x200 thumb is generated (thumbs whitelist)",
+          file_status(f"{egg_file}?thumb=200x200&token={file_token(toks['d'])}")
+          == 200)
+
+    # delete: author or supervisor only (1700000047's stance).
+    s, _ = req("DELETE", f"/api/collections/egg_records/records/{egg['id']}",
+               toks["b"])
+    check("another member CANNOT delete A's egg record", s != 204, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/egg_records/records/{egg['id']}",
+               toks["a"])
+    check("the author can delete their own egg record", s == 204, f"status {s}")
+    s, eggB = req("POST", "/api/collections/egg_records/records", toks["b"],
+                  {"animal": animal, "count": 1, "author": B, "org": ORG})
+    check("setup: B logs an egg record", s == 200, f"{s} {eggB}")
+    s, _ = req("DELETE", f"/api/collections/egg_records/records/{eggB['id']}",
+               toks["sup"])
+    check("a supervisor can delete any egg record", s == 204, f"status {s}")
+    # Leave one row behind so the guest sweep's member check stays non-vacuous.
+    mk(T, "egg_records", {"animal": animal, "count": 1, "org": ORG})
+
     # ── case_activity view (cr3.5) ──────────────────────────────────────────
     # last_activity reflects the newest child-record touch and is org-scoped
     # readable (timestamp only, no clinical detail). Powers the worklist's
@@ -863,7 +959,7 @@ def main():
     # exclusion). The member check keeps the guest check non-vacuous.
     for coll in ("admission_reasons", "marking_types", "medication_routes",
                  "quarantine_records", "case_quarantine", "animal_species",
-                 "aviary_stays"):
+                 "aviary_stays", "egg_records"):
         n = len(listf(toks["a"], coll, "id != ''"))
         check(f"member sees {coll} (wall check is non-vacuous)", n > 0, "empty")
         check(f"guest sees no {coll}",
