@@ -81,7 +81,10 @@ void main() {
         ),
       ),
     );
-    expect(find.textContaining('Du bist offline'), findsOneWidget);
+    expect(
+      find.textContaining('Konnte nicht geladen werden'),
+      findsOneWidget,
+    );
 
     await tester.pumpWidget(
       _host(

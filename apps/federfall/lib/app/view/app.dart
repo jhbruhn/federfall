@@ -3,7 +3,7 @@ import 'package:federfall/core/scanner/hardware_scan_listener.dart';
 import 'package:federfall/features/reminders/medication_reminders.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
-import 'package:federfall/theme/app_theme.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,6 +34,11 @@ class App extends ConsumerWidget {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: ref.watch(routerProvider),
+      // Above the router, so the offline strip is one instance for the whole
+      // app: it holds its position across every navigation, and it reaches the
+      // routes pushed outside the navigation shell (intake wizard, admin,
+      // login) that a per-shell banner would miss.
+      builder: (context, child) => OfflineNotice(child: child!),
     );
   }
 }

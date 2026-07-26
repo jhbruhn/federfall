@@ -22,4 +22,18 @@ void main() {
   test('falls back to generic for non-repository errors', () {
     expect(errorMessage(l10n, StateError('x')), l10n.errorGenericTitle);
   });
+
+  test('recognizes only connectivity failures as network errors', () {
+    expect(isNetworkError(repo(0)), isTrue);
+    expect(isNetworkError(repo(401)), isFalse);
+    expect(isNetworkError(StateError('x')), isFalse);
+  });
+
+  test('load surfaces report the missing content, not the connection', () {
+    // The offline strip states the connection app-wide, and a failed read has
+    // no entry to keep — so the write-flavoured `errorOffline` is not reused.
+    expect(loadErrorMessage(l10n, repo(0)), l10n.errorLoadFailed);
+    expect(loadErrorMessage(l10n, repo(401)), l10n.errorUnauthorized);
+    expect(loadErrorMessage(l10n, StateError('x')), l10n.errorGenericTitle);
+  });
 }

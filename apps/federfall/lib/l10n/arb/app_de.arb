@@ -7,6 +7,8 @@
     "loadingLabel": "Wird geladen…",
     "errorGenericTitle": "Etwas ist schiefgelaufen",
     "errorOffline": "Du bist offline – prüfe deine Verbindung und versuche es erneut. Deine Eingabe bleibt erhalten.",
+    "errorLoadFailed": "Konnte nicht geladen werden – keine Verbindung zum Server",
+    "offlineNotice": "Offline – keine Änderungen möglich",
     "errorUnauthorized": "Dazu bist du nicht berechtigt",
     "errorNotFound": "Nicht gefunden",
     "errorValidation": "Die Daten konnten nicht gespeichert werden",

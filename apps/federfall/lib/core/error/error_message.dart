@@ -39,3 +39,20 @@ String errorMessage(AppLocalizations l10n, Object error) {
   }
   return l10n.errorGenericTitle;
 }
+
+/// Whether [error] means the app could not reach its server.
+///
+/// Lets a caller defer to the app-wide offline strip (`OfflineNotice`) instead
+/// of restating the connection in its own words — see `AsyncValueView`, which
+/// uses it to keep loaded data on screen through a dropped connection.
+bool isNetworkError(Object error) =>
+    error is RepositoryException && error.kind == RepositoryErrorKind.network;
+
+/// Like [errorMessage], but phrased for a surface that failed to *load*.
+///
+/// [errorMessage]'s network copy promises "your entry is kept", which only
+/// makes sense for a write — a failed read has no entry to keep. The offline
+/// strip already accounts for the connection, so this reports the one thing the
+/// strip cannot know: that this particular content is missing.
+String loadErrorMessage(AppLocalizations l10n, Object error) =>
+    isNetworkError(error) ? l10n.errorLoadFailed : errorMessage(l10n, error);

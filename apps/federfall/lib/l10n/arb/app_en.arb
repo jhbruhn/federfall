@@ -16,6 +16,14 @@
     "@errorOffline": {
         "description": "Shown when the device cannot reach the backend"
     },
+    "errorLoadFailed": "Couldn't load — no connection to the server",
+    "@errorLoadFailed": {
+        "description": "Shown when a read fails because the server is unreachable; the app-wide offline strip carries the connection state, so this only reports the missing content"
+    },
+    "offlineNotice": "Offline — no changes can be saved",
+    "@offlineNotice": {
+        "description": "The app-wide strip shown while the backend is unreachable"
+    },
     "errorUnauthorized": "You are not authorized to do that",
     "@errorUnauthorized": {
         "description": "Shown on a 401/403 response"

@@ -35,11 +35,22 @@ class AsyncValueView<T> extends StatelessWidget {
   final Widget? loading;
 
   /// Maps an error to a user-facing message; defaults to the app-wide
-  /// localized mapping (`errorMessage` in `core/error/error_message.dart`).
+  /// localized mapping (`loadErrorMessage` in `core/error/error_message.dart`).
   final String Function(Object error)? errorMessage;
 
   @override
   Widget build(BuildContext context) {
+    // A dropped connection must not wipe out data that is already on screen.
+    // `OfflineNotice` states the cause app-wide, so replacing a populated list
+    // with a full-screen error would only cost the user their scroll position
+    // and filters — for a condition they can do nothing about but wait out.
+    // Every other failure still surfaces: quietly serving stale data after a
+    // permission or validation error would be dishonest.
+    if (value.hasValue &&
+        value.hasError &&
+        core_error.isNetworkError(value.error!)) {
+      return data(value.requireValue);
+    }
     return value.when(
       skipLoadingOnReload: true,
       skipLoadingOnRefresh: true,
@@ -48,7 +59,7 @@ class AsyncValueView<T> extends StatelessWidget {
       error: (error, _) => ErrorView(
         message:
             errorMessage?.call(error) ??
-            core_error.errorMessage(context.l10n, error),
+            core_error.loadErrorMessage(context.l10n, error),
         onRetry: onRetry,
       ),
     );
