@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.10.0](https://github.com/jhbruhn/federfall/compare/v0.9.0...v0.10.0) (2026-07-26)
+
+
+### Features
+
+* **l10n:** follow the device language instead of pinning German ([bfae403](https://github.com/jhbruhn/federfall/commit/bfae403fa7972b624a3a277c54c264b09a5de639))
+* **ui:** show the offline state once, app-wide ([9beccbe](https://github.com/jhbruhn/federfall/commit/9beccbec47daff813856b82b37f544bb3c0fb2a1))
+
+
+### Bug Fixes
+
+* **cases:** make journal photo thumbnails tappable while they load ([07875c8](https://github.com/jhbruhn/federfall/commit/07875c8509adeb59f51e2239e723a5b32ca1ab63))
+* **cases:** one location field on a placement, and never an aviary ([d5abb44](https://github.com/jhbruhn/federfall/commit/d5abb443ab6980d90dbc9d9678378095e921265a))
+* **ios:** declare de instead of the scaffold's es, and make it the base language ([9d068e3](https://github.com/jhbruhn/federfall/commit/9d068e341e47dd058408fb05e900ce69bc3a2d09))
+* **l10n:** address the reader informally in the read-only tooltip ([7595f01](https://github.com/jhbruhn/federfall/commit/7595f01310ddd67837ddc1906411a4f75fa284bf))
+* **l10n:** name both halves of the merged placement entry ([fc8c530](https://github.com/jhbruhn/federfall/commit/fc8c5305653d1e680e55645603e166333394225f))
+* **l10n:** one word for a placement, and it is "Umzug" ([8eede3a](https://github.com/jhbruhn/federfall/commit/8eede3aa537092a9002f0e7db2f39e5482e14f56))
+
 ## [0.9.0](https://github.com/jhbruhn/federfall/compare/v0.8.0...v0.9.0) (2026-07-26)
 
 
