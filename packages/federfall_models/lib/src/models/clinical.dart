@@ -45,9 +45,18 @@ abstract class Medication with _$Medication {
     required String id,
     required String caseId,
     required String drug,
-    String? concentration,
     double? dose,
     String? doseUnit,
+
+    /// Prescribed rate per kilogram of body weight, in [doseUnit] (20 with a
+    /// [doseUnit] of `mg` is 20 mg/kg). The whole point of storing this rather
+    /// than only [dose]: a bird in rehab gains weight, so a frozen amount goes
+    /// wrong within a week while a rate keeps deriving the right dose.
+    double? doseRate,
+
+    /// The product's strength per millilitre, also in [doseUnit] — one unit for
+    /// the prescription, so mg/kg and mg/ml can never disagree.
+    double? concentrationPerMl,
     String? frequency,
     MedicationFrequencyKind? frequencyKind,
     int? intervalHours,
@@ -68,9 +77,10 @@ abstract class Medication with _$Medication {
       id: r.id,
       caseId: pbString(d['case']) ?? '',
       drug: pbString(d['drug']) ?? '',
-      concentration: pbString(d['concentration']),
       dose: pbDouble(d['dose']),
       doseUnit: pbString(d['dose_unit']),
+      doseRate: pbDouble(d['dose_rate']),
+      concentrationPerMl: pbDouble(d['concentration_per_ml']),
       frequency: pbString(d['frequency']),
       frequencyKind: MedicationFrequencyKind.fromWire(d['frequency_kind']),
       intervalHours: pbInt(d['interval_hours']),
@@ -99,6 +109,8 @@ abstract class MedicationDue with _$MedicationDue {
     required String drug,
     double? dose,
     String? doseUnit,
+    double? doseRate,
+    double? concentrationPerMl,
     String? route,
     MedicationFrequencyKind? frequencyKind,
     int? intervalHours,
@@ -117,6 +129,8 @@ abstract class MedicationDue with _$MedicationDue {
       drug: pbString(d['drug']) ?? '',
       dose: pbDouble(d['dose']),
       doseUnit: pbString(d['dose_unit']),
+      doseRate: pbDouble(d['dose_rate']),
+      concentrationPerMl: pbDouble(d['concentration_per_ml']),
       route: pbString(d['route']),
       frequencyKind: MedicationFrequencyKind.fromWire(d['frequency_kind']),
       intervalHours: pbInt(d['interval_hours']),
@@ -251,6 +265,12 @@ abstract class MedicationAdministration with _$MedicationAdministration {
     String? medication,
     double? dose,
     String? doseUnit,
+
+    /// The weight the dose was calculated from, and the volume that came out —
+    /// kept with the dose so "why 0.35 ml on the 3rd?" stays answerable even
+    /// after the prescription is gone.
+    double? weightGUsed,
+    double? volumeMl,
     String? route,
     DateTime? administeredAt,
     String? administeredBy,
@@ -269,6 +289,8 @@ abstract class MedicationAdministration with _$MedicationAdministration {
       medication: pbString(d['medication']),
       dose: pbDouble(d['dose']),
       doseUnit: pbString(d['dose_unit']),
+      weightGUsed: pbDouble(d['weight_g_used']),
+      volumeMl: pbDouble(d['volume_ml']),
       route: pbString(d['route']),
       administeredAt: pbDate(d['administered_at']),
       administeredBy: pbString(d['administered_by']),

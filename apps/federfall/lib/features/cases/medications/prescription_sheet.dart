@@ -1,7 +1,9 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/medications/dose_calculator_panel.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
+import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -38,6 +40,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   late final TextEditingController _drug;
   late final TextEditingController _dose;
   late final TextEditingController _unit;
+  late final TextEditingController _doseRate;
+  late final TextEditingController _concentration;
   late final TextEditingController _frequency;
   late final TextEditingController _customHours;
   late final TextEditingController _instructions;
@@ -59,6 +63,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     _drug = TextEditingController(text: p?.drug ?? '');
     _dose = TextEditingController();
     _unit = TextEditingController(text: p?.doseUnit ?? '');
+    _doseRate = TextEditingController();
+    _concentration = TextEditingController();
     _frequency = TextEditingController(text: p?.frequency ?? '');
     _instructions = TextEditingController(text: p?.instructions ?? '');
     _prescribedBy = TextEditingController(text: p?.prescribedBy ?? '');
@@ -79,8 +85,15 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     // separator, and Localizations can only be read once dependencies exist.
     if (_doseSeeded) return;
     _doseSeeded = true;
-    final dose = widget.plan?.dose;
-    if (dose != null) _dose.text = formatDose(context.l10n, dose, null);
+    final l10n = context.l10n;
+    final p = widget.plan;
+    if (p?.dose != null) _dose.text = formatDose(l10n, p!.dose, null);
+    if (p?.doseRate != null) {
+      _doseRate.text = formatDose(l10n, p!.doseRate, null);
+    }
+    if (p?.concentrationPerMl != null) {
+      _concentration.text = formatDose(l10n, p!.concentrationPerMl, null);
+    }
   }
 
   @override
@@ -89,6 +102,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       _drug,
       _dose,
       _unit,
+      _doseRate,
+      _concentration,
       _frequency,
       _customHours,
       _instructions,
@@ -106,6 +121,12 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       final (_, org) = await requireUserOrg();
       final repo = await ref.read(medicationsRepositoryProvider.future);
       final dose = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
+      final doseRate = double.tryParse(
+        _doseRate.text.trim().replaceAll(',', '.'),
+      );
+      final concentration = double.tryParse(
+        _concentration.text.trim().replaceAll(',', '.'),
+      );
       final intervalHours = _preset == _FreqPreset.custom
           ? int.tryParse(_customHours.text.trim())
           : _preset.interval;
@@ -114,6 +135,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
         'drug': _drug.text.trim(),
         'dose': dose,
         'dose_unit': trimToNull(_unit) ?? '',
+        'dose_rate': doseRate,
+        'concentration_per_ml': concentration,
         'frequency': trimToNull(_frequency) ?? '',
         'frequency_kind': _preset.kind.wire,
         'interval_hours': intervalHours,
@@ -165,9 +188,36 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     }
   }
 
+  /// What the entered rate means for this bird today — the same derivation the
+  /// carer will see when logging a dose, so a typo in the rate is obvious while
+  /// writing the plan rather than at the syringe.
+  Widget? _ratePreview(AppLocalizations l10n, String unit) {
+    final rate = double.tryParse(_doseRate.text.trim().replaceAll(',', '.'));
+    if (rate == null) return null;
+    final weights = ref.watch(weightsForCaseProvider(widget.caseId)).value;
+    final weight = latestWeight(weights ?? const []);
+    if (weight == null) return null;
+    final result = calculateDose(
+      rate: rate,
+      weightG: weight.weightG,
+      concentrationPerMl: double.tryParse(
+        _concentration.text.trim().replaceAll(',', '.'),
+      ),
+    );
+    if (!result.hasAmount) return null;
+    return DoseDerivation(
+      rate: rate,
+      unit: unit.isEmpty ? 'mg' : unit,
+      weight: weight,
+      result: result,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final unit = _unit.text.trim();
+    final preview = _ratePreview(l10n, unit);
 
     return guardUnsavedChanges(
       child: SheetScaffold(
@@ -214,6 +264,39 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
               ),
             ],
           ),
+          const SizedBox(height: AppSpacing.md),
+          // The rate is what keeps the plan correct as the bird gains weight:
+          // every dose re-derives from it, so a plan written at 240 g still
+          // doses right at 330 g. Both numbers are in the unit above.
+          AppTextField(
+            controller: _doseRate,
+            label: l10n.doseCalcRate,
+            hintText: l10n.doseCalcRateHint,
+            suffixText: unit.isEmpty ? null : '$unit/kg',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+            ],
+            enabled: !isBusy,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _concentration,
+            label: l10n.doseCalcConcentration,
+            hintText: l10n.doseCalcConcentrationHint,
+            suffixText: unit.isEmpty ? null : '$unit/ml',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+            ],
+            enabled: !isBusy,
+            onChanged: (_) => setState(() {}),
+          ),
+          if (preview != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            preview,
+          ],
           const SizedBox(height: AppSpacing.md),
           MedicationRouteDropdown(
             value: _route,

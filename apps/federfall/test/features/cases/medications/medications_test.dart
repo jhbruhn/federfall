@@ -4,6 +4,7 @@ import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
+import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -28,9 +29,14 @@ void main() {
     administrations = MockAdministrationsRepo();
   });
 
-  Future<void> pump(WidgetTester tester, Widget child) async {
+  Future<void> pump(
+    WidgetTester tester,
+    Widget child, {
+    List<Weight> weights = const [],
+  }) async {
     final container = ProviderContainer(
       overrides: [
+        weightsForCaseProvider('c1').overrideWith((ref) async => weights),
         currentUserProvider.overrideWith(
           (ref) async =>
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
@@ -79,6 +85,7 @@ void main() {
 
       await pump(tester, const PrescriptionSheet(caseId: 'c1'));
       await tester.enterText(find.byType(TextField).first, 'Baytril');
+      await tester.ensureVisible(find.text('Controlled drug'));
       await tester.tap(find.text('Controlled drug'));
       await tester.pumpAndSettle();
       await save(tester);
@@ -95,6 +102,55 @@ void main() {
       expect(body['interval_hours'], 24);
     });
 
+    testWidgets('stores a per-kilogram rate and the product strength', (
+      tester,
+    ) async {
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        weights: [
+          Weight(
+            id: 'w1',
+            animal: 'a1',
+            weightG: 262,
+            measuredAt: DateTime.now(),
+          ),
+        ],
+      );
+      await tester.enterText(find.byType(TextField).first, 'Baytril');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Unit'),
+        'mg',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Dose per kg body weight'),
+        '20',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Product concentration'),
+        '15',
+      );
+      await tester.pumpAndSettle();
+
+      // The plan shows what its rate means for this bird right now, so a typo
+      // is obvious while writing it rather than at the syringe.
+      expect(find.text('0.3493 ml'), findsOneWidget);
+      expect(find.text('20 mg/kg × 262 g = 5.24 mg'), findsOneWidget);
+
+      await save(tester);
+
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['dose_rate'], 20);
+      expect(body['concentration_per_ml'], 15);
+      expect(body['dose_unit'], 'mg');
+    });
+
     testWidgets('a chosen preset stores its interval', (tester) async {
       when(() => medications.create(any())).thenAnswer(
         (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
@@ -103,6 +159,7 @@ void main() {
       await pump(tester, const PrescriptionSheet(caseId: 'c1'));
       await tester.enterText(find.byType(TextField).first, 'Baytril');
       // Open the frequency dropdown (showing the default) and pick twice-daily.
+      await tester.ensureVisible(find.text('Once daily'));
       await tester.tap(find.text('Once daily'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Twice daily').last);

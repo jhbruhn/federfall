@@ -1038,7 +1038,8 @@ def main():
     mdcase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
     med = mk(T, "medications", {
         "case": mdcase, "drug": "Meloxicam", "frequency_kind": "scheduled",
-        "interval_hours": 12, "org": ORG,
+        "interval_hours": 12, "dose_unit": "mg", "dose_rate": 0.5,
+        "concentration_per_ml": 1.5, "org": ORG,
     })["id"]
     mk(T, "medication_administrations", {
         "case": mdcase, "medication": med, "drug": "Meloxicam",
@@ -1049,9 +1050,31 @@ def main():
     # 2026-06-20 08:00 + 12h = 2026-06-20 20:00.
     nd = (row or {}).get("next_due", "")
     check("next_due = last dose + interval", nd.startswith("2026-06-20 20:00"), nd)
+    # 6d3a.2 — the rate and the product strength travel through the view, since
+    # the worklist rebuilds a plan from it to log a dose straight from there.
+    check("medication_due exposes dose_rate", (row or {}).get("dose_rate") == 0.5,
+          f"{(row or {}).get('dose_rate')}")
+    check("medication_due exposes concentration_per_ml",
+          (row or {}).get("concentration_per_ml") == 1.5,
+          f"{(row or {}).get('concentration_per_ml')}")
     # Scoped to the carer: another carer in the org does not see the row.
     s, _ = req("GET", f"/api/collections/medication_due/records/{med}", toks["b"])
     check("other carer CANNOT read the medication_due row", s != 200, f"status {s}")
+
+    # 6d3a.2 — a carer records what a calculated dose was derived from, under
+    # the same child rules as the rest of the timeline (no new rule shape).
+    s, adm = req("POST", "/api/collections/medication_administrations/records",
+                 toks["a"], {
+                     "case": mdcase, "medication": med, "drug": "Meloxicam",
+                     "dose": 0.131, "dose_unit": "mg", "weight_g_used": 262,
+                     "volume_ml": 0.0873,
+                     "administered_at": "2026-06-21 08:00:00.000Z", "org": ORG,
+                 })
+    check("carer can store the derivation of a dose", s == 200, f"{s} {adm}")
+    check("weight_g_used round-trips", (adm or {}).get("weight_g_used") == 262,
+          f"{(adm or {}).get('weight_g_used')}")
+    check("volume_ml round-trips", (adm or {}).get("volume_ml") == 0.0873,
+          f"{(adm or {}).get('volume_ml')}")
 
     # ── exams + exam_findings (FED-4.8 / blp.6) ─────────────────────────────
     # exams is a case-scoped clinical record like the others. exam_findings is a

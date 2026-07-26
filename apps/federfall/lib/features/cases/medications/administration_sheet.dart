@@ -59,6 +59,10 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
 
   bool _doseSeeded = false;
 
+  /// Set once the carer accepts a calculated dose; cleared if they then type a
+  /// different number, since the derivation would no longer describe it.
+  CalculatedDose? _derivedFrom;
+
   bool get _isEditing => widget.administration != null;
 
   @override
@@ -102,11 +106,13 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
   }
 
   /// Takes the calculator's result into the dose field. Explicit — the
-  /// calculator never writes a dose on its own.
-  void _applyCalculatedDose(double amount, String unit) {
+  /// calculator never writes a dose on its own. The derivation is held for the
+  /// save, so the stored dose can say which weight produced it.
+  void _applyCalculatedDose(CalculatedDose dose) {
     setState(() {
-      _dose.text = formatDose(context.l10n, amount, null);
-      if (unit.isNotEmpty) _unit.text = unit;
+      _dose.text = formatDose(context.l10n, dose.amount, null);
+      if (dose.unit.isNotEmpty) _unit.text = dose.unit;
+      _derivedFrom = dose;
     });
     markDirty();
   }
@@ -122,10 +128,15 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
       final dose = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
       final administration = widget.administration;
 
+      final derived = _derivedFrom;
+      final matchesDerivation = derived != null && derived.amount == dose;
+
       final body = <String, dynamic>{
         'drug': _drug.text.trim(),
         'dose': dose,
         'dose_unit': trimToNull(_unit) ?? '',
+        'weight_g_used': matchesDerivation ? derived.weightGUsed : null,
+        'volume_ml': matchesDerivation ? derived.volumeMl : null,
         'route': _route ?? '',
         'administered_at': _administeredAt.toUtc().toIso8601String(),
         'notes': trimToNull(_notes) ?? '',
@@ -199,6 +210,8 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
           DoseCalculatorPanel(
             caseId: widget.caseId,
             unit: _unit,
+            initialRate: widget.plan?.doseRate,
+            initialConcentrationPerMl: widget.plan?.concentrationPerMl,
             enabled: !isBusy,
             onApply: _applyCalculatedDose,
           ),

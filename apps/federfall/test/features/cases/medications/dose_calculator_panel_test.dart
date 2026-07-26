@@ -34,7 +34,7 @@ void main() {
 
   Future<void> pumpPanel(
     WidgetTester tester, {
-    required void Function(double, String) onApply,
+    required void Function(CalculatedDose) onApply,
     List<Weight> weights = const [],
     String locale = 'en',
     double width = 400,
@@ -85,9 +85,9 @@ void main() {
       await pumpPanel(
         tester,
         weights: [weight(262)],
-        onApply: (a, u) {
-          applied = a;
-          appliedUnit = u;
+        onApply: (d) {
+          applied = d.amount;
+          appliedUnit = d.unit;
         },
       );
 
@@ -107,7 +107,7 @@ void main() {
     testWidgets('leads with the volume to draw once a concentration is set', (
       tester,
     ) async {
-      await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
+      await pumpPanel(tester, weights: [weight(262)], onApply: (_) {});
 
       await enter(tester, 'Dose per kg body weight', '20');
       await enter(tester, 'Product concentration', '15');
@@ -127,7 +127,7 @@ void main() {
       await pumpPanel(
         tester,
         weights: [weight(262)],
-        onApply: (a, _) => applied = a,
+        onApply: (d) => applied = d.amount,
       );
 
       await enter(tester, 'Dose per kg body weight', '0,5');
@@ -147,7 +147,7 @@ void main() {
           weight(262),
           weight(300, age: const Duration(days: 5)),
         ],
-        onApply: (a, _) => applied = a,
+        onApply: (d) => applied = d.amount,
       );
 
       await enter(tester, 'Dose per kg body weight', '10');
@@ -158,7 +158,7 @@ void main() {
     });
 
     testWidgets('refuses to calculate without a weight', (tester) async {
-      await pumpPanel(tester, onApply: (_, _) {});
+      await pumpPanel(tester, onApply: (_) {});
 
       await enter(tester, 'Dose per kg body weight', '20');
 
@@ -178,7 +178,7 @@ void main() {
       await pumpPanel(
         tester,
         weights: [weight(262, age: const Duration(days: 10))],
-        onApply: (_, _) {},
+        onApply: (_) {},
       );
 
       await enter(tester, 'Dose per kg body weight', '20');
@@ -202,7 +202,7 @@ void main() {
       await pumpPanel(
         tester,
         weights: [weight(262)],
-        onApply: (_, _) {},
+        onApply: (_) {},
         locale: 'de',
         width: 320,
       );
@@ -224,7 +224,7 @@ void main() {
       await pumpPanel(
         tester,
         weights: [weight(262)],
-        onApply: (a, _) => applied = a,
+        onApply: (d) => applied = d.amount,
         locale: 'de',
       );
 
@@ -263,7 +263,7 @@ void main() {
                     DoseCalculatorPanel(
                       caseId: 'c1',
                       unit: unitField,
-                      onApply: (_, _) {},
+                      onApply: (_) {},
                     ),
                   ],
                 ),
@@ -285,7 +285,7 @@ void main() {
     });
 
     testWidgets('follows the unit typed into the sheet', (tester) async {
-      await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
+      await pumpPanel(tester, weights: [weight(262)], onApply: (_) {});
 
       await enter(tester, 'Dose per kg body weight', '20');
       expect(find.text('20 mg/kg × 262 g'), findsOneWidget);
@@ -299,7 +299,7 @@ void main() {
     });
 
     testWidgets('suggests a dilution for an undrawable volume', (tester) async {
-      await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
+      await pumpPanel(tester, weights: [weight(262)], onApply: (_) {});
 
       await enter(tester, 'Dose per kg body weight', '1');
       await enter(tester, 'Product concentration', '100');
@@ -312,6 +312,46 @@ void main() {
   });
 
   group('AdministrationSheet', () {
+    /// Pumps the dose sheet for a case with one 262 g weight on record.
+    Future<void> pumpSheet(
+      WidgetTester tester,
+      MockAdministrationsRepo administrations,
+      Medication plan,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWith(
+            (ref) async =>
+                const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+          ),
+          medicationAdministrationsRepositoryProvider.overrideWith(
+            (ref) async => administrations,
+          ),
+          medicationRoutesProvider.overrideWith((ref) async => const []),
+          weightsForCaseProvider(
+            'c1',
+          ).overrideWith((ref) async => [weight(262)]),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: AdministrationSheet(caseId: 'c1', plan: plan),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
     testWidgets('opening the calculator brings it into view in the sheet', (
       tester,
     ) async {
@@ -445,6 +485,105 @@ void main() {
       expect(body['dose'], 5.24);
       expect(body['dose_unit'], 'mg');
       expect(body['medication'], 'm1');
+      // The derivation rides along, so the record says why 5.24 mg.
+      expect(body['weight_g_used'], 262);
+      expect(body['volume_ml'], isNull);
+    });
+
+    testWidgets('seeds the calculator from the plan and stores the volume', (
+      tester,
+    ) async {
+      final administrations = MockAdministrationsRepo();
+      when(() => administrations.create(any())).thenAnswer(
+        (_) async =>
+            const MedicationAdministration(id: 'ad1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pumpSheet(
+        tester,
+        administrations,
+        // A prescription that carries its rate and the bottle's strength.
+        const Medication(
+          id: 'm1',
+          caseId: 'c1',
+          drug: 'Baytril',
+          doseUnit: 'mg',
+          doseRate: 20,
+          concentrationPerMl: 15,
+        ),
+      );
+
+      await tester.tap(find.text('Dose calculator'));
+      await tester.pumpAndSettle();
+
+      // Nothing to type: both numbers came from the plan.
+      expect(find.text('0.3493 ml'), findsOneWidget);
+      expect(find.text('20 mg/kg × 262 g = 5.24 mg'), findsOneWidget);
+
+      final apply = find.widgetWithText(FilledButton, 'Use as dose');
+      await tester.ensureVisible(apply);
+      await tester.tap(apply);
+      await tester.pumpAndSettle();
+
+      final save = find.widgetWithText(FilledButton, 'Save');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+
+      final body =
+          verify(() => administrations.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['dose'], 5.24);
+      expect(body['weight_g_used'], 262);
+      expect(body['volume_ml'], 0.3493);
+    });
+
+    testWidgets('drops the derivation when the dose is typed over', (
+      tester,
+    ) async {
+      final administrations = MockAdministrationsRepo();
+      when(() => administrations.create(any())).thenAnswer(
+        (_) async =>
+            const MedicationAdministration(id: 'ad1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pumpSheet(
+        tester,
+        administrations,
+        const Medication(
+          id: 'm1',
+          caseId: 'c1',
+          drug: 'Baytril',
+          doseUnit: 'mg',
+          doseRate: 20,
+        ),
+      );
+
+      await tester.tap(find.text('Dose calculator'));
+      await tester.pumpAndSettle();
+      final apply = find.widgetWithText(FilledButton, 'Use as dose');
+      await tester.ensureVisible(apply);
+      await tester.tap(apply);
+      await tester.pumpAndSettle();
+
+      // Overriding the calculated amount makes the derivation a lie, so it is
+      // not stored against the hand-typed number.
+      final doseField = find.widgetWithText(TextField, 'Dose');
+      await tester.ensureVisible(doseField);
+      await tester.enterText(doseField, '4');
+      await tester.pumpAndSettle();
+
+      final save = find.widgetWithText(FilledButton, 'Save');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+
+      final body =
+          verify(() => administrations.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['dose'], 4);
+      expect(body['weight_g_used'], isNull);
+      expect(body['volume_ml'], isNull);
     });
   });
 }

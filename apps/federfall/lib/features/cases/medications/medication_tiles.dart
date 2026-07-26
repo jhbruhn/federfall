@@ -63,10 +63,14 @@ class PrescriptionTile extends ConsumerWidget {
     );
     final routesById =
         ref.watch(medicationRoutesByIdProvider).value ?? const {};
+    // A rate-based plan is shown as the rate: that is what was prescribed, and
+    // the amount it works out to changes with every weighing.
+    final unit = plan.doseUnit ?? '';
+    final dosing = plan.doseRate != null
+        ? formatDose(l10n, plan.doseRate, unit.isEmpty ? null : '$unit/kg')
+        : formatDose(l10n, plan.dose, plan.doseUnit);
     final detail = [
-      if (formatDose(l10n, plan.dose, plan.doseUnit) case final d
-          when d.isNotEmpty)
-        d,
+      if (dosing case final d when d.isNotEmpty) d,
       ?routesById[plan.route]?.label,
       if (frequency.isNotEmpty) frequency,
       if (plan.frequency case final f? when f.isNotEmpty) f,

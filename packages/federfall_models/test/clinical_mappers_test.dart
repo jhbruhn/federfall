@@ -47,9 +47,10 @@ void main() {
         'id': 'medi0000000001',
         'case': 'case0000000001',
         'drug': 'Meloxicam',
-        'concentration': '1.5 mg/ml',
         'dose': 0.2,
         'dose_unit': 'mg',
+        'dose_rate': 0.5,
+        'concentration_per_ml': 1.5,
         'frequency': 'twice daily',
         'frequency_kind': 'scheduled',
         'interval_hours': 12,
@@ -64,9 +65,11 @@ void main() {
       final m = Medication.fromRecord(r);
       expect(m.caseId, 'case0000000001');
       expect(m.drug, 'Meloxicam');
-      expect(m.concentration, '1.5 mg/ml');
       expect(m.dose, 0.2);
       expect(m.doseUnit, 'mg');
+      // Both in dose_unit: 0.5 mg/kg from a 1.5 mg/ml bottle.
+      expect(m.doseRate, 0.5);
+      expect(m.concentrationPerMl, 1.5);
       expect(m.frequency, 'twice daily');
       expect(m.frequencyKind, MedicationFrequencyKind.scheduled);
       expect(m.intervalHours, 12);
@@ -229,6 +232,8 @@ void main() {
         'medication': 'medi0000000001',
         'dose': 0.2,
         'dose_unit': 'mg',
+        'weight_g_used': 262,
+        'volume_ml': 0.13,
         'route': 'oral',
         'administered_at': '2026-03-12 09:05:00.000Z',
         'administered_by': 'user0000000001',
@@ -241,6 +246,9 @@ void main() {
       expect(a.medication, 'medi0000000001');
       expect(a.dose, 0.2);
       expect(a.doseUnit, 'mg');
+      // The derivation, kept so the dose stays self-explaining.
+      expect(a.weightGUsed, 262);
+      expect(a.volumeMl, 0.13);
       expect(a.route, 'oral');
       expect(a.administeredAt?.minute, 5);
       expect(a.administeredBy, 'user0000000001');

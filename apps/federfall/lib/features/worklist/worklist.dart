@@ -168,6 +168,8 @@ List<WorklistItem> buildWorklist({
           drug: md.drug,
           dose: md.dose,
           doseUnit: md.doseUnit,
+          doseRate: md.doseRate,
+          concentrationPerMl: md.concentrationPerMl,
           route: md.route,
           frequencyKind: md.frequencyKind,
           intervalHours: md.intervalHours,

@@ -9,6 +9,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// A dose the carer accepted from the calculator, with the inputs it came from
+/// so the record can say why (federfall-6d3a.2).
+typedef CalculatedDose = ({
+  double amount,
+  String unit,
+  double? weightGUsed,
+  double? volumeMl,
+});
+
 /// The dose calculator, folded into the sheet that logs a dose
 /// (federfall-6d3a.1).
 ///
@@ -25,13 +34,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// reads the sheet's [unit] live, so there is one "Einheit" input in the form,
 /// not two.
 ///
-/// Nothing here is persisted. Storing the rate on the prescription (so a plan
-/// follows the bird's weight as it recovers) is federfall-6d3a.2.
+/// When the dose follows a prescription that carries a rate (federfall-6d3a.2),
+/// [initialRate] and [initialConcentrationPerMl] seed the two fields from it,
+/// so logging a planned dose is: open, glance at the numbers, tap.
 class DoseCalculatorPanel extends ConsumerStatefulWidget {
   const DoseCalculatorPanel({
     required this.caseId,
     required this.unit,
     required this.onApply,
+    this.initialRate,
+    this.initialConcentrationPerMl,
     this.enabled = true,
     super.key,
   });
@@ -42,9 +54,13 @@ class DoseCalculatorPanel extends ConsumerStatefulWidget {
   /// handed back with the amount by [onApply].
   final TextEditingController unit;
 
-  /// Called with the calculated amount and the unit it is in, for the caller to
-  /// put into its own fields.
-  final void Function(double amount, String unit) onApply;
+  /// Seeds from the prescription this dose follows, when it carries them.
+  final double? initialRate;
+  final double? initialConcentrationPerMl;
+
+  /// Called with the accepted dose for the caller to put into its own fields —
+  /// the amount and unit to record, plus what it was derived from.
+  final void Function(CalculatedDose dose) onApply;
 
   /// False while the sheet is saving, matching its other inputs.
   final bool enabled;
@@ -63,6 +79,24 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
 
   /// Anchors the scroll-into-view when the panel opens.
   final GlobalKey _panelKey = GlobalKey();
+
+  bool _seeded = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Seeded here rather than in initState: the numbers are written with the
+    // locale's decimal separator, which needs Localizations.
+    if (_seeded) return;
+    _seeded = true;
+    final l10n = context.l10n;
+    final rate = widget.initialRate;
+    final concentration = widget.initialConcentrationPerMl;
+    if (rate != null) _rate.text = formatDose(l10n, rate, null);
+    if (concentration != null) {
+      _concentration.text = formatDose(l10n, concentration, null);
+    }
+  }
 
   @override
   void dispose() {
@@ -197,7 +231,7 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
             children: [
               Expanded(
                 child: result.hasAmount
-                    ? _Derivation(
+                    ? DoseDerivation(
                         rate: rate!,
                         unit: unit,
                         weight: weight,
@@ -217,7 +251,12 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
                   minimumSize: const Size(64, 48),
                 ),
                 onPressed: widget.enabled && result.hasAmount
-                    ? () => widget.onApply(result.amount!, unit)
+                    ? () => widget.onApply((
+                        amount: result.amount!,
+                        unit: unit,
+                        weightGUsed: weight?.weightG,
+                        volumeMl: result.volumeMl,
+                      ))
                     : null,
                 child: Text(l10n.doseCalcApply),
               ),
@@ -268,12 +307,13 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
 /// does something with, so they take the lead and the amount drops to the
 /// working-out line (`0.35 ml` over `20 mg/kg × 262 g = 5.24 mg`). Without a
 /// concentration there is nothing to draw up and the amount is the answer.
-class _Derivation extends StatelessWidget {
-  const _Derivation({
+class DoseDerivation extends StatelessWidget {
+  const DoseDerivation({
     required this.rate,
     required this.unit,
     required this.weight,
     required this.result,
+    super.key,
   });
 
   final double rate;
