@@ -55,7 +55,7 @@ void main() {
     expect(find.text('Add note'), findsOneWidget);
     expect(find.text('Exam'), findsOneWidget);
     expect(find.text('Log dose'), findsOneWidget);
-    expect(find.text('Placement'), findsOneWidget);
+    expect(find.text('Placement / handoff'), findsOneWidget);
   });
 
   testWidgets('offers placement once, not split into move and handoff', (
@@ -65,7 +65,7 @@ void main() {
 
     // Both used to open the same form, one of them with the carer field
     // hidden — and that field is the distinction (federfall-0se6).
-    expect(find.text('Placement'), findsOneWidget);
+    expect(find.text('Placement / handoff'), findsOneWidget);
     expect(find.text('Hand off to carer'), findsNothing);
     expect(find.text('Log location / move'), findsNothing);
   });
