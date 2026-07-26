@@ -1,5 +1,13 @@
 # Federfall — Pigeon Rehab Case Management — Requirements & Planning
 
+> **Historical document.** This is the requirements baseline the project was started
+> from, kept because it records *why* the domain looks the way it does — the decisions,
+> the trade-offs and the deliberate omissions. It is not maintained against the code and
+> does not describe the app as it stands today.
+>
+> For what Federfall does now, see the [README](../README.md). Current and planned work is
+> tracked in beads (`bd ready`), not here.
+
 > Name: **Federfall** (chosen).
 > Status: requirements baseline (rev. 2) · Date: 2026-06-22 · Author: requirements gathered with Claude
 

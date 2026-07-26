@@ -5,9 +5,23 @@ When the association takes in an injured or orphaned pigeon there is a fair amou
 Federfall keeps all of that in one place.
 
 It is meant to be self-hosted.
-The app is written in Flutter and runs on the web, Android and iOS.
+The app is written in Flutter and runs on the web, Android and iOS; its interface is German.
 The backend is [PocketBase](https://pocketbase.io) — a single Go binary with a SQLite database — and the whole thing runs as one Docker container.
-Maps and address lookup use OpenStreetMap.
+Maps and address lookup use OpenStreetMap data.
+
+## Installation
+
+Federfall is a server plus a client, and the server comes first — the app has no offline mode, so it needs an instance to talk to.
+Running one is a single container behind a reverse proxy: see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+That same container serves the web app, so once it is up, everyone can simply open its URL in a browser.
+That is the least-effort way to use Federfall and it needs nothing installed.
+
+For Android there are signed APKs on the [releases page](https://github.com/jhbruhn/federfall/releases/latest): a universal build plus smaller per-ABI splits (`arm64-v8a` for anything recent, `armeabi-v7a` for older phones).
+If you take updates through [Obtainium](https://github.com/ImranR98/Obtainium), keep its filter on one of those variants — switching between them reads as a downgrade and the install fails.
+There is no iOS download; that one you build and sign yourself.
+
+The mobile apps ask for your server's address on first launch.
 
 ## Repository layout
 
@@ -23,7 +37,7 @@ federfall/
 │  ├─ federfall_models/    # shared domain models + PocketBase record mappers
 │  └─ federfall_data/      # repositories over the PocketBase API
 ├─ backend/
-│  └─ pocketbase/          # migrations, hooks and rule tests (the committed schema)
+│  └─ pocketbase/          # migrations, hooks, report templates and rule tests
 └─ docs/                   # documentation
 ```
 
@@ -47,15 +61,14 @@ flutter run --flavor development \
   --dart-define-from-file=dart_defines/development.json
 ```
 
-## Self-hosting
-
-To run your own instance, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
-It is one container with a reverse proxy in front for HTTPS, configured through environment variables.
+The backend's own development notes — schema migrations, hooks, the rule tests and a mock identity provider for trying OAuth2 locally — are in [`backend/pocketbase/README.md`](backend/pocketbase/README.md).
 
 ## Usage
 
-Federfall is organised around four tabs: **Dashboard**, **Cases**, **Animals** and **Aviaries**.
-The dashboard shows your caseload — active cases, intakes this year, birds in aviary — and a worklist of what is due.
+Federfall is organised around four sections: **Dashboard**, **Cases**, **Animals** and **Aviaries**.
+On a phone they are a bottom bar; on a tablet or a desktop browser they become a side rail and each list sits beside whatever you have opened.
+The dashboard shows your caseload — active cases, intakes this year, birds ready for release, birds in aviary — over a preview of what is due today.
+Each of those figures taps through to the list behind it.
 Everything else about a bird's stay lives on its case.
 
 ### Admitting a case
@@ -66,8 +79,34 @@ Confirm with _Create case_ and you land straight on the new case.
 
 ### The case timeline
 
-A case is one merged, newest-first chronology of everything that happened to the bird — weight checks, exams, diagnoses, medication, markings, location changes, hand-offs, all in one place.
+A case is one merged, newest-first chronology of everything that happened to the bird.
+Weight checks, physical examinations, conditions and diagnoses, prescriptions and every dose given, markings, eggs laid, moves between locations, hand-offs, quarantine, scheduled rechecks and free-text journal notes all share the one list.
 Add to it with the _Add entry_ button and pick whichever kind of event applies.
+
+An examination records the vitals you always take, and below that a by-system findings checklist you can leave alone.
+Nothing in it is required — only the systems you actually assessed are stored.
+
+### Medication
+
+A prescription says what the bird gets, how much, and how often.
+The dose is either a flat amount or a rate per kilogram of body weight.
+With a rate, Federfall works the actual dose out from the bird's latest weight, so the dose for a growing fledgling follows it up on its own.
+Logging a dose that went as prescribed is one tap.
+
+Supervisors can keep a drug catalogue for the organisation, so the preparations you reach for most come with their dosing prefilled and a prescription is a couple of taps.
+
+On Android and iOS the app can also notify you when a dose is due, once you enable reminders in your profile.
+
+### What is due
+
+The _Today_ list is derived rather than maintained: it collects medication that is due, rechecks that have come around, quarantines about to end, and cases nobody has touched in a while.
+It is ordered by when things came due, so whatever is furthest overdue sits at the top, and it is the same list the dashboard previews.
+
+### Sharing a case
+
+A case is private to its carer.
+To let someone else in, open the sharing sheet from the case and grant an org member read or edit access; you can change or revoke that later.
+Only the active carer and supervisors can share a case.
 
 ### Handing off a case
 
@@ -79,6 +118,27 @@ You keep read access to everything that happens afterwards, but the case is now 
 When a case ends, use _Record outcome_ to say how: released back to the wild, placed in an aviary, transferred, returned to its owner, or — sometimes — died or was euthanised.
 Once an outcome is recorded, the case is closed.
 
+### Animals
+
+Cases are episodes; the animal is the record that outlives them.
+Linking a returning bird to its existing record at intake keeps its whole history together — earlier stays, every weight, its markings and any eggs — which is the point of the re-identification search.
+When two records turn out to be the same bird after all, a supervisor can merge them.
+
+### Aviaries
+
+The aviary registry holds each aviary with its keeper, location and capacity.
+An aviary shows who currently lives in it and keeps its own flock-care chronology — journal entries for the aviary plus a health rollup of its residents.
+Everyone can look; coordinators and supervisors manage them.
+
+### Reports and printing
+
+Any case can be turned into a PDF report — the full chronology, rendered server-side, with a QR code that opens the case again in the app.
+The same report also comes as a narrow slip for thermal receipt printers, which you can send straight to an ESC/POS printer over the network, Bluetooth or USB — handy for a slip that travels with the box.
+Pair that with a hardware barcode scanner (Android) and scanning the slip opens its case.
+
+Coordinators and supervisors also get statistics for the whole organisation: outcomes, intakes by species, the conditions recorded, average time in care, and a map of where birds were found.
+For an annual report, the case list exports as CSV.
+
 ## Roles
 
 Every user has one of four roles, assigned by a supervisor or mapped from an identity provider's groups (see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)).
@@ -87,10 +147,12 @@ Every user has one of four roles, assigned by a supervisor or mapped from an ide
 A carer can admit new cases and can see and edit any case where they are the active carer or where it has been shared with them.
 Animals, markings and finder records are visible to every carer in the organisation — that's the shared identity layer re-identification depends on — but a case itself is private until it's yours or someone shares it with you.
 
-**Coordinator** adds oversight on top of that: a coordinator can see every case in the organisation, not just their own, and manages aviaries.
+**Coordinator** adds oversight on top of that: a coordinator can see every case in the organisation, not just their own, manages aviaries, and sees the statistics.
 Editing a case still requires being its active carer or having been given edit access, same as a carer.
 
-**Supervisor** is the administrative role: supervisors invite and manage users, own the code lists (conditions), can edit or delete any record, and are the only ones who can promote someone else to supervisor.
+**Supervisor** is the administrative role.
+Supervisors invite and manage users, edit or delete any record, merge duplicate animals, and are the only ones who can promote someone else to supervisor.
+They also own everything under the management hub: the organisation's settings and its code lists — conditions, admission reasons, marking types, medication routes and the drug catalogue — so the vocabulary the forms offer is the association's own, not the app's.
 The first supervisor is created from the environment on first start (see [First login](docs/DEPLOYMENT.md#first-login)).
 
 **Guest** exists only for self-registration through OAuth2: a guest can sign in but sees nothing until a supervisor grants them a real role.

@@ -1,7 +1,7 @@
 # Self-hosting Federfall
 
 Federfall runs as a single Docker container.
-One version-pinned PocketBase image serves the API, the admin dashboard and the Flutter web app, all on the same port.
+One version-pinned PocketBase image serves the API, the admin dashboard and the Flutter web app on the same port, and renders the PDF case reports itself.
 There is no separate database server and no web server to wire up — you run one container, put a reverse proxy in front of it for HTTPS, and that is the whole stack.
 
 This guide walks through a production deployment on your own machine.
@@ -63,7 +63,7 @@ FEDERFALL_SMTP_SENDER_NAME: "Federfall"
 
 These are applied on every start, so changing them means editing the file and recreating the container.
 
-### Geocoding and maps
+### Geocoding
 
 Address search goes through the backend, which forwards to a Nominatim-compatible geocoder:
 
@@ -86,11 +86,39 @@ FEDERFALL_GEOCODE_RATE_MAX: "30"      # requests per window per client IP; "0" d
 FEDERFALL_GEOCODE_RATE_WINDOW: "60"   # window length in seconds
 ```
 
-Map *tiles* are a separate matter. They are baked into the web build, not read from the environment, and default to
-the public [OpenFreeMap](https://openfreemap.org) vector tile style (`MAP_MODE: "vector"`, `MAP_STYLE_URL`).
-To point at a classic raster tile server instead, edit `apps/federfall/dart_defines/production.json`, set
-`MAP_MODE` to `"raster"`, and set `MAP_TILE_URL`/`MAP_ATTRIBUTION`/`MAP_ATTRIBUTION_URL` to that provider, then
-rebuild the image.
+How long a cached lookup stays good is tunable too, though the defaults are sensible and most instances never touch these.
+Addresses do not move, so successful lookups are held for a month; a lookup that found nothing is retried sooner, in case the upstream data improves:
+
+```yaml
+FEDERFALL_GEOCODE_CACHE_TTL_DAYS: "30"       # how long a successful lookup is reused
+FEDERFALL_GEOCODE_CACHE_NEG_TTL_HOURS: "24"  # how long an empty result is remembered
+FEDERFALL_GEOCODE_CACHE_DISABLED: "1"        # bypass the cache entirely (debugging)
+```
+
+### Maps
+
+Map *tiles* are a separate matter from geocoding.
+Which tile server the app uses is baked into the web build rather than read from the environment, and defaults to the public [OpenFreeMap](https://openfreemap.org) vector tile style (`MAP_MODE: "vector"`, `MAP_STYLE_URL`).
+To point at a classic raster tile server instead, edit `apps/federfall/dart_defines/production.json`, set `MAP_MODE` to `"raster"`, set `MAP_TILE_URL`/`MAP_ATTRIBUTION`/`MAP_ATTRIBUTION_URL` to that provider, and rebuild the image.
+
+If you do change either URL, you have to allow the new host in the app's Content-Security-Policy as well, or the browser will block the tiles and your maps will come up blank.
+The policy the container sends only permits the two origins that ship as defaults, so list yours instead:
+
+```yaml
+FEDERFALL_MAP_TILE_ORIGINS: "https://tiles.yourdomain.tld"
+```
+
+That is a comma-separated list of origins, and it is the only part of the policy you should normally need to touch.
+It is added to both `img-src` and `connect-src`, which covers raster tiles and vector styles alike.
+
+The whole policy can be replaced if you need something the above cannot express — self-hosted fonts, say:
+
+```yaml
+FEDERFALL_CSP: "default-src 'self'; …"   # replaces the entire policy
+```
+
+Setting `FEDERFALL_CSP` ignores `FEDERFALL_MAP_TILE_ORIGINS`, so a replacement policy has to allow your tile origins itself.
+The value `"off"` sends no policy at all; that removes a real layer of defence and is worth doing only to prove a CSP is what is breaking something.
 
 ### Time zone
 

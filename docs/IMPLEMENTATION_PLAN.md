@@ -1,5 +1,15 @@
 # Federfall — Implementation Plan
 
+> **Historical document.** This is the build plan the project was started from, written
+> before any code existed. Its phases are essentially complete, and where the plan and the
+> shipped app disagree, the app is right — several things were built differently, and a few
+> not at all. It is kept for the record and for its rationale (why this build order), not
+> as a description of the system.
+>
+> Current and planned work is tracked in beads (`bd ready`); `FED-n` task IDs survive only
+> as references in code comments. For what Federfall does now, see the
+> [README](../README.md).
+
 > Companion to `REQUIREMENTS.md`. Date: 2026-06-23 · rev. 1
 > How to read this: phases group work; each task has an **ID** (`FED-n`), a one-line goal, and **deps** (task IDs it needs first). The dependency graph and critical path are in [§ Dependencies](#dependency-graph). Build order follows a **walking-skeleton → vertical-slice** strategy.
 
