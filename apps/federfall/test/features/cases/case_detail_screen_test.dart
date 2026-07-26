@@ -416,6 +416,141 @@ void main() {
     expect(find.text('Mark ready for release'), findsNothing);
   });
 
+  testWidgets('the lifecycle card holds only its two controls', (tester) async {
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'sup1',
+        email: 'sup@x.org',
+        role: UserRole.supervisor,
+      ),
+    );
+
+    expect(find.text('Mark ready for release'), findsOneWidget);
+    expect(find.text('Record outcome'), findsOneWidget);
+    // Handoff, edit intake, share and delete left the card for the places
+    // their subject already lives (federfall-do5g); nothing on the Overview
+    // duplicates the History tab's add-entry sheet any more.
+    expect(find.text('Hand off to carer'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Edit intake'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Share'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Delete case'), findsNothing);
+  });
+
+  testWidgets('a disposed case gets no lifecycle card at all', (tester) async {
+    when(() => dispositions.forCase(any())).thenAnswer(
+      (_) async => const [
+        Disposition(id: 'd1', caseId: 'c1', type: DispositionType.released),
+      ],
+    );
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'sup1',
+        email: 'sup@x.org',
+        role: UserRole.supervisor,
+      ),
+    );
+
+    // Both its controls end with the case, so the card goes rather than
+    // standing empty under a heading naming controls that are not there.
+    expect(find.text('Status & outcome'), findsNothing);
+    expect(find.text('Record outcome'), findsNothing);
+    // The case is still editable and deletable — those live elsewhere now.
+    expect(find.byTooltip('Edit intake'), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsOneWidget);
+  });
+
+  testWidgets('the intake card carries the edit pencil for an editor', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'sup1',
+        email: 'sup@x.org',
+        role: UserRole.supervisor,
+      ),
+    );
+
+    // On the card that renders the very fields the sheet edits.
+    final pencil = find.byTooltip('Edit intake');
+    expect(pencil, findsOneWidget);
+    expect(
+      find.ancestor(of: pencil, matching: find.text('Intake')),
+      findsNothing,
+      reason: 'the pencil is a sibling of the heading, not inside it',
+    );
+  });
+
+  testWidgets('a read-only viewer gets no edit pencil', (tester) async {
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'other',
+        email: 'other@x.org',
+        role: UserRole.carer,
+      ),
+    );
+
+    expect(find.byTooltip('Edit intake'), findsNothing);
+  });
+
+  testWidgets('the app-bar overflow offers share and delete to a supervisor', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'sup1',
+        email: 'sup@x.org',
+        role: UserRole.supervisor,
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Delete case'), findsOneWidget);
+  });
+
+  testWidgets('the active carer can share but not delete', (tester) async {
+    when(() => cases.getOne(any())).thenAnswer(
+      (_) async => medicalCase.copyWith(activeCarer: 'carer1'),
+    );
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'carer1',
+        email: 'carer@x.org',
+        role: UserRole.carer,
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Share'), findsOneWidget);
+    // Deletion is supervisor-only and cascades to the whole timeline.
+    expect(find.text('Delete case'), findsNothing);
+  });
+
+  testWidgets('a read-only viewer gets no overflow menu at all', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      currentUser: const AppUser(
+        id: 'other',
+        email: 'other@x.org',
+        role: UserRole.carer,
+      ),
+    );
+
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+  });
+
   testWidgets(
     'Overview shows a consolidated, chronologically-ordered photo gallery; '
     'tapping a tile opens the viewer',

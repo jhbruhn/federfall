@@ -241,7 +241,7 @@
     "caseFieldQuarantineUntil": "Quarantäne bis",
     "caseQuarantineEnded": "beendet",
     "caseEditIntakeTitle": "Aufnahme bearbeiten",
-    "caseActionsTitle": "Aktionen",
+    "caseLifecycleTitle": "Status & Abschluss",
     "caseMarkReadyForRelease": "Als auswilderungsbereit markieren",
     "caseMarkBackToCare": "Zurück in Pflege",
     "caseDetailTitle": "Fall",

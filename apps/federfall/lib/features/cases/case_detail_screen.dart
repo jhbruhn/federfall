@@ -21,7 +21,6 @@ import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/edit_case_intake_sheet.dart';
-import 'package:federfall/features/cases/placements/placement_sheet.dart';
 import 'package:federfall/features/cases/sharing/case_share_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
@@ -77,9 +76,10 @@ class CaseDetailScreen extends ConsumerWidget {
           // the profile screen's printer section.
           if (medicalCase != null && !kIsWeb)
             _PrintReportButton(medicalCase: medicalCase),
-          // Edit / share / status moved into the Overview actions card; the
-          // app bar no longer has a dedicated animal-navigation action — the
-          // header's name is tappable instead (see _Header).
+          // Sharing and deleting the case itself. The app bar has no dedicated
+          // animal-navigation action — the header's name is tappable instead
+          // (see _Header) — and intake editing lives on the intake card.
+          if (medicalCase != null) _CaseOverflowMenu(medicalCase: medicalCase),
         ],
       ),
       body: AsyncValueView<Case>(
@@ -90,6 +90,98 @@ class CaseDetailScreen extends ConsumerWidget {
         loading: const LinearProgressIndicator(),
         data: _CaseDetail.new,
       ),
+    );
+  }
+}
+
+/// The two actions that treat the case as an object rather than as clinical
+/// content: grant someone else access to it, and delete it.
+///
+/// Deliberately an overflow menu and *not* an icon beside [_ShareReportButton].
+/// That button exports a PDF to the OS share sheet and every viewer gets it,
+/// while sharing the *case* grants another carer access and is canEdit-gated —
+/// two adjacent share icons meaning different things, obeying different rules,
+/// is the confusion this avoids (federfall-do5g). Both are infrequent, so the
+/// overflow is where they belong; it renders nothing at all when the viewer can
+/// do neither.
+class _CaseOverflowMenu extends ConsumerWidget {
+  const _CaseOverflowMenu({required this.medicalCase});
+
+  final Case medicalCase;
+
+  /// Deletes the case and leaves for the cases list — the screen's subject is
+  /// gone, so staying on its detail view makes no sense.
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final deleted = await confirmDeleteCase(context, ref, medicalCase);
+    if (!deleted) return;
+    ref
+      ..invalidate(casesBrowserDataProvider)
+      ..invalidate(dashboardSummaryProvider);
+    if (context.mounted) context.go(AppRoutes.cases);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final canEdit =
+        ref.watch(canEditCaseProvider(medicalCase.id)).value ?? false;
+    // A supervisor always satisfies canEditCase, so gating delete on both is
+    // not a narrowing — it just keeps the menu empty for a read-only viewer.
+    final canDelete =
+        canEdit && canDeleteRecords(ref.watch(currentUserProvider).value?.role);
+    if (!canEdit && !canDelete) return const SizedBox.shrink();
+
+    return PopupMenuButton<VoidCallback>(
+      onSelected: (action) => action(),
+      itemBuilder: (context) => [
+        if (canEdit)
+          PopupMenuItem(
+            value: () => showCaseShareSheet(
+              context,
+              caseId: medicalCase.id,
+              activeCarer: medicalCase.activeCarer,
+            ),
+            child: _MenuRow(
+              icon: Icons.share_outlined,
+              label: l10n.caseShareAction,
+            ),
+          ),
+        if (canDelete)
+          PopupMenuItem(
+            value: () => unawaited(_delete(context, ref)),
+            child: _MenuRow(
+              icon: Icons.delete_outline,
+              label: l10n.caseDeleteAction,
+              // Irreversible and supervisor-only, so it reads as its own kind
+              // of action rather than a sibling of "share".
+              color: theme.colorScheme.error,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// One row of [_CaseOverflowMenu] — icon and label, tinted for a destructive
+/// entry.
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({required this.icon, required this.label, this.color});
+
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(label, style: TextStyle(color: color)),
+        ),
+      ],
     );
   }
 }
@@ -427,12 +519,27 @@ class _OverviewTab extends StatelessWidget {
   }
 }
 
-/// Actions for the case, grouped in one card at the bottom of the Overview
-/// (UX Phase C / C.1): advance the lifecycle status (in_care ->
-/// ready_for_release; disposed is terminal, set by the disposition hook),
-/// edit the intake, and manage sharing. Shown only to the active carer or a
-/// supervisor — mirrors the server update/share rules; read-only viewers see
-/// nothing here.
+/// The case's lifecycle controls: advance the status (in_care ->
+/// ready_for_release; disposed is terminal, set by the disposition hook) and
+/// record the outcome that ends it.
+///
+/// Only these two. It used to hold every verb on the screen — handoff, edit
+/// intake, share, delete — which made the Overview tab a second, partial menu
+/// competing with the History tab's add-entry sheet, with nothing to say which
+/// was authoritative (federfall-do5g). The others now sit with their subject:
+/// intake editing on the intake card, sharing and deleting in the app bar's
+/// overflow, handoff in the add-entry sheet where it already was. The heading
+/// names the two rather than saying "actions", so the card stops reading as a
+/// slot anything can be dropped into.
+///
+/// Recording the outcome is still reachable from the add-entry sheet too. That
+/// duplication is deliberate — it is the case's most important lifecycle step
+/// (federfall-m1z) — and is now one action with two homes rather than a
+/// parallel menu.
+///
+/// Shown only to the active carer or a supervisor, mirroring the server update
+/// rules; a read-only viewer sees nothing here, and neither does anyone once
+/// the case is disposed, since both controls end with it.
 class _CaseActions extends ConsumerStatefulWidget {
   const _CaseActions({required this.medicalCase});
 
@@ -465,22 +572,9 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
     }
   }
 
-  /// Deletes the case and leaves for the cases list — the screen's subject is
-  /// gone, so staying on its detail view makes no sense.
-  Future<void> _delete() async {
-    final deleted = await confirmDeleteCase(context, ref, widget.medicalCase);
-    if (deleted && mounted) {
-      ref
-        ..invalidate(casesBrowserDataProvider)
-        ..invalidate(dashboardSummaryProvider);
-      if (context.mounted) context.go(AppRoutes.cases);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
     final medicalCase = widget.medicalCase;
     final status = medicalCase.status;
     final canEdit =
@@ -496,7 +590,9 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
     final isDisposed =
         status == CaseStatus.disposed ||
         (dispositions != null && dispositions.isNotEmpty);
-    final showStatusToggle = !isDisposed;
+    // Both controls end with the case, so a disposed one gets no card rather
+    // than an empty one titled after controls that are not there.
+    if (isDisposed) return const SizedBox.shrink();
     final (statusLabel, statusTarget) = switch (status) {
       CaseStatus.inCare => (
         l10n.caseMarkReadyForRelease,
@@ -514,76 +610,25 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(l10n.caseActionsTitle, style: theme.textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              if (showStatusToggle)
-                FilledButton.tonalIcon(
-                  onPressed: _busy ? null : () => _setStatus(statusTarget),
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.flag_outlined),
-                  label: Text(statusLabel),
-                ),
-              const SizedBox(height: AppSpacing.sm),
-              // Recording the outcome closes the case — its most important
-              // lifecycle step, so it sits next to its sibling actions instead
-              // of only inside the History add-entry sheet (federfall-m1z).
-              if (!isDisposed) ...[
-                OutlinedButton.icon(
-                  onPressed: () =>
-                      showDispositionSheet(context, caseId: medicalCase.id),
-                  icon: const Icon(Icons.sports_score),
-                  label: Text(l10n.timelineRecordOutcome),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
-              if (showStatusToggle)
-                OutlinedButton.icon(
-                  onPressed: () => showPlacementSheet(
-                    context,
-                    medicalCase: medicalCase,
-                    mode: PlacementMode.handoff,
-                  ),
-                  icon: const Icon(Icons.swap_horiz_outlined),
-                  label: Text(l10n.placementHandoffTitle),
-                ),
-              if (showStatusToggle) const SizedBox(height: AppSpacing.sm),
-              OutlinedButton.icon(
-                onPressed: () => showEditCaseIntakeSheet(context, medicalCase),
-                icon: const Icon(Icons.edit_outlined),
-                label: Text(l10n.caseEditIntakeTitle),
+              _CardTitle(l10n.caseLifecycleTitle),
+              FilledButton.tonalIcon(
+                onPressed: _busy ? null : () => _setStatus(statusTarget),
+                icon: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.flag_outlined),
+                label: Text(statusLabel),
               ),
               const SizedBox(height: AppSpacing.sm),
               OutlinedButton.icon(
-                onPressed: () => showCaseShareSheet(
-                  context,
-                  caseId: medicalCase.id,
-                  activeCarer: medicalCase.activeCarer,
-                ),
-                icon: const Icon(Icons.share_outlined),
-                label: Text(l10n.caseShareAction),
+                onPressed: () =>
+                    showDispositionSheet(context, caseId: medicalCase.id),
+                icon: const Icon(Icons.sports_score),
+                label: Text(l10n.timelineRecordOutcome),
               ),
-              // Supervisor-only and irreversible, so it sits last, behind a
-              // divider and in the error colour rather than looking like a
-              // sibling of "edit intake". A supervisor always satisfies
-              // canEditCase, so it is reachable whenever this card renders.
-              if (canDeleteRecords(
-                ref.watch(currentUserProvider).value?.role,
-              )) ...[
-                const Divider(height: AppSpacing.lg),
-                OutlinedButton.icon(
-                  onPressed: _delete,
-                  icon: const Icon(Icons.delete_outline),
-                  label: Text(l10n.caseDeleteAction),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -604,7 +649,6 @@ class _PriorCasesSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
     final lifetime = ref
         .watch(animalLifetimeProvider(medicalCase.animal))
         .value;
@@ -622,11 +666,7 @@ class _PriorCasesSection extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                l10n.casePriorCasesTitle,
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: AppSpacing.sm),
+              _CardTitle(l10n.casePriorCasesTitle),
               for (final c in others)
                 CaseSummaryTile(
                   summary: c,
@@ -700,6 +740,42 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// A card's heading, optionally carrying the one control that acts on that
+/// card's contents.
+///
+/// Controls live with their subject rather than in a shared actions card at the
+/// bottom of the tab: a card that collects every verb on the screen grows
+/// without limit and competes with the History tab's add-entry sheet for
+/// authority (federfall-do5g).
+class _CardTitle extends StatelessWidget {
+  const _CardTitle(this.text, {this.action});
+
+  final String text;
+
+  /// Trailing control, e.g. the intake card's edit pencil. Null on a card whose
+  /// contents are read-only or whose viewer cannot edit them.
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = Text(text, style: Theme.of(context).textTheme.titleMedium);
+    if (action == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: title,
+      );
+    }
+    // The button's own padding supplies most of the gap below the heading, so
+    // the row keeps the same rhythm as a plain title despite being taller.
+    return Row(
+      children: [
+        Expanded(child: title),
+        action!,
+      ],
+    );
+  }
+}
+
 /// The structured intake summary, rendered as a card of labelled rows. Empty
 /// fields are skipped so the card stays as terse as the record allows.
 class _IntakeSection extends ConsumerWidget {
@@ -712,6 +788,8 @@ class _IntakeSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final materialL10n = MaterialLocalizations.of(context);
+    final canEdit =
+        ref.watch(canEditCaseProvider(medicalCase.id)).value ?? false;
 
     String? date(DateTime? d) =>
         d == null ? null : formatEventDate(materialL10n, d);
@@ -759,11 +837,21 @@ class _IntakeSection extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            // The pencil sits here, on the card that renders exactly the fields
+            // the sheet edits — admission reasons, age class, dates, find
+            // location, intake weight and notes. Not in the screen header,
+            // whose subject is the animal's identity, not the case's intake.
+            _CardTitle(
               l10n.caseSectionIntake,
-              style: Theme.of(context).textTheme.titleMedium,
+              action: canEdit
+                  ? IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: l10n.caseEditIntakeTitle,
+                      onPressed: () =>
+                          showEditCaseIntakeSheet(context, medicalCase),
+                    )
+                  : null,
             ),
-            const SizedBox(height: AppSpacing.sm),
             if (rows.isEmpty)
               Text(
                 l10n.emptyGeneric,
@@ -853,11 +941,7 @@ class _CasePhotoGallery extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                context.l10n.caseSectionPhotos,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: AppSpacing.sm),
+              _CardTitle(context.l10n.caseSectionPhotos),
               Wrap(
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
