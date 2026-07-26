@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/org_settings_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/animal_species_providers.dart';
+import 'package:federfall/features/cases/case_intake_draft.dart';
+import 'package:federfall/features/cases/case_intake_draft_store.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -59,7 +63,12 @@ class NewCaseScreen extends ConsumerStatefulWidget {
 }
 
 class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
-    with DiscardGuard {
+    with DiscardGuard, WidgetsBindingObserver {
+  /// How long editing pauses before the draft is written. Long enough that
+  /// typing a note is not a write per keystroke, short enough that a crash
+  /// costs at most a word.
+  static const _draftDebounce = Duration(milliseconds: 800);
+
   final _formKey = GlobalKey<FormState>();
 
   // Animal identity.
@@ -110,8 +119,19 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
   String? _error;
   // One key for this wizard's whole lifetime: pressing save again after a
   // timeout resubmits the SAME key, so the backend replays the committed
-  // intake instead of creating a duplicate (federfall-3ty3).
-  final String _idempotencyKey = newIdempotencyKey();
+  // intake instead of creating a duplicate (federfall-3ty3). Restoring a draft
+  // adopts its key, which extends that guarantee across a crash mid-submit.
+  String _idempotencyKey = newIdempotencyKey();
+
+  // Draft persistence (federfall-t2is): the in-progress wizard is written to
+  // local storage while editing so an interrupted intake is not lost.
+  Timer? _draftTimer;
+  // Set once the intake committed — from then on the draft must stay deleted,
+  // even if a queued write is still pending.
+  bool _submitted = false;
+  // Set once a draft has populated the form, so the routed animal's pre-link
+  // cannot land on top of it.
+  bool _draftApplied = false;
   // Species is a DropdownMenu (not a Form field), so its "required" is enforced
   // manually when advancing past step 0.
   bool _speciesMissing = false;
@@ -125,25 +145,22 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Clear the species error as soon as a value is entered or picked. The
     // species DropdownMenu is not a Form field, so its edits also mark the
     // wizard dirty here.
     _speciesController.addListener(() {
-      markDirty();
+      _touch();
       if (_speciesMissing && _speciesController.text.trim().isNotEmpty) {
         setState(() => _speciesMissing = false);
       }
     });
-    final id = widget.animalId;
-    if (id != null) {
-      // Pre-link to the given animal (e.g. a resident relapse) so the carer
-      // skips re-id search.
-      ref.read(animalByIdProvider(id).future).then((a) {
-        if (mounted) setState(() => _linkedAnimal = a);
-      }).ignore();
-    }
+    _bootstrap().ignore();
     // Prefill the quarantine duration from the org-wide default; the carer can
-    // override it for this case (empty falls back to the same default).
+    // override it for this case (empty falls back to the same default). Safe to
+    // race a draft restore: it only fills the field when still empty, and the
+    // default is needed either way to decide whether submit carries an
+    // override.
     ref.read(orgQuarantineDefaultDaysProvider.future).then((days) {
       if (!mounted) return;
       setState(() {
@@ -155,8 +172,31 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
     }).ignore();
   }
 
+  /// Pre-links the routed animal and offers back an interrupted intake.
+  ///
+  /// The two run independently on purpose: a local store that is slow or never
+  /// answers must not also cost the pre-link. They can only collide over
+  /// `_linkedAnimal`, and there the restored draft wins either way — it is
+  /// authoritative about the link, because the carer may have unlinked the
+  /// animal deliberately before the interruption.
+  Future<void> _bootstrap() async {
+    final id = widget.animalId;
+    if (id != null) {
+      // Pre-link to the given animal (e.g. a resident relapse) so the carer
+      // skips re-id search.
+      ref.read(animalByIdProvider(id).future).then((animal) {
+        if (mounted && !_draftApplied) {
+          setState(() => _linkedAnimal = animal);
+        }
+      }).ignore();
+    }
+    await _maybeRestoreDraft();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _draftTimer?.cancel();
     for (final c in [
       _nameController,
       _speciesController,
@@ -176,6 +216,229 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Backgrounding is the last notice we get before the OS may evict the
+    // process, so flush the pending debounce instead of losing it. This is the
+    // path that covers the incoming phone call.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _flushDraft();
+    }
+  }
+
+  /// Records an edit: marks the form dirty (for [DiscardGuard]) and queues a
+  /// draft write. Every mutation in this screen goes through here — a change
+  /// that skips it is a change that would not survive a crash.
+  void _touch() {
+    markDirty();
+    _draftTimer?.cancel();
+    _draftTimer = Timer(_draftDebounce, _writeDraft);
+  }
+
+  /// Writes any queued draft immediately.
+  void _flushDraft() {
+    if (_draftTimer?.isActive ?? false) {
+      _draftTimer?.cancel();
+      _writeDraft();
+    }
+  }
+
+  void _writeDraft() {
+    // Never resurrect a draft for an intake that already committed, and do not
+    // fight a submit in flight — a failed submit leaves the previous draft in
+    // place, and the next edit rewrites it.
+    if (!mounted || _busy || _submitted || !isDirty) return;
+    ref.read(caseIntakeDraftStoreProvider).write(_snapshot()).ignore();
+  }
+
+  void _discardDraft() {
+    _draftTimer?.cancel();
+    ref.read(caseIntakeDraftStoreProvider).clear().ignore();
+  }
+
+  CaseIntakeDraft _snapshot() => CaseIntakeDraft(
+    savedAt: DateTime.now(),
+    idempotencyKey: _idempotencyKey,
+    step: _step,
+    routeAnimalId: widget.animalId,
+    linkedAnimalId: _linkedAnimal?.id,
+    species: _speciesController.text,
+    name: _nameController.text,
+    reasons: _reasons.toList(),
+    ageClass: _ageClass,
+    foundAt: _foundAt,
+    admittedAt: _admittedAt,
+    findLocation: _findLocationController.text,
+    findGeo: _findGeo,
+    findCity: _findCity,
+    findRegion: _findRegion,
+    intakeWeight: _intakeWeightController.text,
+    quarantineDays: _quarantineDaysController.text,
+    intakeNotes: _intakeNotesController.text,
+    finderFirstName: _finderFirstName.text,
+    finderLastName: _finderLastName.text,
+    finderPhone: _finderPhone.text,
+    finderEmail: _finderEmail.text,
+    finderCity: _finderCity.text,
+    photoPaths: [for (final p in _intakePhotos) p.path],
+    withExam: _withExam,
+  );
+
+  /// The stored draft, or `null` when there is none.
+  ///
+  /// Draft recovery is a convenience: a store that cannot be read (unavailable
+  /// plugin, locked keystore) must never stop the wizard from opening.
+  Future<CaseIntakeDraft?> _readDraft() async {
+    try {
+      return await ref.read(caseIntakeDraftStoreProvider).read();
+    } on Object catch (error, stackTrace) {
+      reportCaughtError(error, stackTrace);
+      return null;
+    }
+  }
+
+  /// Asks whether to continue a stored intake, and restores it if so.
+  ///
+  /// The prompt is deliberately explicit rather than a silent prefill: quietly
+  /// filling a fresh intake with a *previous* bird's species, weight and find
+  /// location is a worse failure than losing the draft.
+  Future<void> _maybeRestoreDraft() async {
+    final stored = await _readDraft();
+    if (stored == null || !mounted) return;
+    // A non-nullable alias: the dialog builder below closes over it, and type
+    // promotion does not reach inside a closure.
+    final draft = stored;
+    // Wrong entry point, too old, or the carer already started typing while the
+    // read was in flight — in all three cases the draft must not be applied.
+    // Only staleness makes it garbage worth deleting; a mismatched route may
+    // still be wanted on the screen it belongs to.
+    if (draft.isStaleAt(DateTime.now())) {
+      _discardDraft();
+      return;
+    }
+    if (draft.routeAnimalId != widget.animalId || isDirty) return;
+
+    final l10n = context.l10n;
+    final materialL10n = MaterialLocalizations.of(context);
+    final restore = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.caseDraftRestoreTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.caseDraftRestoreMessage(
+                formatDateMaybeTime(
+                  materialL10n,
+                  draft.savedAt,
+                  withTime: true,
+                ),
+              ),
+            ),
+            if (draft.partial) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(l10n.caseDraftRestorePartial),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.caseDraftRestoreDiscard),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.caseDraftRestoreConfirm),
+          ),
+        ],
+      ),
+    );
+    if (restore != true) {
+      _discardDraft();
+      return;
+    }
+    if (!mounted) return;
+    await _applyDraft(draft);
+  }
+
+  Future<void> _applyDraft(CaseIntakeDraft draft) async {
+    // The staged photos are cache-directory files the OS may have cleared
+    // since, so each path is verified before it is shown as a staged photo —
+    // otherwise submit would fail on a file that no longer exists.
+    final loader = ref.read(stagedPhotoLoaderProvider);
+    final photos = <XFile>[];
+    var missingPhotos = 0;
+    for (final path in draft.photoPaths) {
+      final file = await loader.load(path);
+      if (file == null) {
+        missingPhotos++;
+      } else {
+        photos.add(file);
+      }
+    }
+    // The re-identified animal may have been deleted meanwhile; dropping the
+    // link is better than blocking the restore.
+    Animal? linked;
+    if (draft.linkedAnimalId case final id?) {
+      try {
+        linked = await ref.read(animalByIdProvider(id).future);
+      } on Object {
+        linked = null;
+      }
+    }
+    if (!mounted) return;
+
+    _draftApplied = true;
+    _idempotencyKey = draft.idempotencyKey;
+    _speciesController.text = draft.species;
+    _nameController.text = draft.name;
+    _findLocationController.text = draft.findLocation;
+    _intakeWeightController.text = draft.intakeWeight;
+    _quarantineDaysController.text = draft.quarantineDays;
+    _intakeNotesController.text = draft.intakeNotes;
+    _finderFirstName.text = draft.finderFirstName;
+    _finderLastName.text = draft.finderLastName;
+    _finderPhone.text = draft.finderPhone;
+    _finderEmail.text = draft.finderEmail;
+    _finderCity.text = draft.finderCity;
+    setState(() {
+      _step = draft.step.clamp(0, _lastStep);
+      _linkedAnimal = linked;
+      _reasons
+        ..clear()
+        ..addAll(draft.reasons);
+      _ageClass = draft.ageClass;
+      _foundAt = draft.foundAt;
+      _admittedAt = draft.admittedAt;
+      _findGeo = draft.findGeo;
+      _findCity = draft.findCity;
+      _findRegion = draft.findRegion;
+      _intakePhotos
+        ..clear()
+        ..addAll(photos);
+      _withExam = draft.withExam;
+      _dateError = null;
+      _speciesMissing = false;
+      _reasonsTouched = false;
+    });
+    // A restored draft IS unsaved input — backing out of it must prompt. No
+    // draft write: this is what we just read back.
+    markDirty();
+    final l10n = context.l10n;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          missingPhotos > 0
+              ? l10n.caseDraftPhotosMissing(missingPhotos)
+              : l10n.caseDraftRestored,
+        ),
+      ),
+    );
+  }
+
   String? _trimmedOrNull(TextEditingController c) {
     final v = c.text.trim();
     return v.isEmpty ? null : v;
@@ -188,7 +451,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       initialAddress: _trimmedOrNull(_findLocationController),
     );
     if (picked == null) return;
-    markDirty();
+    _touch();
     setState(() {
       _findGeo = picked.geo;
       _findCity = picked.city.isEmpty ? null : picked.city;
@@ -202,7 +465,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
   Future<void> _addPhotos() async {
     final picked = await ref.read(imagePickerProvider).pickMultiImage();
     if (picked.isEmpty) return;
-    markDirty();
+    _touch();
     setState(() => _intakePhotos.addAll(picked));
   }
 
@@ -211,7 +474,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
         .read(imagePickerProvider)
         .pickImage(source: ImageSource.camera);
     if (shot == null) return;
-    markDirty();
+    _touch();
     setState(() => _intakePhotos.add(shot));
   }
 
@@ -255,7 +518,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       lastDate: now,
     );
     if (picked == null) return;
-    markDirty();
+    _touch();
     onPicked(picked);
   }
 
@@ -329,6 +592,19 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
         idempotencyKey: _idempotencyKey,
       );
 
+      // The intake committed, so the draft has served its purpose — leaving it
+      // behind would offer this bird back on the next intake.
+      _submitted = true;
+      _draftTimer?.cancel();
+      try {
+        await ref.read(caseIntakeDraftStoreProvider).clear();
+      } on Object catch (error, stackTrace) {
+        // A failed clear must not turn a committed intake into an error, and
+        // the leftover is not dangerous: the draft carries this intake's
+        // idempotency key, so resubmitting it replays rather than duplicates.
+        reportCaughtError(error, stackTrace);
+      }
+
       ref
         ..invalidate(casesBrowserDataProvider)
         ..invalidate(dashboardSummaryProvider);
@@ -385,9 +661,20 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       if (_reasons.isEmpty || dateError != null) return;
     }
     setState(() => _step++);
+    _stepChanged();
   }
 
-  void _back() => setState(() => _step--);
+  void _back() {
+    setState(() => _step--);
+    _stepChanged();
+  }
+
+  /// Persists a step change — but only once the wizard holds real input.
+  /// Paging through the steps of an untouched form is not unsaved work, and
+  /// must not start prompting on back or leave a draft behind.
+  void _stepChanged() {
+    if (isDirty) _touch();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -404,6 +691,9 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       // The biggest form in the app: a stray back gesture mid-intake must not
       // silently discard everything (DiscardGuard prompts while dirty).
       body: guardUnsavedChanges(
+        // Confirming the discard throws the persisted draft away too —
+        // otherwise the next intake would be offered this one back.
+        onDiscard: _discardDraft,
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -425,7 +715,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
                       ),
                       child: Form(
                         key: _formKey,
-                        onChanged: markDirty,
+                        onChanged: _touch,
                         child: switch (_step) {
                           0 => _buildAnimalStep(l10n),
                           1 => _buildIntakeStep(l10n),
@@ -474,7 +764,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             animal: linked,
             enabled: !_busy,
             onUnlink: () {
-              markDirty();
+              _touch();
               setState(() => _linkedAnimal = null);
             },
           )
@@ -485,7 +775,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             query: _reidQuery,
             onSearch: (q) => setState(() => _reidQuery = q),
             onLink: (a) {
-              markDirty();
+              _touch();
               setState(() {
                 _linkedAnimal = a;
                 _reidQuery = '';
@@ -530,7 +820,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
               ? l10n.fieldRequired
               : null,
           onToggle: (id) {
-            markDirty();
+            _touch();
             setState(() {
               if (!_reasons.remove(id)) _reasons.add(id);
             });
@@ -547,7 +837,12 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             for (final a in AgeClass.values)
               DropdownMenuItem(value: a, child: Text(ageClassLabel(l10n, a))),
           ],
-          onChanged: _busy ? null : (a) => setState(() => _ageClass = a),
+          onChanged: _busy
+              ? null
+              : (a) {
+                  _touch();
+                  setState(() => _ageClass = a);
+                },
         ),
         const SizedBox(height: AppSpacing.md),
         _DateField(
@@ -563,7 +858,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             }),
           ),
           onClear: () {
-            markDirty();
+            _touch();
             setState(() {
               _foundAt = null;
               _dateError = null;
@@ -583,7 +878,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             }),
           ),
           onClear: () {
-            markDirty();
+            _touch();
             setState(() {
               _admittedAt = null;
               _dateError = null;
@@ -652,7 +947,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           onAdd: _addPhotos,
           onCapture: _capturePhoto,
           onRemove: (i) {
-            markDirty();
+            _touch();
             setState(() => _intakePhotos.removeAt(i));
           },
         ),
@@ -681,7 +976,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           onChanged: _busy
               ? null
               : (v) {
-                  markDirty();
+                  _touch();
                   setState(() => _withExam = v);
                 },
           title: Text(l10n.caseIntakeWithExam),

@@ -8,6 +8,7 @@ import 'package:federfall/features/admin/management_screen.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
+import 'package:federfall/features/cases/case_intake_draft_store.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
@@ -26,6 +27,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/helpers.dart';
 
 /// Fake that resolves to a fixed server config.
 class _FakeServerConfig extends ServerConfigController {
@@ -75,6 +78,11 @@ Future<ProviderContainer> _pumpAt(
         ),
       ),
       currentUserProvider.overrideWith((ref) async => null),
+      // The real store reads the platform keystore, which never answers under
+      // `flutter test` — the intake wizard is one of the routes pumped here.
+      caseIntakeDraftStoreProvider.overrideWithValue(
+        FakeCaseIntakeDraftStore(),
+      ),
     ],
   );
   return _pumpContainer(tester, container);

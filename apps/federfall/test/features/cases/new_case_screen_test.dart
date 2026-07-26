@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
+import 'package:federfall/features/cases/case_intake_draft.dart';
+import 'package:federfall/features/cases/case_intake_draft_store.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/new_case_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -16,6 +18,8 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../helpers/helpers.dart';
 
 class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
@@ -35,9 +39,13 @@ void main() {
   late MockCasesRepo cases;
   late MockMarkingsRepo markings;
   late MockImagePicker picker;
+  late FakeCaseIntakeDraftStore drafts;
+  late FakeStagedPhotoLoader photoLoader;
 
   setUp(() {
     animals = MockAnimalsRepo();
+    drafts = FakeCaseIntakeDraftStore();
+    photoLoader = FakeStagedPhotoLoader(const {});
     cases = MockCasesRepo();
     markings = MockMarkingsRepo();
     picker = MockImagePicker();
@@ -106,6 +114,10 @@ void main() {
         casesRepositoryProvider.overrideWith((ref) async => cases),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
         imagePickerProvider.overrideWithValue(picker),
+        // The real store reads the platform keystore, which never answers
+        // under `flutter test`.
+        caseIntakeDraftStoreProvider.overrideWithValue(drafts),
+        stagedPhotoLoaderProvider.overrideWithValue(photoLoader),
       ],
     );
     addTearDown(container.dispose);
@@ -487,5 +499,448 @@ void main() {
             as List<http.MultipartFile>;
     expect(files.length, 1);
     expect(files.single.field, 'intake_photos');
+  });
+
+  // ── Draft persistence (federfall-t2is) ────────────────────────────────────
+  //
+  // The wizard writes its in-progress values to a local store while editing so
+  // an interrupted intake — an incoming call, an OS eviction, a crash — is not
+  // lost. `drafts` is the in-memory stand-in for that store.
+
+  // A draft as an interrupted wizard would have left it.
+  CaseIntakeDraft storedDraft({
+    int step = 0,
+    String key = 'resumed-key',
+    String? routeAnimalId,
+    String? linkedAnimalId,
+    DateTime? savedAt,
+    List<String> photoPaths = const [],
+  }) => CaseIntakeDraft(
+    savedAt: savedAt ?? DateTime.now().subtract(const Duration(minutes: 20)),
+    idempotencyKey: key,
+    step: step,
+    routeAnimalId: routeAnimalId,
+    linkedAnimalId: linkedAnimalId,
+    species: 'Ringeltaube',
+    name: 'Pauli',
+    reasons: const ['adre1'],
+    ageClass: AgeClass.adult,
+    intakeWeight: '280',
+    intakeNotes: 'Flügel hängt',
+    photoPaths: photoPaths,
+  );
+
+  // Waits out the write debounce.
+  Future<void> settleDraftWrite(WidgetTester tester) =>
+      tester.pump(const Duration(seconds: 1));
+
+  // Accepts the restore prompt, then waits out the confirmation snackbar so it
+  // stops covering the wizard's navigation buttons.
+  Future<void> continueDraft(WidgetTester tester) async {
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('an untouched wizard persists nothing', (tester) async {
+    await pump(tester);
+
+    // Merely paging forward is not unsaved work and must leave no draft
+    // behind for the next intake to be offered.
+    await tapNext(tester);
+    await settleDraftWrite(tester);
+
+    expect(drafts.writes, 0);
+    expect(drafts.draft, isNull);
+  });
+
+  testWidgets('input is persisted once typing pauses', (tester) async {
+    await pump(tester);
+
+    await enterByLabel(tester, 'Name (optional)', 'Pauli');
+    // Nothing is written mid-keystroke...
+    await tester.pump();
+    expect(drafts.writes, 0);
+
+    // ...but the pause commits it.
+    await settleDraftWrite(tester);
+    expect(drafts.draft!.name, 'Pauli');
+    expect(drafts.draft!.species, 'Stadttaube');
+    expect(drafts.draft!.step, 0);
+    expect(drafts.draft!.idempotencyKey, isNotEmpty);
+  });
+
+  testWidgets('the debounce coalesces a burst of keystrokes', (tester) async {
+    await pump(tester);
+
+    for (final value in ['P', 'Pa', 'Pau']) {
+      await enterByLabel(tester, 'Name (optional)', value);
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await settleDraftWrite(tester);
+
+    expect(drafts.writes, 1);
+    expect(drafts.draft!.name, 'Pau');
+  });
+
+  testWidgets('non-text input is persisted too', (tester) async {
+    await pump(tester);
+
+    // Reason chips, dates and the exam switch are not Form fields, so they
+    // need their own hook into the draft — a value that only lives in
+    // setState is a value a crash eats.
+    await tapNext(tester);
+    await pickInjury(tester);
+    await settleDraftWrite(tester);
+
+    expect(drafts.draft!.reasons, ['adre1']);
+    expect(drafts.draft!.step, 1);
+  });
+
+  testWidgets('backgrounding flushes the pending draft at once', (
+    tester,
+  ) async {
+    await pump(tester);
+
+    await enterByLabel(tester, 'Name (optional)', 'Pauli');
+    await tester.pump();
+    expect(drafts.writes, 0, reason: 'still inside the debounce');
+
+    // Backgrounding is the last notice before the OS may evict the process —
+    // waiting out the debounce would be too late.
+    [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+    ].forEach(tester.binding.handleAppLifecycleStateChanged);
+    await tester.pump();
+
+    expect(drafts.writes, 1);
+    expect(drafts.draft!.name, 'Pauli');
+  });
+
+  testWidgets('a stored draft is offered back and repopulates the form', (
+    tester,
+  ) async {
+    drafts.draft = storedDraft();
+
+    await pump(tester);
+
+    expect(find.text('Continue unfinished intake?'), findsOneWidget);
+    expect(find.text('Unfinished intake restored'), findsNothing);
+    await continueDraft(tester);
+
+    // Step 0 came back...
+    expect(find.text('Pauli'), findsOneWidget);
+    expect(find.text('Ringeltaube'), findsOneWidget);
+
+    // ...and so did the steps the carer could no longer see.
+    await tapNext(tester);
+    expect(
+      tester
+          .widget<FilterChip>(find.widgetWithText(FilterChip, 'Injury'))
+          .selected,
+      isTrue,
+    );
+    expect(find.text('280'), findsOneWidget);
+    await tapNext(tester);
+    expect(find.text('Flügel hängt'), findsOneWidget);
+  });
+
+  testWidgets('a restored draft opens on the step it was left on', (
+    tester,
+  ) async {
+    drafts.draft = storedDraft(step: 2);
+
+    await pump(tester);
+    await continueDraft(tester);
+
+    expect(find.text('Step 3 of 3'), findsOneWidget);
+  });
+
+  testWidgets('restoring adopts the draft idempotency key', (tester) async {
+    // The intake may already have committed when the app died mid-submit.
+    // Resubmitting the SAME key makes the backend replay it instead of
+    // admitting the bird twice — federfall-3ty3, extended across process
+    // death.
+    drafts.draft = storedDraft(step: 2, key: 'key-from-before-the-crash');
+
+    await pump(tester);
+    await continueDraft(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    final key =
+        verify(
+              () => cases.intake(
+                any(),
+                photos: any(named: 'photos'),
+                idempotencyKey: captureAny(named: 'idempotencyKey'),
+              ),
+            ).captured.single
+            as String;
+    expect(key, 'key-from-before-the-crash');
+  });
+
+  testWidgets('a restored draft still guards against an accidental back', (
+    tester,
+  ) async {
+    drafts.draft = storedDraft();
+
+    await pump(tester);
+    await continueDraft(tester);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard changes?'), findsOneWidget);
+  });
+
+  testWidgets('starting over throws the stored draft away', (tester) async {
+    drafts.draft = storedDraft();
+
+    await pump(tester);
+    await tester.tap(find.text('Start over'));
+    await tester.pumpAndSettle();
+
+    expect(drafts.clears, 1);
+    expect(drafts.draft, isNull);
+    // A blank wizard, not a half-applied one.
+    expect(find.text('Pauli'), findsNothing);
+    expect(find.text('Stadttaube'), findsOneWidget);
+  });
+
+  testWidgets('a stale draft is purged without asking', (tester) async {
+    // A day-old intake nobody finished is stale enough that restoring it risks
+    // attaching yesterday's notes to today's bird.
+    drafts.draft = storedDraft(
+      savedAt: DateTime.now().subtract(
+        CaseIntakeDraft.maxAge + const Duration(minutes: 1),
+      ),
+    );
+
+    await pump(tester);
+
+    expect(find.text('Continue unfinished intake?'), findsNothing);
+    expect(drafts.clears, 1);
+    expect(drafts.draft, isNull);
+  });
+
+  testWidgets('a draft from another entry point is not offered, nor deleted', (
+    tester,
+  ) async {
+    // Started from an aviary resident; this is a blank intake, so the draft
+    // belongs to a different screen and must simply be left alone.
+    drafts.draft = storedDraft(routeAnimalId: 'anim9');
+
+    await pump(tester);
+
+    expect(find.text('Continue unfinished intake?'), findsNothing);
+    expect(drafts.clears, 0);
+    expect(drafts.draft, isNotNull);
+  });
+
+  testWidgets('a store that cannot be read does not block the wizard', (
+    tester,
+  ) async {
+    drafts.readError = Exception('keystore locked');
+
+    await pump(tester);
+
+    expect(find.text('Continue unfinished intake?'), findsNothing);
+    expect(find.text('Step 1 of 3'), findsOneWidget);
+  });
+
+  testWidgets('a committed intake clears the draft', (tester) async {
+    await pump(tester);
+
+    await enterByLabel(tester, 'Name (optional)', 'Pauli');
+    await settleDraftWrite(tester);
+    expect(drafts.draft, isNotNull);
+
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('CASE c1'), findsOneWidget);
+    expect(drafts.draft, isNull);
+  });
+
+  testWidgets('a failed intake keeps the draft', (tester) async {
+    when(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    ).thenThrow(
+      const RepositoryException('offline', kind: RepositoryErrorKind.network),
+    );
+
+    await pump(tester);
+
+    await enterByLabel(tester, 'Name (optional)', 'Pauli');
+    await settleDraftWrite(tester);
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    // Nothing committed, so the recovery path must still be there.
+    expect(drafts.draft, isNotNull);
+    expect(drafts.draft!.name, 'Pauli');
+  });
+
+  testWidgets('confirming a discard removes the draft', (tester) async {
+    await pump(tester);
+
+    await enterByLabel(tester, 'Name (optional)', 'Pauli');
+    await settleDraftWrite(tester);
+    expect(drafts.draft, isNotNull);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    // Otherwise the next intake would be offered this thrown-away one.
+    expect(find.text('HOME'), findsOneWidget);
+    expect(drafts.draft, isNull);
+  });
+
+  testWidgets('staged photos are restored, and vanished ones are reported', (
+    tester,
+  ) async {
+    // image_picker hands back files in a cache directory the OS may clear at
+    // any time, so a stored path can outlive its bytes: one of these two is
+    // still there, the other is gone.
+    photoLoader = FakeStagedPhotoLoader(const {'/cache/kept.jpg': 'kept.jpg'});
+    drafts.draft = storedDraft(
+      step: 2,
+      photoPaths: const ['/cache/kept.jpg', '/cache/gone.jpg'],
+    );
+
+    await pump(tester);
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    // Said out loud rather than silently swallowed.
+    expect(find.text('1 photo could not be restored'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    // The survivor still rides along on the intake; the dead path does not,
+    // which is what keeps submit from failing on a missing file.
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+    final files =
+        verify(
+              () => cases.intake(
+                any(),
+                photos: captureAny(named: 'photos'),
+                idempotencyKey: any(named: 'idempotencyKey'),
+              ),
+            ).captured.single
+            as List<http.MultipartFile>;
+    expect(files.length, 1);
+  });
+
+  testWidgets('a draft with only dead photo paths still restores', (
+    tester,
+  ) async {
+    drafts.draft = storedDraft(step: 2, photoPaths: const ['/cache/gone.jpg']);
+
+    await pump(tester);
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 photo could not be restored'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    // The rest of the intake survived — only the photos were lost.
+    expect(find.text('Flügel hängt'), findsOneWidget);
+  });
+
+  testWidgets('a restored draft brings its re-identified animal back', (
+    tester,
+  ) async {
+    when(() => animals.getOne('a9')).thenAnswer(
+      (_) async => const Animal(id: 'a9', species: 'Stadttaube', name: 'Pauli'),
+    );
+    drafts.draft = storedDraft(linkedAnimalId: 'a9');
+
+    await pump(tester);
+    await continueDraft(tester);
+
+    expect(find.byIcon(Icons.link), findsOneWidget);
+
+    await tapNext(tester); // linked, so step 0 needs no species
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    expect(capturedPayload()['animal'], 'a9');
+  });
+
+  testWidgets('a restored draft may deliberately hold no link at all', (
+    tester,
+  ) async {
+    // Opened for a resident, but the carer had unlinked the animal before the
+    // interruption — the draft is authoritative, so the route must not
+    // silently re-link it.
+    when(() => animals.getOne('a1')).thenAnswer(
+      (_) async => const Animal(id: 'a1', species: 'Stadttaube', name: 'Pauli'),
+    );
+    drafts.draft = storedDraft(routeAnimalId: 'a1');
+
+    await pump(tester, animalId: 'a1');
+    await continueDraft(tester);
+
+    expect(find.byIcon(Icons.link), findsNothing);
+    expect(find.text('Returning bird? Search'), findsOneWidget);
+  });
+
+  testWidgets('a draft whose animal is gone still restores, without the link', (
+    tester,
+  ) async {
+    when(() => animals.getOne('a9')).thenThrow(
+      const RepositoryException('gone', kind: RepositoryErrorKind.notFound),
+    );
+    drafts.draft = storedDraft(linkedAnimalId: 'a9');
+
+    await pump(tester);
+    await continueDraft(tester);
+
+    expect(find.byIcon(Icons.link), findsNothing);
+    // The rest of the intake is intact — a deleted bird costs the link only.
+    expect(find.text('Pauli'), findsOneWidget);
+  });
+
+  testWidgets('a reduced draft says what will not come back', (tester) async {
+    // What the web store leaves behind: no secure storage there, so the
+    // finder's contact details and the photos were dropped on the way in.
+    drafts.draft = storedDraft(
+      photoPaths: const ['/cache/kept.jpg'],
+    ).forPlaintextStore();
+    expect(drafts.draft!.partial, isTrue, reason: 'precondition');
+
+    await pump(tester);
+
+    expect(
+      find.textContaining('have to be entered again'),
+      findsOneWidget,
+      reason: 'a partial draft must not restore silently',
+    );
+  });
+
+  testWidgets('a full draft does not warn about anything', (tester) async {
+    drafts.draft = storedDraft();
+
+    await pump(tester);
+
+    expect(find.textContaining('have to be entered again'), findsNothing);
   });
 }

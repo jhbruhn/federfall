@@ -65,13 +65,18 @@ mixin DiscardGuard<T extends StatefulWidget> on State<T> {
 
   /// Wraps [child] so a back gesture or scrim tap prompts to discard while
   /// [isDirty]. Use it around the sheet body returned from [build].
-  Widget guardUnsavedChanges({required Widget child}) {
+  ///
+  /// [onDiscard] runs when the user confirms the discard, just before the pop —
+  /// for forms that keep state outside the widget (e.g. `NewCaseScreen`'s
+  /// persisted draft) and must throw it away too.
+  Widget guardUnsavedChanges({required Widget child, VoidCallback? onDiscard}) {
     return PopScope(
       canPop: !_dirty,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final navigator = Navigator.of(context);
         if (await confirmDiscardChanges(context) && mounted) {
+          onDiscard?.call();
           navigator.pop();
         }
       },

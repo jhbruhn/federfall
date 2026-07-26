@@ -1831,6 +1831,27 @@
     "discardConfirm": "Discard",
     "@discardConfirm": { "description": "Button that confirms discarding unsaved form input" },
 
+    "caseDraftRestoreTitle": "Continue unfinished intake?",
+    "@caseDraftRestoreTitle": { "description": "Title of the dialog offering to restore an interrupted intake wizard (federfall-t2is)" },
+    "caseDraftRestoreMessage": "An intake started on {when} was never completed.",
+    "@caseDraftRestoreMessage": {
+        "description": "Body of the restore-draft dialog, naming when the draft was last saved",
+        "placeholders": { "when": { "type": "String" } }
+    },
+    "caseDraftRestorePartial": "Photos and the finder's contact details are not kept in a draft here and have to be entered again.",
+    "@caseDraftRestorePartial": { "description": "Extra note in the restore-draft dialog when the draft could not hold every value (web: no secure storage)" },
+    "caseDraftRestoreConfirm": "Continue",
+    "@caseDraftRestoreConfirm": { "description": "Button that restores the saved intake draft" },
+    "caseDraftRestoreDiscard": "Start over",
+    "@caseDraftRestoreDiscard": { "description": "Button that throws the saved intake draft away and starts a blank intake" },
+    "caseDraftRestored": "Unfinished intake restored",
+    "@caseDraftRestored": { "description": "Confirmation shown after an interrupted intake was restored" },
+    "caseDraftPhotosMissing": "{count, plural, =1{1 photo could not be restored} other{{count} photos could not be restored}}",
+    "@caseDraftPhotosMissing": {
+        "description": "Warning after restoring a draft whose staged photos were cleared from the device cache",
+        "placeholders": { "count": { "type": "int" } }
+    },
+
     "printerSectionTitle": "Receipt printer",
     "@printerSectionTitle": { "description": "Title of the receipt-printer section on the profile screen" },
     "printerNotConfigured": "No printer configured",

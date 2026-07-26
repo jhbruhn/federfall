@@ -881,6 +881,14 @@
     "discardKeepEditing": "Weiter bearbeiten",
     "discardConfirm": "Verwerfen",
 
+    "caseDraftRestoreTitle": "Unvollständige Aufnahme fortsetzen?",
+    "caseDraftRestoreMessage": "Eine am {when} begonnene Aufnahme wurde nicht abgeschlossen.",
+    "caseDraftRestorePartial": "Fotos und die Kontaktdaten des Finders werden hier nicht im Entwurf gespeichert und müssen erneut eingegeben werden.",
+    "caseDraftRestoreConfirm": "Fortsetzen",
+    "caseDraftRestoreDiscard": "Neu beginnen",
+    "caseDraftRestored": "Unvollständige Aufnahme wiederhergestellt",
+    "caseDraftPhotosMissing": "{count, plural, =1{1 Foto konnte nicht wiederhergestellt werden} other{{count} Fotos konnten nicht wiederhergestellt werden}}",
+
     "printerSectionTitle": "Bondrucker",
     "printerNotConfigured": "Kein Drucker eingerichtet",
     "printerConfigureAction": "Drucker einrichten",
