@@ -50,8 +50,6 @@ class PlacementSheet extends ConsumerStatefulWidget {
 
 class _PlacementSheetState extends ConsumerState<PlacementSheet>
     with DiscardGuard, FormSheetState {
-  late final TextEditingController _where;
-  late final TextEditingController _area;
   late final TextEditingController _enclosure;
   late final TextEditingController _condition;
   late final TextEditingController _comments;
@@ -72,8 +70,6 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
   void initState() {
     super.initState();
     final p = widget.placement;
-    _where = TextEditingController(text: p?.whereHolding ?? '');
-    _area = TextEditingController(text: p?.area ?? '');
     _enclosure = TextEditingController(text: p?.enclosure ?? '');
     _condition = TextEditingController(text: p?.conditionAtHandoff ?? '');
     _comments = TextEditingController(text: p?.comments ?? '');
@@ -83,7 +79,7 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
 
   @override
   void dispose() {
-    for (final c in [_where, _area, _enclosure, _condition, _comments]) {
+    for (final c in [_enclosure, _condition, _comments]) {
       c.dispose();
     }
     super.dispose();
@@ -144,8 +140,10 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
       final body = <String, dynamic>{
         'moved_in_at': _movedInAt.toUtc().toIso8601String(),
         'carer': ?_carerId,
-        'where_holding': trimToNull(_where) ?? '',
-        'area': trimToNull(_area) ?? '',
+        // `where_holding` and `area` are deliberately absent: the form no
+        // longer offers them, and omitting them from the body leaves an
+        // existing row's legacy value intact (the tile still renders it)
+        // rather than blanking it on the next edit.
         'enclosure': trimToNull(_enclosure) ?? '',
         'condition_at_handoff': trimToNull(_condition) ?? '',
         'comments': trimToNull(_comments) ?? '',
@@ -226,24 +224,14 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
             onPick: _pickDate,
           ),
           const SizedBox(height: AppSpacing.md),
-          AppTextField(
-            controller: _where,
-            label: l10n.placementFieldWhere,
-            prefixIcon: Icons.home_outlined,
-            enabled: !isBusy,
-          ),
-          const SizedBox(height: AppSpacing.md),
+          // One location field, not three. The carer relation above already
+          // says with whom; all that is left is where at their place — and a
+          // carer's home does not need a "Bereich" above a "Gehege"
+          // (federfall-nhyv).
           AppTextField(
             controller: _enclosure,
             label: l10n.placementFieldEnclosure,
-            prefixIcon: Icons.crop_square,
-            enabled: !isBusy,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          AppTextField(
-            controller: _area,
-            label: l10n.placementFieldArea,
-            prefixIcon: Icons.map_outlined,
+            prefixIcon: Icons.home_outlined,
             enabled: !isBusy,
           ),
           const SizedBox(height: AppSpacing.md),

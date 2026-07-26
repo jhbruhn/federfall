@@ -130,6 +130,20 @@ void main() {
     expect(find.text('Save'), findsOneWidget);
   });
 
+  testWidgets('offers one location field, and never names an aviary', (
+    tester,
+  ) async {
+    await pump(tester, const PlacementSheet(medicalCase: medicalCase));
+
+    expect(find.text('Held in'), findsOneWidget);
+    // A placement can never refer to an org aviary: residency is a disposition
+    // that closes the case (main.pb.js). The old "Enclosure" label invited
+    // exactly that, above a redundant "Held at" and a too-fine "Area".
+    expect(find.text('Enclosure'), findsNothing);
+    expect(find.text('Held at'), findsNothing);
+    expect(find.text('Area'), findsNothing);
+  });
+
   testWidgets('the carer picker is always offered, on the current carer', (
     tester,
   ) async {
@@ -171,10 +185,10 @@ void main() {
 
     await tester.enterText(
       find.ancestor(
-        of: find.text('Enclosure'),
+        of: find.text('Held in'),
         matching: find.byType(TextField),
       ),
-      'Aviary 2',
+      'Box 2, bathroom',
     );
     await save(tester);
 
@@ -182,8 +196,12 @@ void main() {
     final body =
         verify(() => placements.create(captureAny())).captured.single
             as Map<String, dynamic>;
-    expect(body['enclosure'], 'Aviary 2');
+    expect(body['enclosure'], 'Box 2, bathroom');
     expect(body['to_user'], isNull);
+    // The retired fields are omitted, not sent empty, so editing an older row
+    // cannot blank a value the form no longer offers (federfall-nhyv).
+    expect(body.containsKey('where_holding'), isFalse);
+    expect(body.containsKey('area'), isFalse);
   });
 
   testWidgets('placement tile shows a handoff and its target', (tester) async {
