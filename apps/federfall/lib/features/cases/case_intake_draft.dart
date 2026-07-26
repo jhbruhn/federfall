@@ -116,33 +116,27 @@ class CaseIntakeDraft {
 
   /// Whether values the wizard held were dropped when this draft was stored,
   /// so the restore can say so instead of silently losing them. Set by
-  /// [forPlaintextStore].
+  /// [withoutPhotoPaths].
   final bool partial;
-
-  /// Whether any finder contact field carries input.
-  bool get hasFinder =>
-      finderFirstName.trim().isNotEmpty ||
-      finderLastName.trim().isNotEmpty ||
-      finderPhone.trim().isNotEmpty ||
-      finderEmail.trim().isNotEmpty ||
-      finderCity.trim().isNotEmpty;
 
   /// Whether this draft is too old to offer back, as of [now].
   bool isStaleAt(DateTime now) => now.difference(savedAt) > maxAge;
 
-  /// The subset of this draft that is safe and useful to keep in plaintext
-  /// storage — see `PrefsCaseIntakeDraftStore`, the web fallback.
+  /// This draft with the staged photo paths dropped — what the web fallback
+  /// keeps (`PrefsCaseIntakeDraftStore`).
   ///
-  /// Drops the finder's contact details. Those are a THIRD PARTY's PII, and
-  /// unlike the auth token (`auth_token_storage.dart`, which documents why
-  /// localStorage is an accepted risk for the user's OWN bearer token) there
-  /// is no equivalent argument for writing someone else's phone number and
-  /// address into a script-readable store. The backend runs a
-  /// `finder_retention` cron precisely to scrub this class of data.
+  /// On web an `XFile`'s path is a `blob:` URL scoped to the document, so it is
+  /// already dead by the time a draft would be restored; storing the list would
+  /// only produce entries the restore has to throw away again.
   ///
-  /// Also drops the staged photo paths: on web those are `blob:` URLs that die
-  /// with the document, so keeping them would only produce dead entries.
-  CaseIntakeDraft forPlaintextStore() => CaseIntakeDraft(
+  /// Everything else travels as-is, the finder's contact details included:
+  /// persisting intake data on the client is a deliberate choice here, and the
+  /// auth token already shares that store (see `auth_token_storage.dart` for
+  /// the CSP hardening the origin relies on).
+  ///
+  /// [partial] is set whenever something was actually dropped, so the restore
+  /// prompt can name it instead of losing it quietly.
+  CaseIntakeDraft withoutPhotoPaths() => CaseIntakeDraft(
     savedAt: savedAt,
     idempotencyKey: idempotencyKey,
     step: step,
@@ -161,9 +155,14 @@ class CaseIntakeDraft {
     intakeWeight: intakeWeight,
     quarantineDays: quarantineDays,
     intakeNotes: intakeNotes,
+    finderFirstName: finderFirstName,
+    finderLastName: finderLastName,
+    finderPhone: finderPhone,
+    finderEmail: finderEmail,
+    finderCity: finderCity,
     // photoPaths deliberately left at its empty default — see above.
     withExam: withExam,
-    partial: partial || hasFinder || photoPaths.isNotEmpty,
+    partial: partial || photoPaths.isNotEmpty,
   );
 
   Map<String, dynamic> toJson() => {

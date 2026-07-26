@@ -515,6 +515,8 @@ void main() {
     String? linkedAnimalId,
     DateTime? savedAt,
     List<String> photoPaths = const [],
+    String finderFirstName = '',
+    String finderPhone = '',
   }) => CaseIntakeDraft(
     savedAt: savedAt ?? DateTime.now().subtract(const Duration(minutes: 20)),
     idempotencyKey: key,
@@ -527,6 +529,8 @@ void main() {
     ageClass: AgeClass.adult,
     intakeWeight: '280',
     intakeNotes: 'Flügel hängt',
+    finderFirstName: finderFirstName,
+    finderPhone: finderPhone,
     photoPaths: photoPaths,
   );
 
@@ -920,17 +924,17 @@ void main() {
   });
 
   testWidgets('a reduced draft says what will not come back', (tester) async {
-    // What the web store leaves behind: no secure storage there, so the
-    // finder's contact details and the photos were dropped on the way in.
+    // What the web store leaves behind: an XFile path there is a blob: URL
+    // that dies with the document, so the photos were dropped on the way in.
     drafts.draft = storedDraft(
       photoPaths: const ['/cache/kept.jpg'],
-    ).forPlaintextStore();
+    ).withoutPhotoPaths();
     expect(drafts.draft!.partial, isTrue, reason: 'precondition');
 
     await pump(tester);
 
     expect(
-      find.textContaining('have to be entered again'),
+      find.textContaining('have to be added again'),
       findsOneWidget,
       reason: 'a partial draft must not restore silently',
     );
@@ -941,6 +945,48 @@ void main() {
 
     await pump(tester);
 
-    expect(find.textContaining('have to be entered again'), findsNothing);
+    expect(find.textContaining('have to be added again'), findsNothing);
+  });
+
+  testWidgets("the finder's contact details come back too", (tester) async {
+    // The finder section is optional but the most tedious to retype — a phone
+    // number nobody wrote down is gone for good once the app is killed.
+    drafts.draft = storedDraft(
+      step: 2,
+      finderFirstName: 'Anna',
+      finderPhone: '+49 170 0000000',
+    );
+
+    await pump(tester);
+    await continueDraft(tester);
+
+    // The optional section starts collapsed, as it does for typed input.
+    await tester.tap(find.text('Finder (optional)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Anna'), findsOneWidget);
+    expect(find.text('+49 170 0000000'), findsOneWidget);
+
+    // ...and travel on to the backend on submit.
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+    final finder = capturedPayload()['finder'] as Map<String, dynamic>;
+    expect(finder['first_name'], 'Anna');
+    expect(finder['phone'], '+49 170 0000000');
+  });
+
+  testWidgets('typed finder details are persisted into the draft', (
+    tester,
+  ) async {
+    await pump(tester);
+
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.text('Finder (optional)'));
+    await tester.pumpAndSettle();
+    await enterByLabel(tester, 'First name', 'Anna');
+    await settleDraftWrite(tester);
+
+    expect(drafts.draft!.finderFirstName, 'Anna');
   });
 }

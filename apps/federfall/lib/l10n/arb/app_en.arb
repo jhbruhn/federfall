@@ -1838,8 +1838,8 @@
         "description": "Body of the restore-draft dialog, naming when the draft was last saved",
         "placeholders": { "when": { "type": "String" } }
     },
-    "caseDraftRestorePartial": "Photos and the finder's contact details are not kept in a draft here and have to be entered again.",
-    "@caseDraftRestorePartial": { "description": "Extra note in the restore-draft dialog when the draft could not hold every value (web: no secure storage)" },
+    "caseDraftRestorePartial": "Photos are not kept in a draft here and have to be added again.",
+    "@caseDraftRestorePartial": { "description": "Extra note in the restore-draft dialog when the draft could not hold the staged photos (web: an XFile path is a blob: URL that dies with the document)" },
     "caseDraftRestoreConfirm": "Continue",
     "@caseDraftRestoreConfirm": { "description": "Button that restores the saved intake draft" },
     "caseDraftRestoreDiscard": "Start over",

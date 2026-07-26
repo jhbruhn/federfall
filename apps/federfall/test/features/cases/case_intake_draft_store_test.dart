@@ -88,31 +88,27 @@ void main() {
       store = PrefsCaseIntakeDraftStore();
     });
 
-    test('reads back the draft without the finder or the photos', () async {
+    test('reads back the draft, finder contact included', () async {
       await store.write(draft);
       final back = await store.read();
 
       expect(back!.idempotencyKey, 'key-1');
       expect(back.species, 'Stadttaube');
       expect(back.intakeNotes, 'Flügel hängt');
-      // Dropped on the way in — localStorage is readable by any script in the
-      // origin, and these are a third party's contact details.
-      expect(back.hasFinder, isFalse);
-      expect(back.photoPaths, isEmpty);
-      // ...and the draft says so, so the restore prompt can warn.
-      expect(back.partial, isTrue);
+      expect(back.finderFirstName, 'Anna');
+      expect(back.finderPhone, '+49 170 0000000');
     });
 
-    test('the finder PII never reaches the backing store', () async {
+    test('drops the photo paths and flags the draft partial', () async {
+      // On web an XFile path is a blob: URL scoped to the document, so it is
+      // already dead by the time a draft would be restored — storing it would
+      // only produce an entry the restore has to throw away again.
       await store.write(draft);
+      final back = await store.read();
 
-      final raw = (await SharedPreferences.getInstance()).getString(
-        'federfall.case_intake_draft',
-      )!;
-
-      expect(raw, isNot(contains('Anna')));
-      expect(raw, isNot(contains('+49 170 0000000')));
-      expect(raw, contains('Stadttaube'));
+      expect(back!.photoPaths, isEmpty);
+      // ...and the draft says so, so the restore prompt can warn.
+      expect(back.partial, isTrue);
     });
 
     test('an empty store reads as no draft', () async {

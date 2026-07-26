@@ -49,11 +49,15 @@ class SecureCaseIntakeDraftStore implements CaseIntakeDraftStore {
 /// Web fallback backed by `shared_preferences` (localStorage).
 ///
 /// Browsers give a Flutter web app no real secure storage, so anything written
-/// here is readable by any script in this origin. The draft is therefore
-/// reduced by [CaseIntakeDraft.forPlaintextStore] before it lands — see that
-/// method for why the finder's contact details are dropped instead of stored.
-/// The reduced draft is flagged `partial` so the restore prompt can say what
-/// will not come back.
+/// here is readable by any script in this origin — the same accepted tradeoff
+/// the auth token already makes (`auth_token_storage.dart` documents the CSP
+/// hardening it rests on). The draft's values, finder contact included, are
+/// stored as they are.
+///
+/// Only the staged photo paths are dropped, via
+/// [CaseIntakeDraft.withoutPhotoPaths] — on web they are `blob:` URLs that die
+/// with the document. That reduction flags the draft `partial` so the restore
+/// prompt can say the photos will not come back.
 class PrefsCaseIntakeDraftStore implements CaseIntakeDraftStore {
   static const _key = 'federfall.case_intake_draft';
 
@@ -66,7 +70,7 @@ class PrefsCaseIntakeDraftStore implements CaseIntakeDraftStore {
   Future<void> write(CaseIntakeDraft draft) async =>
       (await SharedPreferences.getInstance()).setString(
         _key,
-        draft.forPlaintextStore().encode(),
+        draft.withoutPhotoPaths().encode(),
       );
 
   @override

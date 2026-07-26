@@ -248,57 +248,28 @@ void main() {
     });
   });
 
-  group('hasFinder', () {
-    CaseIntakeDraft withFinder({String first = '', String phone = ''}) =>
-        CaseIntakeDraft(
-          savedAt: DateTime(2026, 7, 26),
-          idempotencyKey: 'k',
-          step: 0,
-          finderFirstName: first,
-          finderPhone: phone,
-        );
+  group('withoutPhotoPaths', () {
+    test('drops the staged photo paths, and says so', () {
+      final reduced = full.withoutPhotoPaths();
 
-    test('is false for a blank or whitespace-only section', () {
-      expect(withFinder().hasFinder, isFalse);
-      expect(withFinder(first: '   ').hasFinder, isFalse);
-    });
-
-    test('is true as soon as any field carries input', () {
-      expect(withFinder(phone: '0170').hasFinder, isTrue);
-    });
-  });
-
-  group('forPlaintextStore', () {
-    test('drops the finder PII and the photo paths, and says so', () {
-      final reduced = full.forPlaintextStore();
-
-      expect(reduced.finderFirstName, '');
-      expect(reduced.finderLastName, '');
-      expect(reduced.finderPhone, '');
-      expect(reduced.finderEmail, '');
-      expect(reduced.finderCity, '');
-      expect(reduced.hasFinder, isFalse);
       expect(reduced.photoPaths, isEmpty);
       expect(reduced.partial, isTrue);
     });
 
-    test('no PII survives into the encoded form', () {
-      // The point of the reduction: none of these strings may reach a
-      // script-readable store.
-      final encoded = full.forPlaintextStore().encode();
+    test('keeps the finder contact details', () {
+      // Persisting intake data client-side is accepted, so the web fallback
+      // carries the finder through rather than blanking it.
+      final reduced = full.withoutPhotoPaths();
 
-      for (final pii in [
-        'Anna',
-        'Schmidt',
-        '+49 170 0000000',
-        'anna@example.org',
-      ]) {
-        expect(encoded, isNot(contains(pii)), reason: pii);
-      }
+      expect(reduced.finderFirstName, 'Anna');
+      expect(reduced.finderLastName, 'Schmidt');
+      expect(reduced.finderPhone, '+49 170 0000000');
+      expect(reduced.finderEmail, 'anna@example.org');
+      expect(reduced.finderCity, 'Oldenburg');
     });
 
     test('keeps everything else intact', () {
-      final reduced = full.forPlaintextStore();
+      final reduced = full.withoutPhotoPaths();
 
       expect(reduced.idempotencyKey, 'key-1');
       expect(reduced.savedAt, full.savedAt);
@@ -321,19 +292,28 @@ void main() {
       expect(reduced.withExam, isTrue);
     });
 
-    test('is not flagged partial when there was nothing to drop', () {
+    test('is not flagged partial when there were no photos to drop', () {
       final draft = CaseIntakeDraft(
         savedAt: DateTime(2026, 7, 26),
         idempotencyKey: 'k',
         step: 1,
         species: 'Stadttaube',
+        finderFirstName: 'Anna',
       );
 
-      expect(draft.forPlaintextStore().partial, isFalse);
+      expect(draft.withoutPhotoPaths().partial, isFalse);
     });
 
     test('stays flagged partial once reduced, even applied twice', () {
-      expect(full.forPlaintextStore().forPlaintextStore().partial, isTrue);
+      expect(full.withoutPhotoPaths().withoutPhotoPaths().partial, isTrue);
+    });
+
+    test('survives the encode round-trip with the flag set', () {
+      final back = CaseIntakeDraft.decode(full.withoutPhotoPaths().encode())!;
+
+      expect(back.partial, isTrue);
+      expect(back.photoPaths, isEmpty);
+      expect(back.finderPhone, '+49 170 0000000');
     });
   });
 }

@@ -883,7 +883,7 @@
 
     "caseDraftRestoreTitle": "Unvollständige Aufnahme fortsetzen?",
     "caseDraftRestoreMessage": "Eine am {when} begonnene Aufnahme wurde nicht abgeschlossen.",
-    "caseDraftRestorePartial": "Fotos und die Kontaktdaten des Finders werden hier nicht im Entwurf gespeichert und müssen erneut eingegeben werden.",
+    "caseDraftRestorePartial": "Fotos werden hier nicht im Entwurf gespeichert und müssen erneut hinzugefügt werden.",
     "caseDraftRestoreConfirm": "Fortsetzen",
     "caseDraftRestoreDiscard": "Neu beginnen",
     "caseDraftRestored": "Unvollständige Aufnahme wiederhergestellt",
