@@ -640,6 +640,8 @@
     },
     "medStarted": "Beginn",
     "medEnded": "Ende",
+    "medPerKg": "Dosis pro kg Körpergewicht",
+    "medPerKgHelp": "Die Dosis wird bei jeder Gabe aus dem aktuellen Gewicht berechnet.",
     "medControlled": "Betäubungsmittel",
     "medControlledBadge": "BtM",
     "medInstructions": "Hinweise",

@@ -126,10 +126,11 @@ void main() {
         find.widgetWithText(TextField, 'Unit'),
         'mg',
       );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Dose per kg body weight'),
-        '20',
-      );
+      // One dose number, read per kilogram once the switch is on.
+      await tester.ensureVisible(find.text('Dose per kg body weight'));
+      await tester.tap(find.text('Dose per kg body weight'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Dose'), '20');
       await tester.enterText(
         find.widgetWithText(TextField, 'Product concentration'),
         '15',
@@ -147,6 +148,8 @@ void main() {
           verify(() => medications.create(captureAny())).captured.single
               as Map<String, dynamic>;
       expect(body['dose_rate'], 20);
+      // The flat-dose column is cleared, so the plan carries one dosing rule.
+      expect(body['dose'], isNull);
       expect(body['concentration_per_ml'], 15);
       expect(body['dose_unit'], 'mg');
     });

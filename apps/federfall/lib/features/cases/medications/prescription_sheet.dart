@@ -40,7 +40,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   late final TextEditingController _drug;
   late final TextEditingController _dose;
   late final TextEditingController _unit;
-  late final TextEditingController _doseRate;
   late final TextEditingController _concentration;
   late final TextEditingController _frequency;
   late final TextEditingController _customHours;
@@ -54,6 +53,11 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
 
   bool _doseSeeded = false;
 
+  /// Whether the dose above is per kilogram of body weight rather than a flat
+  /// amount. The two are alternatives, so they share one number field: a
+  /// prescription says either "0.5 mg" or "20 mg/kg", never both.
+  bool _perKg = false;
+
   bool get _isEditing => widget.plan != null;
 
   @override
@@ -63,7 +67,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     _drug = TextEditingController(text: p?.drug ?? '');
     _dose = TextEditingController();
     _unit = TextEditingController(text: p?.doseUnit ?? '');
-    _doseRate = TextEditingController();
     _concentration = TextEditingController();
     _frequency = TextEditingController(text: p?.frequency ?? '');
     _instructions = TextEditingController(text: p?.instructions ?? '');
@@ -87,9 +90,12 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     _doseSeeded = true;
     final l10n = context.l10n;
     final p = widget.plan;
-    if (p?.dose != null) _dose.text = formatDose(l10n, p!.dose, null);
+    // A stored rate wins: a plan that has one was written as a rate.
     if (p?.doseRate != null) {
-      _doseRate.text = formatDose(l10n, p!.doseRate, null);
+      _perKg = true;
+      _dose.text = formatDose(l10n, p!.doseRate, null);
+    } else if (p?.dose != null) {
+      _dose.text = formatDose(l10n, p!.dose, null);
     }
     if (p?.concentrationPerMl != null) {
       _concentration.text = formatDose(l10n, p!.concentrationPerMl, null);
@@ -102,7 +108,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       _drug,
       _dose,
       _unit,
-      _doseRate,
       _concentration,
       _frequency,
       _customHours,
@@ -120,10 +125,11 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     final ok = await runSave(() async {
       final (_, org) = await requireUserOrg();
       final repo = await ref.read(medicationsRepositoryProvider.future);
-      final dose = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
-      final doseRate = double.tryParse(
-        _doseRate.text.trim().replaceAll(',', '.'),
-      );
+      final amount = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
+      // The one number lands in whichever column it was entered as, and the
+      // other is cleared so a plan never carries a stale second dosing rule.
+      final dose = _perKg ? null : amount;
+      final doseRate = _perKg ? amount : null;
       final concentration = double.tryParse(
         _concentration.text.trim().replaceAll(',', '.'),
       );
@@ -192,7 +198,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   /// carer will see when logging a dose, so a typo in the rate is obvious while
   /// writing the plan rather than at the syringe.
   Widget? _ratePreview(AppLocalizations l10n, String unit) {
-    final rate = double.tryParse(_doseRate.text.trim().replaceAll(',', '.'));
+    if (!_perKg) return null;
+    final rate = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
     if (rate == null) return null;
     final weights = ref.watch(weightsForCaseProvider(widget.caseId)).value;
     final weight = latestWeight(weights ?? const []);
@@ -245,6 +252,9 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                 child: AppTextField(
                   controller: _dose,
                   label: l10n.medDose,
+                  suffixText: unit.isEmpty
+                      ? (_perKg ? '/kg' : null)
+                      : (_perKg ? '$unit/kg' : unit),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
@@ -252,6 +262,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                     FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
                   ],
                   enabled: !isBusy,
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -264,23 +275,22 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          // The rate is what keeps the plan correct as the bird gains weight:
-          // every dose re-derives from it, so a plan written at 240 g still
-          // doses right at 330 g. Both numbers are in the unit above.
-          AppTextField(
-            controller: _doseRate,
-            label: l10n.doseCalcRate,
-            hintText: l10n.doseCalcRateHint,
-            suffixText: unit.isEmpty ? null : '$unit/kg',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
-            ],
-            enabled: !isBusy,
-            onChanged: (_) => setState(() {}),
+          // Reading the dose above per kilogram is what keeps the plan correct
+          // as the bird gains weight: every dose re-derives from it, so a plan
+          // written at 240 g still doses right at 330 g.
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.medPerKg),
+            subtitle: Text(l10n.medPerKgHelp),
+            value: _perKg,
+            onChanged: isBusy
+                ? null
+                : (v) {
+                    setState(() => _perKg = v);
+                    markDirty();
+                  },
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.sm),
           AppTextField(
             controller: _concentration,
             label: l10n.doseCalcConcentration,
