@@ -1138,10 +1138,20 @@ def main():
           sorted(p["label"] for p in seeded) ==
           ["Medikament 1", "Medikament 2", "Medikament 3"],
           str([p["label"] for p in seeded]))
-    check("seeded entries carry no dosing numbers",
-          all(not p["dose_rate"] and not p["concentration_per_ml"]
-              and not p["rate_min"] and not p["rate_max"] for p in seeded),
-          str(seeded[:1]))
+    # 1700000061 fills them with example VALUES so an entry's purpose is
+    # visible — every one must say it is an example, so a round number in a
+    # dose field can never be mistaken for the org's protocol.
+    check("every seeded entry is marked as an example",
+          all("Beispiel" in (p["note"] or "") for p in seeded),
+          str([p["note"] for p in seeded]))
+    check("example rates sit inside their own advisory range",
+          all(p["rate_min"] <= p["dose_rate"] <= p["rate_max"]
+              for p in seeded if p["dose_rate"]),
+          str([(p["rate_min"], p["dose_rate"], p["rate_max"]) for p in seeded]))
+    check("an ml/kg example carries no concentration (nothing to draw up)",
+          all(not p["concentration_per_ml"]
+              for p in seeded if p["dose_unit"] == "ml"),
+          str([(p["dose_unit"], p["concentration_per_ml"]) for p in seeded]))
     s, _ = req("POST", "/api/collections/medication_products/records",
                toks["a"], {"label": "Carer's own", "org": ORG})
     check("carer CANNOT add a catalogue entry", s != 200, f"status {s}")
