@@ -29,8 +29,10 @@ class App extends ConsumerWidget {
       title: AppEnvironment.appName,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      // German is the design language; English stays available for development.
-      locale: const Locale('de'),
+      // Follow the device's language preference (federfall-qdsa). German is the
+      // design language and stays the fallback for anything we don't ship —
+      // see `resolveAppLocale`.
+      localeListResolutionCallback: (locales, _) => resolveAppLocale(locales),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: ref.watch(routerProvider),

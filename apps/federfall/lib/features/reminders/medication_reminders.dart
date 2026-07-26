@@ -70,9 +70,16 @@ class MedicationReminders extends _$MedicationReminders {
     final source = await ref.watch(worklistSourceProvider.future);
     await scheduler.replaceAll(
       planMedicationReminders(
-        // The app's UI language is fixed (app.dart pins the locale), so the
-        // notification copy follows it rather than the device language.
-        l10n: lookupAppLocalizations(const Locale('de')),
+        // Same locale the UI resolves to (federfall-qdsa) — there is no
+        // BuildContext out here, so read the device preference directly. A
+        // language change mid-run only reaches already-scheduled notifications
+        // on the next reconcile, which is close enough: the OS restarts the app
+        // on a system locale change anyway.
+        l10n: lookupAppLocalizations(
+          resolveAppLocale(
+            WidgetsBinding.instance.platformDispatcher.locales,
+          ),
+        ),
         medicationsDue: source.medicationsDue,
         casesById: {for (final c in source.cases) c.id: c},
         animalNameById: source.animalNameById,

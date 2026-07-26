@@ -18,9 +18,9 @@
 // Keeping that split means adding a language is a template-only change.
 //
 // `?lang=` picks the report language (falls back to "de" for anything else,
-// including a future client that doesn't send it yet — see federfall-qdsa:
-// the app itself is locale-locked to German today, so this is forward-looking
-// plumbing more than a currently-reachable choice).
+// including a client that doesn't send it). Live since federfall-qdsa: the app
+// follows the device language and sends its resolved locale, so a report really
+// can come back in either language now.
 //
 // Each routerAdd handler is its own isolated JSVM context (see the other
 // hooks in this dir) — no file-level helpers; everything below is declared
