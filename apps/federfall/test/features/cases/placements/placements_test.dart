@@ -135,7 +135,7 @@ void main() {
   ) async {
     await pump(tester, const PlacementSheet(medicalCase: medicalCase));
 
-    expect(find.text('Held in'), findsOneWidget);
+    expect(find.text('Location'), findsOneWidget);
     // A placement can never refer to an org aviary: residency is a disposition
     // that closes the case (main.pb.js). The old "Enclosure" label invited
     // exactly that, above a redundant "Held at" and a too-fine "Area".
@@ -185,7 +185,7 @@ void main() {
 
     await tester.enterText(
       find.ancestor(
-        of: find.text('Held in'),
+        of: find.text('Location'),
         matching: find.byType(TextField),
       ),
       'Box 2, bathroom',
