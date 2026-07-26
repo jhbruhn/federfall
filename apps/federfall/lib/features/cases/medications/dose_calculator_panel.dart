@@ -35,8 +35,14 @@ typedef CalculatedDose = ({
 /// not two.
 ///
 /// When the dose follows a prescription that carries a rate (federfall-6d3a.2),
-/// [initialRate] and [initialConcentrationPerMl] seed the two fields from it,
-/// so logging a planned dose is: open, glance at the numbers, tap.
+/// [initialRate] and [initialConcentrationPerMl] seed the two fields from it.
+/// The panel then opens expanded and applies the result itself: the vet
+/// already decided the number, so making the carer confirm the vet's own
+/// arithmetic is ceremony, not safety. The derivation stays on screen to be
+/// checked against, and the dose field stays editable.
+///
+/// It does NOT pre-apply from a stale weight — that is precisely where a number
+/// would be a guess, so the warning shows and the field is left empty.
 class DoseCalculatorPanel extends ConsumerStatefulWidget {
   const DoseCalculatorPanel({
     required this.caseId,
@@ -81,6 +87,11 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
   final GlobalKey _panelKey = GlobalKey();
 
   bool _seeded = false;
+  bool _autoApplied = false;
+
+  /// Seeded from a prescription's own rate, so the panel starts open and its
+  /// result is offered without a tap.
+  bool get _fromPlan => widget.initialRate != null;
 
   @override
   void didChangeDependencies() {
@@ -136,6 +147,29 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
     });
   }
 
+  /// Hands a prescription's own dose to the sheet, once, as soon as the weight
+  /// it needs has loaded — so logging a planned dose is open and save.
+  ///
+  /// Skipped on a stale weight: pre-filling a number derived from a weight
+  /// nobody has checked is the one thing this path exists to prevent. The carer
+  /// can still accept it by hand, having seen the warning.
+  void _maybeAutoApply(DoseCalculation result, String unit, Weight? weight) {
+    if (!_fromPlan || _autoApplied || !widget.enabled) return;
+    if (!result.hasAmount) return;
+    if (result.warnings.contains(DoseWarning.staleWeight)) return;
+    _autoApplied = true;
+    // After this frame: onApply calls setState on the sheet above.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onApply((
+        amount: result.amount!,
+        unit: unit,
+        weightGUsed: weight?.weightG,
+        volumeMl: result.volumeMl,
+      ));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // Rebuilds when the sheet's unit field changes: it labels every number
@@ -173,10 +207,13 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
             concentrationPerMl: _number(_concentration),
           );
 
+    _maybeAutoApply(result, unit, weight);
+
     return Card(
       key: _panelKey,
       margin: EdgeInsets.zero,
       child: ExpansionTile(
+        initiallyExpanded: _fromPlan,
         onExpansionChanged: (expanded) => _revealOnExpand(expanded: expanded),
         // Unfold instantly: an animated open would make the panel's height a
         // moving target for the scroll above, and there is nothing to admire

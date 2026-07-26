@@ -35,6 +35,26 @@ void main() {
       expect(pbInt('5'), 5);
       expect(pbDouble(1.5), 1.5);
       expect(pbDouble(''), isNull);
+      // Zero is a reading, not an absence, for a plain number.
+      expect(pbDouble(0), 0);
+    });
+  });
+
+  group('pbQuantity', () {
+    test('treats zero as absent, since PocketBase has no null number', () {
+      // Clearing a number field stores 0 and the API returns 0, so a dose or a
+      // rate of "0" is how "not prescribed" arrives.
+      expect(pbQuantity(0), isNull);
+      expect(pbQuantity(0.0), isNull);
+      expect(pbQuantity('0'), isNull);
+      expect(pbQuantity(''), isNull);
+      expect(pbQuantity(null), isNull);
+    });
+
+    test('passes real quantities through, including small ones', () {
+      expect(pbQuantity(20), 20);
+      expect(pbQuantity(0.001), 0.001);
+      expect(pbQuantity('1.5'), 1.5);
     });
   });
 

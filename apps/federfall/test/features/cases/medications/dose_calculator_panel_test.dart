@@ -312,12 +312,13 @@ void main() {
   });
 
   group('AdministrationSheet', () {
-    /// Pumps the dose sheet for a case with one 262 g weight on record.
+    /// Pumps the dose sheet for a case with one weight on record.
     Future<void> pumpSheet(
       WidgetTester tester,
       MockAdministrationsRepo administrations,
-      Medication plan,
-    ) async {
+      Medication plan, {
+      Duration weightAge = Duration.zero,
+    }) async {
       final container = ProviderContainer(
         overrides: [
           currentUserProvider.overrideWith(
@@ -330,7 +331,7 @@ void main() {
           medicationRoutesProvider.overrideWith((ref) async => const []),
           weightsForCaseProvider(
             'c1',
-          ).overrideWith((ref) async => [weight(262)]),
+          ).overrideWith((ref) async => [weight(262, age: weightAge)]),
         ],
       );
       addTearDown(container.dispose);
@@ -513,17 +514,17 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Dose calculator'));
-      await tester.pumpAndSettle();
-
-      // Nothing to type: both numbers came from the plan.
+      // Nothing to type and nothing to tap: the plan's own numbers are already
+      // in, the calculator is open, and the dose is filled from them.
       expect(find.text('0.3493 ml'), findsOneWidget);
       expect(find.text('20 mg/kg × 262 g = 5.24 mg'), findsOneWidget);
-
-      final apply = find.widgetWithText(FilledButton, 'Use as dose');
-      await tester.ensureVisible(apply);
-      await tester.tap(apply);
-      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Dose'))
+            .controller
+            ?.text,
+        '5.24',
+      );
 
       final save = find.widgetWithText(FilledButton, 'Save');
       await tester.ensureVisible(save);
@@ -536,6 +537,41 @@ void main() {
       expect(body['dose'], 5.24);
       expect(body['weight_g_used'], 262);
       expect(body['volume_ml'], 0.3493);
+    });
+
+    testWidgets('will not pre-fill a dose from a stale weight', (
+      tester,
+    ) async {
+      final administrations = MockAdministrationsRepo();
+      await pumpSheet(
+        tester,
+        administrations,
+        const Medication(
+          id: 'm1',
+          caseId: 'c1',
+          drug: 'Baytril',
+          doseUnit: 'mg',
+          doseRate: 20,
+        ),
+        weightAge: const Duration(days: 10),
+      );
+
+      // The calculator is open and shows the warning, but nothing is filled in:
+      // a dose off an unchecked weight is a guess, not a plan.
+      expect(
+        find.text(
+          'The last weighing is more than 3 days old — '
+          'weigh again before dosing.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Dose'))
+            .controller
+            ?.text,
+        isEmpty,
+      );
     });
 
     testWidgets('drops the derivation when the dose is typed over', (
@@ -559,14 +595,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Dose calculator'));
-      await tester.pumpAndSettle();
-      final apply = find.widgetWithText(FilledButton, 'Use as dose');
-      await tester.ensureVisible(apply);
-      await tester.tap(apply);
-      await tester.pumpAndSettle();
-
-      // Overriding the calculated amount makes the derivation a lie, so it is
+      // Overriding the pre-filled amount makes the derivation a lie, so it is
       // not stored against the hand-typed number.
       final doseField = find.widgetWithText(TextField, 'Dose');
       await tester.ensureVisible(doseField);

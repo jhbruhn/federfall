@@ -33,6 +33,21 @@ double? pbDouble(Object? raw) {
   return double.tryParse(s);
 }
 
+/// Reads an optional *quantity* — a dose, a rate, a concentration, a volume —
+/// where zero is not a value anyone means.
+///
+/// PocketBase has no null for a number field: clearing one stores `0`, and the
+/// API returns `0`, so `pbDouble` cannot tell "no rate prescribed" from "a rate
+/// of zero". For a quantity the distinction is not subtle — a plan whose rate
+/// reads 0 mg/kg would be shown as rate-based and dosed at nothing — so treat
+/// zero as absent and let the caller's `?? ` fall through.
+///
+/// Use [pbDouble] for numbers where zero is a real reading (a count, a delta).
+double? pbQuantity(Object? raw) {
+  final value = pbDouble(raw);
+  return (value == null || value == 0) ? null : value;
+}
+
 /// Reads a [num] as [int], tolerating string-encoded numbers.
 int? pbInt(Object? raw) {
   if (raw == null) return null;

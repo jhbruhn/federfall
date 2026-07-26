@@ -10,6 +10,7 @@ export 'src/converters.dart'
         pbEnum,
         pbEnumList,
         pbInt,
+        pbQuantity,
         pbString,
         pbStringList;
 export 'src/dosing.dart';
