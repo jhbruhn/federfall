@@ -10,6 +10,7 @@ export 'form_sheet.dart';
 export 'layout/content_bounds.dart';
 export 'layout/list_detail_scaffold.dart';
 export 'layout/window_size.dart';
+export 'number_format.dart';
 export 'validators.dart';
 export 'widgets/app_text_field.dart';
 export 'widgets/async_value_view.dart';

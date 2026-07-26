@@ -64,7 +64,8 @@ class PrescriptionTile extends ConsumerWidget {
     final routesById =
         ref.watch(medicationRoutesByIdProvider).value ?? const {};
     final detail = [
-      if (formatDose(plan.dose, plan.doseUnit) case final d when d.isNotEmpty)
+      if (formatDose(l10n, plan.dose, plan.doseUnit) case final d
+          when d.isNotEmpty)
         d,
       ?routesById[plan.route]?.label,
       if (frequency.isNotEmpty) frequency,
@@ -204,7 +205,7 @@ class AdministrationTile extends ConsumerWidget {
     final a = administration;
     final date = a.administeredAt ?? a.created;
 
-    final dose = formatDose(a.dose, a.doseUnit);
+    final dose = formatDose(l10n, a.dose, a.doseUnit);
     final drugDose = dose.isEmpty ? a.drug : '${a.drug} $dose';
     final routesById =
         ref.watch(medicationRoutesByIdProvider).value ?? const {};

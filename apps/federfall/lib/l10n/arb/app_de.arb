@@ -670,6 +670,28 @@
     "prescriptionDeleteConfirm": "Diese Verordnung wird endgültig gelöscht. Protokollierte Dosen bleiben erhalten.",
     "doseDeleteTitle": "Dosis löschen?",
     "doseDeleteConfirm": "Dieser Dosis-Eintrag wird endgültig gelöscht.",
+    "doseCalcTitle": "Dosisrechner",
+    "doseCalcPerKg": "pro kg",
+    "doseCalcPerAnimal": "pro Tier",
+    "doseCalcBasis": "Bezug",
+    "doseCalcRate": "Dosisrate",
+    "doseCalcRateHint": "z. B. 20",
+    "doseCalcConcentration": "Konzentration",
+    "doseCalcConcentrationHint": "z. B. 15",
+    "doseCalcApply": "Übernehmen",
+    "doseCalcNoWeight": "Kein Gewicht erfasst — zum Berechnen zuerst den Vogel wiegen.",
+    "doseCalcStaleWeight": "Letzte Wägung ist älter als {days} Tage — vor dem Dosieren neu wiegen.",
+    "@doseCalcStaleWeight": {
+        "placeholders": { "days": { "type": "int" } }
+    },
+    "doseCalcDilute": "Zu wenig zum Aufziehen — 1:{factor} verdünnen und {volume} aufziehen.",
+    "@doseCalcDilute": {
+        "placeholders": {
+            "factor": { "type": "int" },
+            "volume": { "type": "String" }
+        }
+    },
+    "doseCalcDisclaimer": "Rechenhilfe — für die verabreichte Dosis bleibt die behandelnde Person verantwortlich.",
     "profileTitle": "Profil",
     "profileNameLabel": "Name",
     "profileEmailLabel": "E-Mail",

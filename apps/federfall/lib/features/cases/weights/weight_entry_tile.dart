@@ -78,7 +78,7 @@ class WeightEntryTile extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            l10n.weightEventLabel(formatWeightG(weight.weightG)),
+            l10n.weightEventLabel(formatWeightG(l10n, weight.weightG)),
             style: theme.textTheme.bodyLarge,
           ),
           if (notes != null && notes.isNotEmpty)

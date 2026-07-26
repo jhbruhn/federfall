@@ -106,6 +106,23 @@ enum MedicationFrequencyKind {
       pbEnum(values, (e) => e.wire, v);
 }
 
+/// What a prescribed dose rate is measured against. Splitting the basis from
+/// the amount's unit (mg, ml, IU — free text) keeps the vocabulary from
+/// becoming the cross product of the two.
+enum DoseBasis {
+  /// Per kilogram of body weight — the usual avian rate, e.g. 20 mg/kg.
+  perKilogram('per_kg'),
+
+  /// A flat amount for the bird regardless of its weight.
+  perAnimal('per_animal');
+
+  const DoseBasis(this.wire);
+
+  final String wire;
+
+  static DoseBasis? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}
+
 /// Outcome of a case (`dispositions.type`).
 enum DispositionType {
   released('released'),

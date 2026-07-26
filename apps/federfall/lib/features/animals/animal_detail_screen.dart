@@ -244,7 +244,7 @@ class _WeightSection extends ConsumerWidget {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.monitor_weight_outlined),
-                      title: Text(formatWeightG(latest.weightG)),
+                      title: Text(formatWeightG(l10n, latest.weightG)),
                       subtitle: switch (latest.measuredAt ?? latest.created) {
                         final at? => Text(materialL10n.formatMediumDate(at)),
                         _ => null,

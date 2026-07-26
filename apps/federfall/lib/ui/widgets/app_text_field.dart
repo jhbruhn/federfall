@@ -18,6 +18,7 @@ class AppTextField extends StatelessWidget {
     this.enabled = true,
     this.hintText,
     this.prefixIcon,
+    this.suffixText,
     this.textInputAction,
     this.inputFormatters,
     this.maxLines = 1,
@@ -39,6 +40,10 @@ class AppTextField extends StatelessWidget {
   final bool autofocus;
   final bool enabled;
   final IconData? prefixIcon;
+
+  /// Unit shown inside the field's trailing edge (e.g. `mg/kg`), keeping a
+  /// number's meaning next to the number itself.
+  final String? suffixText;
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
 
@@ -70,6 +75,7 @@ class AppTextField extends StatelessWidget {
         labelText: label,
         hintText: hintText,
         prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
+        suffixText: suffixText,
         // Keep the resting label at the top of multiline fields instead of
         // vertically centered.
         alignLabelWithHint: maxLines != 1,

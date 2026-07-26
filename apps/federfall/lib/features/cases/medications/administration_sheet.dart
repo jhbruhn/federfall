@@ -1,5 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/medications/dose_calculator_panel.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -56,6 +57,8 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
   String? _route;
   late DateTime _administeredAt;
 
+  bool _doseSeeded = false;
+
   bool get _isEditing => widget.administration != null;
 
   @override
@@ -64,15 +67,22 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
     final a = widget.administration;
     final p = widget.plan;
     _drug = TextEditingController(text: a?.drug ?? p?.drug ?? '');
-    _dose = TextEditingController(
-      text: (a?.dose ?? p?.dose) == null
-          ? ''
-          : formatDose(a?.dose ?? p?.dose, null),
-    );
+    _dose = TextEditingController();
     _unit = TextEditingController(text: a?.doseUnit ?? p?.doseUnit ?? '');
     _notes = TextEditingController(text: a?.notes ?? '');
     _route = a?.route ?? p?.route;
     _administeredAt = a?.administeredAt?.toLocal() ?? DateTime.now();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Not in initState: the dose is written with the locale's decimal
+    // separator, and Localizations can only be read once dependencies exist.
+    if (_doseSeeded) return;
+    _doseSeeded = true;
+    final dose = widget.administration?.dose ?? widget.plan?.dose;
+    if (dose != null) _dose.text = formatDose(context.l10n, dose, null);
   }
 
   @override
@@ -89,6 +99,16 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
       setState(() => _administeredAt = picked);
       markDirty();
     }
+  }
+
+  /// Takes the calculator's result into the dose field. Explicit — the
+  /// calculator never writes a dose on its own.
+  void _applyCalculatedDose(double amount, String unit) {
+    setState(() {
+      _dose.text = formatDose(context.l10n, amount, null);
+      if (unit.isNotEmpty) _unit.text = unit;
+    });
+    markDirty();
   }
 
   Future<void> _save() async {
@@ -174,6 +194,13 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DoseCalculatorPanel(
+            caseId: widget.caseId,
+            initialUnit: _unit.text,
+            enabled: !isBusy,
+            onApply: _applyCalculatedDose,
           ),
           const SizedBox(height: AppSpacing.md),
           MedicationRouteDropdown(

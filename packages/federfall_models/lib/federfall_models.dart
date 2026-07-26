@@ -12,6 +12,7 @@ export 'src/converters.dart'
         pbInt,
         pbString,
         pbStringList;
+export 'src/dosing.dart';
 export 'src/enums.dart';
 export 'src/models/admission_reason.dart';
 export 'src/models/animal.dart';

@@ -84,7 +84,7 @@ List<PlannedReminder> planMedicationReminders({
       if (name != null && name.isNotEmpty) name,
     ].join(' · ');
     if (caseTitle.isEmpty) caseTitle = l10n.worklistUnnumberedCase;
-    final dose = formatDose(md.dose, md.doseUnit);
+    final dose = formatDose(l10n, md.dose, md.doseUnit);
     final body = [if (dose.isNotEmpty) dose, caseTitle].join(' — ');
 
     planned.add(

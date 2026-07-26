@@ -1,5 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/number_format.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -25,13 +27,11 @@ Future<List<MedicationAdministration>> administrationsForCase(
   return repo.forCase(caseId);
 });
 
-/// Formats a dose and unit compactly: `0.3 ml`, `1 Tablette`, or `''` when no
-/// dose is recorded. Drops a trailing `.0` on whole numbers.
-String formatDose(double? dose, String? unit) {
+/// Formats a dose and unit compactly: `0,3 ml`, `1 Tablette`, or `''` when no
+/// dose is recorded. The number follows the active locale (see [formatNumber]),
+/// so it matches the separator the carer types.
+String formatDose(AppLocalizations l10n, double? dose, String? unit) {
   if (dose == null) return '';
-  final n = dose == dose.roundToDouble()
-      ? dose.toStringAsFixed(0)
-      : dose.toString();
   final u = (unit == null || unit.isEmpty) ? '' : ' $unit';
-  return '$n$u';
+  return '${formatNumber(l10n, dose)}$u';
 }

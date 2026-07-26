@@ -90,7 +90,11 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                       value: s.avgTimeInCareDays == null
                           ? '–'
                           : l10n.statsDaysValue(
-                              s.avgTimeInCareDays!.toStringAsFixed(1),
+                              formatNumber(
+                                l10n,
+                                s.avgTimeInCareDays!,
+                                maxFractionDigits: 1,
+                              ),
                             ),
                     ),
                   ],

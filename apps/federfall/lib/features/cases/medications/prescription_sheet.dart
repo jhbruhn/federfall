@@ -48,6 +48,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   DateTime? _endedAt;
   bool _controlled = false;
 
+  bool _doseSeeded = false;
+
   bool get _isEditing => widget.plan != null;
 
   @override
@@ -55,9 +57,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     super.initState();
     final p = widget.plan;
     _drug = TextEditingController(text: p?.drug ?? '');
-    _dose = TextEditingController(
-      text: p?.dose == null ? '' : formatDose(p!.dose, null),
-    );
+    _dose = TextEditingController();
     _unit = TextEditingController(text: p?.doseUnit ?? '');
     _frequency = TextEditingController(text: p?.frequency ?? '');
     _instructions = TextEditingController(text: p?.instructions ?? '');
@@ -70,6 +70,17 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     _startedAt = (p?.startedAt ?? p?.created)?.toLocal() ?? DateTime.now();
     _endedAt = p?.endedAt;
     _controlled = p?.isControlled ?? false;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Not in initState: the dose is written with the locale's decimal
+    // separator, and Localizations can only be read once dependencies exist.
+    if (_doseSeeded) return;
+    _doseSeeded = true;
+    final dose = widget.plan?.dose;
+    if (dose != null) _dose.text = formatDose(context.l10n, dose, null);
   }
 
   @override
