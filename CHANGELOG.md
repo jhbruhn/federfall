@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.0](https://github.com/jhbruhn/federfall/compare/v0.8.0...v0.9.0) (2026-07-26)
+
+
+### Features
+
+* **admin:** give the catalogue placeholders example values ([6265511](https://github.com/jhbruhn/federfall/commit/62655118101c60fa7a7654931e404e68223facf0))
+* **admin:** org-managed drug catalogue behind the prescription form ([b8008cb](https://github.com/jhbruhn/federfall/commit/b8008cb42144e13098a396af56aa373fc693790e))
+* **cases:** calculate doses from body weight when logging a dose ([6d037cd](https://github.com/jhbruhn/federfall/commit/6d037cdcf4bf0b11c51dfb69e57656b88d8207b1))
+* **cases:** prescribe the rate so a plan follows the bird's weight ([2fd82c6](https://github.com/jhbruhn/federfall/commit/2fd82c622448e3541aa220f9a6498d0843be13f8))
+
+
+### Bug Fixes
+
+* **admin:** code-list deletes state the damage and offer deactivating ([e330249](https://github.com/jhbruhn/federfall/commit/e330249c612c660fc6532e53ee2a1fe629cf1eae))
+* **cases:** a cleared PocketBase number is 0, not null — and log a planned dose in one tap ([c503757](https://github.com/jhbruhn/federfall/commit/c503757d3870f26177c0e3fa4c9106027624f411))
+* **cases:** one dose number in a prescription, read per kg or flat ([576712a](https://github.com/jhbruhn/federfall/commit/576712a9bde129f3c19bbf25b0c4eec6b08ebb5e))
+* **cases:** picking a catalogue entry replaces the dosing, not just the gaps ([163da2d](https://github.com/jhbruhn/federfall/commit/163da2dc6fba3ad67b8cb6856be444f17eb6b4ca))
+* **ui:** destructive confirms differ from Cancel in shape, not just colour ([237e986](https://github.com/jhbruhn/federfall/commit/237e9867471e37823753efaa23ca58e1e2513b5a))
+
 ## [0.8.0](https://github.com/jhbruhn/federfall/compare/v0.7.0...v0.8.0) (2026-07-25)
 
 
