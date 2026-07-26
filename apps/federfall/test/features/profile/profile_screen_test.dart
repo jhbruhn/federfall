@@ -5,6 +5,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/printing/printer_service.dart';
 import 'package:federfall/features/profile/profile_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -305,7 +306,9 @@ void main() {
 
     await tester.tap(find.byTooltip('Remove printer'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Remove printer'));
+    await tester.tap(
+      find.widgetWithText(DestructiveActionButton, 'Remove printer'),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('No printer configured'), findsOneWidget);

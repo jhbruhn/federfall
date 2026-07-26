@@ -1,5 +1,6 @@
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/widgets/destructive_action_button.dart';
 import 'package:flutter/material.dart';
 
 /// Runs a one-tap quick action (worklist mark-done, quarantine end-now, tile
@@ -47,9 +48,11 @@ Future<void> confirmAndDelete(
           onPressed: () => Navigator.of(ctx).pop(false),
           child: Text(l10n.actionCancel),
         ),
-        TextButton(
+        // Filled and error-coloured, not a second text button: see
+        // [DestructiveActionButton].
+        DestructiveActionButton(
+          label: confirmLabel,
           onPressed: () => Navigator.of(ctx).pop(true),
-          child: Text(confirmLabel),
         ),
       ],
     ),

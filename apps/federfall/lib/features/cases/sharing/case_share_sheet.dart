@@ -96,9 +96,9 @@ class _CaseShareSheetState extends ConsumerState<_CaseShareSheet> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(l10n.actionCancel),
           ),
-          TextButton(
+          DestructiveActionButton(
+            label: l10n.caseShareRevokeAction,
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.caseShareRevokeAction),
           ),
         ],
       ),

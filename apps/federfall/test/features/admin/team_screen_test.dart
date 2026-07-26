@@ -5,6 +5,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -317,8 +318,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Remove member'));
     await tester.pumpAndSettle();
-    // Confirm in the dialog.
-    await tester.tap(find.widgetWithText(TextButton, 'Remove member').last);
+    // Confirm in the dialog — the destructive button, not another TextButton.
+    await tester.tap(
+      find.widgetWithText(DestructiveActionButton, 'Remove member'),
+    );
     await tester.pumpAndSettle();
 
     verify(() => users.delete('m1')).called(1);

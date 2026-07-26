@@ -4,6 +4,7 @@ import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_tile.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -149,7 +150,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Delete marking?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.tap(find.widgetWithText(DestructiveActionButton, 'Delete'));
     await tester.pumpAndSettle();
 
     verify(() => markings.delete('m1')).called(1);

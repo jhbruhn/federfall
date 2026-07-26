@@ -204,9 +204,9 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(l10n.actionCancel),
           ),
-          TextButton(
+          DestructiveActionButton(
+            label: l10n.dispositionDeleteAction,
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.dispositionDeleteAction),
           ),
         ],
       ),

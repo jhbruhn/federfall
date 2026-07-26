@@ -7,6 +7,7 @@ import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -273,7 +274,9 @@ void main() {
     expect(find.textContaining('is still in use'), findsNothing);
     expect(find.text('Deactivate instead'), findsNothing);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Delete condition').last);
+    await tester.tap(
+      find.widgetWithText(DestructiveActionButton, 'Delete condition').last,
+    );
     await tester.pumpAndSettle();
 
     verify(() => repo.delete('c1')).called(1);
@@ -314,7 +317,10 @@ void main() {
       find.widgetWithText(FilledButton, 'Deactivate instead'),
       findsOne,
     );
-    expect(find.widgetWithText(TextButton, 'Delete anyway'), findsOne);
+    expect(
+      find.widgetWithText(DestructiveActionButton, 'Delete anyway'),
+      findsOne,
+    );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Deactivate instead'));
     await tester.pumpAndSettle();
@@ -347,7 +353,9 @@ void main() {
     );
 
     await _tapDelete(tester, 'Delete condition');
-    await tester.tap(find.widgetWithText(TextButton, 'Delete anyway'));
+    await tester.tap(
+      find.widgetWithText(DestructiveActionButton, 'Delete anyway'),
+    );
     await tester.pumpAndSettle();
 
     verify(() => repo.delete('c1')).called(1);

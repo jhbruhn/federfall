@@ -1,5 +1,6 @@
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/theme/app_spacing.dart';
+import 'package:federfall/ui/widgets/destructive_action_button.dart';
 import 'package:flutter/material.dart';
 
 /// What the user picked in a [DestructiveDialog].
@@ -41,6 +42,7 @@ class DestructiveDialog extends StatelessWidget {
     required this.intro,
     required this.bullets,
     this.confirmLabel,
+    this.confirmIcon,
     this.alternativeLabel,
     this.closingNote,
     super.key,
@@ -56,6 +58,10 @@ class DestructiveDialog extends StatelessWidget {
   /// Label of the destructive action. Omit when it cannot be offered at all —
   /// the dialog then has no way to return [DestructiveChoice.confirm].
   final String? confirmLabel;
+
+  /// Optional icon on the destructive action, for the cascading deletes where
+  /// one more redundant signal earns its space.
+  final IconData? confirmIcon;
 
   /// Label of the reversible alternative. When set it becomes the primary
   /// (filled) button, so the safe route carries the visual weight.
@@ -108,13 +114,14 @@ class DestructiveDialog extends StatelessWidget {
           child: Text(l10n.actionCancel),
         ),
         if (confirmLabel case final label?)
-          TextButton(
+          DestructiveActionButton(
+            label: label,
+            icon: confirmIcon,
+            // An alternative on the row is the primary; this steps back to an
+            // outline so the safe route keeps the weight.
+            demoted: alternativeLabel != null,
             onPressed: () =>
                 Navigator.of(context).pop(DestructiveChoice.confirm),
-            style: TextButton.styleFrom(
-              foregroundColor: theme.colorScheme.error,
-            ),
-            child: Text(label),
           ),
         // Last, so it lands in the primary (trailing) position.
         if (alternativeLabel case final label?)

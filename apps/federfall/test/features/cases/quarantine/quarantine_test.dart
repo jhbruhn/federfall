@@ -3,6 +3,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_sheet.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -206,7 +207,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Delete quarantine?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.tap(find.widgetWithText(DestructiveActionButton, 'Delete'));
       await tester.pumpAndSettle();
 
       verify(() => quarantine.delete('q1')).called(1);

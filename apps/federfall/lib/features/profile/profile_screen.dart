@@ -266,9 +266,9 @@ class _PrinterSection extends ConsumerWidget {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(l10n.actionCancel),
           ),
-          TextButton(
+          DestructiveActionButton(
+            label: l10n.printerRemoveAction,
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.printerRemoveAction),
           ),
         ],
       ),

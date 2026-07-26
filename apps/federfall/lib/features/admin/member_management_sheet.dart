@@ -132,9 +132,9 @@ class _MemberManagementSheetState extends ConsumerState<MemberManagementSheet>
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(l10n.actionCancel),
             ),
-            TextButton(
+            DestructiveActionButton(
+              label: l10n.memberRemoveAction,
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l10n.memberRemoveAction),
             ),
           ],
         ),

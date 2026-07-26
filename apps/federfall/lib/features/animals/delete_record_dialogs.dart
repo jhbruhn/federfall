@@ -67,6 +67,7 @@ Future<bool> confirmDeleteAnimal(
         if (cases.isNotEmpty) (l10n.animalDeleteCaseContents, false),
       ],
       confirmLabel: l10n.animalDeleteAction,
+      confirmIcon: Icons.delete_forever,
       closingNote: l10n.animalDeleteIrreversible,
     ),
   );
@@ -125,6 +126,7 @@ Future<bool> confirmDeleteCase(
         (l10n.caseDeleteKeeps, false),
       ],
       confirmLabel: l10n.caseDeleteAction,
+      confirmIcon: Icons.delete_forever,
       closingNote: l10n.animalDeleteIrreversible,
     ),
   );

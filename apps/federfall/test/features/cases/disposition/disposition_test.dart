@@ -4,6 +4,7 @@ import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -190,8 +191,10 @@ void main() {
       );
       await tester.tap(find.widgetWithText(TextButton, 'Delete outcome'));
       await tester.pumpAndSettle();
-      // Confirm in the dialog.
-      await tester.tap(find.widgetWithText(TextButton, 'Delete outcome').last);
+      // Confirm in the dialog — the destructive button, not another TextButton.
+      await tester.tap(
+        find.widgetWithText(DestructiveActionButton, 'Delete outcome'),
+      );
       await tester.pumpAndSettle();
 
       verify(() => dispositions.delete('d1')).called(1);

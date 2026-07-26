@@ -6,6 +6,7 @@ import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -129,8 +130,8 @@ void main() {
 
       expect(find.text('• 1 of them is STILL IN CARE'), findsOneWidget);
       // The confirm button is live — an open case warns, it does not block.
-      final confirm = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Delete animal'),
+      final confirm = tester.widget<DestructiveActionButton>(
+        find.widgetWithText(DestructiveActionButton, 'Delete animal'),
       );
       expect(confirm.onPressed, isNotNull);
     });
@@ -160,7 +161,9 @@ void main() {
         open: (context, ref) => confirmDeleteAnimal(context, ref, _animal),
       );
 
-      await tester.tap(find.widgetWithText(TextButton, 'Delete animal'));
+      await tester.tap(
+        find.widgetWithText(DestructiveActionButton, 'Delete animal'),
+      );
       await tester.pumpAndSettle();
 
       verify(() => animals.delete('a1')).called(1);
@@ -177,7 +180,9 @@ void main() {
         open: (context, ref) => confirmDeleteAnimal(context, ref, _animal),
       );
 
-      await tester.tap(find.widgetWithText(TextButton, 'Delete animal'));
+      await tester.tap(
+        find.widgetWithText(DestructiveActionButton, 'Delete animal'),
+      );
       await tester.pumpAndSettle();
 
       expect(resolved, [false]);
@@ -232,7 +237,9 @@ void main() {
         bundle: const CaseBundle(medicalCase: medicalCase),
       );
 
-      await tester.tap(find.widgetWithText(TextButton, 'Delete case'));
+      await tester.tap(
+        find.widgetWithText(DestructiveActionButton, 'Delete case'),
+      );
       await tester.pumpAndSettle();
 
       verify(() => cases.delete('c1')).called(1);

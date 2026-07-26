@@ -5,6 +5,7 @@ import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -134,7 +135,7 @@ void main() {
       await tester.pumpAndSettle();
       // Confirmation dialog.
       expect(find.text('Merge these animals?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Merge'));
+      await tester.tap(find.widgetWithText(DestructiveActionButton, 'Merge'));
       await tester.pumpAndSettle();
 
       final captured = verify(
