@@ -29,6 +29,11 @@ final conditionsCodelistSpec = CodelistSpec<Condition>(
   deleteAction: (l10n) => l10n.conditionCodelistDeleteAction,
   deleteConfirm: (l10n, label) => l10n.conditionCodelistDeleteConfirm(label),
   activeHelp: (l10n) => l10n.conditionActiveHelp,
+  countReferences: (ref, c) async {
+    final repo = await ref.read(caseConditionsRepositoryProvider.future);
+    return repo.countForCondition(c.id);
+  },
+  inUse: (l10n, count) => l10n.conditionCodelistInUse(count),
 );
 
 /// The org's reasons-for-admission vocabulary.
@@ -49,6 +54,11 @@ final admissionReasonsCodelistSpec = CodelistSpec<AdmissionReason>(
   deleteConfirm: (l10n, label) =>
       l10n.admissionReasonCodelistDeleteConfirm(label),
   activeHelp: (l10n) => l10n.admissionReasonActiveHelp,
+  countReferences: (ref, r) async {
+    final repo = await ref.read(casesRepositoryProvider.future);
+    return repo.countForAdmissionReason(r.id);
+  },
+  inUse: (l10n, count) => l10n.admissionReasonCodelistInUse(count),
 );
 
 /// The org's marking vocabulary (ring kinds, microchip, temporary markers…).
@@ -68,6 +78,14 @@ final markingTypesCodelistSpec = CodelistSpec<MarkingType>(
   deleteAction: (l10n) => l10n.markingTypeCodelistDeleteAction,
   deleteConfirm: (l10n, label) => l10n.markingTypeCodelistDeleteConfirm(label),
   activeHelp: (l10n) => l10n.markingTypeActiveHelp,
+  countReferences: (ref, t) async {
+    final repo = await ref.read(markingsRepositoryProvider.future);
+    return repo.countForType(t.id);
+  },
+  inUse: (l10n, count) => l10n.markingTypeCodelistInUse(count),
+  // The only list whose referencing relation (`markings.type`) is required —
+  // PocketBase rejects the delete while any marking uses the type.
+  deleteBlockedWhenInUse: true,
 );
 
 /// The org's routes-of-administration vocabulary (oral, subcutaneous…).
@@ -88,4 +106,23 @@ final medicationRoutesCodelistSpec = CodelistSpec<MedicationRoute>(
   deleteConfirm: (l10n, label) =>
       l10n.medicationRouteCodelistDeleteConfirm(label),
   activeHelp: (l10n) => l10n.medicationRouteActiveHelp,
+  // Three collections point at a route: the prescription, every dose logged
+  // against it, and the drug catalogue. Counted concurrently and summed — the
+  // dialog reports one number for "records that would lose this route".
+  countReferences: (ref, r) async {
+    final prescriptions = await ref.read(medicationsRepositoryProvider.future);
+    final doses = await ref.read(
+      medicationAdministrationsRepositoryProvider.future,
+    );
+    final products = await ref.read(
+      medicationProductsRepositoryProvider.future,
+    );
+    final counts = await Future.wait([
+      prescriptions.countForRoute(r.id),
+      doses.countForRoute(r.id),
+      products.countForRoute(r.id),
+    ]);
+    return counts.reduce((a, b) => a + b);
+  },
+  inUse: (l10n, count) => l10n.medicationRouteCodelistInUse(count),
 );

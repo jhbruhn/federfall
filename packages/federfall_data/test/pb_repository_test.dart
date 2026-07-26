@@ -246,6 +246,34 @@ void main() {
     );
   });
 
+  test('count reads totalItems and transfers no records', () async {
+    when(
+      () => service.getList(
+        page: any(named: 'page'),
+        perPage: any(named: 'perPage'),
+        skipTotal: any(named: 'skipTotal'),
+        filter: any(named: 'filter'),
+        fields: any(named: 'fields'),
+      ),
+    ).thenAnswer((_) async => ResultList<RecordModel>(totalItems: 42));
+
+    expect(
+      await repo.count(filter: repo.filterExpr('name = {:n}', {'n': 'Lotte'})),
+      42,
+    );
+    final call = verify(
+      () => service.getList(
+        page: 1,
+        perPage: captureAny(named: 'perPage'),
+        skipTotal: captureAny(named: 'skipTotal'),
+        filter: captureAny(named: 'filter'),
+        fields: captureAny(named: 'fields'),
+      ),
+    ).captured;
+    // One row, ids only — and skipTotal MUST be false or totalItems is 0.
+    expect(call, [1, false, 'name = {:n}', 'id']);
+  });
+
   test('a mapper failure surfaces as RepositoryException, not raw', () async {
     when(
       () => service.getList(

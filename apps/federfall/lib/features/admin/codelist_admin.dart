@@ -1,7 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
-import 'package:federfall/core/error/quick_action.dart';
+import 'package:federfall/features/admin/codelist_delete.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -33,9 +33,12 @@ class CodelistSpec<T> {
     required this.deleteAction,
     required this.deleteConfirm,
     required this.activeHelp,
+    required this.countReferences,
+    required this.inUse,
     this.description,
     this.notifiable,
     this.contagious,
+    this.deleteBlockedWhenInUse = false,
   });
 
   /// Watches the list provider (the full code list, label-sorted).
@@ -61,6 +64,20 @@ class CodelistSpec<T> {
   final String Function(AppLocalizations) deleteAction;
   final String Function(AppLocalizations, String label) deleteConfirm;
   final String Function(AppLocalizations) activeHelp;
+
+  /// Counts the live records that still point at an entry, summed across every
+  /// collection referencing this list. Awaited before the delete confirmation
+  /// so the dialog can name the number — see [confirmCodelistDelete].
+  final Future<int> Function(WidgetRef ref, T entry) countReferences;
+
+  /// Names what [countReferences] counted ("3 markings use this type").
+  final String Function(AppLocalizations, int count) inUse;
+
+  /// True when the referencing relation is **required**, so PocketBase refuses
+  /// the delete outright while any reference exists. Only `markings.type` is:
+  /// the other three lists are referenced by optional relations, where a
+  /// delete succeeds and silently blanks the field on every referencing record.
+  final bool deleteBlockedWhenInUse;
 
   /// Reads the optional free-text description; non-null adds the field to the
   /// sheet (stored as `description`).
@@ -141,33 +158,6 @@ class _CodelistTile<T> extends ConsumerWidget {
   final CodelistSpec<T> spec;
   final T entry;
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final l10n = context.l10n;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(spec.deleteAction(l10n)),
-        content: Text(spec.deleteConfirm(l10n, spec.label(entry))),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(spec.deleteAction(l10n)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !context.mounted) return;
-    await runQuickAction(context, () async {
-      final repo = await spec.repository(ref);
-      await repo.delete(spec.id(entry));
-      spec.refresh(ref);
-    });
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
@@ -203,7 +193,8 @@ class _CodelistTile<T> extends ConsumerWidget {
         icon: const Icon(Icons.more_vert),
         itemBuilder: (_) => [
           PopupMenuItem(
-            onTap: () => _delete(context, ref),
+            onTap: () =>
+                confirmCodelistDelete(context, ref, spec: spec, entry: entry),
             child: Text(spec.deleteAction(l10n)),
           ),
         ],

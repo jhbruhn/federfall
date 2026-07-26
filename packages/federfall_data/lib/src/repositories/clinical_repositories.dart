@@ -64,6 +64,13 @@ class PbMedicationsRepository extends PbRepository<Medication> {
     filter: filterExpr('case = {:c}', {'c': caseId}),
     sort: '-started_at',
   );
+
+  /// How many prescriptions still name the [routeId] code-list entry — one of
+  /// the three collections a `medication_routes` delete would blank, since
+  /// `route` is an optional relation with `cascadeDelete: false` (same
+  /// mechanism as `PbCaseConditionsRepository.countForCondition`).
+  Future<int> countForRoute(String routeId) =>
+      count(filter: filterExpr('route = {:r}', {'r': routeId}));
 }
 
 /// Repository over the `medication_administrations` collection (doses given).
@@ -81,6 +88,11 @@ class PbMedicationAdministrationsRepository
     filter: filterExpr('case = {:c}', {'c': caseId}),
     sort: '-administered_at',
   );
+
+  /// How many logged doses still name the [routeId] code-list entry — the
+  /// second of the three `medication_routes` referrers.
+  Future<int> countForRoute(String routeId) =>
+      count(filter: filterExpr('route = {:r}', {'r': routeId}));
 }
 
 /// Repository over the `journal_entries` collection (dated log + photos).

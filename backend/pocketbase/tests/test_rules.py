@@ -983,6 +983,78 @@ def main():
         s, _ = req("GET", f"/api/collections/{coll}/records/{rec_id}", T)
         check(f"deleting the animal removes {label}", s == 404, f"status {s}")
 
+    # ── code-list delete semantics (federfall-58t1) ──────────────────────────
+    # The code-list delete confirmation names how many live records reference an
+    # entry and states what deleting it would do to them. That copy is only true
+    # while these schema facts hold, so pin them:
+    #
+    #   * referenced through an OPTIONAL relation (cascadeDelete false) -> the
+    #     delete SUCCEEDS and PocketBase silently BLANKS the field. Nothing is
+    #     orphaned; the recorded value is simply gone. Hence "Deactivate
+    #     instead" as the primary action.
+    #   * `markings.type` is REQUIRED -> the delete is REFUSED outright, which
+    #     is why that one list offers no "Delete anyway" at all.
+    #
+    # Flip any of these (make a relation required, or add a cascade) and the
+    # dialog starts lying — this block fails first.
+    print("\n[code-list delete semantics]")
+    cl_case = mk(T, "cases", {
+        "animal": animal, "active_carer": A, "org": ORG,
+    })["id"]
+
+    cl_cond = mk(T, "conditions", {
+        "label": "58t1 condition", "active": True, "org": ORG,
+    })["id"]
+    cl_cc = mk(T, "case_conditions", {
+        "case": cl_case, "condition": cl_cond, "org": ORG,
+    })["id"]
+    check("a referenced condition is countable via case_conditions.condition",
+          len(listf(T, "case_conditions", f'condition = "{cl_cond}"')) == 1)
+    s, _ = req("DELETE", f"/api/collections/conditions/records/{cl_cond}",
+               toks["sup"])
+    check("deleting a REFERENCED condition succeeds (optional relation)",
+          s == 204, f"status {s}")
+    s, d = req("GET", f"/api/collections/case_conditions/records/{cl_cc}", T)
+    check("...and the diagnosis survives with condition BLANKED, not orphaned",
+          s == 200 and d.get("condition") == "", f"{s} {d}")
+
+    cl_reason = mk(T, "admission_reasons", {
+        "label": "58t1 reason", "active": True, "org": ORG,
+    })["id"]
+    req("PATCH", f"/api/collections/cases/records/{cl_case}", T,
+        {"admission_reasons": [cl_reason]})
+    # `~`, NOT `=`/`?=`: on a MULTI relation column those match zero rows, so a
+    # count built on them would silently report "not referenced".
+    check("a referenced admission reason is countable with ~",
+          len(listf(T, "cases", f'admission_reasons ~ "{cl_reason}"')) == 1)
+    check("...while = matches nothing there (why the count must use ~)",
+          len(listf(T, "cases", f'admission_reasons = "{cl_reason}"')) == 0)
+    s, _ = req("DELETE",
+               f"/api/collections/admission_reasons/records/{cl_reason}",
+               toks["sup"])
+    check("deleting a REFERENCED admission reason succeeds", s == 204,
+          f"status {s}")
+    s, d = req("GET", f"/api/collections/cases/records/{cl_case}", T)
+    check("...and the case silently loses that reason",
+          s == 200 and cl_reason not in (d.get("admission_reasons") or []),
+          f"{s} {d}")
+
+    cl_type = mk(T, "marking_types", {
+        "label": "58t1 type", "active": True, "org": ORG,
+    })["id"]
+    mk(T, "markings", {"animal": animal, "type": cl_type, "org": ORG})
+    s, _ = req("DELETE", f"/api/collections/marking_types/records/{cl_type}",
+               toks["sup"])
+    check("deleting a REFERENCED marking type is refused (required relation)",
+          s >= 400, f"status {s}")
+    s, _ = req("GET", f"/api/collections/marking_types/records/{cl_type}", T)
+    check("...so the type is still there", s == 200, f"status {s}")
+    # Deactivating is the way out the UI offers in its place.
+    s, d = req("PATCH", f"/api/collections/marking_types/records/{cl_type}",
+               toks["sup"], {"active": False})
+    check("a supervisor can deactivate the in-use type instead",
+          s == 200 and d.get("active") is False, f"{s} {d}")
+
     # ── case_activity view (cr3.5) ──────────────────────────────────────────
     # last_activity reflects the newest child-record touch and is org-scoped
     # readable (timestamp only, no clinical detail). Powers the worklist's

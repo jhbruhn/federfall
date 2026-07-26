@@ -35,6 +35,10 @@ abstract interface class CasesRepository implements Repository<Case> {
   /// The case with the given per-year number, or `null`.
   Future<Case?> byCaseNumber(String caseNumber);
 
+  /// How many cases still list the [reasonId] admission-reason code-list
+  /// entry, for the confirmation shown before deleting that entry.
+  Future<int> countForAdmissionReason(String reasonId);
+
   /// The case detail's whole data set in ONE request (federfall-kh0u): the
   /// case plus its animal, finder and all twelve timeline collections via
   /// relation expand ([caseBundleExpand]). Expanded rows honor each
@@ -122,6 +126,16 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   Future<Case?> byCaseNumber(String caseNumber) => firstWhere(
     filterExpr('case_number = {:n}', {'n': caseNumber}),
   );
+
+  // `admission_reasons` is the one MULTI relation (maxSelect 99) among the
+  // code-list referrers, and membership needs `~`: verified against a live
+  // PocketBase, both `=` and the any-of `?=` match ZERO rows on a
+  // multi-relation column, while `~` matches exactly the rows holding the id.
+  // Substring false positives are not a risk — every id is a full 15-char
+  // record id, so one can never be contained in another.
+  @override
+  Future<int> countForAdmissionReason(String reasonId) =>
+      count(filter: filterExpr('admission_reasons ~ {:r}', {'r': reasonId}));
 
   @override
   Future<CaseBundle> bundle(String id) => guard(

@@ -33,6 +33,16 @@ class PbCaseConditionsRepository extends PbRepository<CaseCondition> {
     sort: '-created',
   );
 
+  /// How many recorded diagnoses still name the [conditionId] code-list entry.
+  ///
+  /// `condition` is an optional relation with `cascadeDelete: false`, so
+  /// deleting the entry does not delete these rows — PocketBase silently
+  /// **blanks** the field on each of them, leaving a diagnosis with no
+  /// condition. The code-list delete confirmation states this number before
+  /// offering that.
+  Future<int> countForCondition(String conditionId) =>
+      count(filter: filterExpr('condition = {:c}', {'c': conditionId}));
+
   /// Same chunking as `PbAnimalsRepository.byIds`: 100 `case = {:x}` clauses
   /// per request, fetched concurrently, so a large case set can never overflow
   /// the URL length limit. Diagnoses across many cases in one call (the

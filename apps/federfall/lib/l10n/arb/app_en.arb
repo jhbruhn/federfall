@@ -1576,6 +1576,11 @@
         "description": "Confirmation before deleting a condition",
         "placeholders": { "label": { "type": "String" } }
     },
+    "conditionCodelistInUse": "{count, plural, =1{1 recorded diagnosis uses this condition} other{{count} recorded diagnoses use this condition}}",
+    "@conditionCodelistInUse": {
+        "description": "How many case diagnoses still reference the condition being deleted",
+        "placeholders": { "count": { "type": "int" } }
+    },
     "admissionReasonsAdminTitle": "Admission reasons",
     "@admissionReasonsAdminTitle": { "description": "Title of the admission-reason code-list editor" },
     "admissionReasonsAdminEmpty": "No admission reasons yet. Add the reasons your team uses.",
@@ -1592,6 +1597,11 @@
     "@admissionReasonCodelistDeleteConfirm": {
         "description": "Confirmation before deleting an admission reason",
         "placeholders": { "label": { "type": "String" } }
+    },
+    "admissionReasonCodelistInUse": "{count, plural, =1{1 case lists this admission reason} other{{count} cases list this admission reason}}",
+    "@admissionReasonCodelistInUse": {
+        "description": "How many cases still reference the admission reason being deleted",
+        "placeholders": { "count": { "type": "int" } }
     },
     "markingTypesAdminTitle": "Marking types",
     "@markingTypesAdminTitle": { "description": "Title of the marking-type code-list editor" },
@@ -1610,6 +1620,11 @@
         "description": "Confirmation before deleting a marking type",
         "placeholders": { "label": { "type": "String" } }
     },
+    "markingTypeCodelistInUse": "{count, plural, =1{1 marking uses this type} other{{count} markings use this type}}",
+    "@markingTypeCodelistInUse": {
+        "description": "How many markings still reference the marking type being deleted",
+        "placeholders": { "count": { "type": "int" } }
+    },
     "medicationRoutesAdminTitle": "Routes of administration",
     "@medicationRoutesAdminTitle": { "description": "Title of the medication-route code-list editor" },
     "medicationRoutesAdminEmpty": "No routes yet. Add the routes of administration your team uses.",
@@ -1627,6 +1642,26 @@
         "description": "Confirmation before deleting a medication route",
         "placeholders": { "label": { "type": "String" } }
     },
+    "medicationRouteCodelistInUse": "{count, plural, =1{1 prescription, logged dose or catalogue entry uses this route} other{{count} prescriptions, logged doses and catalogue entries use this route}}",
+    "@medicationRouteCodelistInUse": {
+        "description": "How many prescriptions, administrations and catalogue entries still reference the route being deleted",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "codelistInUseIntro": "\"{label}\" is still in use.",
+    "@codelistInUseIntro": {
+        "description": "Opening line of the confirmation shown for a code-list entry that is still referenced",
+        "placeholders": { "label": { "type": "String" } }
+    },
+    "codelistDeleteBlanksReference": "Deleting it removes the entry from those records — what was recorded there is gone.",
+    "@codelistDeleteBlanksReference": { "description": "Consequence of deleting a referenced code-list entry: the reference is blanked, not kept" },
+    "codelistDeleteBlockedInUse": "It cannot be deleted while they exist.",
+    "@codelistDeleteBlockedInUse": { "description": "Why a still-referenced marking type cannot be deleted at all (the relation is required)" },
+    "codelistDeactivateKeepsHistory": "Deactivating hides it from new entries but leaves it readable where it is already recorded.",
+    "@codelistDeactivateKeepsHistory": { "description": "What the reversible alternative to deleting a code-list entry does" },
+    "codelistDeactivateAction": "Deactivate instead",
+    "@codelistDeactivateAction": { "description": "Primary action offered instead of deleting a referenced code-list entry" },
+    "codelistDeleteAnywayAction": "Delete anyway",
+    "@codelistDeleteAnywayAction": { "description": "Demoted destructive action on a referenced code-list entry" },
     "userRoleCarer": "Carer",
     "@userRoleCarer": { "description": "Staff role" },
     "userRoleCoordinator": "Coordinator",

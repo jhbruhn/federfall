@@ -27,4 +27,14 @@ class PbMarkingsRepository extends PbRepository<Marking> {
   /// source for the code-by-animal lookup behind registry rows and search.
   Future<List<Marking>> allActive() =>
       list(filter: filterExpr('is_active = true'));
+
+  /// How many markings still name the [typeId] code-list entry.
+  ///
+  /// Unlike the other code lists, `markings.type` is a **required** relation,
+  /// so PocketBase refuses to delete a type any marking still uses ("Make sure
+  /// that the record is not part of a required relation reference"). The
+  /// code-list confirmation uses this count to say so up front instead of
+  /// letting that error surface.
+  Future<int> countForType(String typeId) =>
+      count(filter: filterExpr('type = {:t}', {'t': typeId}));
 }

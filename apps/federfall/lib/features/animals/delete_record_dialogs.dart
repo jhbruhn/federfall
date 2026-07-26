@@ -47,9 +47,9 @@ Future<bool> confirmDeleteAnimal(
   final exams = await ref.read(examsForAnimalProvider(animal.id).future);
   if (!context.mounted) return false;
 
-  final confirmed = await showDialog<bool>(
+  final choice = await showDialog<DestructiveChoice>(
     context: context,
-    builder: (ctx) => _DestructiveDialog(
+    builder: (ctx) => DestructiveDialog(
       title: l10n.animalDeleteTitle,
       intro: l10n.animalDeleteIntro(animalTitle(animal)),
       bullets: [
@@ -67,9 +67,10 @@ Future<bool> confirmDeleteAnimal(
         if (cases.isNotEmpty) (l10n.animalDeleteCaseContents, false),
       ],
       confirmLabel: l10n.animalDeleteAction,
+      closingNote: l10n.animalDeleteIrreversible,
     ),
   );
-  if (confirmed != true || !context.mounted) return false;
+  if (choice != DestructiveChoice.confirm || !context.mounted) return false;
 
   var ok = false;
   await runQuickAction(context, () async {
@@ -106,9 +107,9 @@ Future<bool> confirmDeleteCase(
   final bundle = await ref.read(caseBundleProvider(medicalCase.id).future);
   if (!context.mounted) return false;
 
-  final confirmed = await showDialog<bool>(
+  final choice = await showDialog<DestructiveChoice>(
     context: context,
-    builder: (ctx) => _DestructiveDialog(
+    builder: (ctx) => DestructiveDialog(
       title: l10n.caseDeleteTitle,
       intro: l10n.caseDeleteIntro(medicalCase.caseNumber ?? ''),
       bullets: [
@@ -124,9 +125,10 @@ Future<bool> confirmDeleteCase(
         (l10n.caseDeleteKeeps, false),
       ],
       confirmLabel: l10n.caseDeleteAction,
+      closingNote: l10n.animalDeleteIrreversible,
     ),
   );
-  if (confirmed != true || !context.mounted) return false;
+  if (choice != DestructiveChoice.confirm || !context.mounted) return false;
 
   var ok = false;
   await runQuickAction(context, () async {
@@ -141,70 +143,6 @@ Future<bool> confirmDeleteCase(
   return ok;
 }
 
-/// A confirmation that enumerates what is about to be destroyed before offering
-/// the button that destroys it. [bullets] pair each line with whether it is a
-/// warning (rendered in the error colour).
-class _DestructiveDialog extends StatelessWidget {
-  const _DestructiveDialog({
-    required this.title,
-    required this.intro,
-    required this.bullets,
-    required this.confirmLabel,
-  });
-
-  final String title;
-  final String intro;
-  final List<(String text, bool isWarning)> bullets;
-  final String confirmLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-
-    return AlertDialog(
-      title: Text(title),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(intro),
-          const SizedBox(height: AppSpacing.sm),
-          for (final (text, isWarning) in bullets)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Text(
-                '• $text',
-                style: isWarning
-                    ? theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontWeight: FontWeight.bold,
-                      )
-                    : theme.textTheme.bodyMedium,
-              ),
-            ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            l10n.animalDeleteIrreversible,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(l10n.actionCancel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: TextButton.styleFrom(
-            foregroundColor: theme.colorScheme.error,
-          ),
-          child: Text(confirmLabel),
-        ),
-      ],
-    );
-  }
-}
+// The dialog itself is `DestructiveDialog` in `ui/widgets` — shared with the
+// code-list delete, which needs the same "state the damage first" shape plus a
+// reversible alternative.

@@ -35,4 +35,9 @@ class PbMedicationProductsRepository extends PbRepository<MedicationProduct> {
     filter: filterExpr('active = true'),
     sort: 'label',
   );
+
+  /// How many catalogue entries still name the [routeId] code-list entry — the
+  /// third of the three `medication_routes` referrers.
+  Future<int> countForRoute(String routeId) =>
+      count(filter: filterExpr('route = {:r}', {'r': routeId}));
 }

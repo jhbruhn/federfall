@@ -131,6 +131,25 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
     }
   }
 
+  /// Counts the records matching [filter] **server-side** — one request that
+  /// transfers a single row, not the whole result set.
+  ///
+  /// `list().length` would pull every matching record over the wire just to
+  /// throw them away; this asks PocketBase for `totalItems` instead (hence
+  /// `skipTotal: false`, unlike [list], which deliberately skips the count).
+  /// Used where a number is the whole answer — e.g. "how many records still
+  /// reference this code-list entry" before offering to delete it.
+  Future<int> count({PbFilter? filter}) => guard(() async {
+    final result = await service.getList(
+      page: 1,
+      perPage: 1,
+      skipTotal: false,
+      filter: filter?.expression,
+      fields: 'id',
+    );
+    return result.totalItems;
+  });
+
   /// Returns the first record matching [filter], or `null` if none.
   Future<T?> firstWhere(PbFilter filter, {String? expand}) {
     return guard(() async {
