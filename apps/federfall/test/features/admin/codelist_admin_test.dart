@@ -56,11 +56,9 @@ List<Override> _markingRefs(int count) {
   return [markingsRepositoryProvider.overrideWith((ref) async => refs)];
 }
 
-/// Opens the row's overflow menu and picks the delete item.
-Future<void> _tapDelete(WidgetTester tester, String action) async {
-  await tester.tap(find.byIcon(Icons.more_vert));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text(action).last);
+/// Taps the row's delete button.
+Future<void> _tapDelete(WidgetTester tester) async {
+  await tester.tap(find.byIcon(Icons.delete_outline));
   await tester.pumpAndSettle();
 }
 
@@ -269,7 +267,7 @@ void main() {
       ],
     );
 
-    await _tapDelete(tester, 'Delete condition');
+    await _tapDelete(tester);
     // Nothing points at it, so there is no count and no push to deactivate.
     expect(find.textContaining('is still in use'), findsNothing);
     expect(find.text('Deactivate instead'), findsNothing);
@@ -302,7 +300,7 @@ void main() {
       ],
     );
 
-    await _tapDelete(tester, 'Delete condition');
+    await _tapDelete(tester);
 
     expect(find.textContaining('"Trichomoniasis" is still in use'), findsOne);
     expect(
@@ -352,7 +350,7 @@ void main() {
       ],
     );
 
-    await _tapDelete(tester, 'Delete condition');
+    await _tapDelete(tester);
     await tester.tap(
       find.widgetWithText(DestructiveActionButton, 'Delete anyway'),
     );
@@ -381,7 +379,7 @@ void main() {
       ],
     );
 
-    await _tapDelete(tester, 'Delete marking type');
+    await _tapDelete(tester);
 
     expect(find.textContaining('1 marking uses this type'), findsOne);
     expect(find.textContaining('cannot be deleted while they exist'), findsOne);
@@ -410,7 +408,7 @@ void main() {
       ],
     );
 
-    await _tapDelete(tester, 'Delete marking type');
+    await _tapDelete(tester);
 
     expect(find.textContaining('2 markings use this type'), findsOne);
     expect(find.text('Deactivate instead'), findsNothing);
@@ -442,7 +440,7 @@ void main() {
       ],
     );
 
-    await _tapDelete(tester, 'Delete admission reason');
+    await _tapDelete(tester);
 
     expect(
       find.textContaining('4 cases list this admission reason'),
@@ -484,7 +482,7 @@ void main() {
       ],
     );
 
-    await _tapDelete(tester, 'Delete route');
+    await _tapDelete(tester);
 
     // 2 prescriptions + 3 logged doses + 1 catalogue entry.
     expect(
@@ -517,7 +515,7 @@ void main() {
       ],
     );
 
-    await _tapDelete(tester, 'Delete condition');
+    await _tapDelete(tester);
 
     // A count that could not be read must NOT degrade to "0 references" and a
     // bare "delete?" — no dialog is shown and nothing is deleted.

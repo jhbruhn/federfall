@@ -189,17 +189,11 @@ class _CodelistTile<T> extends ConsumerWidget {
         );
         if (changed ?? false) spec.refresh(ref);
       },
-      trailing: PopupMenuButton<void>(
-        icon: const Icon(Icons.more_vert),
-        itemBuilder: (_) => buildMenuItems([
-          MenuAction(
-            icon: Icons.delete_outline,
-            label: spec.deleteAction(l10n),
-            onTap: () =>
-                confirmCodelistDelete(context, ref, spec: spec, entry: entry),
-            destructive: true,
-          ),
-        ]),
+      trailing: IconButton(
+        icon: const Icon(Icons.delete_outline),
+        tooltip: spec.deleteAction(l10n),
+        onPressed: () =>
+            confirmCodelistDelete(context, ref, spec: spec, entry: entry),
       ),
     );
   }
