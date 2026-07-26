@@ -40,6 +40,16 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+/// Gives the screen a surface tall enough for the KPI grid, the intake-map
+/// preview card AND all three breakdowns — otherwise the breakdowns sit below
+/// the default viewport and the lazy `ListView` never builds them.
+void _useTallSurface(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 1400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 const Statistics _emptyStats = Statistics(
   totalCases: 0,
   openCases: 0,
@@ -53,13 +63,7 @@ void main() {
   testWidgets('renders KPIs and outcome/species/condition breakdowns', (
     tester,
   ) async {
-    // Taller surface: the intake-map preview card pushes the breakdowns below
-    // the default test viewport, and this test asserts on all of them without
-    // scrolling.
-    tester.view.physicalSize = const Size(800, 1400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    _useTallSurface(tester);
 
     await _pump(
       tester,
@@ -86,6 +90,8 @@ void main() {
   testWidgets('shows an empty hint for breakdowns with no data', (
     tester,
   ) async {
+    _useTallSurface(tester);
+
     await _pump(tester, _emptyStats);
 
     expect(find.text('Not enough data yet'), findsWidgets);

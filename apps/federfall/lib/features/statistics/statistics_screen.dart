@@ -79,26 +79,31 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.md),
               children: [
-                Wrap(
-                  spacing: AppSpacing.md,
-                  runSpacing: AppSpacing.md,
-                  children: [
-                    _Kpi(label: l10n.statsTotalCases, value: '${s.totalCases}'),
-                    _Kpi(label: l10n.statsOpenCases, value: '${s.openCases}'),
-                    _Kpi(
-                      label: l10n.statsAvgTimeInCare,
-                      value: s.avgTimeInCareDays == null
-                          ? '–'
-                          : l10n.statsDaysValue(
-                              formatNumber(
-                                l10n,
-                                s.avgTimeInCareDays!,
-                                maxFractionDigits: 1,
-                              ),
+                KpiGrid([
+                  KpiCard(
+                    icon: Icons.folder_copy_outlined,
+                    label: l10n.statsTotalCases,
+                    value: '${s.totalCases}',
+                  ),
+                  KpiCard(
+                    icon: Icons.medical_information_outlined,
+                    label: l10n.statsOpenCases,
+                    value: '${s.openCases}',
+                  ),
+                  KpiCard(
+                    icon: Icons.timelapse_outlined,
+                    label: l10n.statsAvgTimeInCare,
+                    value: s.avgTimeInCareDays == null
+                        ? '–'
+                        : l10n.statsDaysValue(
+                            formatNumber(
+                              l10n,
+                              s.avgTimeInCareDays!,
+                              maxFractionDigits: 1,
                             ),
-                    ),
-                  ],
-                ),
+                          ),
+                  ),
+                ]),
                 const SizedBox(height: AppSpacing.lg),
                 const _IntakeMapCard(),
                 const SizedBox(height: AppSpacing.md),
@@ -196,33 +201,6 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
-  }
-}
-
-class _Kpi extends StatelessWidget {
-  const _Kpi({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: SizedBox(
-        width: 160,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value, style: theme.textTheme.headlineMedium),
-              Text(label, style: theme.textTheme.bodyMedium),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
