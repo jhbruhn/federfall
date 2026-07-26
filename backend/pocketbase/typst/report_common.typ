@@ -322,11 +322,18 @@
       e.at("notes", default: none),
     ))
   } else if e.kind == "medication" {
+    // A rate-based plan carries no fixed dose: the rate is what was prescribed.
+    let unit = e.at("doseUnit", default: none)
+    let rate = e.at("doseRate", default: none)
+    let dosing = if rate != none {
+      doseStr(rate, if unit != none { unit + "/kg" } else { "/kg" })
+    } else {
+      doseStr(e.at("dose", default: none), unit)
+    }
     let bits = joinDot((
-      doseStr(e.at("dose", default: none), e.at("doseUnit", default: none)),
+      dosing,
       e.at("route", default: none),
       freqLabel(S, e.at("frequencyKind", default: none), e.at("intervalHours", default: none)),
-      e.at("frequency", default: none),
     ))
     let until = fmtDate(S, e.at("endedAt", default: none))
     let prescribedBy = e.at("prescribedBy", default: none)

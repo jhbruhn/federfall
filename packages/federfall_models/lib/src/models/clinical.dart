@@ -57,7 +57,6 @@ abstract class Medication with _$Medication {
     /// The product's strength per millilitre, also in [doseUnit] — one unit for
     /// the prescription, so mg/kg and mg/ml can never disagree.
     double? concentrationPerMl,
-    String? frequency,
     MedicationFrequencyKind? frequencyKind,
     int? intervalHours,
     String? route,
@@ -81,7 +80,6 @@ abstract class Medication with _$Medication {
       doseUnit: pbString(d['dose_unit']),
       doseRate: pbDouble(d['dose_rate']),
       concentrationPerMl: pbDouble(d['concentration_per_ml']),
-      frequency: pbString(d['frequency']),
       frequencyKind: MedicationFrequencyKind.fromWire(d['frequency_kind']),
       intervalHours: pbInt(d['interval_hours']),
       route: pbString(d['route']),

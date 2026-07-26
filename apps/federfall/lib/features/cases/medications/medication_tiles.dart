@@ -73,7 +73,6 @@ class PrescriptionTile extends ConsumerWidget {
       if (dosing case final d when d.isNotEmpty) d,
       ?routesById[plan.route]?.label,
       if (frequency.isNotEmpty) frequency,
-      if (plan.frequency case final f? when f.isNotEmpty) f,
     ].join(' · ');
 
     return TimelineItem(

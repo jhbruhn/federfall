@@ -41,7 +41,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   late final TextEditingController _dose;
   late final TextEditingController _unit;
   late final TextEditingController _concentration;
-  late final TextEditingController _frequency;
   late final TextEditingController _customHours;
   late final TextEditingController _instructions;
   late final TextEditingController _prescribedBy;
@@ -58,6 +57,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   /// prescription says either "0.5 mg" or "20 mg/kg", never both.
   bool _perKg = false;
 
+  String? _dateError;
+
   bool get _isEditing => widget.plan != null;
 
   @override
@@ -68,7 +69,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     _dose = TextEditingController();
     _unit = TextEditingController(text: p?.doseUnit ?? '');
     _concentration = TextEditingController();
-    _frequency = TextEditingController(text: p?.frequency ?? '');
     _instructions = TextEditingController(text: p?.instructions ?? '');
     _prescribedBy = TextEditingController(text: p?.prescribedBy ?? '');
     _route = p?.route;
@@ -109,7 +109,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       _dose,
       _unit,
       _concentration,
-      _frequency,
       _customHours,
       _instructions,
       _prescribedBy,
@@ -121,6 +120,14 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
 
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
+    // Both ends carry a time of day, so "stops before it starts" is now easy to
+    // type — and `medication_due` would treat such a plan as already over.
+    final ended = _endedAt;
+    if (ended != null && ended.isBefore(_startedAt)) {
+      setState(() => _dateError = context.l10n.fieldEndBeforeStart);
+      return;
+    }
+    setState(() => _dateError = null);
 
     final ok = await runSave(() async {
       final (_, org) = await requireUserOrg();
@@ -143,7 +150,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
         'dose_unit': trimToNull(_unit) ?? '',
         'dose_rate': doseRate,
         'concentration_per_ml': concentration,
-        'frequency': trimToNull(_frequency) ?? '',
         'frequency_kind': _preset.kind.wire,
         'interval_hours': intervalHours,
         'route': _route ?? '',
@@ -182,10 +188,9 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   }
 
   Future<void> _pickEnded() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _endedAt ?? _startedAt,
-      firstDate: DateTime(2000),
+    final picked = await pickDateTime(
+      context,
+      initial: _endedAt ?? _startedAt,
       lastDate: DateTime(2100),
     );
     if (picked != null) {
@@ -237,6 +242,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
         error: saveError,
         onSave: _save,
         children: [
+          _SectionTitle(l10n.medSectionDrug),
           AppTextField(
             controller: _drug,
             label: l10n.medDrug,
@@ -307,7 +313,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
             const SizedBox(height: AppSpacing.sm),
             preview,
           ],
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.lg),
+          _SectionTitle(l10n.medSectionGiving),
           MedicationRouteDropdown(
             value: _route,
             enabled: !isBusy,
@@ -344,13 +351,6 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
             ),
           ],
           const SizedBox(height: AppSpacing.md),
-          AppTextField(
-            controller: _frequency,
-            label: l10n.medFrequencyNote,
-            prefixIcon: Icons.schedule_outlined,
-            enabled: !isBusy,
-          ),
-          const SizedBox(height: AppSpacing.md),
           DateField(
             label: l10n.medStarted,
             value: _startedAt,
@@ -363,6 +363,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
             label: l10n.medEnded,
             value: _endedAt,
             enabled: !isBusy,
+            showTime: true,
+            errorText: _dateError,
             onPick: _pickEnded,
             onClear: () {
               setState(() => _endedAt = null);
@@ -370,7 +372,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
             },
             placeholder: l10n.caseDateNotSet,
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.lg),
+          _SectionTitle(l10n.medSectionRecord),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(l10n.medControlled),
@@ -487,6 +490,28 @@ class MedicationRouteDropdown extends ConsumerWidget {
           DropdownMenuItem(value: r.id, child: Text(r.label)),
       ],
       onChanged: enabled ? onChanged : null,
+    );
+  }
+}
+
+/// A form section heading, matching the one org settings uses: the prescription
+/// has thirteen controls, and without grouping they all read as equally
+/// important, unrelated fields.
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
     );
   }
 }

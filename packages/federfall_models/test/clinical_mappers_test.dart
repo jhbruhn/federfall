@@ -51,7 +51,6 @@ void main() {
         'dose_unit': 'mg',
         'dose_rate': 0.5,
         'concentration_per_ml': 1.5,
-        'frequency': 'twice daily',
         'frequency_kind': 'scheduled',
         'interval_hours': 12,
         'route': 'oral',
@@ -70,7 +69,6 @@ void main() {
       // Both in dose_unit: 0.5 mg/kg from a 1.5 mg/ml bottle.
       expect(m.doseRate, 0.5);
       expect(m.concentrationPerMl, 1.5);
-      expect(m.frequency, 'twice daily');
       expect(m.frequencyKind, MedicationFrequencyKind.scheduled);
       expect(m.intervalHours, 12);
       expect(m.route, 'oral');
