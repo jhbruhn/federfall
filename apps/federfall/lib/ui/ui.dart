@@ -26,6 +26,7 @@ export 'widgets/image_viewer.dart';
 export 'widgets/loading_view.dart';
 export 'widgets/map_attribution.dart';
 export 'widgets/map_tile_layer.dart';
+export 'widgets/menu_action.dart';
 export 'widgets/offline_notice.dart';
 export 'widgets/primary_button.dart';
 export 'widgets/staged_photos.dart';

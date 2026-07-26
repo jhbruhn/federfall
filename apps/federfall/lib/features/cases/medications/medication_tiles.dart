@@ -82,14 +82,16 @@ class PrescriptionTile extends ConsumerWidget {
       trailing: canEdit
           ? TimelineEntryMenu(
               tooltip: l10n.medMenuTooltip,
-              leadingItems: [
-                PopupMenuItem(
+              leadingActions: [
+                MenuAction(
+                  // Same icon the add-entry sheet gives a dose.
+                  icon: Icons.vaccines_outlined,
+                  label: l10n.medLogDose,
                   onTap: () => showAdministrationSheet(
                     context,
                     caseId: caseId,
                     plan: plan,
                   ),
-                  child: Text(l10n.medLogDose),
                 ),
               ],
               editLabel: l10n.medEditAction,

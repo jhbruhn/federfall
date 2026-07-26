@@ -109,9 +109,13 @@ class TimelineItem extends StatelessWidget {
 }
 
 /// The overflow menu on a timeline tile's trailing action: an edit item,
-/// optional [leadingItems]/[middleItems] for entry-specific actions (e.g. a
+/// optional [leadingActions]/[middleActions] for entry-specific actions (e.g. a
 /// "log dose" or "mark done"), and an optional delete item — [onDelete] is
 /// null (and thus omitted) when the current user isn't allowed to delete.
+///
+/// Every entry is a [MenuAction], so each carries an icon and the delete gets
+/// the app's destructive treatment (error colour behind its own divider)
+/// without each tile having to remember to ask for it.
 class TimelineEntryMenu extends StatelessWidget {
   const TimelineEntryMenu({
     required this.editLabel,
@@ -119,8 +123,8 @@ class TimelineEntryMenu extends StatelessWidget {
     this.tooltip,
     this.deleteLabel,
     this.onDelete,
-    this.leadingItems = const [],
-    this.middleItems = const [],
+    this.leadingActions = const [],
+    this.middleActions = const [],
     super.key,
   });
 
@@ -132,11 +136,11 @@ class TimelineEntryMenu extends StatelessWidget {
   final String? deleteLabel;
   final VoidCallback? onDelete;
 
-  /// Items shown before the edit item (e.g. a primary "log dose" action).
-  final List<PopupMenuEntry<void>> leadingItems;
+  /// Actions shown before the edit item (e.g. a primary "log dose" action).
+  final List<MenuAction> leadingActions;
 
-  /// Items shown between the edit and delete items.
-  final List<PopupMenuEntry<void>> middleItems;
+  /// Actions shown between the edit and delete items.
+  final List<MenuAction> middleActions;
 
   @override
   Widget build(BuildContext context) {
@@ -145,13 +149,22 @@ class TimelineEntryMenu extends StatelessWidget {
       iconSize: 20,
       padding: EdgeInsets.zero,
       tooltip: tooltip ?? editLabel,
-      itemBuilder: (context) => [
-        ...leadingItems,
-        PopupMenuItem(onTap: onEdit, child: Text(editLabel)),
-        ...middleItems,
+      itemBuilder: (context) => buildMenuItems([
+        ...leadingActions,
+        MenuAction(
+          icon: Icons.edit_outlined,
+          label: editLabel,
+          onTap: onEdit,
+        ),
+        ...middleActions,
         if (onDelete != null)
-          PopupMenuItem(onTap: onDelete, child: Text(deleteLabel!)),
-      ],
+          MenuAction(
+            icon: Icons.delete_outline,
+            label: deleteLabel!,
+            onTap: onDelete!,
+            destructive: true,
+          ),
+      ]),
     );
   }
 }

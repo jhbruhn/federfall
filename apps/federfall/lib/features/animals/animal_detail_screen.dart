@@ -107,16 +107,20 @@ class AnimalDetailScreen extends ConsumerWidget {
           if (canDeleteRecords(role))
             PopupMenuButton<void>(
               icon: const Icon(Icons.more_vert),
-              itemBuilder: (context) => [
-                PopupMenuItem(
+              itemBuilder: (context) => buildMenuItems([
+                MenuAction(
+                  icon: Icons.merge_outlined,
+                  label: l10n.animalMergeAction,
                   onTap: () => context.push(AppRoutes.mergeAnimal(animalId)),
-                  child: Text(l10n.animalMergeAction),
                 ),
-                PopupMenuItem(
+                MenuAction(
+                  icon: Icons.delete_outline,
+                  label: l10n.animalDeleteAction,
                   onTap: () => _delete(context, ref, lifetime.value?.animal),
-                  child: Text(l10n.animalDeleteAction),
+                  // Cascades to every case and its whole timeline.
+                  destructive: true,
                 ),
-              ],
+              ]),
             ),
         ],
       ),
@@ -550,25 +554,30 @@ class _MarkingsSection extends ConsumerWidget {
                   trailing: PopupMenuButton<void>(
                     icon: const Icon(Icons.more_vert),
                     tooltip: l10n.markingMenuTooltip,
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
+                    itemBuilder: (_) => buildMenuItems([
+                      MenuAction(
+                        icon: Icons.edit_outlined,
+                        label: l10n.markingEditAction,
                         onTap: () => showMarkingSheet(
                           context,
                           animalId: animalId,
                           marking: m,
                         ),
-                        child: Text(l10n.markingEditAction),
                       ),
+                      // Recording that the ring came off — the record stays.
                       if (m.isActive)
-                        PopupMenuItem(
+                        MenuAction(
+                          icon: Icons.remove_circle_outline,
+                          label: l10n.markingRemoveAction,
                           onTap: () => _remove(context, ref, m),
-                          child: Text(l10n.markingRemoveAction),
                         ),
-                      PopupMenuItem(
+                      MenuAction(
+                        icon: Icons.delete_outline,
+                        label: l10n.markingDeleteAction,
                         onTap: () => _delete(context, ref, m),
-                        child: Text(l10n.markingDeleteAction),
+                        destructive: true,
                       ),
-                    ],
+                    ]),
                   ),
                 ),
           ],

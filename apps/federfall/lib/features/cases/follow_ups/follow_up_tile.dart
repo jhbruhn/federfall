@@ -81,12 +81,13 @@ class FollowUpTile extends ConsumerWidget {
                 caseId: caseId,
                 followUp: followUp,
               ),
-              middleItems: [
-                PopupMenuItem(
+              middleActions: [
+                MenuAction(
+                  icon: done
+                      ? Icons.replay_outlined
+                      : Icons.check_circle_outline,
+                  label: done ? l10n.followUpReopen : l10n.followUpMarkDone,
                   onTap: () => _toggleDone(context, ref),
-                  child: Text(
-                    done ? l10n.followUpReopen : l10n.followUpMarkDone,
-                  ),
                 ),
               ],
               deleteLabel: l10n.followUpDeleteAction,

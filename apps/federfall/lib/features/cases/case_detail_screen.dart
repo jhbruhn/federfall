@@ -123,7 +123,6 @@ class _CaseOverflowMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
     final canEdit =
         ref.watch(canEditCaseProvider(medicalCase.id)).value ?? false;
     // A supervisor always satisfies canEditCase, so gating delete on both is
@@ -132,56 +131,27 @@ class _CaseOverflowMenu extends ConsumerWidget {
         canEdit && canDeleteRecords(ref.watch(currentUserProvider).value?.role);
     if (!canEdit && !canDelete) return const SizedBox.shrink();
 
-    return PopupMenuButton<VoidCallback>(
-      onSelected: (action) => action(),
-      itemBuilder: (context) => [
+    return PopupMenuButton<void>(
+      icon: const Icon(Icons.more_vert),
+      itemBuilder: (context) => buildMenuItems([
         if (canEdit)
-          PopupMenuItem(
-            value: () => showCaseShareSheet(
+          MenuAction(
+            icon: Icons.share_outlined,
+            label: l10n.caseShareAction,
+            onTap: () => showCaseShareSheet(
               context,
               caseId: medicalCase.id,
               activeCarer: medicalCase.activeCarer,
             ),
-            child: _MenuRow(
-              icon: Icons.share_outlined,
-              label: l10n.caseShareAction,
-            ),
           ),
         if (canDelete)
-          PopupMenuItem(
-            value: () => unawaited(_delete(context, ref)),
-            child: _MenuRow(
-              icon: Icons.delete_outline,
-              label: l10n.caseDeleteAction,
-              // Irreversible and supervisor-only, so it reads as its own kind
-              // of action rather than a sibling of "share".
-              color: theme.colorScheme.error,
-            ),
+          MenuAction(
+            icon: Icons.delete_outline,
+            label: l10n.caseDeleteAction,
+            onTap: () => unawaited(_delete(context, ref)),
+            destructive: true,
           ),
-      ],
-    );
-  }
-}
-
-/// One row of [_CaseOverflowMenu] — icon and label, tinted for a destructive
-/// entry.
-class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.icon, required this.label, this.color});
-
-  final IconData icon;
-  final String label;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Text(label, style: TextStyle(color: color)),
-        ),
-      ],
+      ]),
     );
   }
 }

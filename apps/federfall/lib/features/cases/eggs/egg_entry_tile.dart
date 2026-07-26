@@ -146,17 +146,19 @@ class EggEntryMenu extends ConsumerWidget {
       onEdit: () => unawaited(
         showEggEntrySheet(context, animalId: egg.animal, egg: egg),
       ),
-      middleItems: [
+      middleActions: [
         if (egg.attribution == EggAttribution.presumed)
-          PopupMenuItem(
+          MenuAction(
+            icon: Icons.verified_outlined,
+            label: l10n.eggConfirmAction,
             onTap: () => _confirm(context, ref),
-            child: Text(l10n.eggConfirmAction),
           ),
-        PopupMenuItem(
+        MenuAction(
+          icon: Icons.swap_horiz_outlined,
+          label: l10n.eggReassignAction,
           onTap: () => unawaited(
             showEggReassignSheet(context, egg: egg, caseId: caseId),
           ),
-          child: Text(l10n.eggReassignAction),
         ),
       ],
       deleteLabel: l10n.eggDeleteAction,

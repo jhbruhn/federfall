@@ -43,44 +43,45 @@ class AccountMenuButton extends ConsumerWidget {
     final l10n = context.l10n;
     final role = ref.watch(currentUserProvider).value?.role;
 
-    return PopupMenuButton<String>(
+    return PopupMenuButton<void>(
       icon: const Icon(Icons.account_circle_outlined),
       tooltip: l10n.accountTooltip,
-      onSelected: context.push,
-      itemBuilder: (_) => [
+      itemBuilder: (_) => buildMenuItems([
         _item(
+          context,
           AppRoutes.profile,
           Icons.account_circle_outlined,
           l10n.profileTitle,
         ),
         if (canViewReports(role))
           _item(
+            context,
             AppRoutes.statistics,
             Icons.bar_chart_outlined,
             l10n.statsTitle,
           ),
         if (canManageTeam(role))
           _item(
+            context,
             AppRoutes.admin,
             Icons.manage_accounts_outlined,
             l10n.adminTitle,
           ),
-      ],
+      ]),
     );
   }
 
   /// One menu row: leading icon + label, valued by its destination route.
-  PopupMenuItem<String> _item(String route, IconData icon, String label) =>
-      PopupMenuItem<String>(
-        value: route,
-        child: Row(
-          children: [
-            Icon(icon),
-            const SizedBox(width: 12),
-            Text(label),
-          ],
-        ),
-      );
+  MenuAction _item(
+    BuildContext context,
+    String route,
+    IconData icon,
+    String label,
+  ) => MenuAction(
+    icon: icon,
+    label: label,
+    onTap: () => context.push(route),
+  );
 }
 
 /// The account entries listed directly in the navigation rail's trailing area

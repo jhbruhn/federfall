@@ -93,11 +93,13 @@ class MarkingTile extends ConsumerWidget {
                 caseId: caseId,
                 marking: marking,
               ),
-              middleItems: [
+              middleActions: [
+                // Recording that the ring came off — the record stays.
                 if (marking.isActive)
-                  PopupMenuItem(
+                  MenuAction(
+                    icon: Icons.remove_circle_outline,
+                    label: l10n.markingRemoveAction,
                     onTap: () => _markRemoved(context, ref),
-                    child: Text(l10n.markingRemoveAction),
                   ),
               ],
               deleteLabel: l10n.markingDeleteAction,
