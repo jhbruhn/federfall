@@ -9,50 +9,39 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// What the placement sheet is for. Both write a `placements` (chain-of-
-/// custody) record; [handoff] additionally reassigns the case's active carer.
-enum PlacementMode {
-  /// Give the case to a different carer (reassigns `active_carer`).
-  handoff,
-
-  /// Log where the bird is held / a move within the same carer's care.
-  move,
-}
-
-/// Opens the placement form. [mode] picks the framing (hand off vs log a
-/// move). Pass [placement] to edit an existing record (editing never
-/// re-triggers a handoff). Resolves to `true` on save.
+/// Opens the placement form. Pass [placement] to edit an existing record
+/// (editing never re-triggers a handoff). Resolves to `true` on save.
 Future<bool?> showPlacementSheet(
   BuildContext context, {
   required Case medicalCase,
-  PlacementMode mode = PlacementMode.move,
   Placement? placement,
 }) {
   return showAppSheet<bool>(
     context,
-    builder: (_) => PlacementSheet(
-      medicalCase: medicalCase,
-      mode: mode,
-      placement: placement,
-    ),
+    builder: (_) =>
+        PlacementSheet(medicalCase: medicalCase, placement: placement),
   );
 }
 
-/// Records a placement / handoff (FED-4.9): where the bird is held and who
-/// holds it. Choosing a carer other than the case's current active carer is a
-/// handoff: the record carries `to_user`, and the backend hook updates the
-/// case's `active_carer` from it in the same transaction (leaving the
-/// previous carer a read share).
+/// Records a placement (FED-4.9): where the bird is held and who holds it.
+///
+/// Choosing a carer other than the case's current active carer is a handoff:
+/// the record carries `to_user`, and the backend hook updates the case's
+/// `active_carer` from it in the same transaction (leaving the previous carer a
+/// read share). There is deliberately no mode — this form used to come in a
+/// "move" and a "handoff" flavour that differed only by whether the carer field
+/// rendered, which asked the user to declare the distinction before seeing the
+/// field that makes it (federfall-0se6). The field is always there; picking
+/// someone else is the handoff, and the hint and confirmation say so the moment
+/// it becomes one.
 class PlacementSheet extends ConsumerStatefulWidget {
   const PlacementSheet({
     required this.medicalCase,
-    this.mode = PlacementMode.move,
     this.placement,
     super.key,
   });
 
   final Case medicalCase;
-  final PlacementMode mode;
   final Placement? placement;
 
   @override
@@ -71,17 +60,11 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
 
   bool get _isEditing => widget.placement != null;
 
-  /// Whether the carer dropdown is shown: when editing (correcting the record)
-  /// or in handoff mode (the whole point). A plain move keeps the current
-  /// carer, so there's nothing to pick.
-  bool get _showCarerPicker =>
-      _isEditing || widget.mode == PlacementMode.handoff;
-
-  /// Whether this save hands the case off: handoff mode, creating, with a
-  /// carer different from the case's current active carer.
+  /// Whether this save hands the case off: creating, with a carer other than
+  /// the case's current active carer. The field starts on the current carer, so
+  /// a placement is a plain move until the user changes it.
   bool get _isHandoff =>
       !_isEditing &&
-      widget.mode == PlacementMode.handoff &&
       _carerId != null &&
       _carerId != widget.medicalCase.activeCarer;
 
@@ -145,16 +128,9 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
     if (!(formKey.currentState?.validate() ?? false)) return;
-    // A handoff must name a carer other than the current one — otherwise it's
-    // a no-op disguised as a transfer.
-    if (!_isEditing &&
-        widget.mode == PlacementMode.handoff &&
-        (_carerId == null || _carerId == widget.medicalCase.activeCarer)) {
-      setSaveError(l10n.placementHandoffSameCarer);
-      return;
-    }
+    // No "pick a different carer" error any more: keeping the current carer is
+    // a legitimate move, and only the old handoff mode made it a mistake.
     final handoff = _isHandoff;
     if (handoff && !await _confirmHandoff()) return;
 
@@ -211,41 +187,38 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
 
     return guardUnsavedChanges(
       child: SheetScaffold(
-        title: _isEditing
-            ? l10n.placementEditTitle
-            : widget.mode == PlacementMode.handoff
-            ? l10n.placementHandoffTitle
-            : l10n.placementMoveTitle,
+        title: _isEditing ? l10n.placementEditTitle : l10n.placementTitle,
         formKey: formKey,
         onFormChanged: markDirty,
         isBusy: isBusy,
         error: saveError,
         onSave: _save,
         children: [
-          if (_showCarerPicker) ...[
-            DropdownButtonFormField<String>(
-              initialValue: _carerId,
-              decoration: InputDecoration(
-                labelText: l10n.placementFieldCarer,
-                prefixIcon: const Icon(Icons.person_outline),
-              ),
-              items: [
-                for (final m in members)
-                  DropdownMenuItem(value: m.id, child: Text(memberLabel(m))),
-              ],
-              onChanged: isBusy ? null : (id) => setState(() => _carerId = id),
+          DropdownButtonFormField<String>(
+            initialValue: _carerId,
+            decoration: InputDecoration(
+              labelText: l10n.placementFieldCarer,
+              prefixIcon: const Icon(Icons.person_outline),
             ),
-            if (_isHandoff) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                l10n.placementHandoffHint,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                ),
-              ),
+            items: [
+              for (final m in members)
+                DropdownMenuItem(value: m.id, child: Text(memberLabel(m))),
             ],
-            const SizedBox(height: AppSpacing.md),
+            onChanged: isBusy ? null : (id) => setState(() => _carerId = id),
+          ),
+          // Appears the moment the picked carer differs from the current one:
+          // the form says what the entry has just become, rather than the user
+          // having had to declare it up front.
+          if (_isHandoff) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              l10n.placementHandoffHint,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
           ],
+          const SizedBox(height: AppSpacing.md),
           DateField(
             label: l10n.placementFieldMovedAt,
             value: _movedInAt,

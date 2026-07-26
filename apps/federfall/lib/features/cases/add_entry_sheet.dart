@@ -31,7 +31,6 @@ enum _AddKind {
   dose,
   marking,
   placement,
-  handoff,
   followUp,
   outcome,
 }
@@ -71,14 +70,11 @@ Future<void> showAddEntrySheet(
       await showAdministrationSheet(context, caseId: caseId);
     case _AddKind.marking:
       await showMarkingSheet(context, animalId: animalId, caseId: caseId);
+    // One kind, not two: a handoff IS a placement whose carer differs, so
+    // the sheet's own carer field makes that choice instead of the picker
+    // asking for it before the field is visible (federfall-0se6).
     case _AddKind.placement:
       await showPlacementSheet(context, medicalCase: medicalCase);
-    case _AddKind.handoff:
-      await showPlacementSheet(
-        context,
-        medicalCase: medicalCase,
-        mode: PlacementMode.handoff,
-      );
     case _AddKind.followUp:
       await showFollowUpSheet(context, caseId: caseId);
     case _AddKind.outcome:
@@ -172,9 +168,8 @@ class _AddEntrySheet extends ConsumerWidget {
           _Entry(
             _AddKind.placement,
             Icons.move_down_outlined,
-            l10n.timelineAddPlacement,
+            l10n.placementTitle,
           ),
-          _Entry(_AddKind.handoff, Icons.swap_horiz, l10n.timelineAddHandoff),
         ],
       ),
       (

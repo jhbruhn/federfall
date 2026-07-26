@@ -79,10 +79,7 @@ void main() {
   testWidgets('choosing a different carer hands the case off', (tester) async {
     await pump(
       tester,
-      const PlacementSheet(
-        medicalCase: medicalCase,
-        mode: PlacementMode.handoff,
-      ),
+      const PlacementSheet(medicalCase: medicalCase),
     );
 
     // Switch carer from Alice (current) to Bob.
@@ -114,10 +111,7 @@ void main() {
   ) async {
     await pump(
       tester,
-      const PlacementSheet(
-        medicalCase: medicalCase,
-        mode: PlacementMode.handoff,
-      ),
+      const PlacementSheet(medicalCase: medicalCase),
     );
 
     await tester.tap(find.text('Alice'));
@@ -136,30 +130,38 @@ void main() {
     expect(find.text('Save'), findsOneWidget);
   });
 
-  testWidgets('handoff to the same carer is blocked', (tester) async {
-    await pump(
-      tester,
-      const PlacementSheet(
-        medicalCase: medicalCase,
-        mode: PlacementMode.handoff,
-      ),
-    );
+  testWidgets('the carer picker is always offered, on the current carer', (
+    tester,
+  ) async {
+    await pump(tester, const PlacementSheet(medicalCase: medicalCase));
 
-    // Leave the carer as the current one (Alice) and try to save.
-    await save(tester);
-
+    // One form for both kinds: the field that makes an entry a handoff is
+    // never hidden behind a choice made before it (federfall-0se6).
+    expect(find.text('Carer'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    // ...and it is not a handoff until the user changes it.
     expect(
-      find.text('Choose a different carer to hand the case off.'),
-      findsOneWidget,
+      find.text('Hands the case off to this carer; you keep read access.'),
+      findsNothing,
     );
-    verifyNever(() => cases.update(any(), any()));
-    verifyNever(() => placements.create(any()));
   });
 
-  testWidgets('move mode hides the carer picker', (tester) async {
+  testWidgets('the handoff hint appears as soon as another carer is picked', (
+    tester,
+  ) async {
     await pump(tester, const PlacementSheet(medicalCase: medicalCase));
-    // No carer dropdown in a plain move; the current carer is kept.
-    expect(find.text('Carer'), findsNothing);
+
+    await tester.tap(find.text('Alice'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bob').last);
+    await tester.pumpAndSettle();
+
+    // The form states what the entry has just become, in place of the mode the
+    // user used to have to declare up front.
+    expect(
+      find.text('Hands the case off to this carer; you keep read access.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('keeping the same carer records a move, no handoff', (
