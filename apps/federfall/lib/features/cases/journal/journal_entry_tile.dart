@@ -122,6 +122,11 @@ class _AttachmentStrip extends ConsumerWidget {
             button: true,
             label: context.l10n.photoViewLabel(i + 1, entry.attachments.length),
             child: GestureDetector(
+              // Opaque, not the default deferToChild: the thumbnail only
+              // reports a hit once CachedFileImage has decoded a frame, so
+              // while loading (or after a load failure) the tap would be
+              // silently swallowed (federfall-ltfw).
+              behavior: HitTestBehavior.opaque,
               onTap: () => unawaited(
                 showImageViewer(
                   context,
