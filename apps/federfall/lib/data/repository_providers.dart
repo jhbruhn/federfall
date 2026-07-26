@@ -114,6 +114,11 @@ Future<PbMedicationRoutesRepository> medicationRoutesRepository(
 ) async => PbMedicationRoutesRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbMedicationProductsRepository> medicationProductsRepository(
+  Ref ref,
+) async => PbMedicationProductsRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbDispositionsRepository> dispositionsRepository(Ref ref) async =>
     PbDispositionsRepository(await _client(ref));
 

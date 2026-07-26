@@ -18,3 +18,21 @@ class PbMedicationRoutesRepository extends PbRepository<MedicationRoute> {
     sort: 'label',
   );
 }
+
+/// Repository over the `medication_products` catalogue (federfall-6d3a.3): the
+/// org's drug protocols, maintained by a supervisor and read by everyone to
+/// prefill a prescription.
+class PbMedicationProductsRepository extends PbRepository<MedicationProduct> {
+  PbMedicationProductsRepository(PocketBase pb)
+    : super(
+        pb: pb,
+        collection: 'medication_products',
+        fromRecord: MedicationProduct.fromRecord,
+      );
+
+  /// Active entries, label-sorted, for the picker in the prescription form.
+  Future<List<MedicationProduct>> active() => list(
+    filter: filterExpr('active = true'),
+    sort: 'label',
+  );
+}

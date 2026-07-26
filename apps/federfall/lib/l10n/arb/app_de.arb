@@ -622,6 +622,28 @@
     "medDose": "Dosis",
     "medUnit": "Einheit",
     "medRoute": "Verabreichung",
+    "medProductPicker": "Aus dem Medikamentenkatalog",
+    "medProductsAdminTitle": "Medikamentenkatalog",
+    "medProductsAdminEmpty": "Noch keine Medikamente hinterlegt",
+    "medProductNewTitle": "Neues Medikament",
+    "medProductEditTitle": "Medikament bearbeiten",
+    "medProductDeleteTitle": "Medikament löschen?",
+    "medProductDeleteConfirm": "„{label}“ wird aus dem Katalog entfernt. Bestehende Verordnungen bleiben unverändert.",
+    "@medProductDeleteConfirm": {
+        "placeholders": { "label": { "type": "String" } }
+    },
+    "medProductActive": "Aktiv",
+    "medProductActiveHelp": "Nur aktive Medikamente erscheinen bei der Verordnung.",
+    "medProductNoDefault": "Keine Vorgabe",
+    "medRateMin": "Bereich von",
+    "medRateMax": "bis",
+    "medRateOutOfRange": "Außerhalb des hinterlegten Bereichs für {product} ({range}).",
+    "@medRateOutOfRange": {
+        "placeholders": {
+            "product": { "type": "String" },
+            "range": { "type": "String" }
+        }
+    },
     "medSectionDrug": "Medikament",
     "medSectionGiving": "Gabe",
     "medSectionRecord": "Dokumentation",

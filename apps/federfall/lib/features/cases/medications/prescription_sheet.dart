@@ -1,6 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/medications/dose_calculator_panel.dart';
+import 'package:federfall/features/cases/medications/medication_products_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
@@ -58,6 +59,11 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   bool _perKg = false;
 
   String? _dateError;
+
+  /// The catalogue entry this plan was written from, when one was picked. Held
+  /// only in memory: it supplies defaults and the advisory range, and the plan
+  /// itself stands on its own numbers afterwards.
+  MedicationProduct? _product;
 
   bool get _isEditing => widget.plan != null;
 
@@ -199,6 +205,65 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     }
   }
 
+  /// Pours a catalogue entry into the form. Every field stays editable
+  /// afterwards — the entry is the org's usual protocol, not a lock — and only
+  /// blank fields are filled, so re-picking never clobbers something typed.
+  void _applyProduct(MedicationProduct? product) {
+    if (product == null) return;
+    setState(() {
+      _product = product;
+      if (_drug.text.trim().isEmpty) _drug.text = product.label;
+      if (_unit.text.trim().isEmpty && product.doseUnit != null) {
+        _unit.text = product.doseUnit!;
+      }
+      final l10n = context.l10n;
+      if (_dose.text.trim().isEmpty && product.doseRate != null) {
+        _dose.text = formatDose(l10n, product.doseRate, null);
+        _perKg = true;
+      }
+      if (_concentration.text.trim().isEmpty &&
+          product.concentrationPerMl != null) {
+        _concentration.text = formatDose(
+          l10n,
+          product.concentrationPerMl,
+          null,
+        );
+      }
+      _route ??= product.route;
+      if (product.frequencyKind != null) {
+        _preset = _FreqPreset.from(
+          product.frequencyKind,
+          product.intervalHours,
+        );
+        if (_preset == _FreqPreset.custom) {
+          _customHours.text = '${product.intervalHours ?? ''}';
+        }
+      }
+    });
+    markDirty();
+  }
+
+  /// Flags a per-kilogram rate outside the catalogue's advisory range for the
+  /// picked product. Advisory on purpose: the vet in front of the bird outranks
+  /// the list, so this warns and still saves.
+  String? _rangeWarning(AppLocalizations l10n, String unit) {
+    final product = _product;
+    if (!_perKg || product == null) return null;
+    final rate = double.tryParse(_dose.text.trim().replaceAll(',', '.'));
+    if (rate == null || !product.isOutOfRange(rate)) return null;
+    final u = unit.isEmpty ? '' : ' $unit/kg';
+    final min = product.rateMin;
+    final max = product.rateMax;
+    final range = switch ((min, max)) {
+      (final a?, final b?) =>
+        '${formatNumber(l10n, a)}–${formatNumber(l10n, b)}$u',
+      (final a?, null) => '≥ ${formatNumber(l10n, a)}$u',
+      (null, final b?) => '≤ ${formatNumber(l10n, b)}$u',
+      _ => '',
+    };
+    return l10n.medRateOutOfRange(product.label, range);
+  }
+
   /// What the entered rate means for this bird today — the same derivation the
   /// carer will see when logging a dose, so a typo in the rate is obvious while
   /// writing the plan rather than at the syringe.
@@ -228,8 +293,13 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final theme = Theme.of(context);
     final unit = _unit.text.trim();
     final preview = _ratePreview(l10n, unit);
+    final products =
+        ref.watch(activeMedicationProductsProvider).value ??
+        const <MedicationProduct>[];
+    final rangeWarning = _rangeWarning(l10n, unit);
 
     return guardUnsavedChanges(
       child: SheetScaffold(
@@ -243,6 +313,24 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
         onSave: _save,
         children: [
           _SectionTitle(l10n.medSectionDrug),
+          // The catalogue is a prefill, never a constraint: the drug below
+          // stays free text so an unlisted preparation is still prescribable.
+          if (products.isNotEmpty) ...[
+            DropdownButtonFormField<MedicationProduct>(
+              initialValue: _product,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: l10n.medProductPicker,
+                prefixIcon: const Icon(Icons.inventory_2_outlined),
+              ),
+              items: [
+                for (final p in products)
+                  DropdownMenuItem(value: p, child: Text(p.label)),
+              ],
+              onChanged: isBusy ? null : _applyProduct,
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           AppTextField(
             controller: _drug,
             label: l10n.medDrug,
@@ -296,6 +384,28 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                     markDirty();
                   },
           ),
+          if (rangeWarning != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 20,
+                  color: theme.colorScheme.error,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    rangeWarning,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           AppTextField(
             controller: _concentration,

@@ -4,6 +4,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/features/admin/codelist_admin.dart';
 import 'package:federfall/features/admin/codelist_specs.dart';
+import 'package:federfall/features/admin/medication_products_screen.dart';
 import 'package:federfall/features/admin/org_settings_screen.dart';
 import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -23,6 +24,10 @@ enum _AdminSection {
   medicationRoutes(
     Icons.medication_outlined,
     AppRoutes.medicationRoutesAdmin,
+  ),
+  medicationProducts(
+    Icons.inventory_2_outlined,
+    AppRoutes.medicationProductsAdmin,
   );
 
   const _AdminSection(this.icon, this.route);
@@ -37,6 +42,7 @@ enum _AdminSection {
     _AdminSection.admissionReasons => l10n.admissionReasonsAdminTitle,
     _AdminSection.markingTypes => l10n.markingTypesAdminTitle,
     _AdminSection.medicationRoutes => l10n.medicationRoutesAdminTitle,
+    _AdminSection.medicationProducts => l10n.medProductsAdminTitle,
   };
 
   Widget screen() => switch (this) {
@@ -54,6 +60,7 @@ enum _AdminSection {
     _AdminSection.medicationRoutes => CodelistAdminScreen(
       spec: medicationRoutesCodelistSpec,
     ),
+    _AdminSection.medicationProducts => const MedicationProductsScreen(),
   };
 }
 

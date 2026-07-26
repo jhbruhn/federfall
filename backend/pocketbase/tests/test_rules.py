@@ -1129,6 +1129,39 @@ def main():
                toks["a"], {"note": "pododermatitis, improving"})
     check("finding content stays editable", s == 200, f"status {s}")
 
+    # ── medication_products catalogue (6d3a.3) ──────────────────────────────
+    # Read by everyone in the org (it prefills their prescription form), written
+    # only by a supervisor — same split as the other code lists.
+    print("\n[medication_products catalogue]")
+    seeded = listf(toks["a"], "medication_products", "id != ''")
+    check("migration seeds placeholder entries, not real drugs",
+          sorted(p["label"] for p in seeded) ==
+          ["Medikament 1", "Medikament 2", "Medikament 3"],
+          str([p["label"] for p in seeded]))
+    check("seeded entries carry no dosing numbers",
+          all(not p["dose_rate"] and not p["concentration_per_ml"]
+              and not p["rate_min"] and not p["rate_max"] for p in seeded),
+          str(seeded[:1]))
+    s, _ = req("POST", "/api/collections/medication_products/records",
+               toks["a"], {"label": "Carer's own", "org": ORG})
+    check("carer CANNOT add a catalogue entry", s != 200, f"status {s}")
+    s, prod = req("POST", "/api/collections/medication_products/records",
+                  toks["sup"], {
+                      "label": "Medikament 4", "dose_unit": "mg",
+                      "dose_rate": 20, "rate_min": 10, "rate_max": 30,
+                      "concentration_per_ml": 15, "active": True, "org": ORG,
+                  })
+    check("supervisor CAN add a catalogue entry", s == 200, f"{s} {prod}")
+    s, _ = req("PATCH",
+               f"/api/collections/medication_products/records/{(prod or {}).get('id')}",
+               toks["a"], {"dose_rate": 200})
+    check("carer CANNOT edit the dosing of a catalogue entry", s != 200,
+          f"status {s}")
+    s, _ = req("DELETE",
+               f"/api/collections/medication_products/records/{(prod or {}).get('id')}",
+               toks["sup"])
+    check("supervisor CAN remove a catalogue entry", s == 204, f"status {s}")
+
     # ── guest role: can authenticate, but walled off from all data ──────────
     print("\n[guest role]")
     mkuser(T, "guest@f.local", "guest")
@@ -1152,6 +1185,7 @@ def main():
     # any future migration that copies the auth predicate without the guest
     # exclusion). The member check keeps the guest check non-vacuous.
     for coll in ("admission_reasons", "marking_types", "medication_routes",
+                 "medication_products",
                  "quarantine_records", "case_quarantine", "animal_species",
                  "aviary_stays", "egg_records"):
         n = len(listf(toks["a"], coll, "id != ''"))

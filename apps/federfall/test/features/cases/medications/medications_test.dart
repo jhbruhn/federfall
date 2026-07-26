@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
+import 'package:federfall/features/cases/medications/medication_products_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
@@ -33,10 +34,12 @@ void main() {
     WidgetTester tester,
     Widget child, {
     List<Weight> weights = const [],
+    List<MedicationProduct> catalogue = const [],
   }) async {
     final container = ProviderContainer(
       overrides: [
         weightsForCaseProvider('c1').overrideWith((ref) async => weights),
+        activeMedicationProductsProvider.overrideWith((ref) async => catalogue),
         currentUserProvider.overrideWith(
           (ref) async =>
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
@@ -152,6 +155,65 @@ void main() {
       expect(body['dose'], isNull);
       expect(body['concentration_per_ml'], 15);
       expect(body['dose_unit'], 'mg');
+    });
+
+    testWidgets('a catalogue entry fills the form and flags a wild rate', (
+      tester,
+    ) async {
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        weights: [
+          Weight(
+            id: 'w1',
+            animal: 'a1',
+            weightG: 262,
+            measuredAt: DateTime.now(),
+          ),
+        ],
+        catalogue: const [
+          MedicationProduct(
+            id: 'p1',
+            label: 'Medikament 1',
+            doseUnit: 'mg',
+            doseRate: 20,
+            rateMin: 10,
+            rateMax: 30,
+            concentrationPerMl: 15,
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('From the drug catalogue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Medikament 1').last);
+      await tester.pumpAndSettle();
+
+      // The entry poured itself into the form: drug, unit, rate (per kg) and
+      // strength, which is enough to show the dose for this bird.
+      expect(find.text('0.3493 ml'), findsOneWidget);
+      expect(find.text('20 mg/kg × 262 g = 5.24 mg'), findsOneWidget);
+
+      // Ten times the catalogue's upper bound: warned, but still savable —
+      // the vet in front of the bird outranks the list.
+      await tester.enterText(find.widgetWithText(TextField, 'Dose'), '300');
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Outside the recorded range for Medikament 1 (10–30 mg/kg).'),
+        findsOneWidget,
+      );
+
+      await save(tester);
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['drug'], 'Medikament 1');
+      expect(body['dose_rate'], 300);
+      expect(body['concentration_per_ml'], 15);
     });
 
     testWidgets('a chosen preset stores its interval', (tester) async {

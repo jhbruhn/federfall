@@ -8,6 +8,7 @@ import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/features/admin/codelist_admin.dart';
 import 'package:federfall/features/admin/codelist_specs.dart';
 import 'package:federfall/features/admin/management_screen.dart';
+import 'package:federfall/features/admin/medication_products_screen.dart';
 import 'package:federfall/features/admin/org_settings_screen.dart';
 import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
@@ -355,6 +356,10 @@ GoRouter router(Ref ref) {
         path: AppRoutes.medicationRoutesAdmin,
         builder: (_, _) =>
             CodelistAdminScreen(spec: medicationRoutesCodelistSpec),
+      ),
+      GoRoute(
+        path: AppRoutes.medicationProductsAdmin,
+        builder: (_, _) => const MedicationProductsScreen(),
       ),
       GoRoute(
         path: AppRoutes.statistics,
