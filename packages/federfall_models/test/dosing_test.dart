@@ -12,7 +12,6 @@ void main() {
     test('multiplies a per-kilogram rate by the weight in kilograms', () {
       final r = calculateDose(
         rate: 20,
-        basis: DoseBasis.perKilogram,
         weightG: weightG,
         weighedAt: weighedAt,
         now: now,
@@ -25,17 +24,9 @@ void main() {
       expect(r.hasAmount, isTrue);
     });
 
-    test('ignores the weight for a per-animal rate', () {
-      final r = calculateDose(rate: 2.5, basis: DoseBasis.perAnimal, now: now);
-
-      expect(r.amount, 2.5);
-      expect(r.warnings, isEmpty);
-    });
-
     test('reports no amount and a warning without a weight', () {
       final r = calculateDose(
         rate: 20,
-        basis: DoseBasis.perKilogram,
         now: now,
       );
 
@@ -48,7 +39,6 @@ void main() {
       for (final w in [0.0, -1.0]) {
         final r = calculateDose(
           rate: 20,
-          basis: DoseBasis.perKilogram,
           weightG: w,
           now: now,
         );
@@ -61,7 +51,6 @@ void main() {
       for (final rate in [0.0, -5.0, double.nan]) {
         final r = calculateDose(
           rate: rate,
-          basis: DoseBasis.perKilogram,
           weightG: weightG,
           now: now,
         );
@@ -72,7 +61,6 @@ void main() {
     test('still calculates on a stale weight, but warns', () {
       final r = calculateDose(
         rate: 20,
-        basis: DoseBasis.perKilogram,
         weightG: weightG,
         weighedAt: now.subtract(doseWeightMaxAge + const Duration(hours: 1)),
         now: now,
@@ -85,7 +73,6 @@ void main() {
     test('does not warn on a weight exactly at the age limit', () {
       final r = calculateDose(
         rate: 20,
-        basis: DoseBasis.perKilogram,
         weightG: weightG,
         weighedAt: now.subtract(doseWeightMaxAge),
         now: now,
@@ -97,7 +84,6 @@ void main() {
     test('cannot judge staleness without a measurement date', () {
       final r = calculateDose(
         rate: 20,
-        basis: DoseBasis.perKilogram,
         weightG: weightG,
         now: now,
       );
@@ -109,7 +95,6 @@ void main() {
     test('divides by the concentration to get the volume to draw', () {
       final r = calculateDose(
         rate: 20,
-        basis: DoseBasis.perKilogram,
         weightG: weightG,
         concentrationPerMl: 15,
         now: now,
@@ -125,7 +110,6 @@ void main() {
       for (final c in [0.0, -1.0]) {
         final r = calculateDose(
           rate: 20,
-          basis: DoseBasis.perKilogram,
           weightG: weightG,
           concentrationPerMl: c,
           now: now,
@@ -140,7 +124,6 @@ void main() {
       // syringe. 1:10 is still under the limit, 1:100 clears it.
       final r = calculateDose(
         rate: 1,
-        basis: DoseBasis.perKilogram,
         weightG: weightG,
         concentrationPerMl: 100,
         now: now,
@@ -154,7 +137,6 @@ void main() {
     test('caps the dilution suggestion at the largest offered factor', () {
       final r = calculateDose(
         rate: 0.001,
-        basis: DoseBasis.perKilogram,
         weightG: weightG,
         concentrationPerMl: 1000,
         now: now,
@@ -166,9 +148,10 @@ void main() {
 
     test('does not warn on a volume exactly at the measurable limit', () {
       final r = calculateDose(
-        rate: 1,
-        basis: DoseBasis.perAnimal,
-        concentrationPerMl: 1 / minMeasurableVolumeMl,
+        rate: 20,
+        weightG: weightG,
+        // 5.24 mg at 104.8 mg/ml is 0.05 ml on the nose.
+        concentrationPerMl: 104.8,
         now: now,
       );
 
@@ -179,7 +162,6 @@ void main() {
     test('collects a stale weight and an unmeasurable volume together', () {
       final r = calculateDose(
         rate: 1,
-        basis: DoseBasis.perKilogram,
         weightG: weightG,
         weighedAt: now.subtract(const Duration(days: 30)),
         concentrationPerMl: 100,
@@ -192,41 +174,9 @@ void main() {
       ]);
     });
 
-    test('reports what a flat per-bird dose works out to per kilogram', () {
-      final r = calculateDose(
-        rate: 0.5,
-        basis: DoseBasis.perAnimal,
-        weightG: weightG,
-        now: now,
-      );
-
-      // 0.5 mg for a 262 g bird — the cross-check against the protocol.
-      expect(r.amount, 0.5);
-      expect(r.ratePerKg, 1.908);
-    });
-
-    test('echoes a per-kilogram rate back as itself', () {
-      final r = calculateDose(
-        rate: 20,
-        basis: DoseBasis.perKilogram,
-        weightG: weightG,
-        now: now,
-      );
-
-      expect(r.ratePerKg, 20);
-    });
-
-    test('cannot report a rate per kilogram without a weight', () {
-      final r = calculateDose(rate: 0.5, basis: DoseBasis.perAnimal, now: now);
-
-      expect(r.amount, 0.5);
-      expect(r.ratePerKg, isNull);
-    });
-
     test('drops the false precision of a repeating quotient', () {
       final r = calculateDose(
         rate: 10,
-        basis: DoseBasis.perKilogram,
         weightG: 333,
         concentrationPerMl: 3,
         now: now,
@@ -253,15 +203,6 @@ void main() {
 
     test('handles negatives symmetrically', () {
       expect(roundToSignificantDigits(-5.239999999999999), -5.24);
-    });
-  });
-
-  group('DoseBasis', () {
-    test('maps to and from its wire value', () {
-      expect(DoseBasis.perKilogram.wire, 'per_kg');
-      expect(DoseBasis.fromWire('per_animal'), DoseBasis.perAnimal);
-      expect(DoseBasis.fromWire('nonsense'), isNull);
-      expect(DoseBasis.fromWire(null), isNull);
     });
   });
 }

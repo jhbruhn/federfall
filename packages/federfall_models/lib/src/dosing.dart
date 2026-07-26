@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:federfall_models/src/enums.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'dosing.freezed.dart';
@@ -60,21 +59,13 @@ enum DoseWarning {
 /// The result of [calculateDose]: the amount to give, the volume to draw when
 /// a concentration is known, and everything the carer must be warned about.
 ///
-/// [amount] is null when the inputs cannot produce one (no rate, or a
-/// per-kilogram rate without a weight) — [warnings] then carries the reason.
+/// [amount] is null when the inputs cannot produce one (no rate, or no weight
+/// to apply it to) — [warnings] then carries the reason.
 @freezed
 abstract class DoseCalculation with _$DoseCalculation {
   const factory DoseCalculation({
     double? amount,
     double? volumeMl,
-
-    /// What [amount] works out to per kilogram of body weight, whenever a
-    /// weight is known.
-    ///
-    /// For a [DoseBasis.perKilogram] rate this is just the rate back again; it
-    /// earns its keep for a flat per-bird dose, where it is the cross-check
-    /// against the protocol — "0.5 mg for this bird is 1.9 mg/kg".
-    double? ratePerKg,
 
     /// The dilution that would bring an unmeasurable [volumeMl] up to a
     /// drawable one: `1:factor`, so the drawn volume becomes
@@ -92,18 +83,17 @@ abstract class DoseCalculation with _$DoseCalculation {
 
 /// Derives the dose for one administration.
 ///
-/// [rate] is per kilogram of body weight or per animal, per [basis]. [weightG]
-/// is the bird's weight in grams and [weighedAt] when it was measured — both
-/// only matter for [DoseBasis.perKilogram]. [concentrationPerMl] is the
-/// product's strength in *rate units per millilitre* (1.5 for a 1.5 mg/ml
-/// solution when the rate is in mg/kg); omit it for a drug that is not drawn
-/// up and no volume is reported.
+/// The two numbers a carer is holding: [rate], the prescription's dose per
+/// kilogram of body weight, and [concentrationPerMl], the product's strength in
+/// *rate units per millilitre* (1.5 for a 1.5 mg/ml solution when the rate is
+/// in mg/kg) — omit it for a drug that is not drawn up, and no volume is
+/// reported. [weightG] is the bird's weight in grams, [weighedAt] when it was
+/// measured.
 ///
 /// [now] defaults to the current time and exists so the staleness rule is
 /// testable.
 DoseCalculation calculateDose({
   required double rate,
-  required DoseBasis basis,
   double? weightG,
   DateTime? weighedAt,
   double? concentrationPerMl,
@@ -112,25 +102,15 @@ DoseCalculation calculateDose({
   if (!rate.isFinite || rate <= 0) return const DoseCalculation();
 
   final warnings = <DoseWarning>[];
-  double? amount;
-
-  switch (basis) {
-    case DoseBasis.perAnimal:
-      amount = rate;
-    case DoseBasis.perKilogram:
-      if (weightG == null || !weightG.isFinite || weightG <= 0) {
-        warnings.add(DoseWarning.missingWeight);
-      } else {
-        amount = rate * weightG / 1000;
-        final at = weighedAt;
-        if (at != null &&
-            (now ?? DateTime.now()).difference(at) > doseWeightMaxAge) {
-          warnings.add(DoseWarning.staleWeight);
-        }
-      }
+  if (weightG == null || !weightG.isFinite || weightG <= 0) {
+    return const DoseCalculation(warnings: [DoseWarning.missingWeight]);
   }
 
-  if (amount == null) return DoseCalculation(warnings: warnings);
+  final amount = rate * weightG / 1000;
+  final at = weighedAt;
+  if (at != null && (now ?? DateTime.now()).difference(at) > doseWeightMaxAge) {
+    warnings.add(DoseWarning.staleWeight);
+  }
 
   double? volumeMl;
   int? dilutionFactor;
@@ -146,14 +126,9 @@ DoseCalculation calculateDose({
     }
   }
 
-  final kg = (weightG != null && weightG.isFinite && weightG > 0)
-      ? weightG / 1000
-      : null;
-
   return DoseCalculation(
     amount: roundToSignificantDigits(amount),
     volumeMl: volumeMl == null ? null : roundToSignificantDigits(volumeMl),
-    ratePerKg: kg == null ? null : roundToSignificantDigits(amount / kg),
     dilutionFactor: dilutionFactor,
     warnings: warnings,
   );

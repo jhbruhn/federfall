@@ -198,7 +198,6 @@ class _AdministrationSheetState extends ConsumerState<AdministrationSheet>
           const SizedBox(height: AppSpacing.md),
           DoseCalculatorPanel(
             caseId: widget.caseId,
-            dose: _dose,
             unit: _unit,
             enabled: !isBusy,
             onApply: _applyCalculatedDose,

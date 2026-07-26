@@ -26,20 +26,11 @@ void main() {
     measuredAt: DateTime.now().subtract(age),
   );
 
-  /// The sheet's own dose and unit fields, which the panel reads instead of
-  /// keeping copies of them.
-  late TextEditingController doseField;
+  /// The sheet's unit field, which the panel reads instead of owning one.
   late TextEditingController unitField;
 
-  setUp(() {
-    doseField = TextEditingController();
-    unitField = TextEditingController(text: 'mg');
-  });
-
-  tearDown(() {
-    doseField.dispose();
-    unitField.dispose();
-  });
+  setUp(() => unitField = TextEditingController(text: 'mg'));
+  tearDown(() => unitField.dispose());
 
   Future<void> pumpPanel(
     WidgetTester tester, {
@@ -63,7 +54,6 @@ void main() {
               width: width,
               child: DoseCalculatorPanel(
                 caseId: 'c1',
-                dose: doseField,
                 unit: unitField,
                 onApply: onApply,
               ),
@@ -74,14 +64,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byType(ExpansionTile));
-    await tester.pumpAndSettle();
-  }
-
-  /// Switches the panel between a per-kilogram rate and a flat per-bird dose.
-  Future<void> chooseBasis(WidgetTester tester, String label) async {
-    await tester.tap(find.byType(DropdownButtonFormField<DoseBasis>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(label).last);
     await tester.pumpAndSettle();
   }
 
@@ -109,7 +91,7 @@ void main() {
         },
       );
 
-      await enter(tester, 'Dose rate', '20');
+      await enter(tester, 'Dose per kg body weight', '20');
 
       // Without a concentration the amount is the answer.
       expect(find.text('5.24 mg'), findsOneWidget);
@@ -127,8 +109,8 @@ void main() {
     ) async {
       await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
 
-      await enter(tester, 'Dose rate', '20');
-      await enter(tester, 'Concentration', '15');
+      await enter(tester, 'Dose per kg body weight', '20');
+      await enter(tester, 'Product concentration', '15');
 
       final answer = tester.widget<Text>(find.text('0.3493 ml'));
       final workedOut = tester.widget<Text>(
@@ -148,7 +130,7 @@ void main() {
         onApply: (a, _) => applied = a,
       );
 
-      await enter(tester, 'Dose rate', '0,5');
+      await enter(tester, 'Dose per kg body weight', '0,5');
       await tester.tap(find.widgetWithText(FilledButton, 'Use as dose'));
       await tester.pumpAndSettle();
 
@@ -168,7 +150,7 @@ void main() {
         onApply: (a, _) => applied = a,
       );
 
-      await enter(tester, 'Dose rate', '10');
+      await enter(tester, 'Dose per kg body weight', '10');
       await tester.tap(find.widgetWithText(FilledButton, 'Use as dose'));
       await tester.pumpAndSettle();
 
@@ -178,7 +160,7 @@ void main() {
     testWidgets('refuses to calculate without a weight', (tester) async {
       await pumpPanel(tester, onApply: (_, _) {});
 
-      await enter(tester, 'Dose rate', '20');
+      await enter(tester, 'Dose per kg body weight', '20');
 
       expect(
         find.text('No weight on record — weigh the bird before calculating.'),
@@ -199,7 +181,7 @@ void main() {
         onApply: (_, _) {},
       );
 
-      await enter(tester, 'Dose rate', '20');
+      await enter(tester, 'Dose per kg body weight', '20');
 
       expect(
         find.text(
@@ -225,8 +207,8 @@ void main() {
         width: 320,
       );
 
-      await enter(tester, 'Dosisrate', '20');
-      await enter(tester, 'Konzentration', '15');
+      await enter(tester, 'Dosis pro kg Körpergewicht', '20');
+      await enter(tester, 'Konzentration des Präparats', '15');
 
       // German numbers read with a comma, matching the separator the keyboard
       // next to them produces.
@@ -246,7 +228,7 @@ void main() {
         locale: 'de',
       );
 
-      await enter(tester, 'Dosisrate', '0,5');
+      await enter(tester, 'Dosis pro kg Körpergewicht', '0,5');
 
       expect(find.text('0,131 mg'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, 'Übernehmen'));
@@ -280,7 +262,6 @@ void main() {
                     const SizedBox(height: 420),
                     DoseCalculatorPanel(
                       caseId: 'c1',
-                      dose: doseField,
                       unit: unitField,
                       onApply: (_, _) {},
                     ),
@@ -297,33 +278,16 @@ void main() {
       await tester.pumpAndSettle();
 
       final field = tester.getRect(
-        find.widgetWithText(TextField, 'Dose rate'),
+        find.widgetWithText(TextField, 'Dose per kg body weight'),
       );
       expect(field.bottom, lessThanOrEqualTo(500));
       expect(field.top, greaterThanOrEqualTo(0));
     });
 
-    testWidgets('asks for no rate per bird — the sheet already has the dose', (
-      tester,
-    ) async {
-      await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
-      doseField.text = '0.5';
-      await chooseBasis(tester, 'per bird');
-
-      // Nothing to type a rate into and nothing to apply: the dose above is
-      // the amount, so the calculator only converts and cross-checks it.
-      expect(find.widgetWithText(TextField, 'Dose rate'), findsNothing);
-      expect(find.widgetWithText(FilledButton, 'Use as dose'), findsNothing);
-
-      await enter(tester, 'Concentration', '15');
-      expect(find.text('0.03333 ml'), findsOneWidget);
-      expect(find.text('0.5 mg  ·  = 1.908 mg/kg'), findsOneWidget);
-    });
-
     testWidgets('follows the unit typed into the sheet', (tester) async {
       await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
 
-      await enter(tester, 'Dose rate', '20');
+      await enter(tester, 'Dose per kg body weight', '20');
       expect(find.text('20 mg/kg × 262 g'), findsOneWidget);
 
       unitField.text = 'IU';
@@ -337,8 +301,8 @@ void main() {
     testWidgets('suggests a dilution for an undrawable volume', (tester) async {
       await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
 
-      await enter(tester, 'Dose rate', '1');
-      await enter(tester, 'Concentration', '100');
+      await enter(tester, 'Dose per kg body weight', '1');
+      await enter(tester, 'Product concentration', '100');
 
       expect(
         find.text('Too little to draw up — dilute 1:100 and draw 0.262 ml.'),
@@ -400,7 +364,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final field = tester.getRect(
-        find.widgetWithText(TextField, 'Dose rate'),
+        find.widgetWithText(TextField, 'Dose per kg body weight'),
       );
       expect(field.bottom, lessThanOrEqualTo(640));
       expect(field.top, greaterThanOrEqualTo(0));
@@ -459,7 +423,7 @@ void main() {
       await tester.enterText(
         find.descendant(
           of: find.byType(DoseCalculatorPanel),
-          matching: find.widgetWithText(TextField, 'Dose rate'),
+          matching: find.widgetWithText(TextField, 'Dose per kg body weight'),
         ),
         '20',
       );
