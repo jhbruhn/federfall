@@ -185,16 +185,45 @@ void main() {
             rateMax: 30,
             concentrationPerMl: 15,
           ),
+          MedicationProduct(
+            id: 'p2',
+            label: 'Medikament 2',
+            doseUnit: 'ml',
+            doseRate: 0.5,
+          ),
         ],
       );
 
-      await tester.tap(find.text('From the drug catalogue'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Medikament 1').last);
-      await tester.pumpAndSettle();
+      Future<void> pick(String label) async {
+        await tester.tap(
+          find.byType(DropdownButtonFormField<MedicationProduct>),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label).last);
+        await tester.pumpAndSettle();
+      }
 
-      // The entry poured itself into the form: drug, unit, rate (per kg) and
-      // strength, which is enough to show the dose for this bird.
+      String fieldText(String label) =>
+          tester
+              .widget<TextField>(find.widgetWithText(TextField, label))
+              .controller
+              ?.text ??
+          '';
+
+      // A fluid entry first: dosed in ml/kg, with nothing to draw up.
+      await pick('Medikament 2');
+      expect(fieldText('Unit'), 'ml');
+      expect(fieldText('Dose'), '0.5');
+      expect(fieldText('Product concentration'), isEmpty);
+
+      await pick('Medikament 1');
+
+      // Switching entries replaces every field the catalogue owns. Keeping the
+      // fluid's "ml" here would have priced the dose in the wrong unit, and a
+      // leftover strength would draw up the volume of another drug.
+      expect(fieldText('Unit'), 'mg');
+      expect(fieldText('Dose'), '20');
+      expect(fieldText('Product concentration'), '15');
       expect(find.text('0.3493 ml'), findsOneWidget);
       expect(find.text('20 mg/kg × 262 g = 5.24 mg'), findsOneWidget);
 

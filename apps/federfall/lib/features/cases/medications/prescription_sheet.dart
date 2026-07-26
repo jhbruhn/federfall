@@ -205,39 +205,40 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     }
   }
 
-  /// Pours a catalogue entry into the form. Every field stays editable
-  /// afterwards — the entry is the org's usual protocol, not a lock — and only
-  /// blank fields are filled, so re-picking never clobbers something typed.
+  /// Pours a catalogue entry into the form, replacing every field the catalogue
+  /// owns — including clearing the ones this entry does not specify.
+  ///
+  /// Picking an entry is a deliberate "use this protocol", so it must not leave
+  /// pieces of the previous pick behind: a drug dosed in ml/kg with the last
+  /// drug's mg/ml strength still in the form would compute the volume of the
+  /// wrong medicine. Everything stays editable afterwards — the entry is the
+  /// org's usual protocol, not a lock.
   void _applyProduct(MedicationProduct? product) {
     if (product == null) return;
     setState(() {
       _product = product;
-      if (_drug.text.trim().isEmpty) _drug.text = product.label;
-      if (_unit.text.trim().isEmpty && product.doseUnit != null) {
-        _unit.text = product.doseUnit!;
-      }
       final l10n = context.l10n;
-      if (_dose.text.trim().isEmpty && product.doseRate != null) {
-        _dose.text = formatDose(l10n, product.doseRate, null);
-        _perKg = true;
-      }
-      if (_concentration.text.trim().isEmpty &&
-          product.concentrationPerMl != null) {
-        _concentration.text = formatDose(
-          l10n,
-          product.concentrationPerMl,
-          null,
-        );
-      }
-      _route ??= product.route;
+      _drug.text = product.label;
+      _unit.text = product.doseUnit ?? '';
+      // An entry with a rate is by definition dosed per kilogram.
+      _perKg = product.doseRate != null;
+      _dose.text = product.doseRate == null
+          ? ''
+          : formatDose(l10n, product.doseRate, null);
+      _concentration.text = product.concentrationPerMl == null
+          ? ''
+          : formatDose(l10n, product.concentrationPerMl, null);
+      _route = product.route;
+      // The frequency preset has no "unset" value, so an entry with no default
+      // schedule leaves whatever is selected rather than inventing daily.
       if (product.frequencyKind != null) {
         _preset = _FreqPreset.from(
           product.frequencyKind,
           product.intervalHours,
         );
-        if (_preset == _FreqPreset.custom) {
-          _customHours.text = '${product.intervalHours ?? ''}';
-        }
+        _customHours.text = _preset == _FreqPreset.custom
+            ? '${product.intervalHours ?? ''}'
+            : '';
       }
     });
     markDirty();
