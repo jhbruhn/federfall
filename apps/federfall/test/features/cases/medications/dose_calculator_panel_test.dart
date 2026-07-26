@@ -26,11 +26,25 @@ void main() {
     measuredAt: DateTime.now().subtract(age),
   );
 
+  /// The sheet's own dose and unit fields, which the panel reads instead of
+  /// keeping copies of them.
+  late TextEditingController doseField;
+  late TextEditingController unitField;
+
+  setUp(() {
+    doseField = TextEditingController();
+    unitField = TextEditingController(text: 'mg');
+  });
+
+  tearDown(() {
+    doseField.dispose();
+    unitField.dispose();
+  });
+
   Future<void> pumpPanel(
     WidgetTester tester, {
     required void Function(double, String) onApply,
     List<Weight> weights = const [],
-    String? initialUnit,
     String locale = 'en',
     double width = 400,
   }) async {
@@ -49,7 +63,8 @@ void main() {
               width: width,
               child: DoseCalculatorPanel(
                 caseId: 'c1',
-                initialUnit: initialUnit,
+                dose: doseField,
+                unit: unitField,
                 onApply: onApply,
               ),
             ),
@@ -59,6 +74,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byType(ExpansionTile));
+    await tester.pumpAndSettle();
+  }
+
+  /// Switches the panel between a per-kilogram rate and a flat per-bird dose.
+  Future<void> chooseBasis(WidgetTester tester, String label) async {
+    await tester.tap(find.byType(DropdownButtonFormField<DoseBasis>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label).last);
     await tester.pumpAndSettle();
   }
 
@@ -86,7 +109,6 @@ void main() {
         },
       );
 
-      await enter(tester, 'Unit', 'mg');
       await enter(tester, 'Dose rate', '20');
 
       // Without a concentration the amount is the answer.
@@ -105,7 +127,6 @@ void main() {
     ) async {
       await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
 
-      await enter(tester, 'Unit', 'mg');
       await enter(tester, 'Dose rate', '20');
       await enter(tester, 'Concentration', '15');
 
@@ -257,7 +278,12 @@ void main() {
                 child: Column(
                   children: [
                     const SizedBox(height: 420),
-                    DoseCalculatorPanel(caseId: 'c1', onApply: (_, _) {}),
+                    DoseCalculatorPanel(
+                      caseId: 'c1',
+                      dose: doseField,
+                      unit: unitField,
+                      onApply: (_, _) {},
+                    ),
                   ],
                 ),
               ),
@@ -275,6 +301,37 @@ void main() {
       );
       expect(field.bottom, lessThanOrEqualTo(500));
       expect(field.top, greaterThanOrEqualTo(0));
+    });
+
+    testWidgets('asks for no rate per bird — the sheet already has the dose', (
+      tester,
+    ) async {
+      await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
+      doseField.text = '0.5';
+      await chooseBasis(tester, 'per bird');
+
+      // Nothing to type a rate into and nothing to apply: the dose above is
+      // the amount, so the calculator only converts and cross-checks it.
+      expect(find.widgetWithText(TextField, 'Dose rate'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Use as dose'), findsNothing);
+
+      await enter(tester, 'Concentration', '15');
+      expect(find.text('0.03333 ml'), findsOneWidget);
+      expect(find.text('0.5 mg  ·  = 1.908 mg/kg'), findsOneWidget);
+    });
+
+    testWidgets('follows the unit typed into the sheet', (tester) async {
+      await pumpPanel(tester, weights: [weight(262)], onApply: (_, _) {});
+
+      await enter(tester, 'Dose rate', '20');
+      expect(find.text('20 mg/kg × 262 g'), findsOneWidget);
+
+      unitField.text = 'IU';
+      await tester.pumpAndSettle();
+
+      // No unit field of its own to keep in sync — it reads the sheet's.
+      expect(find.text('20 IU/kg × 262 g'), findsOneWidget);
+      expect(find.text('5.24 IU'), findsOneWidget);
     });
 
     testWidgets('suggests a dilution for an undrawable volume', (tester) async {

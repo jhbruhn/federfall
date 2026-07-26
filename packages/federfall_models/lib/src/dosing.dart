@@ -68,6 +68,14 @@ abstract class DoseCalculation with _$DoseCalculation {
     double? amount,
     double? volumeMl,
 
+    /// What [amount] works out to per kilogram of body weight, whenever a
+    /// weight is known.
+    ///
+    /// For a [DoseBasis.perKilogram] rate this is just the rate back again; it
+    /// earns its keep for a flat per-bird dose, where it is the cross-check
+    /// against the protocol — "0.5 mg for this bird is 1.9 mg/kg".
+    double? ratePerKg,
+
     /// The dilution that would bring an unmeasurable [volumeMl] up to a
     /// drawable one: `1:factor`, so the drawn volume becomes
     /// `volumeMl * factor`. Only set alongside
@@ -138,9 +146,14 @@ DoseCalculation calculateDose({
     }
   }
 
+  final kg = (weightG != null && weightG.isFinite && weightG > 0)
+      ? weightG / 1000
+      : null;
+
   return DoseCalculation(
     amount: roundToSignificantDigits(amount),
     volumeMl: volumeMl == null ? null : roundToSignificantDigits(volumeMl),
+    ratePerKg: kg == null ? null : roundToSignificantDigits(amount / kg),
     dilutionFactor: dilutionFactor,
     warnings: warnings,
   );

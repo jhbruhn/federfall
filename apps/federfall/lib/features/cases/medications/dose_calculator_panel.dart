@@ -18,27 +18,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// over only when the carer taps — the derivation stays visible so it can be
 /// checked against the paper protocol.
 ///
-/// Nothing here is persisted; [onApply] just fills the sheet's dose and unit
-/// fields. Storing the rate on the prescription (so a plan follows the bird's
-/// weight as it recovers) is federfall-6d3a.2.
+/// It asks for nothing the form already knows (federfall-6d3a.4): it reads the
+/// sheet's [dose] and [unit] fields live rather than keeping copies of them, so
+/// there is one "Einheit" input in the sheet, not two. That also decides the
+/// shape of each mode:
+///
+/// * per kilogram — the rate is the input, the amount is derived, and it lands
+///   in the [dose] field only when the carer taps (via [onApply]).
+/// * per bird — the flat dose in the [dose] field *is* the amount, so there is
+///   no rate to ask for and nothing to apply. The calculator turns it into
+///   millilitres and cross-checks it as mg/kg.
+///
+/// Nothing here is persisted. Storing the rate on the prescription (so a plan
+/// follows the bird's weight as it recovers) is federfall-6d3a.2.
 class DoseCalculatorPanel extends ConsumerStatefulWidget {
   const DoseCalculatorPanel({
     required this.caseId,
+    required this.dose,
+    required this.unit,
     required this.onApply,
-    this.initialUnit,
     this.enabled = true,
     super.key,
   });
 
   final String caseId;
 
-  /// Seeds the unit field, so the calculator speaks in whatever unit the dose
-  /// already uses.
-  final String? initialUnit;
-  final bool enabled;
+  /// The sheet's dose field: read as the amount for a flat per-bird dose, and
+  /// the destination of [onApply] for a per-kilogram rate. Never written here.
+  final TextEditingController dose;
 
-  /// Called with the calculated amount and its unit when the carer accepts it.
+  /// The sheet's unit field, read for the `mg/kg` and `mg/ml` suffixes.
+  final TextEditingController unit;
+
+  /// Called with the calculated amount and the unit it is in, for the caller to
+  /// put into its own fields.
   final void Function(double amount, String unit) onApply;
+
+  /// False while the sheet is saving, matching its other inputs.
+  final bool enabled;
 
   @override
   ConsumerState<DoseCalculatorPanel> createState() =>
@@ -49,29 +66,16 @@ class DoseCalculatorPanel extends ConsumerStatefulWidget {
 const String _defaultUnit = 'mg';
 
 class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
-  late final TextEditingController _rate;
-  late final TextEditingController _unit;
-  late final TextEditingController _concentration;
+  final TextEditingController _rate = TextEditingController();
+  final TextEditingController _concentration = TextEditingController();
   DoseBasis _basis = DoseBasis.perKilogram;
 
   /// Anchors the scroll-into-view when the panel opens.
   final GlobalKey _panelKey = GlobalKey();
 
   @override
-  void initState() {
-    super.initState();
-    _rate = TextEditingController();
-    // Defaulting to mg is not just convenience: it makes the `mg/kg` and
-    // `mg/ml` suffixes visible from the start, which is what explains the two
-    // number fields to a carer opening the panel for the first time.
-    final seeded = widget.initialUnit?.trim() ?? '';
-    _unit = TextEditingController(text: seeded.isEmpty ? _defaultUnit : seeded);
-    _concentration = TextEditingController();
-  }
-
-  @override
   void dispose() {
-    for (final c in [_rate, _unit, _concentration]) {
+    for (final c in [_rate, _concentration]) {
       c.dispose();
     }
     super.dispose();
@@ -109,6 +113,15 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuilds when the sheet's own dose or unit field changes, since both are
+    // inputs to the calculation now that the panel keeps no copy of them.
+    return ListenableBuilder(
+      listenable: Listenable.merge([widget.dose, widget.unit]),
+      builder: (context, _) => _buildPanel(context),
+    );
+  }
+
+  Widget _buildPanel(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
@@ -118,8 +131,17 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
         const <Weight>[];
     final weight = latestWeight(weights);
     final weighedAt = weight?.measuredAt ?? weight?.created;
-    final unit = _unit.text.trim();
-    final rate = _number(_rate);
+
+    // The record's unit drives every label here. It may be blank on an ad-hoc
+    // dose, and a suffix reading "/kg" helps nobody, so the calculator works in
+    // mg and says so — and writes that unit back with the dose on apply.
+    final recordUnit = widget.unit.text.trim();
+    final unit = recordUnit.isEmpty ? _defaultUnit : recordUnit;
+
+    final perKg = _basis == DoseBasis.perKilogram;
+    // Per kilogram the rate is the panel's own input; per bird the dose the
+    // carer already typed above IS the amount, so there is nothing to ask for.
+    final rate = perKg ? _number(_rate) : _number(widget.dose);
 
     final result = rate == null
         ? const DoseCalculation()
@@ -130,6 +152,12 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
             weighedAt: weighedAt,
             concentrationPerMl: _number(_concentration),
           );
+
+    final basisToggle = _BasisToggle(
+      basis: _basis,
+      enabled: widget.enabled,
+      onChanged: (b) => setState(() => _basis = b),
+    );
 
     return Card(
       key: _panelKey,
@@ -157,58 +185,51 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
           AppSpacing.md,
         ),
         children: [
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: _NumberField(
-                  controller: _rate,
-                  label: l10n.doseCalcRate,
-                  hintText: l10n.doseCalcRateHint,
-                  suffixText: unit.isEmpty
-                      ? null
-                      : (_basis == DoseBasis.perKilogram ? '$unit/kg' : unit),
-                  enabled: widget.enabled,
-                  onChanged: (_) => setState(() {}),
+          if (perKg) ...[
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _NumberField(
+                    controller: _rate,
+                    label: l10n.doseCalcRate,
+                    hintText: l10n.doseCalcRateHint,
+                    suffixText: '$unit/kg',
+                    enabled: widget.enabled,
+                    onChanged: (_) => setState(() {}),
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                flex: 2,
-                child: AppTextField(
-                  controller: _unit,
-                  label: l10n.medUnit,
-                  enabled: widget.enabled,
-                  onChanged: (_) => setState(() {}),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(flex: 2, child: basisToggle),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _NumberField(
+              controller: _concentration,
+              label: l10n.doseCalcConcentration,
+              hintText: l10n.doseCalcConcentrationHint,
+              suffixText: '$unit/ml',
+              enabled: widget.enabled,
+              onChanged: (_) => setState(() {}),
+            ),
+          ] else
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _NumberField(
+                    controller: _concentration,
+                    label: l10n.doseCalcConcentration,
+                    hintText: l10n.doseCalcConcentrationHint,
+                    suffixText: '$unit/ml',
+                    enabled: widget.enabled,
+                    onChanged: (_) => setState(() {}),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: _NumberField(
-                  controller: _concentration,
-                  label: l10n.doseCalcConcentration,
-                  hintText: l10n.doseCalcConcentrationHint,
-                  suffixText: unit.isEmpty ? null : '$unit/ml',
-                  enabled: widget.enabled,
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                flex: 2,
-                child: _BasisToggle(
-                  basis: _basis,
-                  enabled: widget.enabled,
-                  onChanged: (b) => setState(() => _basis = b),
-                ),
-              ),
-            ],
-          ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(flex: 2, child: basisToggle),
+              ],
+            ),
           for (final warning in result.warnings) ...[
             const SizedBox(height: AppSpacing.sm),
             _Warning(text: _warningText(l10n, warning, result, unit)),
@@ -216,7 +237,8 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
           const SizedBox(height: AppSpacing.sm),
           // Result and action share a line: the calculator is a scratchpad
           // inside a form, and every row it takes pushes the actual record
-          // fields off screen.
+          // fields off screen. Per bird there is no action at all — the dose
+          // is already in the field above — so the answer gets the full width.
           Row(
             children: [
               Expanded(
@@ -230,22 +252,24 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
                       )
                     : const SizedBox.shrink(),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              // The app theme makes filled buttons full-width
-              // (`minimumSize: Size.fromHeight(48)`, i.e. an infinite minimum
-              // width). That is right for a form's primary action but
-              // unsatisfiable for a non-flex child of a Row — it fails layout
-              // and the Card's clip swallows the whole panel — so this one
-              // asks for the Material default width.
-              FilledButton.tonal(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(64, 48),
+              if (perKg) ...[
+                const SizedBox(width: AppSpacing.sm),
+                // The app theme makes filled buttons full-width
+                // (`minimumSize: Size.fromHeight(48)`, i.e. an infinite
+                // minimum width). That is right for a form's primary action
+                // but unsatisfiable for a non-flex child of a Row — it fails
+                // layout and the Card's clip swallows the whole panel — so
+                // this one asks for the Material default width.
+                FilledButton.tonal(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(64, 48),
+                  ),
+                  onPressed: widget.enabled && result.hasAmount
+                      ? () => widget.onApply(result.amount!, unit)
+                      : null,
+                  child: Text(l10n.doseCalcApply),
                 ),
-                onPressed: widget.enabled && result.hasAmount
-                    ? () => widget.onApply(result.amount!, unit)
-                    : null,
-                child: Text(l10n.doseCalcApply),
-              ),
+              ],
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -293,6 +317,9 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
 /// does something with, so they take the lead and the amount drops to the
 /// working-out line (`0.35 ml` over `20 mg/kg × 262 g = 5.24 mg`). Without a
 /// concentration there is nothing to draw up and the amount is the answer.
+///
+/// For a flat per-bird dose the amount came from the sheet, so the working-out
+/// line carries the cross-check instead: what that dose is per kilogram.
 class _Derivation extends StatelessWidget {
   const _Derivation({
     required this.rate,
@@ -316,16 +343,22 @@ class _Derivation extends StatelessWidget {
     final volume = result.volumeMl;
     final w = weight;
 
-    // `20 mg/kg × 262 g`, omitted for a flat per-bird rate where there is no
-    // arithmetic to show.
-    final workedOut = basis == DoseBasis.perKilogram && w != null
-        ? '${formatDose(l10n, rate, unit.isEmpty ? null : '$unit/kg')} × '
-              '${formatWeightG(l10n, w.weightG)}'
-        : null;
+    // Per kilogram: `20 mg/kg × 262 g`, the arithmetic behind the amount.
+    // Per bird: `= 1.91 mg/kg`, the cross-check on a dose typed by hand.
+    final workedOut = switch (basis) {
+      DoseBasis.perKilogram when w != null =>
+        '${formatDose(l10n, rate, '$unit/kg')} × '
+            '${formatWeightG(l10n, w.weightG)}',
+      DoseBasis.perAnimal when result.ratePerKg != null =>
+        '= ${formatDose(l10n, result.ratePerKg, '$unit/kg')}',
+      _ => null,
+    };
     final answer = volume == null ? amount : formatDose(l10n, volume, 'ml');
-    final detail = volume == null
-        ? workedOut
-        : [?workedOut, amount].join(' = ');
+    final detail = switch ((volume, basis)) {
+      (null, _) => workedOut,
+      (_, DoseBasis.perAnimal) => [amount, ?workedOut].join('  ·  '),
+      _ => [?workedOut, amount].join(' = '),
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -192,6 +192,37 @@ void main() {
       ]);
     });
 
+    test('reports what a flat per-bird dose works out to per kilogram', () {
+      final r = calculateDose(
+        rate: 0.5,
+        basis: DoseBasis.perAnimal,
+        weightG: weightG,
+        now: now,
+      );
+
+      // 0.5 mg for a 262 g bird — the cross-check against the protocol.
+      expect(r.amount, 0.5);
+      expect(r.ratePerKg, 1.908);
+    });
+
+    test('echoes a per-kilogram rate back as itself', () {
+      final r = calculateDose(
+        rate: 20,
+        basis: DoseBasis.perKilogram,
+        weightG: weightG,
+        now: now,
+      );
+
+      expect(r.ratePerKg, 20);
+    });
+
+    test('cannot report a rate per kilogram without a weight', () {
+      final r = calculateDose(rate: 0.5, basis: DoseBasis.perAnimal, now: now);
+
+      expect(r.amount, 0.5);
+      expect(r.ratePerKg, isNull);
+    });
+
     test('drops the false precision of a repeating quotient', () {
       final r = calculateDose(
         rate: 10,
