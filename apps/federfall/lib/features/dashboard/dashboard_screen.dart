@@ -174,13 +174,6 @@ class _KpiGrid extends ConsumerWidget {
 
   final DashboardSummary summary;
 
-  /// Seeds the Cases tab's filter, then switches to it (go, not push) so the
-  /// bottom nav stays and we don't open a full-screen browser over it.
-  void _showCases(BuildContext context, WidgetRef ref, CaseQuery query) {
-    ref.read(pendingCaseQueryProvider.notifier).queue(query);
-    context.go(AppRoutes.cases);
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
@@ -192,13 +185,14 @@ class _KpiGrid extends ConsumerWidget {
         icon: Icons.medical_information_outlined,
         label: l10n.dashboardActiveCases,
         value: '${summary.activeCount}',
-        onTap: () => _showCases(context, ref, const CaseQuery(allScope: true)),
+        onTap: () =>
+            showCasesFiltered(context, ref, const CaseQuery(allScope: true)),
       ),
       KpiCard(
         icon: Icons.input_outlined,
         label: l10n.dashboardIntakesThisYear,
         value: '${summary.intakesThisYear}',
-        onTap: () => _showCases(
+        onTap: () => showCasesFiltered(
           context,
           ref,
           CaseQuery(
@@ -215,7 +209,7 @@ class _KpiGrid extends ConsumerWidget {
         icon: Icons.task_alt_outlined,
         label: caseStatusLabel(l10n, CaseStatus.readyForRelease),
         value: '$ready',
-        onTap: () => _showCases(
+        onTap: () => showCasesFiltered(
           context,
           ref,
           const CaseQuery(

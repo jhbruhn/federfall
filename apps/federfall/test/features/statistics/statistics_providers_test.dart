@@ -27,13 +27,17 @@ Disposition _disp(
   DateTime? at,
 }) => Disposition(id: id, caseId: caseId, type: type, disposedAt: at);
 
-CaseCondition _cc(String id, {String? condition, String? freeText}) =>
-    CaseCondition(
-      id: id,
-      caseId: 'c1',
-      condition: condition,
-      freeText: freeText,
-    );
+CaseCondition _cc(
+  String id, {
+  String caseId = 'c1',
+  String? condition,
+  String? freeText,
+}) => CaseCondition(
+  id: id,
+  caseId: caseId,
+  condition: condition,
+  freeText: freeText,
+);
 
 void main() {
   Statistics run({
@@ -97,14 +101,29 @@ void main() {
     final s = run(
       caseConditions: [
         _cc('1', condition: 'cond1'),
-        _cc('2', condition: 'cond1'),
-        _cc('3', freeText: 'Unbekannt'),
+        _cc('2', caseId: 'c2', condition: 'cond1'),
+        _cc('3', caseId: 'c3', freeText: 'Unbekannt'),
       ],
       conditions: {'cond1': 'Trichomoniasis'},
     );
     final byLabel = {for (final c in s.byCondition) c.label: c.count};
     expect(byLabel['Trichomoniasis'], 2);
     expect(byLabel['Unbekannt'], 1);
+  });
+
+  test('condition breakdown counts cases, not rows (federfall-5puj)', () {
+    // The figure is a way in to the cases behind it, so it has to count what
+    // that tap-through would list: one case recording the same diagnosis
+    // twice is one case.
+    final s = run(
+      caseConditions: [
+        _cc('1', condition: 'cond1'),
+        _cc('2', condition: 'cond1'),
+      ],
+      conditions: {'cond1': 'Trichomoniasis'},
+    );
+
+    expect(s.byCondition.single.count, 1);
   });
 
   test('average time in care over disposed cases with both dates', () {

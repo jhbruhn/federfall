@@ -1,3 +1,4 @@
+import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart' show DateTimeRange;
@@ -131,19 +132,94 @@ void main() {
     expect(_ids(result), ['ready']);
   });
 
+  test('outcome filter matches the terminal disposition (federfall-5puj)', () {
+    final result = filterCases(
+      [_c('released'), _c('died'), _c('open')],
+      _animals,
+      myUserId: 'me',
+      query: const CaseQuery(
+        activity: CaseActivity.all,
+        outcome: DispositionType.released,
+      ),
+      facets: const CaseFacets(
+        outcomeByCase: {
+          'released': DispositionType.released,
+          'died': DispositionType.died,
+        },
+      ),
+    );
+
+    expect(_ids(result), ['released']);
+  });
+
+  test('condition filter matches a diagnosis label on the case', () {
+    final result = filterCases(
+      [_c('sick'), _c('hurt'), _c('none')],
+      _animals,
+      myUserId: 'me',
+      query: const CaseQuery(condition: 'Trichomoniasis'),
+      facets: const CaseFacets(
+        conditionsByCase: {
+          'sick': {'Trichomoniasis', 'Abmagerung'},
+          'hurt': {'Katzenbiss'},
+        },
+      ),
+    );
+
+    expect(_ids(result), ['sick']);
+  });
+
+  test('an outcome/condition query matches nothing without facets loaded', () {
+    // The default empty facets are only correct for a query that doesn't need
+    // them — filtering with them anyway must not silently pass every case.
+    final result = run([
+      _c('a'),
+      _c('b'),
+    ], const CaseQuery(outcome: DispositionType.released));
+
+    expect(result, isEmpty);
+  });
+
+  test('needsFacets flags exactly the queries that read the extra loads', () {
+    expect(const CaseQuery().needsFacets, isFalse);
+    expect(const CaseQuery(species: 'Columba livia').needsFacets, isFalse);
+    expect(
+      const CaseQuery(outcome: DispositionType.died).needsFacets,
+      isTrue,
+    );
+    expect(const CaseQuery(condition: 'Katzenbiss').needsFacets, isTrue);
+  });
+
   test('CaseQuery.fromParams seeds a deep-linked filter', () {
     final q = CaseQuery.fromParams(const {
       'scope': 'all',
       'activity': 'all',
       'status': 'ready_for_release',
+      'outcome': 'placed_in_aviary',
+      'condition': 'Katzenbiss',
       'year': '2025',
     });
 
     expect(q.allScope, isTrue);
     expect(q.activity, CaseActivity.all);
     expect(q.status, CaseStatus.readyForRelease);
+    expect(q.outcome, DispositionType.placedInAviary);
+    expect(q.condition, 'Katzenbiss');
     expect(q.admittedRange?.start.year, 2025);
     expect(q.admittedRange?.end.year, 2025);
+  });
+
+  test('copyWith clears the outcome and condition facets individually', () {
+    const q = CaseQuery(
+      outcome: DispositionType.died,
+      condition: 'Katzenbiss',
+    );
+
+    expect(q.activeFacetCount, 2);
+    expect(q.copyWith(clearOutcome: true).outcome, isNull);
+    expect(q.copyWith(clearOutcome: true).condition, 'Katzenbiss');
+    expect(q.copyWith(clearCondition: true).condition, isNull);
+    expect(q.copyWith(clearCondition: true).outcome, DispositionType.died);
   });
 
   test('CaseQuery.fromParams falls back to defaults for empty params', () {

@@ -1,4 +1,5 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -58,24 +59,6 @@ class Statistics {
   final double? avgTimeInCareDays;
 }
 
-DateTime _dispoDate(Disposition d) =>
-    d.disposedAt ?? d.created ?? DateTime.fromMillisecondsSinceEpoch(0);
-
-/// The latest (terminal) disposition per case id. Handles re-dispositions by
-/// keeping the most recent. Shared by the statistics and the CSV report.
-Map<String, Disposition> terminalDispositionByCase(
-  List<Disposition> dispositions,
-) {
-  final terminal = <String, Disposition>{};
-  for (final d in dispositions) {
-    final cur = terminal[d.caseId];
-    if (cur == null || _dispoDate(d).isAfter(_dispoDate(cur))) {
-      terminal[d.caseId] = d;
-    }
-  }
-  return terminal;
-}
-
 /// Sorts a label→count map into [StatCount]s, highest count first then label.
 List<StatCount> _ranked(Map<String, int> counts) {
   final list = [for (final e in counts.entries) StatCount(e.key, e.value)]
@@ -120,11 +103,18 @@ Statistics computeStatistics({
     }
   }
 
+  // Counted through the browser's own projection so the number here and the
+  // list a tap-through lands on can't disagree (federfall-5puj) — including on
+  // the one case that records the same diagnosis twice, which is one case, not
+  // two.
   final conditionCounts = <String, int>{};
-  for (final cc in caseConditions) {
-    final id = cc.condition;
-    final label = (id != null ? conditionLabels[id] : null) ?? cc.freeText;
-    if (label != null && label.isNotEmpty) {
+  final conditionsByCase = buildCaseFacets(
+    dispositions: const [],
+    caseConditions: caseConditions,
+    conditionLabels: conditionLabels,
+  ).conditionsByCase;
+  for (final labels in conditionsByCase.values) {
+    for (final label in labels) {
       conditionCounts[label] = (conditionCounts[label] ?? 0) + 1;
     }
   }

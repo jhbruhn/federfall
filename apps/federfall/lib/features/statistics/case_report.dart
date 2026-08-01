@@ -1,5 +1,5 @@
 import 'package:csv/csv.dart';
-import 'package:federfall/features/statistics/statistics_providers.dart';
+import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 

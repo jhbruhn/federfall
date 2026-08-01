@@ -1,4 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
@@ -28,6 +29,7 @@ Future<void> _pump(
   AppUser? user,
   CaseQuery? initialQuery,
   CaseQuery? pending,
+  CaseFacets facets = CaseFacets.empty,
 }) async {
   // Compact width so the account menu sits in the app bar (on wider widths it
   // moves to the navigation rail, which this standalone screen has no shell to
@@ -49,6 +51,7 @@ Future<void> _pump(
         ),
         currentUserProvider.overrideWith((ref) async => user),
         pendingCaseQueryProvider.overrideWith(() => _SeededPending(pending)),
+        caseFacetsProvider.overrideWith((ref) async => facets),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
@@ -336,5 +339,70 @@ void main() {
 
     expect(find.text('Administration'), findsOneWidget);
     expect(find.text('Statistics'), findsOneWidget);
+  });
+
+  testWidgets('an outcome handed over from statistics filters the list', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      cases: const [
+        Case(id: 'c1', animal: 'a1', caseNumber: '2026-001'),
+        Case(id: 'c2', animal: 'a1', caseNumber: '2026-002'),
+      ],
+      pending: const CaseQuery(
+        allScope: true,
+        activity: CaseActivity.all,
+        outcome: DispositionType.released,
+      ),
+      facets: const CaseFacets(
+        outcomeByCase: {
+          'c1': DispositionType.released,
+          'c2': DispositionType.died,
+        },
+      ),
+    );
+
+    expect(find.text('2026-001'), findsOneWidget);
+    expect(find.text('2026-002'), findsNothing);
+  });
+
+  testWidgets('the filter sheet shows and clears a handed-over facet', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      cases: const [
+        Case(id: 'c1', animal: 'a1', caseNumber: '2026-001'),
+        Case(id: 'c2', animal: 'a1', caseNumber: '2026-002'),
+      ],
+      pending: const CaseQuery(
+        allScope: true,
+        activity: CaseActivity.all,
+        condition: 'Katzenbiss',
+      ),
+      facets: const CaseFacets(
+        conditionsByCase: {
+          'c1': {'Katzenbiss'},
+        },
+      ),
+    );
+
+    expect(find.text('2026-002'), findsNothing);
+
+    await tester.tap(find.byTooltip('Filters'));
+    await tester.pumpAndSettle();
+    // Not pickable here, but visible and removable — otherwise the list would
+    // be short of cases with nothing on screen saying why.
+    final chip = find.widgetWithText(InputChip, 'Katzenbiss');
+    expect(chip, findsOneWidget);
+
+    // Clearing it releases the list behind the sheet, which updates live.
+    await tester.tap(
+      find.descendant(of: chip, matching: find.byIcon(Icons.clear)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026-002'), findsOneWidget);
   });
 }

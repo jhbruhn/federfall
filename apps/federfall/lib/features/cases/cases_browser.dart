@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -22,14 +23,16 @@ class CaseQuery {
     this.activity = CaseActivity.active,
     this.status,
     this.species,
+    this.outcome,
+    this.condition,
     this.admittedRange,
     this.text = '',
   });
 
   /// Seeds a query from deep-link route parameters (dashboard tap-through,
   /// ctw.6): `scope=all`, `activity=active|closed|all`, `status=<wire>`,
-  /// `species=<name>`, `year=<yyyy>`. Unknown/absent params fall back to
-  /// defaults.
+  /// `species=<name>`, `outcome=<wire>`, `condition=<label>`, `year=<yyyy>`.
+  /// Unknown/absent params fall back to defaults.
   factory CaseQuery.fromParams(Map<String, String> params) {
     final year = int.tryParse(params['year'] ?? '');
     return CaseQuery(
@@ -41,6 +44,8 @@ class CaseQuery {
       },
       status: CaseStatus.fromWire(params['status']),
       species: params['species'],
+      outcome: DispositionType.fromWire(params['outcome']),
+      condition: params['condition'],
       admittedRange: year == null
           ? null
           : DateTimeRange(
@@ -63,6 +68,19 @@ class CaseQuery {
   /// Exact species match against the case's animal, or null for any.
   final String? species;
 
+  /// The terminal outcome recorded on the case, or null for any. Resolved
+  /// through [CaseFacets.outcomeByCase] — dispositions are their own
+  /// collection, not a field on the case.
+  final DispositionType? outcome;
+
+  /// A diagnosis recorded on the case, matched by its display *label*, or null
+  /// for any — see [caseConditionLabel] for why a label and not a code-list
+  /// id. Resolved through [CaseFacets.conditionsByCase]. The trade-off of the
+  /// label is that renaming a code-list entry orphans a link naming the old
+  /// one; matching by id instead would silently drop every free-text
+  /// diagnosis, which is worse.
+  final String? condition;
+
   /// Admission-date window (inclusive), or null for any date.
   final DateTimeRange? admittedRange;
 
@@ -80,23 +98,35 @@ class CaseQuery {
       (activity != CaseActivity.active ? 1 : 0) +
       (status != null ? 1 : 0) +
       (species != null ? 1 : 0) +
+      (outcome != null ? 1 : 0) +
+      (condition != null ? 1 : 0) +
       (admittedRange != null ? 1 : 0);
+
+  /// Whether resolving this query needs [CaseFacets] — so the browser only
+  /// loads the dispositions and diagnoses when a facet actually reads them.
+  bool get needsFacets => outcome != null || condition != null;
 
   CaseQuery copyWith({
     bool? allScope,
     CaseActivity? activity,
     CaseStatus? status,
     String? species,
+    DispositionType? outcome,
+    String? condition,
     DateTimeRange? admittedRange,
     String? text,
     bool clearStatus = false,
     bool clearSpecies = false,
+    bool clearOutcome = false,
+    bool clearCondition = false,
     bool clearRange = false,
   }) => CaseQuery(
     allScope: allScope ?? this.allScope,
     activity: activity ?? this.activity,
     status: clearStatus ? null : (status ?? this.status),
     species: clearSpecies ? null : (species ?? this.species),
+    outcome: clearOutcome ? null : (outcome ?? this.outcome),
+    condition: clearCondition ? null : (condition ?? this.condition),
     admittedRange: clearRange ? null : (admittedRange ?? this.admittedRange),
     text: text ?? this.text,
   );
@@ -108,12 +138,22 @@ class CaseQuery {
       other.activity == activity &&
       other.status == status &&
       other.species == species &&
+      other.outcome == outcome &&
+      other.condition == condition &&
       other.admittedRange == admittedRange &&
       other.text == text;
 
   @override
-  int get hashCode =>
-      Object.hash(allScope, activity, status, species, admittedRange, text);
+  int get hashCode => Object.hash(
+    allScope,
+    activity,
+    status,
+    species,
+    outcome,
+    condition,
+    admittedRange,
+    text,
+  );
 }
 
 /// Everything the browser needs in one shot: the accessible cases (server-
@@ -178,12 +218,17 @@ Future<CasesBrowserData> casesBrowserData(Ref ref) async {
 
 /// Pure application of [query] to [cases]. Kept out of the widget so it can be
 /// unit-tested without PocketBase. Input order (newest first) is preserved.
+///
+/// [facets] resolves the outcome and diagnosis filters, which read collections
+/// the case record doesn't carry; leaving it empty is only correct for a query
+/// with `needsFacets == false`.
 List<Case> filterCases(
   List<Case> cases,
   Map<String, Animal> animalsById, {
   required String myUserId,
   required CaseQuery query,
   Map<String, List<String>> codesByAnimal = const {},
+  CaseFacets facets = CaseFacets.empty,
 }) {
   final text = query.text.trim().toLowerCase();
   final range = query.admittedRange;
@@ -203,6 +248,16 @@ List<Case> filterCases(
     }
 
     if (query.status != null && c.status != query.status) return false;
+
+    if (query.outcome != null && facets.outcomeByCase[c.id] != query.outcome) {
+      return false;
+    }
+
+    final condition = query.condition;
+    if (condition != null &&
+        !(facets.conditionsByCase[c.id]?.contains(condition) ?? false)) {
+      return false;
+    }
 
     final animal = animalsById[c.animal];
     if (query.species != null && animal?.species != query.species) {

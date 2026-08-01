@@ -1,6 +1,7 @@
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/carer_line.dart';
+import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
@@ -136,6 +137,12 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
       () => ref.invalidate(casesBrowserDataProvider),
     );
     final data = ref.watch(casesBrowserDataProvider);
+    // The outcome/diagnosis facets resolve against two collections the browser
+    // otherwise never touches, so watch them only while a query actually uses
+    // one (federfall-5puj) — the provider is disposed again when it's cleared.
+    final facets = _query.needsFacets
+        ? ref.watch(caseFacetsProvider)
+        : const AsyncValue<CaseFacets>.data(CaseFacets.empty);
     // When the list is empty its empty-state already offers an "admit a case"
     // CTA, so suppress the FAB then — two identical primary actions on one
     // screen is redundant. While loading or on error (no known list) keep it.
@@ -156,62 +163,74 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
       body: AsyncValueView<CasesBrowserData>(
         value: data,
         onRetry: () => ref.invalidate(casesBrowserDataProvider),
-        data: (d) {
-          final results = filterCases(
-            d.cases,
-            d.animalsById,
-            myUserId: d.myUserId,
-            query: _query,
-            codesByAnimal: d.codesByAnimal,
-          );
-          _maybeWidenScopeForSelection(selectedId, results, d.cases);
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: _SearchBar(
-                  controller: _searchController,
-                  facetCount: _query.activeFacetCount,
-                  onChanged: (v) => _update(_query.copyWith(text: v)),
-                  onOpenFilters: () => _openFilters(d.speciesOptions),
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: d.cases.isEmpty
-                    ? EmptyView(
-                        icon: Icons.medical_information_outlined,
-                        title: l10n.casesEmpty,
-                        message: l10n.casesEmptyBody,
-                        actionLabel: l10n.casesEmptyAction,
-                        actionIcon: Icons.add,
-                        onAction: () => context.push(AppRoutes.newCase),
-                      )
-                    : results.isEmpty
-                    ? EmptyView(message: l10n.casesNoMatches)
-                    : RefreshIndicator(
-                        onRefresh: () =>
-                            ref.refresh(casesBrowserDataProvider.future),
-                        child: ListView.builder(
-                          itemCount: results.length,
-                          itemBuilder: (context, i) {
-                            final c = results[i];
-                            return _CaseTile(
-                              c,
-                              d.animalsById[c.animal],
-                              // Redundant in the "mine" scope — every case is
-                              // already the signed-in user's.
-                              showCarer: _query.allScope,
-                              selected: c.id == selectedId,
-                            );
-                          },
-                        ),
-                      ),
-              ),
-            ],
-          );
-        },
+        data: (d) => AsyncValueView<CaseFacets>(
+          value: facets,
+          onRetry: () => ref.invalidate(caseFacetsProvider),
+          data: (f) => _results(d, f, selectedId),
+        ),
       ),
+    );
+  }
+
+  Widget _results(CasesBrowserData d, CaseFacets facets, String? selectedId) {
+    final l10n = context.l10n;
+    final results = filterCases(
+      d.cases,
+      d.animalsById,
+      myUserId: d.myUserId,
+      query: _query,
+      codesByAnimal: d.codesByAnimal,
+      facets: facets,
+    );
+    _maybeWidenScopeForSelection(selectedId, results, d.cases);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: _SearchBar(
+            controller: _searchController,
+            facetCount: _query.activeFacetCount,
+            onChanged: (v) => _update(_query.copyWith(text: v)),
+            onOpenFilters: () => _openFilters(d.speciesOptions),
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: d.cases.isEmpty
+              ? EmptyView(
+                  icon: Icons.medical_information_outlined,
+                  title: l10n.casesEmpty,
+                  message: l10n.casesEmptyBody,
+                  actionLabel: l10n.casesEmptyAction,
+                  actionIcon: Icons.add,
+                  onAction: () => context.push(AppRoutes.newCase),
+                )
+              : results.isEmpty
+              ? EmptyView(message: l10n.casesNoMatches)
+              : RefreshIndicator(
+                  onRefresh: () {
+                    // The facets ride along: they're a second source behind
+                    // the same list, so a pull has to refresh both.
+                    ref.invalidate(caseFacetsProvider);
+                    return ref.refresh(casesBrowserDataProvider.future);
+                  },
+                  child: ListView.builder(
+                    itemCount: results.length,
+                    itemBuilder: (context, i) {
+                      final c = results[i];
+                      return _CaseTile(
+                        c,
+                        d.animalsById[c.animal],
+                        // Redundant in the "mine" scope — every case is
+                        // already the signed-in user's.
+                        showCarer: _query.allScope,
+                        selected: c.id == selectedId,
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }
@@ -384,6 +403,29 @@ class _FilterSheetState extends State<_FilterSheet> {
                 ),
               ),
             ],
+            // Outcome and diagnosis are seeded by a statistics tap-through
+            // (federfall-5puj), not browsed here — the sheet would need the
+            // dispositions and the whole condition code-list loaded to offer
+            // them as pickers, which is exactly the cost the lazy
+            // `caseFacetsProvider` avoids. They still have to be visible and
+            // removable, though: a filter the user can't see is a list that
+            // lies about what it holds.
+            if (_query.outcome != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              _FilterLabel(l10n.dispositionFieldType),
+              _RemovableFacet(
+                label: dispositionTypeLabel(l10n, _query.outcome),
+                onDeleted: () => _apply(_query.copyWith(clearOutcome: true)),
+              ),
+            ],
+            if (_query.condition != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              _FilterLabel(l10n.conditionFieldName),
+              _RemovableFacet(
+                label: _query.condition!,
+                onDeleted: () => _apply(_query.copyWith(clearCondition: true)),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             _FilterLabel(l10n.casesFilterDateRange),
             Align(
@@ -406,6 +448,20 @@ class _FilterSheetState extends State<_FilterSheet> {
       ),
     );
   }
+}
+
+/// A facet the sheet can only report and clear, not pick.
+class _RemovableFacet extends StatelessWidget {
+  const _RemovableFacet({required this.label, required this.onDeleted});
+
+  final String label;
+  final VoidCallback onDeleted;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.centerLeft,
+    child: InputChip(label: Text(label), onDeleted: onDeleted),
+  );
 }
 
 class _FilterLabel extends StatelessWidget {

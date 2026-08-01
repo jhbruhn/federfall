@@ -1,4 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/features/cases/cases_browser.dart';
+import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/features/statistics/statistics_screen.dart';
@@ -8,6 +10,7 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 Future<void> _pump(
@@ -125,6 +128,114 @@ void main() {
     );
 
     expect(find.byType(MapAttribution), findsOneWidget);
+  });
+
+  testWidgets('a breakdown row hands the Cases tab its filter', (
+    tester,
+  ) async {
+    // federfall-5puj: a number the user can't ask "which ones?" about is a
+    // dead end, and the dashboard KPIs already set the pattern.
+    _useTallSurface(tester);
+
+    final container = ProviderContainer(
+      overrides: [
+        statisticsProvider.overrideWith(
+          (ref) async => const Statistics(
+            totalCases: 3,
+            openCases: 1,
+            outcomes: [OutcomeStat(DispositionType.euthanized, 2)],
+            bySpecies: [],
+            byCondition: [StatCount('Katzenbiss', 3)],
+            avgTimeInCareDays: null,
+          ),
+        ),
+        intakeLocationsProvider.overrideWith(
+          (ref, admittedRange) async => const <IntakeLocation>[],
+        ),
+        currentUserProvider.overrideWith(
+          (ref) async => const AppUser(
+            id: 'u1',
+            email: 'me@x.org',
+            role: UserRole.coordinator,
+            org: 'org1',
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final router = GoRouter(
+      initialLocation: '/statistics',
+      routes: [
+        GoRoute(
+          path: '/statistics',
+          builder: (_, _) => const StatisticsScreen(),
+        ),
+        GoRoute(
+          path: '/cases',
+          builder: (_, _) => const Scaffold(body: Text('CASES')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The pending query is auto-disposed once nothing listens to it, which in
+    // production is the Cases tab consuming it on mount. The stub route here
+    // doesn't, so hold a subscription open for the assertion below.
+    container.listen(pendingCaseQueryProvider, (_, _) {});
+
+    await tester.tap(find.text('Katzenbiss'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('CASES'), findsOneWidget);
+    final query = container.read(pendingCaseQueryProvider);
+    expect(query?.condition, 'Katzenbiss');
+    // The figures are org-wide and count closed cases, so the list must be
+    // widened past the browser's "my active cases" default to match them.
+    expect(query?.allScope, isTrue);
+    expect(query?.activity, CaseActivity.all);
+  });
+
+  testWidgets('the unknown-outcome bucket is the one row with no way in', (
+    tester,
+  ) async {
+    _useTallSurface(tester);
+
+    await _pump(
+      tester,
+      const Statistics(
+        totalCases: 2,
+        openCases: 0,
+        // A disposition carrying a wire value this build does not know: it can
+        // be counted, but no filter value names it.
+        outcomes: [
+          OutcomeStat(DispositionType.released, 1),
+          OutcomeStat(null, 1),
+        ],
+        bySpecies: [],
+        byCondition: [],
+        avgTimeInCareDays: null,
+      ),
+    );
+
+    expect(find.text('Released'), findsOneWidget);
+    expect(find.text('Unknown outcome'), findsOneWidget);
+    // One chevron for 'Released', none for the unknown bucket. (The intake-map
+    // card carries the other.)
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
   });
 
   testWidgets('a carer gets the unauthorized view, not the figures', (

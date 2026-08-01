@@ -1,4 +1,8 @@
 import 'package:federfall/features/cases/cases_browser.dart';
+import 'package:federfall/routing/app_routes.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'pending_case_query.g.dart';
@@ -24,4 +28,16 @@ class PendingCaseQuery extends _$PendingCaseQuery {
 
   /// Drop the pending filter once a screen has consumed it.
   void clear() => state = null;
+}
+
+/// Seeds the Cases tab's filter with [query], then switches to it — `go`, not
+/// `push`, so the bottom nav stays and we don't open a full-screen browser
+/// over the shell.
+///
+/// The one way in for every "show me the cases behind that number" tap: the
+/// dashboard's caseload KPIs and the statistics breakdown rows (federfall-5puj)
+/// must not drift apart on how they get there.
+void showCasesFiltered(BuildContext context, WidgetRef ref, CaseQuery query) {
+  ref.read(pendingCaseQueryProvider.notifier).queue(query);
+  context.go(AppRoutes.cases);
 }
