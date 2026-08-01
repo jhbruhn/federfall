@@ -31,7 +31,7 @@ Future<void> _pump(
   CaseQuery? initialQuery,
   CaseQuery? pending,
   CaseFacets facets = CaseFacets.empty,
-  List<Condition> conditions = const [],
+  List<ConditionLabel> recorded = const [],
 }) async {
   // Compact width so the account menu sits in the app bar (on wider widths it
   // moves to the navigation rail, which this standalone screen has no shell to
@@ -54,7 +54,7 @@ Future<void> _pump(
         currentUserProvider.overrideWith((ref) async => user),
         pendingCaseQueryProvider.overrideWith(() => _SeededPending(pending)),
         caseFacetsProvider.overrideWith((ref) async => facets),
-        conditionsProvider.overrideWith((ref) async => conditions),
+        recordedConditionsProvider.overrideWith((ref) async => recorded),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
@@ -425,7 +425,9 @@ void main() {
           'c2': DispositionType.died,
         },
       ),
-      conditions: const [Condition(id: 'k1', label: 'Katzenbiss')],
+      recorded: const [
+        ConditionLabel(id: 'k1', label: 'Katzenbiss', caseCount: 1),
+      ],
     );
 
     await tester.tap(find.byTooltip('Filters'));
@@ -435,6 +437,14 @@ void main() {
     // org's code list, so neither picker waits on the per-case facet load.
     expect(find.text('Any outcome'), findsOneWidget);
     expect(find.text('Any diagnosis'), findsOneWidget);
+
+    await tester.tap(find.text('Any diagnosis'));
+    await tester.pumpAndSettle();
+    // Offered because a case actually records it, not because the code list
+    // happens to contain it.
+    expect(find.text('Katzenbiss'), findsWidgets);
+    await tester.tap(find.text('Any diagnosis').last);
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Any outcome'));
     await tester.pumpAndSettle();

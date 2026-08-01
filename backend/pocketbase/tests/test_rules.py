@@ -1244,6 +1244,63 @@ def main():
                toks["sup"])
     check("supervisor CAN remove a catalogue entry", s == 204, f"status {s}")
 
+    # ── federfall-ye5e: condition_labels view ───────────────────────────────
+    # The distinct diagnoses actually recorded per org, with a per-label case
+    # count. Unlike `animal_species` (same shape, for species) the source rows
+    # are NOT org-wide readable, so free-text labels — user-typed prose on one
+    # specific case — are gated to coordinators/supervisors, who already read
+    # org-wide. Code-list labels stay open: `conditions` already is.
+    print("\n[condition_labels view]")
+
+    def cl_labels(tok):
+        return {r["label"]: r for r in listf(tok, "condition_labels", "id != ''")}
+
+    ye_cond = mk(T, "conditions", {
+        "label": "ye5e Trichomoniasis", "active": True, "org": ORG,
+    })["id"]
+    # Two cases carrying the same code-list diagnosis, one of them twice, so
+    # case_count can prove it counts CASES and not rows.
+    ye_case1 = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    ye_case2 = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    for c in (ye_case1, ye_case1, ye_case2):
+        mk(T, "case_conditions", {"case": c, "condition": ye_cond, "org": ORG})
+    # A free-text diagnosis with no code-list entry behind it…
+    mk(T, "case_conditions", {
+        "case": ye_case1, "free_text": "ye5e Katzenbiss", "org": ORG,
+    })
+    # …and one whose text happens to match a code-list label, which must
+    # collapse into that entry's row rather than become a second one.
+    mk(T, "case_conditions", {
+        "case": ye_case2, "free_text": "ye5e Trichomoniasis", "org": ORG,
+    })
+
+    sup_rows = cl_labels(toks["sup"])
+    check("supervisor sees a code-list diagnosis in the view",
+          "ye5e Trichomoniasis" in sup_rows, sorted(sup_rows))
+    check("case_count counts cases, not case_conditions rows",
+          sup_rows.get("ye5e Trichomoniasis", {}).get("case_count") == 2,
+          sup_rows.get("ye5e Trichomoniasis"))
+    check("a free-text diagnosis matching a code-list label is ONE row",
+          len([l for l in sup_rows if l == "ye5e Trichomoniasis"]) == 1
+          and sup_rows["ye5e Trichomoniasis"]["condition"] == ye_cond,
+          sup_rows.get("ye5e Trichomoniasis"))
+    check("supervisor sees a free-text-only diagnosis",
+          "ye5e Katzenbiss" in sup_rows, sorted(sup_rows))
+    check("coordinator sees the free-text tail too",
+          "ye5e Katzenbiss" in cl_labels(toks["coord"]), "missing")
+
+    # D is an org carer with no access to either case — the whole point of the
+    # gate: they may browse the org's recorded vocabulary, not read prose typed
+    # on a case they cannot open.
+    d_rows = cl_labels(toks["d"])
+    check("carer sees code-list diagnoses (the vocabulary is already theirs)",
+          "ye5e Trichomoniasis" in d_rows, sorted(d_rows))
+    check("carer does NOT see free-text diagnoses from cases they can't read",
+          "ye5e Katzenbiss" not in d_rows, sorted(d_rows))
+    s, _ = req("POST", "/api/collections/condition_labels/records", toks["sup"],
+               {"label": "nope", "org": ORG})
+    check("the view is read-only even for a supervisor", s != 200, f"status {s}")
+
     # ── guest role: can authenticate, but walled off from all data ──────────
     print("\n[guest role]")
     mkuser(T, "guest@f.local", "guest")
@@ -1269,7 +1326,7 @@ def main():
     for coll in ("admission_reasons", "marking_types", "medication_routes",
                  "medication_products",
                  "quarantine_records", "case_quarantine", "animal_species",
-                 "aviary_stays", "egg_records"):
+                 "aviary_stays", "egg_records", "condition_labels"):
         n = len(listf(toks["a"], coll, "id != ''"))
         check(f"member sees {coll} (wall check is non-vacuous)", n > 0, "empty")
         check(f"guest sees no {coll}",

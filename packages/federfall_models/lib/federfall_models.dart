@@ -25,6 +25,7 @@ export 'src/models/case_share.dart';
 export 'src/models/case_summary.dart';
 export 'src/models/clinical.dart';
 export 'src/models/condition.dart';
+export 'src/models/condition_label.dart';
 export 'src/models/disposition.dart';
 export 'src/models/egg_record.dart';
 export 'src/models/exam.dart';

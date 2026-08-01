@@ -309,23 +309,25 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
     widget.onChanged(query);
   }
 
-  /// Diagnoses offered by the filter, from the org's condition code list —
-  /// one small table, unlike the per-case rows `caseFacetsProvider` loads only
-  /// once a facet is actually set. Inactive entries stay in, since the cases
-  /// being filtered are largely historic.
+  /// Diagnoses offered by the filter: the ones actually recorded on cases
+  /// (`condition_labels`), most-used first. Unlike the `conditions` code list
+  /// this holds no entry that would filter to nothing, and it does include
+  /// free-text diagnoses — and it is still one small row set, unlike the
+  /// per-case rows `caseFacetsProvider` loads only once a facet is set.
   ///
-  /// A diagnosis recorded as free text is not in that list, so a label handed
-  /// over by a statistics tap-through is merged in — otherwise the dropdown
-  /// would render the active filter as blank and the user could neither see
-  /// nor clear it.
+  /// The server withholds free-text rows from members who cannot read the
+  /// cases they were typed on, so a label handed over by a statistics
+  /// tap-through is appended when the view didn't supply it — otherwise the
+  /// dropdown would render an active filter as a blank the user can neither
+  /// read nor clear.
   List<String> get _conditionOptions {
-    final labels = {
-      for (final c
-          in ref.watch(conditionsProvider).value ?? const <Condition>[])
-        c.label,
-      ?_query.condition,
-    }.toList()..sort();
-    return labels;
+    final recorded =
+        ref.watch(recordedConditionsProvider).value ?? const <ConditionLabel>[];
+    final own = _query.condition;
+    return [
+      for (final c in recorded) c.label,
+      if (own != null && !recorded.any((c) => c.label == own)) own,
+    ];
   }
 
   Future<void> _pickDateRange() async {

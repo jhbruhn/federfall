@@ -9,6 +9,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/statistics/case_report.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
@@ -62,10 +63,15 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       );
     }
 
-    ref.liveRefresh(
-      const ['cases', 'dispositions'],
-      () => ref.invalidate(statisticsProvider),
-    );
+    // 'case_conditions' matters because the diagnosis breakdown is counted by
+    // the `condition_labels` view, which statistics reads through its own
+    // provider — invalidating only `statisticsProvider` would re-run the
+    // aggregation over the same cached counts.
+    ref.liveRefresh(const ['cases', 'dispositions', 'case_conditions'], () {
+      ref
+        ..invalidate(recordedConditionsProvider)
+        ..invalidate(statisticsProvider);
+    });
     final stats = ref.watch(statisticsProvider);
 
     return Scaffold(
@@ -83,10 +89,15 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       ),
       body: AsyncValueView<Statistics>(
         value: stats,
-        onRetry: () => ref.invalidate(statisticsProvider),
+        onRetry: () => ref
+          ..invalidate(recordedConditionsProvider)
+          ..invalidate(statisticsProvider),
         loading: const LinearProgressIndicator(),
         data: (s) => RefreshIndicator(
-          onRefresh: () => ref.refresh(statisticsProvider.future),
+          onRefresh: () {
+            ref.invalidate(recordedConditionsProvider);
+            return ref.refresh(statisticsProvider.future);
+          },
           child: ContentBounds(
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.md),

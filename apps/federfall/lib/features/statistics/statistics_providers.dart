@@ -1,5 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/case_facets.dart';
+import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -71,12 +72,15 @@ List<StatCount> _ranked(Map<String, int> counts) {
 
 /// Pure aggregation of the raw records into [Statistics]. Kept separate from
 /// the provider so it can be unit-tested without PocketBase.
+///
+/// [recordedConditions] comes straight off the `condition_labels` view, which
+/// already counted the cases per diagnosis server-side (federfall-ye5e) —
+/// there is no `case_conditions` list here to aggregate.
 Statistics computeStatistics({
   required List<Case> cases,
   required List<Disposition> dispositions,
-  required List<CaseCondition> caseConditions,
+  required List<ConditionLabel> recordedConditions,
   required Map<String, String> speciesByAnimal,
-  required Map<String, String> conditionLabels,
 }) {
   final terminalByCase = terminalDispositionByCase(dispositions);
 
@@ -103,21 +107,14 @@ Statistics computeStatistics({
     }
   }
 
-  // Counted through the browser's own projection so the number here and the
-  // list a tap-through lands on can't disagree (federfall-5puj) — including on
-  // the one case that records the same diagnosis twice, which is one case, not
-  // two.
-  final conditionCounts = <String, int>{};
-  final conditionsByCase = buildCaseFacets(
-    dispositions: const [],
-    caseConditions: caseConditions,
-    conditionLabels: conditionLabels,
-  ).conditionsByCase;
-  for (final labels in conditionsByCase.values) {
-    for (final label in labels) {
-      conditionCounts[label] = (conditionCounts[label] ?? 0) + 1;
-    }
-  }
+  // The view counts DISTINCT cases per label, so the figure already matches
+  // the list a tap-through lands on (federfall-5puj) — a case recording the
+  // same diagnosis twice is one case — and it resolves the code-list/free-text
+  // split the same way the browser's facet does, in SQL rather than twice in
+  // Dart.
+  final conditionCounts = {
+    for (final c in recordedConditions) c.label: c.caseCount,
+  };
 
   final admittedByCase = {for (final c in cases) c.id: c.admittedAt};
   var totalDays = 0.0;
@@ -146,32 +143,35 @@ Statistics computeStatistics({
   );
 }
 
-/// Org reporting statistics (FED-7.2). Loads the cases, dispositions and
-/// conditions the user may read (org-wide for coordinators/supervisors) plus
-/// the animal/condition lookups, then aggregates client-side.
+/// Org reporting statistics (FED-7.2). Loads the cases and dispositions the
+/// user may read plus the animal lookup, and takes the condition breakdown
+/// pre-counted from the `condition_labels` view instead of pulling every
+/// `case_conditions` row to the device (federfall-ye5e).
+///
+/// **This provider is for coordinators and supervisors only** — the screen
+/// gates on `canViewReports`, and that is not merely a UI nicety here: cases
+/// and dispositions come back scoped to what the caller may read, while the
+/// view's `case_count` is org-wide by construction (a view column is computed
+/// once, not per request). For the roles that read org-wide those agree; for a
+/// carer they would not, and the figures would silently mix two scopes.
 @riverpod
 Future<Statistics> statistics(Ref ref) async {
+  final recordedFuture = ref.watch(recordedConditionsProvider.future);
   final casesRepo = await ref.watch(casesRepositoryProvider.future);
   final dispositionsRepo = await ref.watch(
     dispositionsRepositoryProvider.future,
   );
-  final caseConditionsRepo = await ref.watch(
-    caseConditionsRepositoryProvider.future,
-  );
   final animalsRepo = await ref.watch(animalsRepositoryProvider.future);
-  final conditionsRepo = await ref.watch(conditionsRepositoryProvider.future);
 
   final cases = await casesRepo.list();
   final dispositions = await dispositionsRepo.list();
-  final caseConditions = await caseConditionsRepo.list();
   final animals = await animalsRepo.list();
-  final conditions = await conditionsRepo.list();
+  final recordedConditions = await recordedFuture;
 
   return computeStatistics(
     cases: cases,
     dispositions: dispositions,
-    caseConditions: caseConditions,
+    recordedConditions: recordedConditions,
     speciesByAnimal: {for (final a in animals) a.id: a.species},
-    conditionLabels: {for (final c in conditions) c.id: c.label},
   );
 }

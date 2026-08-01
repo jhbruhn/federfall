@@ -10,12 +10,10 @@ class MockCasesRepo extends Mock implements PbCasesRepository {}
 
 class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
 
-class MockCaseConditionsRepo extends Mock
-    implements PbCaseConditionsRepository {}
-
 class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
-class MockConditionsRepo extends Mock implements PbConditionsRepository {}
+class MockConditionLabelsRepo extends Mock
+    implements PbConditionLabelsRepository {}
 
 Case _case(String id, {String animal = 'a1', DateTime? admittedAt}) =>
     Case(id: id, animal: animal, admittedAt: admittedAt);
@@ -27,31 +25,20 @@ Disposition _disp(
   DateTime? at,
 }) => Disposition(id: id, caseId: caseId, type: type, disposedAt: at);
 
-CaseCondition _cc(
-  String id, {
-  String caseId = 'c1',
-  String? condition,
-  String? freeText,
-}) => CaseCondition(
-  id: id,
-  caseId: caseId,
-  condition: condition,
-  freeText: freeText,
-);
+ConditionLabel _cl(String label, int caseCount) =>
+    ConditionLabel(id: label, label: label, caseCount: caseCount);
 
 void main() {
   Statistics run({
     List<Case> cases = const [],
     List<Disposition> dispositions = const [],
-    List<CaseCondition> caseConditions = const [],
+    List<ConditionLabel> recordedConditions = const [],
     Map<String, String> species = const {},
-    Map<String, String> conditions = const {},
   }) => computeStatistics(
     cases: cases,
     dispositions: dispositions,
-    caseConditions: caseConditions,
+    recordedConditions: recordedConditions,
     speciesByAnimal: species,
-    conditionLabels: conditions,
   );
 
   test('counts total and open cases (no terminal disposition)', () {
@@ -97,33 +84,23 @@ void main() {
     expect(s.bySpecies.last.count, 1);
   });
 
-  test('condition breakdown resolves labels and falls back to free text', () {
+  test('condition breakdown ranks the counts the view already made', () {
+    // Resolving code-list vs free-text labels and counting DISTINCT cases per
+    // label is the `condition_labels` view's job now (federfall-ye5e, asserted
+    // against a live PocketBase in backend/pocketbase/tests/test_rules.py).
+    // What is left here is the ranking.
     final s = run(
-      caseConditions: [
-        _cc('1', condition: 'cond1'),
-        _cc('2', caseId: 'c2', condition: 'cond1'),
-        _cc('3', caseId: 'c3', freeText: 'Unbekannt'),
-      ],
-      conditions: {'cond1': 'Trichomoniasis'},
-    );
-    final byLabel = {for (final c in s.byCondition) c.label: c.count};
-    expect(byLabel['Trichomoniasis'], 2);
-    expect(byLabel['Unbekannt'], 1);
-  });
-
-  test('condition breakdown counts cases, not rows (federfall-5puj)', () {
-    // The figure is a way in to the cases behind it, so it has to count what
-    // that tap-through would list: one case recording the same diagnosis
-    // twice is one case.
-    final s = run(
-      caseConditions: [
-        _cc('1', condition: 'cond1'),
-        _cc('2', condition: 'cond1'),
-      ],
-      conditions: {'cond1': 'Trichomoniasis'},
+      recordedConditions: [_cl('Unbekannt', 1), _cl('Trichomoniasis', 2)],
     );
 
-    expect(s.byCondition.single.count, 1);
+    expect(
+      [for (final c in s.byCondition) c.label],
+      [
+        'Trichomoniasis',
+        'Unbekannt',
+      ],
+    );
+    expect(s.byCondition.first.count, 2);
   });
 
   test('average time in care over disposed cases with both dates', () {
@@ -151,9 +128,8 @@ void main() {
     () async {
       final cases = MockCasesRepo();
       final dispositions = MockDispositionsRepo();
-      final caseConditions = MockCaseConditionsRepo();
       final animals = MockAnimalsRepo();
-      final conditions = MockConditionsRepo();
+      final conditionLabels = MockConditionLabelsRepo();
 
       when(cases.list).thenAnswer(
         (_) async => [_case('c1'), _case('c2')],
@@ -161,16 +137,11 @@ void main() {
       when(dispositions.list).thenAnswer(
         (_) async => [_disp('d1', 'c1', DispositionType.released)],
       );
-      when(
-        caseConditions.list,
-      ).thenAnswer((_) async => [_cc('1', condition: 'cond1')]);
       when(animals.list).thenAnswer(
         (_) async => const [Animal(id: 'a1', species: 'Columba livia')],
       );
-      when(conditions.list).thenAnswer(
-        (_) async => const [
-          Condition(id: 'cond1', label: 'Trichomoniasis'),
-        ],
+      when(conditionLabels.all).thenAnswer(
+        (_) async => [_cl('Trichomoniasis', 1)],
       );
 
       final container = ProviderContainer(
@@ -179,11 +150,10 @@ void main() {
           dispositionsRepositoryProvider.overrideWith(
             (ref) async => dispositions,
           ),
-          caseConditionsRepositoryProvider.overrideWith(
-            (ref) async => caseConditions,
-          ),
           animalsRepositoryProvider.overrideWith((ref) async => animals),
-          conditionsRepositoryProvider.overrideWith((ref) async => conditions),
+          conditionLabelsRepositoryProvider.overrideWith(
+            (ref) async => conditionLabels,
+          ),
         ],
       );
       addTearDown(container.dispose);
