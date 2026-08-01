@@ -94,10 +94,14 @@ CaseFacets buildCaseFacets({
 ///
 /// Deliberately *not* folded into `casesBrowserDataProvider`: it costs two more
 /// full-collection reads, and only a query that actually filters by outcome or
-/// diagnosis needs them (the statistics tap-through, federfall-5puj).
-/// `CasesScreen` watches this only while `CaseQuery.needsFacets`, so the plain
-/// Cases tab keeps the fetches it always had and this one is disposed again as
-/// soon as the facet is cleared.
+/// diagnosis needs them. `CasesScreen` watches this only while
+/// `CaseQuery.needsFacets`, so the plain Cases tab keeps the fetches it always
+/// had and this one is disposed again as soon as the facet is cleared.
+///
+/// Note that the filter sheet's own pickers don't need it: the outcomes are
+/// `DispositionType.values` and the diagnoses come from the small `conditions`
+/// code list, so opening the filters costs nothing here — only *applying* one
+/// of those two facets does.
 @riverpod
 Future<CaseFacets> caseFacets(Ref ref) async {
   // The code-list lookup is shared with the case timeline, so filtering by a

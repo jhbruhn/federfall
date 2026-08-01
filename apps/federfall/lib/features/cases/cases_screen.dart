@@ -4,6 +4,7 @@ import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -19,8 +20,9 @@ import 'package:go_router/go_router.dart';
 ///
 /// Defaults to the carer's own active cases; a scope toggle widens to every
 /// case they may access (server-scoped). The search field stays visible; the
-/// rest of the filters (activity, species, admission-date range) live behind a
-/// compact filter button so they don't dominate the screen.
+/// rest of the filters (activity, species, outcome, diagnosis, admission-date
+/// range) live behind a compact filter button so they don't dominate the
+/// screen.
 class CasesScreen extends ConsumerStatefulWidget {
   const CasesScreen({this.initialQuery, super.key});
 
@@ -282,7 +284,7 @@ class _SearchBar extends StatelessWidget {
 
 /// Bottom sheet holding the secondary filters. Edits its own copy of the query
 /// and pushes each change up live, so the list behind it updates immediately.
-class _FilterSheet extends StatefulWidget {
+class _FilterSheet extends ConsumerStatefulWidget {
   const _FilterSheet({
     required this.initial,
     required this.speciesOptions,
@@ -296,15 +298,34 @@ class _FilterSheet extends StatefulWidget {
   final VoidCallback onClear;
 
   @override
-  State<_FilterSheet> createState() => _FilterSheetState();
+  ConsumerState<_FilterSheet> createState() => _FilterSheetState();
 }
 
-class _FilterSheetState extends State<_FilterSheet> {
+class _FilterSheetState extends ConsumerState<_FilterSheet> {
   late CaseQuery _query = widget.initial;
 
   void _apply(CaseQuery query) {
     setState(() => _query = query);
     widget.onChanged(query);
+  }
+
+  /// Diagnoses offered by the filter, from the org's condition code list —
+  /// one small table, unlike the per-case rows `caseFacetsProvider` loads only
+  /// once a facet is actually set. Inactive entries stay in, since the cases
+  /// being filtered are largely historic.
+  ///
+  /// A diagnosis recorded as free text is not in that list, so a label handed
+  /// over by a statistics tap-through is merged in — otherwise the dropdown
+  /// would render the active filter as blank and the user could neither see
+  /// nor clear it.
+  List<String> get _conditionOptions {
+    final labels = {
+      for (final c
+          in ref.watch(conditionsProvider).value ?? const <Condition>[])
+        c.label,
+      ?_query.condition,
+    }.toList()..sort();
+    return labels;
   }
 
   Future<void> _pickDateRange() async {
@@ -403,29 +424,47 @@ class _FilterSheetState extends State<_FilterSheet> {
                 ),
               ),
             ],
-            // Outcome and diagnosis are seeded by a statistics tap-through
-            // (federfall-5puj), not browsed here — the sheet would need the
-            // dispositions and the whole condition code-list loaded to offer
-            // them as pickers, which is exactly the cost the lazy
-            // `caseFacetsProvider` avoids. They still have to be visible and
-            // removable, though: a filter the user can't see is a list that
-            // lies about what it holds.
-            if (_query.outcome != null) ...[
-              const SizedBox(height: AppSpacing.md),
-              _FilterLabel(l10n.dispositionFieldType),
-              _RemovableFacet(
-                label: dispositionTypeLabel(l10n, _query.outcome),
-                onDeleted: () => _apply(_query.copyWith(clearOutcome: true)),
+            const SizedBox(height: AppSpacing.md),
+            _FilterLabel(l10n.dispositionFieldType),
+            DropdownMenu<DispositionType?>(
+              initialSelection: _query.outcome,
+              expandedInsets: EdgeInsets.zero,
+              dropdownMenuEntries: [
+                DropdownMenuEntry(
+                  value: null,
+                  label: l10n.casesFilterOutcomeAny,
+                ),
+                for (final t in DispositionType.values)
+                  DropdownMenuEntry(
+                    value: t,
+                    label: dispositionTypeLabel(l10n, t),
+                  ),
+              ],
+              onSelected: (t) => _apply(
+                t == null
+                    ? _query.copyWith(clearOutcome: true)
+                    : _query.copyWith(outcome: t),
               ),
-            ],
-            if (_query.condition != null) ...[
-              const SizedBox(height: AppSpacing.md),
-              _FilterLabel(l10n.conditionFieldName),
-              _RemovableFacet(
-                label: _query.condition!,
-                onDeleted: () => _apply(_query.copyWith(clearCondition: true)),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _FilterLabel(l10n.conditionFieldName),
+            DropdownMenu<String?>(
+              initialSelection: _query.condition,
+              expandedInsets: EdgeInsets.zero,
+              dropdownMenuEntries: [
+                DropdownMenuEntry(
+                  value: null,
+                  label: l10n.casesFilterConditionAny,
+                ),
+                for (final label in _conditionOptions)
+                  DropdownMenuEntry(value: label, label: label),
+              ],
+              onSelected: (c) => _apply(
+                c == null
+                    ? _query.copyWith(clearCondition: true)
+                    : _query.copyWith(condition: c),
               ),
-            ],
+            ),
             const SizedBox(height: AppSpacing.md),
             _FilterLabel(l10n.casesFilterDateRange),
             Align(
@@ -448,20 +487,6 @@ class _FilterSheetState extends State<_FilterSheet> {
       ),
     );
   }
-}
-
-/// A facet the sheet can only report and clear, not pick.
-class _RemovableFacet extends StatelessWidget {
-  const _RemovableFacet({required this.label, required this.onDeleted});
-
-  final String label;
-  final VoidCallback onDeleted;
-
-  @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.centerLeft,
-    child: InputChip(label: Text(label), onDeleted: onDeleted),
-  );
 }
 
 class _FilterLabel extends StatelessWidget {

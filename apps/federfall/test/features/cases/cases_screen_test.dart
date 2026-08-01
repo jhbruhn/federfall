@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
+import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -30,6 +31,7 @@ Future<void> _pump(
   CaseQuery? initialQuery,
   CaseQuery? pending,
   CaseFacets facets = CaseFacets.empty,
+  List<Condition> conditions = const [],
 }) async {
   // Compact width so the account menu sits in the app bar (on wider widths it
   // moves to the navigation rail, which this standalone screen has no shell to
@@ -52,6 +54,7 @@ Future<void> _pump(
         currentUserProvider.overrideWith((ref) async => user),
         pendingCaseQueryProvider.overrideWith(() => _SeededPending(pending)),
         caseFacetsProvider.overrideWith((ref) async => facets),
+        conditionsProvider.overrideWith((ref) async => conditions),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
@@ -392,17 +395,53 @@ void main() {
 
     await tester.tap(find.byTooltip('Filters'));
     await tester.pumpAndSettle();
-    // Not pickable here, but visible and removable — otherwise the list would
-    // be short of cases with nothing on screen saying why.
-    final chip = find.widgetWithText(InputChip, 'Katzenbiss');
-    expect(chip, findsOneWidget);
+    // Recorded as free text, so it is deliberately absent from the code list
+    // this dropdown is built from — the handed-over value still has to show,
+    // or the list would be short of cases with nothing on screen saying why.
+    expect(find.text('Katzenbiss'), findsOneWidget);
 
     // Clearing it releases the list behind the sheet, which updates live.
-    await tester.tap(
-      find.descendant(of: chip, matching: find.byIcon(Icons.clear)),
-    );
+    await tester.tap(find.text('Katzenbiss'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Any diagnosis').last);
     await tester.pumpAndSettle();
 
     expect(find.text('2026-002'), findsOneWidget);
+  });
+
+  testWidgets('the filter sheet can pick an outcome and a diagnosis', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      cases: const [
+        Case(id: 'c1', animal: 'a1', caseNumber: '2026-001'),
+        Case(id: 'c2', animal: 'a1', caseNumber: '2026-002'),
+      ],
+      pending: const CaseQuery(allScope: true, activity: CaseActivity.all),
+      facets: const CaseFacets(
+        outcomeByCase: {
+          'c1': DispositionType.released,
+          'c2': DispositionType.died,
+        },
+      ),
+      conditions: const [Condition(id: 'k1', label: 'Katzenbiss')],
+    );
+
+    await tester.tap(find.byTooltip('Filters'));
+    await tester.pumpAndSettle();
+
+    // The outcome options need no data at all and the diagnoses come from the
+    // org's code list, so neither picker waits on the per-case facet load.
+    expect(find.text('Any outcome'), findsOneWidget);
+    expect(find.text('Any diagnosis'), findsOneWidget);
+
+    await tester.tap(find.text('Any outcome'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Released').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026-001'), findsOneWidget);
+    expect(find.text('2026-002'), findsNothing);
   });
 }

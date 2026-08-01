@@ -231,6 +231,8 @@
     "casesActivityClosed": "Abgeschlossen",
     "casesActivityAll": "Alle",
     "casesFilterSpeciesAny": "Alle Arten",
+    "casesFilterOutcomeAny": "Alle Ausgänge",
+    "casesFilterConditionAny": "Alle Diagnosen",
     "casesFilterDateRange": "Aufnahmedatum",
     "casesClearFilters": "Zurücksetzen",
     "caseNewTitle": "Neuer Fall",
