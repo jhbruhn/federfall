@@ -8,11 +8,13 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 
 Future<void> _pump(
   WidgetTester tester,
   Statistics stats, {
   UserRole role = UserRole.coordinator,
+  List<IntakeLocation> locations = const [],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -22,7 +24,7 @@ Future<void> _pump(
         // real repositories otherwise, which need network — stub it out so
         // this test stays focused on the KPI/breakdown figures.
         intakeLocationsProvider.overrideWith(
-          (ref, admittedRange) async => const <IntakeLocation>[],
+          (ref, admittedRange) async => locations,
         ),
         currentUserProvider.overrideWith(
           (ref) async =>
@@ -106,8 +108,23 @@ void main() {
     expect(find.text('Intake map'), findsOneWidget);
     expect(find.text('No mapped intakes'), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right), findsOneWidget);
-    // No attribution clutter on the small preview thumbnail.
-    expect(find.byType(MapAttribution), findsNothing);
+  });
+
+  testWidgets('the intake-map preview thumbnail carries tile attribution', (
+    tester,
+  ) async {
+    // federfall-fq3c: the tile provider's usage policy wants attribution on
+    // every rendered map, thumbnails included — linking through to the
+    // attributed intake map screen is not a substitute.
+    await _pump(
+      tester,
+      _emptyStats,
+      locations: const [
+        IntakeLocation(caseId: 'c1', point: LatLng(53.14, 8.21)),
+      ],
+    );
+
+    expect(find.byType(MapAttribution), findsOneWidget);
   });
 
   testWidgets('a carer gets the unauthorized view, not the figures', (

@@ -317,10 +317,12 @@ class _IntakeMapCard extends ConsumerWidget {
   }
 }
 
-/// A small, non-interactive, un-attributed map thumbnail plotting every given
-/// point, fitted to their bounds. Attribution is dropped here — it belongs on
-/// the interactive intake map screen this card links to, not on a thumbnail
-/// too small to make it legible without cluttering the card.
+/// A small, non-interactive map thumbnail plotting every given point, fitted
+/// to their bounds. Carries [MapAttribution] like every other map in the app
+/// (`_FindMap`, the intake map, the location picker): the tile provider's
+/// usage policy requires visible attribution on each rendered map, and a
+/// thumbnail linking through to an attributed screen does not satisfy that —
+/// so its size is not ours to trade the notice against.
 class _MapPreview extends StatelessWidget {
   const _MapPreview({required this.locations});
 
@@ -363,6 +365,7 @@ class _MapPreview extends StatelessWidget {
               ),
           ],
         ),
+        const MapAttribution(),
       ],
     );
   }
