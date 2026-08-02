@@ -6,7 +6,6 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
-import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
@@ -79,10 +78,20 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         title: Text(l10n.statsTitle),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download_outlined),
+            // The same inline busy affordance the other two fetch-then-share
+            // actions use (_ShareReportButton / _PrintReportButton in
+            // case_detail_screen.dart) — a greyed-out icon alone leaves the
+            // user watching a dead button on a slow link.
+            icon: _exporting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_outlined),
             tooltip: l10n.statsExportCsv,
             // Disabled while an export runs — a second tap would launch
-            // another multi-collection load and a second share sheet.
+            // another load and a second share sheet.
             onPressed: _exporting ? null : _exportCsv,
           ),
         ],
@@ -184,22 +193,13 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _exporting = true);
     try {
-      // Load inline from the (keep-alive) repositories rather than a dedicated
-      // autoDispose provider, which would dispose mid-await on an imperative
-      // read. buildCaseReportRows stays the pure, tested core.
-      final casesRepo = await ref.read(casesRepositoryProvider.future);
-      final dispositionsRepo = await ref.read(
-        dispositionsRepositoryProvider.future,
-      );
-      final animalsRepo = await ref.read(animalsRepositoryProvider.future);
-      final animals = await animalsRepo.list();
-      final reasonsById = await ref.read(admissionReasonsByIdProvider.future);
-      final rows = buildCaseReportRows(
-        cases: await casesRepo.list(),
-        dispositions: await dispositionsRepo.list(),
-        animalsById: {for (final a in animals) a.id: a},
-        admissionReasonsById: reasonsById,
-      );
+      // One pre-joined read off the `case_report_rows` view (federfall-80tc)
+      // instead of pulling `cases`, `dispositions` and `animals` whole to the
+      // device to join them here. Loaded inline from the (keep-alive)
+      // repository rather than a dedicated autoDispose provider, which would
+      // dispose mid-await on an imperative read.
+      final repo = await ref.read(caseReportRowsRepositoryProvider.future);
+      final rows = await repo.all();
       if (rows.isEmpty) {
         messenger.showSnackBar(SnackBar(content: Text(l10n.statsExportEmpty)));
         return;

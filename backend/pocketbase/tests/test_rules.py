@@ -1308,6 +1308,77 @@ def main():
                {"label": "nope", "org": ORG})
     check("the view is read-only even for a supervisor", s != 200, f"status {s}")
 
+    # ── federfall-80tc: case_report_rows view ───────────────────────────────
+    # The annual-report CSV pre-joined server-side: one row per case carrying
+    # the animal's species/name, the LATEST disposition and the admission
+    # reasons resolved to their labels, so the export stops pulling `cases` +
+    # `dispositions` + `animals` whole to the device. Org-wide by construction,
+    # hence coordinator/supervisor only — narrower than `case_summaries`,
+    # because this row also carries find city/region and admission reasons.
+    print("\n[case_report_rows view]")
+
+    tc_r1 = mk(T, "admission_reasons",
+               {"label": "80tc Verletzung", "active": True, "org": ORG})["id"]
+    tc_r2 = mk(T, "admission_reasons",
+               {"label": "80tc Katzenangriff", "active": True, "org": ORG})["id"]
+    tc_animal = mk(T, "animals", {
+        "species": "80tc Columba livia", "name": "80tc Pip", "org": ORG,
+    })["id"]
+    tc_case = mk(T, "cases", {
+        "animal": tc_animal, "active_carer": A, "org": ORG,
+        "admitted_at": "2026-03-10 09:00:00.000Z",
+        "city": "Oldenburg", "region": "NI",
+        "admission_reasons": [tc_r1, tc_r2],
+    })["id"]
+    # Two dispositions, out of order, so "the outcome" can only be right by
+    # taking the LATEST — the same rule terminalDispositionByCase applies.
+    mk(T, "dispositions", {"case": tc_case, "type": "died",
+                           "disposed_at": "2026-03-15 09:00:00.000Z", "org": ORG})
+    mk(T, "dispositions", {"case": tc_case, "type": "released",
+                           "disposed_at": "2026-03-20 09:00:00.000Z", "org": ORG})
+    # A second, still-open case: no disposition to join at all.
+    tc_open = mk(T, "cases", {
+        "animal": tc_animal, "active_carer": A, "org": ORG,
+        "admitted_at": "2026-04-01 09:00:00.000Z",
+    })["id"]
+
+    def report_row(tok, cid):
+        s, d = req("GET", f"/api/collections/case_report_rows/records/{cid}", tok)
+        return d if s == 200 else None
+
+    row = report_row(toks["sup"], tc_case) or {}
+    check("supervisor reads the pre-joined report row", bool(row), row)
+    check("the row joins the animal's species and name",
+          row.get("species") == "80tc Columba livia"
+          and row.get("name") == "80tc Pip", row)
+    check("the row carries the LATEST disposition as the outcome",
+          row.get("outcome") == "released", row.get("outcome"))
+    check("ended_at is that disposition's date",
+          str(row.get("ended_at", "")).startswith("2026-03-20"),
+          row.get("ended_at"))
+    check("admission reasons arrive resolved, in order and joined",
+          row.get("reasons") == "80tc Verletzung; 80tc Katzenangriff",
+          row.get("reasons"))
+    check("the row carries the find city/region the CSV prints",
+          row.get("city") == "Oldenburg" and row.get("region") == "NI", row)
+    open_row = report_row(toks["coord"], tc_open) or {}
+    check("coordinator reads the view too", bool(open_row), open_row)
+    check("an open case joins no outcome",
+          open_row.get("outcome") == "" and open_row.get("ended_at") == "",
+          open_row)
+
+    # A is the case's own active carer and still gets nothing: this view is the
+    # org-wide export, gated to the roles that already read org-wide.
+    check("the case's own carer CANNOT read the org-wide report row",
+          report_row(toks["a"], tc_case) is None)
+    check("a carer's list of report rows is empty",
+          len(listf(toks["a"], "case_report_rows", "id != ''")) == 0, "non-empty")
+    check("other-org member CANNOT read the report row",
+          report_row(te, tc_case) is None)
+    s, _ = req("POST", "/api/collections/case_report_rows/records", toks["sup"],
+               {"case_number": "nope", "org": ORG})
+    check("the view is read-only even for a supervisor", s != 200, f"status {s}")
+
     # ── guest role: can authenticate, but walled off from all data ──────────
     print("\n[guest role]")
     mkuser(T, "guest@f.local", "guest")
@@ -1338,6 +1409,13 @@ def main():
         check(f"member sees {coll} (wall check is non-vacuous)", n > 0, "empty")
         check(f"guest sees no {coll}",
               len(listf(gtok, coll, "id != ''")) == 0, "non-empty")
+    # case_report_rows can't join that sweep — it is coordinator/supervisor
+    # only, so the carer token above would make the non-vacuous check fail for
+    # the right reason. Same wall, checked against a supervisor instead.
+    check("supervisor sees case_report_rows (wall check is non-vacuous)",
+          len(listf(toks["sup"], "case_report_rows", "id != ''")) > 0, "empty")
+    check("guest sees no case_report_rows",
+          len(listf(gtok, "case_report_rows", "id != ''")) == 0, "non-empty")
     # The OAuth2 createRule (@request.context = "oauth2") must NOT let an
     # anonymous API client create users directly (that path is context default).
     s, _ = req("POST", "/api/collections/users/records", None, {
