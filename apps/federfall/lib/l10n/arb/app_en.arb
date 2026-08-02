@@ -171,6 +171,26 @@
         "description": "Login heading naming the verified server/instance",
         "placeholders": { "server": { "type": "String" } }
     },
+    "authUpdateRequiredTitle": "Update required",
+    "@authUpdateRequiredTitle": {
+        "description": "Heading shown instead of the login form when app and server versions are incompatible"
+    },
+    "authUpdateClientMessage": "This app (version {app}) is too old for this server (version {server}). Update the app to sign in.",
+    "@authUpdateClientMessage": {
+        "description": "Shown when the app's major version is below the server's — the user must update the app",
+        "placeholders": {
+            "app": { "type": "String" },
+            "server": { "type": "String" }
+        }
+    },
+    "authUpdateServerMessage": "This app (version {app}) is newer than this server (version {server}). The server has to be updated before you can sign in — ask whoever runs it.",
+    "@authUpdateServerMessage": {
+        "description": "Shown when the app's major version is above the server's — the operator, not the user, has to act",
+        "placeholders": {
+            "app": { "type": "String" },
+            "server": { "type": "String" }
+        }
+    },
     "authResetLinkAction": "Forgot password?",
     "@authResetLinkAction": {
         "description": "Login link that opens the password-reset request dialog"

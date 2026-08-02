@@ -167,6 +167,13 @@ def main():
     check("reports a version and minClient",
           bool(info) and bool(info.get("version")) and bool(info.get("minClient")),
           info)
+    # federfall-1wm: the major IS the app<->server wire contract, so minClient
+    # is DERIVED as "<major>.0.0" — never a hand-set constant that can drift
+    # above every client in existence (it sat at "1.0.0" for all of 0.x).
+    check("minClient floors at the running major",
+          bool(info)
+          and info.get("minClient") == info.get("version", "").split(".")[0] + ".0.0",
+          info)
     auth = (info or {}).get("auth") or {}
     check("password auth is enabled", auth.get("password") is True, auth)
     check("oauth2 is a list", isinstance(auth.get("oauth2"), list), auth)

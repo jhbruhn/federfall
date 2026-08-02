@@ -169,6 +169,28 @@ fragmented sections.
   Finder;`). `registerFallbackValue` for `<String,dynamic>{}` and `<MultipartFile>[]`. Fake
   image bytes throw "Invalid image data" — give `Image.memory` an `errorBuilder`; `XFile`
   `.name` can be empty in tests.
+- **The major version IS the app↔server wire contract.** App and backend ship from this one
+  repo under a single release-please version, so a client and a server interoperate exactly
+  when their majors match (minor/patch may differ in either direction). Therefore: **any change
+  that breaks the wire contract MUST be a breaking Conventional Commit** (`feat!:` / `fix!:` or
+  a `BREAKING CHANGE:` footer) — that is what bumps the major and forces the update. Breaking
+  means a changed request/response shape on a `/api/federfall/*` hook route, a removed or
+  renamed collection field the app reads, a newly required field, or an access-rule tightening
+  that rejects a call an older client still makes. Adding optional fields or new routes is not
+  breaking. Conversely, do NOT mark purely internal Dart refactors breaking (a
+  `federfall_models` enum rename is wire-safe — enums carry a `wire` value precisely so it is):
+  the major bump would force every user to update for nothing. Note `0.x` is treated as an
+  ordinary major here, so the first wire-breaking commit cuts `1.0.0`
+  (`bump-minor-pre-major: false`, pinned explicitly in `release-please-config.json`).
+  Enforcement is `lib/core/server/server_compatibility.dart` vs `/api/federfall/info`'s
+  `version`: the login screen replaces every sign-in control with an update notice on a
+  mismatch, and the message names whichever side must move (an auto-updated APK ahead of its
+  container is the common case for self-hosters — telling *that* user to update the app is a
+  dead end). It fails **open** — unreachable `/info`, an unversioned dev build on either side
+  (`0.0`), or an unparseable version never blocks. `minClient` is derived server-side from the
+  running major (`<major>.0.0`); `FEDERFALL_MIN_CLIENT` overrides it upward for a floor *within*
+  a major. It is not hand-maintained — it was hardcoded `1.0.0` through the whole 0.x line,
+  i.e. above every client that existed.
 - **Releases** (`.github/workflows/release-please.yml`): version is driven by Conventional
   Commits via release-please — never hand-bump `apps/federfall/pubspec.yaml`'s `version:` or
   create tags manually. Merging the standing release PR tags `vX.Y.Z`, then builds/pushes the

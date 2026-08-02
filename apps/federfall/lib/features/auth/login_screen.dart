@@ -1,5 +1,7 @@
 import 'package:federfall/core/auth/sign_out.dart';
 import 'package:federfall/core/error/error_message.dart';
+import 'package:federfall/core/pocketbase/user_agent_client.dart';
+import 'package:federfall/core/server/server_compatibility.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
@@ -312,6 +314,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Once a password has cleared on an MFA account, the form becomes the
     // one-time-code step and the password/email/reset controls step aside.
     final otpStep = _mfaId != null;
+    // An app and a server whose majors disagree can't talk (federfall-1wm), so
+    // every sign-in control is replaced by the notice — signing in would only
+    // fail further in, against a protocol the other side no longer speaks.
+    // Unresolved falls back to compatible: the check must never be what keeps
+    // someone out.
+    final compatibility =
+        ref.watch(serverCompatibilityProvider).value ??
+        ServerCompatibility.compatible;
 
     return Scaffold(
       body: SafeArea(
@@ -326,154 +336,134 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand-first header: the app name and a warm tagline lead,
-                    // so the screen reads as considered, not a bare admin form.
-                    // (A proper logo mark is a separate task.)
-                    Text(
-                      l10n.appName,
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.5,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      l10n.authTagline,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    // The verified server's name, demoted to a subtitle now the
-                    // app name carries the header.
-                    if (info != null && info.name.isNotEmpty) ...[
-                      Text(
-                        l10n.authSignInToServer(info.name),
-                        style: theme.textTheme.titleMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                    ],
-                    if (otpStep) ...[
-                      Text(
-                        l10n.authOtpTitle,
-                        style: theme.textTheme.titleMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        l10n.authOtpDescription,
-                        style: theme.textTheme.bodySmall,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppTextField(
-                        controller: _otpController,
-                        label: l10n.authOtpLabel,
-                        prefixIcon: Icons.pin_outlined,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.go,
-                        autofocus: true,
-                        enabled: !_busy,
-                        validator: Validators.required(l10n),
-                        onSubmitted: (_) => _busy ? null : _verifyOtp(),
-                      ),
-                    ],
-                    if (!otpStep && auth.password) ...[
-                      AppTextField(
-                        controller: _emailController,
-                        label: l10n.authEmailLabel,
-                        prefixIcon: Icons.alternate_email,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        autofocus: true,
-                        enabled: !_busy,
-                        validator: Validators.compose([
-                          Validators.required(l10n),
-                          Validators.email(l10n),
-                        ]),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppTextField(
-                        controller: _passwordController,
-                        label: l10n.authPasswordLabel,
-                        prefixIcon: Icons.lock_outline,
-                        obscureText: true,
-                        textInputAction: TextInputAction.go,
-                        enabled: !_busy,
-                        validator: Validators.required(l10n),
-                        // Enter on the password field submits the form.
-                        onSubmitted: (_) => _busy ? null : _signIn(),
-                      ),
-                    ],
-                    if (_error != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        _error!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                    ],
-                    if (otpStep) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      PrimaryButton(
-                        label: l10n.authOtpVerifyAction,
-                        isLoading: _busy,
-                        onPressed: _verifyOtp,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      TextButton(
-                        onPressed: _busy ? null : _resendOtp,
-                        child: Text(l10n.authOtpResendAction),
-                      ),
-                      TextButton(
-                        onPressed: _busy ? null : _backToPassword,
-                        child: Text(l10n.authOtpBackAction),
-                      ),
-                    ] else if (auth.password) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      PrimaryButton(
-                        label: l10n.authSignInAction,
-                        isLoading: _busy,
-                        onPressed: _signIn,
-                      ),
-                    ],
-                    // Only offered when the server can actually send the email.
-                    if (!otpStep && auth.passwordReset) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      TextButton(
-                        onPressed: _busy ? null : _requestReset,
-                        child: Text(l10n.authResetLinkAction),
-                      ),
-                    ],
-                    // OAuth2: one button per configured provider. Shown outside
-                    // the OTP step; the divider appears only when password
-                    // sign-in is also on (else these are the only options).
-                    if (!otpStep && auth.oauth2.isNotEmpty) ...[
-                      if (auth.password) ...[
-                        const SizedBox(height: AppSpacing.md),
-                        _OrDivider(label: l10n.authOrSeparator),
-                      ],
-                      ..._oauthButtons(),
-                      // The external flow can be abandoned in the browser and
-                      // its future then never completes — offer a way out so
-                      // the screen doesn't stay locked until an app restart.
-                      if (_oauthPending) ...[
-                        const SizedBox(height: AppSpacing.md),
+                    _LoginHeader(serverName: info?.name),
+                    if (compatibility != ServerCompatibility.compatible)
+                      _UpdateRequiredNotice(
+                        compatibility: compatibility,
+                        serverVersion: info?.version ?? '',
+                      )
+                    else ...[
+                      if (otpStep) ...[
                         Text(
-                          l10n.authOauthWaiting,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                          l10n.authOtpTitle,
+                          style: theme.textTheme.titleMedium,
                           textAlign: TextAlign.center,
                         ),
-                        TextButton(
-                          onPressed: _cancelOAuth,
-                          child: Text(l10n.actionCancel),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          l10n.authOtpDescription,
+                          style: theme.textTheme.bodySmall,
+                          textAlign: TextAlign.center,
                         ),
+                        const SizedBox(height: AppSpacing.md),
+                        AppTextField(
+                          controller: _otpController,
+                          label: l10n.authOtpLabel,
+                          prefixIcon: Icons.pin_outlined,
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.go,
+                          autofocus: true,
+                          enabled: !_busy,
+                          validator: Validators.required(l10n),
+                          onSubmitted: (_) => _busy ? null : _verifyOtp(),
+                        ),
+                      ],
+                      if (!otpStep && auth.password) ...[
+                        AppTextField(
+                          controller: _emailController,
+                          label: l10n.authEmailLabel,
+                          prefixIcon: Icons.alternate_email,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          autofocus: true,
+                          enabled: !_busy,
+                          validator: Validators.compose([
+                            Validators.required(l10n),
+                            Validators.email(l10n),
+                          ]),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        AppTextField(
+                          controller: _passwordController,
+                          label: l10n.authPasswordLabel,
+                          prefixIcon: Icons.lock_outline,
+                          obscureText: true,
+                          textInputAction: TextInputAction.go,
+                          enabled: !_busy,
+                          validator: Validators.required(l10n),
+                          // Enter on the password field submits the form.
+                          onSubmitted: (_) => _busy ? null : _signIn(),
+                        ),
+                      ],
+                      if (_error != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          _error!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                      ],
+                      if (otpStep) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        PrimaryButton(
+                          label: l10n.authOtpVerifyAction,
+                          isLoading: _busy,
+                          onPressed: _verifyOtp,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        TextButton(
+                          onPressed: _busy ? null : _resendOtp,
+                          child: Text(l10n.authOtpResendAction),
+                        ),
+                        TextButton(
+                          onPressed: _busy ? null : _backToPassword,
+                          child: Text(l10n.authOtpBackAction),
+                        ),
+                      ] else if (auth.password) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        PrimaryButton(
+                          label: l10n.authSignInAction,
+                          isLoading: _busy,
+                          onPressed: _signIn,
+                        ),
+                      ],
+                      // Only offered when the server can actually send the
+                      // email.
+                      if (!otpStep && auth.passwordReset) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        TextButton(
+                          onPressed: _busy ? null : _requestReset,
+                          child: Text(l10n.authResetLinkAction),
+                        ),
+                      ],
+                      // OAuth2: one button per configured provider. Shown
+                      // outside the OTP step; the divider appears only when
+                      // password sign-in is also on (else these are the only
+                      // options).
+                      if (!otpStep && auth.oauth2.isNotEmpty) ...[
+                        if (auth.password) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          _OrDivider(label: l10n.authOrSeparator),
+                        ],
+                        ..._oauthButtons(),
+                        // The external flow can be abandoned in the browser and
+                        // its future then never completes — offer a way out so
+                        // the screen doesn't stay locked until an app restart.
+                        if (_oauthPending) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            l10n.authOauthWaiting,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          TextButton(
+                            onPressed: _cancelOAuth,
+                            child: Text(l10n.actionCancel),
+                          ),
+                        ],
                       ],
                     ],
                     // Native only: web is pinned to its serving origin, so
@@ -512,6 +502,124 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       ],
     ];
+  }
+}
+
+/// Brand-first header: the app name and a warm tagline lead, so the screen
+/// reads as considered, not a bare admin form. (A proper logo mark is a
+/// separate task.) [serverName] is the verified server's name, demoted to a
+/// subtitle now the app name carries the header.
+///
+/// Shared by the sign-in form and the update notice that replaces it, so the
+/// screen keeps its identity when the versions don't line up.
+class _LoginHeader extends StatelessWidget {
+  const _LoginHeader({required this.serverName});
+
+  final String? serverName;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final name = serverName;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          l10n.appName,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.5,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          l10n.authTagline,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        if (name != null && name.isNotEmpty) ...[
+          Text(
+            l10n.authSignInToServer(name),
+            style: theme.textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+      ],
+    );
+  }
+}
+
+/// Replaces the sign-in controls when app and server majors disagree
+/// (federfall-1wm).
+///
+/// Which side has to move decides the whole message: an app that auto-updated
+/// ahead of its backend is the likelier case for a self-hosted instance, and
+/// telling that user to "update the app" would send them nowhere. The switch-
+/// server action stays available underneath, so nobody is stranded on a server
+/// they can no longer reach.
+class _UpdateRequiredNotice extends ConsumerWidget {
+  const _UpdateRequiredNotice({
+    required this.compatibility,
+    required this.serverVersion,
+  });
+
+  final ServerCompatibility compatibility;
+  final String serverVersion;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final appVersion = ref.watch(appVersionProvider).value ?? '';
+    final message = switch (compatibility) {
+      ServerCompatibility.serverTooOld => l10n.authUpdateServerMessage(
+        appVersion,
+        serverVersion,
+      ),
+      // `compatible` never reaches here — the caller renders the form instead —
+      // but the app-side message is the safe default for an exhaustive switch.
+      _ => l10n.authUpdateClientMessage(appVersion, serverVersion),
+    };
+
+    return Card(
+      color: theme.colorScheme.errorContainer,
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.system_update_outlined,
+              color: theme.colorScheme.onErrorContainer,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              l10n.authUpdateRequiredTitle,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -13,8 +13,11 @@
 //                          such route → 404 → "not a Federfall server").
 //   version              — major.minor only (patch withheld from this
 //                          unauthenticated endpoint), for display + diagnostics.
-//   minClient            — minimum client build the server supports (the app
-//                          may warn "update required" when its build is older).
+//   minClient            — oldest client build this server still serves.
+//                          Derived from the running major; see below. The app
+//                          blocks sign-in with an "update required" notice
+//                          when its own build falls under it, or when the two
+//                          majors disagree at all (federfall-1wm).
 //   name                 — branding/instance name shown on the login screen.
 //   auth                 — enabled auth methods, derived from live PB config:
 //                            password       (users.passwordAuth.enabled)
@@ -38,11 +41,23 @@ routerAdd(
     // withheld from this UNAUTHENTICATED endpoint so it can't be used to
     // fingerprint whether a specific CVE fix is deployed. The full version is
     // still visible via the image tag/label for operator use.
-    // `MIN_CLIENT` is a manual policy value (oldest client build still
-    // served), not derived from VERSION — bump it deliberately when a release
-    // breaks compatibility with older clients.
     const VERSION = $os.getenv("FEDERFALL_VERSION") || "0.0.0-dev";
-    const MIN_CLIENT = "1.0.0";
+
+    // `minClient` is the oldest client build this server still serves. It is
+    // DERIVED from VERSION's major, because the major IS the app↔server wire
+    // contract (federfall-1wm): every wire-breaking change is a `!` commit,
+    // which bumps the major, so `<major>.0.0` is exactly the floor. It used to
+    // be hardcoded "1.0.0" while releases were still on 0.x — a floor above
+    // every client in existence, which would have locked out all of them the
+    // moment anything enforced it.
+    //
+    // `FEDERFALL_MIN_CLIENT` overrides it upward for the rarer case: a floor
+    // *within* a major, e.g. "1.4.0" when older 1.x clients must not be served
+    // any more despite the contract itself being unchanged.
+    const major = parseInt(VERSION, 10);
+    const MIN_CLIENT =
+      $os.getenv("FEDERFALL_MIN_CLIENT") ||
+      (isNaN(major) ? "0.0.0" : major + ".0.0");
 
     // Read live capabilities defensively — a missing/renamed field must never
     // 500 the discovery endpoint, so every probe falls back to a safe default.

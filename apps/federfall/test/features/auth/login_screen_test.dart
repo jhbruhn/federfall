@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:federfall/core/pocketbase/auth_token_storage.dart';
+import 'package:federfall/core/server/server_compatibility.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info.dart';
@@ -126,11 +127,15 @@ Future<ProviderContainer> _pump(
   WidgetTester tester,
   FakeAuthRepository repo, {
   ServerInfo? info,
+  ServerCompatibility compatibility = ServerCompatibility.compatible,
 }) async {
   final container = ProviderContainer(
     overrides: [
       authRepositoryProvider.overrideWith((ref) async => repo),
       serverInfoProvider.overrideWith((ref) async => info),
+      // Overridden rather than left to resolve: the real provider reads
+      // PackageInfo, which has no platform channel here.
+      serverCompatibilityProvider.overrideWith((ref) async => compatibility),
       authTokenStorageProvider.overrideWithValue(FakeAuthTokenStorage()),
     ],
   );
@@ -522,5 +527,50 @@ void main() {
       container.read(serverConfigControllerProvider).requireValue,
       isA<ServerUnconfigured>(),
     );
+  });
+
+  testWidgets('an outdated app is blocked and told to update itself', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      info: const ServerInfo(
+        version: '2.1',
+        name: 'Pigeons',
+        auth: ServerAuthOptions(),
+      ),
+      compatibility: ServerCompatibility.clientTooOld,
+    );
+    await tester.pump();
+
+    expect(find.text('Update required'), findsOneWidget);
+    expect(find.textContaining('too old for this server'), findsOneWidget);
+    // No way to attempt a sign-in that could only fail further in.
+    expect(find.widgetWithText(FilledButton, 'Sign in'), findsNothing);
+    expect(find.byType(TextFormField), findsNothing);
+    // But never stranded on a server that can no longer be reached.
+    expect(find.text('Use a different server'), findsOneWidget);
+  });
+
+  testWidgets('an app ahead of its server points at the server', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      info: const ServerInfo(
+        version: '1.4',
+        name: 'Pigeons',
+        auth: ServerAuthOptions(),
+      ),
+      compatibility: ServerCompatibility.serverTooOld,
+    );
+    await tester.pump();
+
+    // The user's app is already current — telling them to update it would
+    // send them nowhere.
+    expect(find.textContaining('server has to be updated'), findsOneWidget);
+    expect(find.textContaining('too old for this server'), findsNothing);
   });
 }
