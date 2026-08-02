@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/jhbruhn/federfall/compare/v0.11.0...v0.11.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* **auth:** request the groups scope so OIDC group mapping can work ([7056a73](https://github.com/jhbruhn/federfall/commit/7056a73bc6b2c6b0a261b561c08ee38ba2a15cc9))
+
 ## [0.11.0](https://github.com/jhbruhn/federfall/compare/v0.10.0...v0.11.0) (2026-08-02)
 
 
