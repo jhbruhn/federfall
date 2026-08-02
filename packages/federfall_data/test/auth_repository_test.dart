@@ -243,9 +243,31 @@ void main() {
     },
   );
 
+  test('signInWithOAuth2 hands the scope override to the SDK', () async {
+    final record = RecordModel({'id': 'oa1', 'email': 'g@example.de'});
+    when(
+      () => users.authWithOAuth2(any(), any(), scopes: any(named: 'scopes')),
+    ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
+
+    await repo.signInWithOAuth2(
+      'oidc',
+      (_) async {},
+      scopes: const ['openid', 'groups'],
+    );
+
+    verify(
+      () => users.authWithOAuth2(
+        'oidc',
+        any(),
+        scopes: const ['openid', 'groups'],
+      ),
+    ).called(1);
+  });
+
   AuthMethodsList oidcMethods({
     String state = 'st4te',
     String codeVerifier = 'verifier',
+    String scope = '',
   }) => AuthMethodsList(
     oauth2: AuthMethodOAuth2(
       providers: [
@@ -255,7 +277,9 @@ void main() {
           codeVerifier: codeVerifier,
           authURL:
               'https://id.example/authorize'
-              '?client_id=x&state=$state&redirect_uri=',
+              '?client_id=x&state=$state'
+              '${scope.isEmpty ? '' : '&scope=${Uri.encodeQueryComponent(scope)}'}'
+              '&redirect_uri=',
         ),
       ],
     ),
@@ -296,6 +320,64 @@ void main() {
           'federfall://oauth-callback',
         ),
       ).called(1);
+    },
+  );
+
+  test(
+    'signInWithOAuth2Code replaces the scope parameter when overridden',
+    () async {
+      when(
+        () => users.listAuthMethods(),
+      ).thenAnswer((_) async => oidcMethods(scope: 'openid email profile'));
+      final record = RecordModel({'id': 'oa3', 'email': 'sso@example.de'});
+      when(
+        () => users.authWithOAuth2Code(any(), any(), any(), any()),
+      ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
+
+      late Uri opened;
+      await repo.signInWithOAuth2Code(
+        'oidc',
+        redirectUrl: 'federfall://oauth-callback',
+        authenticate: (url) async {
+          opened = url;
+          return 'federfall://oauth-callback?state=st4te&code=the-code';
+        },
+        scopes: const ['openid', 'email', 'profile', 'groups'],
+      );
+
+      // Replaced wholesale, not appended — matching the SDK's own semantics.
+      expect(opened.queryParameters['scope'], 'openid email profile groups');
+      // The rest of the URL survives the rebuild, deep link included.
+      expect(
+        opened.queryParameters['redirect_uri'],
+        'federfall://oauth-callback',
+      );
+      expect(opened.queryParameters['state'], 'st4te');
+    },
+  );
+
+  test(
+    'signInWithOAuth2Code leaves the scope alone without an override',
+    () async {
+      when(
+        () => users.listAuthMethods(),
+      ).thenAnswer((_) async => oidcMethods(scope: 'openid email profile'));
+      final record = RecordModel({'id': 'oa4', 'email': 'sso@example.de'});
+      when(
+        () => users.authWithOAuth2Code(any(), any(), any(), any()),
+      ).thenAnswer((_) async => RecordAuth(token: 't', record: record));
+
+      late Uri opened;
+      await repo.signInWithOAuth2Code(
+        'oidc',
+        redirectUrl: 'federfall://oauth-callback',
+        authenticate: (url) async {
+          opened = url;
+          return 'federfall://oauth-callback?state=st4te&code=the-code';
+        },
+      );
+
+      expect(opened.queryParameters['scope'], 'openid email profile');
     },
   );
 

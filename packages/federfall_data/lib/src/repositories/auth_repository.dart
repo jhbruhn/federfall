@@ -37,10 +37,17 @@ abstract interface class AuthRepository {
   /// connection is dropped, so the redirect is never delivered and sign-in
   /// "fails" (typically on the first attempt). Use it on web, where the app is
   /// not backgrounded; on mobile prefer [signInWithOAuth2Code].
+  ///
+  /// [scopes] overrides the OAuth2 scopes requested from the provider. It
+  /// REPLACES the whole `scope` parameter rather than adding to it, so it must
+  /// list every scope the flow needs (`openid` included, for OIDC); empty —
+  /// the default — leaves PocketBase's own scopes in place. See
+  /// `ServerAuthOptions.oauth2Scopes` for why this is the client's job.
   Future<AppUser> signInWithOAuth2(
     String provider,
-    Future<void> Function(Uri url) openUrl,
-  );
+    Future<void> Function(Uri url) openUrl, {
+    List<String> scopes,
+  });
 
   /// Signs in via the OAuth2 [provider] using the manual authorization-code
   /// flow with a deep-link redirect — the reliable path on mobile (see
@@ -56,12 +63,16 @@ abstract interface class AuthRepository {
   /// [redirectUrl], and return that full callback URL. It is injected by the
   /// caller so this package need not depend on a browser plugin.
   ///
+  /// [scopes] behaves as in [signInWithOAuth2] — a full replacement for the
+  /// requested `scope`, empty to keep PocketBase's.
+  ///
   /// Throws a [RepositoryException] if the returned `state` does not match
   /// (CSRF guard), the provider reports an `error`, or no `code` comes back.
   Future<AppUser> signInWithOAuth2Code(
     String provider, {
     required String redirectUrl,
     required Future<String> Function(Uri authorizationUrl) authenticate,
+    List<String> scopes,
   });
 
   /// Sends a one-time password to [email] (the MFA second factor) and returns
@@ -235,14 +246,19 @@ class PbAuthRepository implements AuthRepository {
   @override
   Future<AppUser> signInWithOAuth2(
     String provider,
-    Future<void> Function(Uri url) openUrl,
-  ) async {
+    Future<void> Function(Uri url) openUrl, {
+    List<String> scopes = const [],
+  }) async {
     try {
       // Deliberately NOT capped at networkTimeout: this waits for the user to
       // complete the provider's flow in a browser, which can take minutes.
+      // The SDK applies `scopes` by overwriting the URL's `scope` parameter,
+      // and ignores an empty list — the same semantics as the manual flow
+      // below.
       final auth = await _users.authWithOAuth2(
         provider,
         (url) => openUrl(url),
+        scopes: scopes,
       );
       return AppUser.fromRecord(auth.record);
     } on ClientException catch (e) {
@@ -255,6 +271,7 @@ class PbAuthRepository implements AuthRepository {
     String provider, {
     required String redirectUrl,
     required Future<String> Function(Uri authorizationUrl) authenticate,
+    List<String> scopes = const [],
   }) async {
     // Resolve the provider's authorization URL + PKCE material. Capped at the
     // network timeout like every other server call; the browser wait below is
@@ -276,7 +293,19 @@ class PbAuthRepository implements AuthRepository {
     // p.authURL ends with `redirect_uri=`; appending our deep link points the
     // provider back at the app instead of PocketBase's realtime relay. The
     // `state` already baked into the URL is the CSRF token to match on return.
-    final authorizationUrl = Uri.parse(p.authURL + redirectUrl);
+    var authorizationUrl = Uri.parse(p.authURL + redirectUrl);
+    // There is no SDK helper on this path, so apply the scope override by hand
+    // — same overwrite-the-parameter semantics as the all-in-one flow. The
+    // rebuilt query percent-encodes `redirect_uri`, which is what the SDK does
+    // too, and the provider decodes it back either way.
+    if (scopes.isNotEmpty) {
+      authorizationUrl = authorizationUrl.replace(
+        queryParameters: {
+          ...authorizationUrl.queryParameters,
+          'scope': scopes.join(' '),
+        },
+      );
+    }
     final expectedState = authorizationUrl.queryParameters['state'] ?? p.state;
 
     final callback = Uri.parse(await authenticate(authorizationUrl));

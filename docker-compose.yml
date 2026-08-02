@@ -87,6 +87,8 @@ services:
       # default to a walled-off "guest" role; the first user (when no supervisor
       # exists yet) becomes supervisor. If your IdP sends groups, map them to
       # roles and/or gate who may register at all:
+      # (setting any of these also makes the app request the matching scope,
+      # without which an OIDC provider never sends the claim in the first place)
       # FEDERFALL_OIDC_GROUPS_CLAIM: "groups"          # claim holding the groups
       # FEDERFALL_OIDC_SUPERVISOR_GROUP: "federfall-admins"
       # FEDERFALL_OIDC_COORDINATOR_GROUP: "federfall-coordinators"

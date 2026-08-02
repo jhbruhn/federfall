@@ -35,7 +35,52 @@ void main() {
       expect(info!.name, 'Federfall');
       expect(info.auth.password, isTrue);
       expect(info.auth.oauth2, isEmpty);
+      expect(info.auth.oauth2Scopes, isEmpty);
       expect(info.auth.passwordReset, isFalse);
+    });
+
+    test('parses per-provider OAuth2 scope overrides', () {
+      final info = ServerInfo.tryParse({
+        'federfall': true,
+        'auth': {
+          'oauth2': ['oidc'],
+          'oauth2Scopes': {
+            'oidc': ['openid', 'email', 'profile', 'groups'],
+          },
+        },
+      });
+
+      expect(info!.auth.oauth2Scopes['oidc'], [
+        'openid',
+        'email',
+        'profile',
+        'groups',
+      ]);
+    });
+
+    test('ignores a malformed oauth2Scopes value', () {
+      // A server sending the wrong shape must not break discovery — the app
+      // just falls back to PocketBase's own scopes.
+      final info = ServerInfo.tryParse({
+        'federfall': true,
+        'auth': {
+          'oauth2Scopes': {'oidc': 'openid email', 'ok': <String>[]},
+        },
+      });
+
+      expect(info!.auth.oauth2Scopes.containsKey('oidc'), isFalse);
+      expect(info.auth.oauth2Scopes['ok'], isEmpty);
+    });
+
+    test('an older server omitting oauth2Scopes yields an empty map', () {
+      final info = ServerInfo.tryParse({
+        'federfall': true,
+        'auth': {
+          'oauth2': ['oidc'],
+        },
+      });
+
+      expect(info!.auth.oauth2Scopes, isEmpty);
     });
 
     test('rejects a body without the marker (generic PocketBase)', () {

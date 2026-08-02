@@ -62,17 +62,28 @@ class ServerAuthOptions {
   const ServerAuthOptions({
     this.password = true,
     this.oauth2 = const [],
+    this.oauth2Scopes = const {},
     this.passwordReset = false,
     this.selfSignup = false,
   });
 
   factory ServerAuthOptions.fromJson(Map<Object?, Object?> json) {
     final providers = json['oauth2'];
+    final scopes = json['oauth2Scopes'];
     return ServerAuthOptions(
       password: json['password'] as bool? ?? true,
       oauth2: providers is List
           ? providers.whereType<String>().toList(growable: false)
           : const [],
+      oauth2Scopes: scopes is Map
+          ? {
+              for (final entry in scopes.entries)
+                if (entry.key is String && entry.value is List)
+                  entry.key! as String: (entry.value! as List)
+                      .whereType<String>()
+                      .toList(growable: false),
+            }
+          : const {},
       passwordReset: json['passwordReset'] as bool? ?? false,
       selfSignup: json['selfSignup'] as bool? ?? false,
     );
@@ -83,6 +94,23 @@ class ServerAuthOptions {
 
   /// Names of enabled OAuth2 providers (empty when none).
   final List<String> oauth2;
+
+  /// The OAuth2 scopes the app should request, per provider name
+  /// (federfall-lnz3).
+  ///
+  /// PocketBase hardcodes a minimal scope set and offers no server-side way to
+  /// widen it — upstream treats scopes as the client's business, since the
+  /// client is what opens the authorization URL. So the server prescribes them
+  /// here and the sign-in paths apply them, REPLACING the `scope` parameter
+  /// PocketBase built (that is also what the SDK's own `scopes` option does),
+  /// which is why a configured list has to be complete rather than additive.
+  ///
+  /// In practice the server sends this for a generic OIDC provider once a
+  /// group-to-role mapping is configured, because the groups claim is only
+  /// released to a request that asked for the matching scope. A provider
+  /// missing from the map — the default, and everything an older server sends
+  /// — keeps PocketBase's own scopes untouched.
+  final Map<String, List<String>> oauth2Scopes;
 
   /// The server can send password-reset email (SMTP configured).
   final bool passwordReset;
@@ -95,10 +123,34 @@ class ServerAuthOptions {
       other is ServerAuthOptions &&
       other.password == password &&
       listEquals(other.oauth2, oauth2) &&
+      _sameScopes(other.oauth2Scopes, oauth2Scopes) &&
       other.passwordReset == passwordReset &&
       other.selfSignup == selfSignup;
 
   @override
-  int get hashCode =>
-      Object.hash(password, Object.hashAll(oauth2), passwordReset, selfSignup);
+  int get hashCode => Object.hash(
+    password,
+    Object.hashAll(oauth2),
+    // Unordered: the map comes from JSON, whose key order is incidental.
+    Object.hashAllUnordered([
+      for (final entry in oauth2Scopes.entries)
+        Object.hash(entry.key, Object.hashAll(entry.value)),
+    ]),
+    passwordReset,
+    selfSignup,
+  );
+
+  /// Deep equality for the scope map — `mapEquals` would compare the [List]
+  /// values by identity, so two equal parses would come out different.
+  static bool _sameScopes(
+    Map<String, List<String>> a,
+    Map<String, List<String>> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      final other = b[entry.key];
+      if (other == null || !listEquals(other, entry.value)) return false;
+    }
+    return true;
+  }
 }

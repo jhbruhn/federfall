@@ -178,6 +178,19 @@ def main():
     check("password auth is enabled", auth.get("password") is True, auth)
     check("oauth2 is a list", isinstance(auth.get("oauth2"), list), auth)
     check("self-signup is off (invite-only)", auth.get("selfSignup") is False, auth)
+    # federfall-lnz3: PocketBase hardcodes its OAuth2 scopes and has no
+    # server-side way to widen them, so the server publishes the set the APP
+    # should request instead. Derived from the group mapping being configured
+    # (run.sh sets FEDERFALL_OIDC_CARER_GROUP) — there is no scope env.
+    check("the configured providers are advertised",
+          set(auth.get("oauth2") or []) == {"oidc", "google"}, auth)
+    scopes = (auth.get("oauth2Scopes") or {})
+    check("a group mapping makes OIDC request the groups scope",
+          scopes.get("oidc") == ["openid", "email", "profile", "groups"], auth)
+    # A social provider rejects the whole authorization request over an unknown
+    # scope, and can't do OIDC group mapping anyway.
+    check("a social provider keeps PocketBase's own scopes",
+          "google" not in scopes, auth)
 
     # ── fixtures ────────────────────────────────────────────────────────────
     A = mkuser(T, "a@f.local", "carer")["id"]

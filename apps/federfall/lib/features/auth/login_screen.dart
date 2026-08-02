@@ -132,6 +132,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // once we have the URL. Null off web / if refused (then we fall back).
     final popup = kIsWeb ? openBlankOAuthPopup() : null;
     _oauthPopup = popup;
+    // Scopes the server prescribes for this provider, empty unless it needs
+    // more than PocketBase asks for on its own (federfall-lnz3).
+    final scopes =
+        ref.read(serverInfoProvider).value?.auth.oauth2Scopes[provider.name] ??
+        const <String>[];
     setState(() {
       _busy = true;
       _oauthPending = true;
@@ -144,13 +149,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         // flow works and needs no deep-link setup: point the pre-opened window
         // at the provider (or, if none, open one) and let it complete over
         // PocketBase's realtime channel.
-        await repo.signInWithOAuth2(provider.name, (url) async {
-          if (popup != null) {
-            popup.navigateTo(url);
-          } else {
-            await launchUrl(url, mode: LaunchMode.inAppBrowserView);
-          }
-        });
+        await repo.signInWithOAuth2(
+          provider.name,
+          (url) async {
+            if (popup != null) {
+              popup.navigateTo(url);
+            } else {
+              await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+            }
+          },
+          scopes: scopes,
+        );
       } else {
         // Mobile: the realtime channel is dropped the moment the OS backgrounds
         // the app for the browser, which raced the provider's redirect and
@@ -162,6 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           provider.name,
           redirectUrl: oauthRedirectUrl,
           authenticate: authenticateOAuth,
+          scopes: scopes,
         );
       }
       // Success: the auth-store change drives the router gate (to /home, or

@@ -256,6 +256,42 @@ If the provider also asks for allowed origins, add your app URL there too.
 
 When `FEDERFALL_OAUTH2_PROVIDERS` is set, the environment is the source of truth and is re-applied on every start. If you would rather not keep the credentials in the compose file, leave it unset and register providers in the admin dashboard instead, under the `users` collection's auth settings. Either way, once a provider is registered it becomes a sign-in option.
 
+### About OAuth2 scopes
+
+There is nothing to configure here, but it is worth knowing what happens, because it explains a class of "my groups aren't working" confusion.
+
+PocketBase asks every OIDC provider for a fixed, minimal set of scopes — `openid`, `email`, `profile` — and offers no server-side setting to widen it. That is deliberate upstream: the scopes live in the authorization URL, which the *client* opens, so [PocketBase treats them as the client's business](https://github.com/pocketbase/pocketbase/discussions/7114). Putting a `?scope=` on `FEDERFALL_OAUTH2_<NAME>_AUTH_URL` does not work either — PocketBase appends its own `scope` afterwards and the duplicate wins.
+
+That matters because most identity providers only release a claim if the matching scope was requested. Group memberships are the usual case: without the `groups` scope the claim is simply absent, and the [group-to-role mapping](#who-may-register-and-as-what) has nothing to match on, so everyone lands as a guest.
+
+So when you configure a group mapping, the server tells the app to request the groups scope alongside the defaults, and the app asks for it on the next sign-in. It applies only to generic OIDC providers; a social provider like Google would reject the whole authorization request over a scope it doesn't know, and doesn't do group mapping anyway. The scope is named after `FEDERFALL_OIDC_GROUPS_CLAIM` (`groups` by default), since providers name the two alike.
+
+Two consequences worth knowing:
+
+- **The app has to be new enough.** The scope list is published on `/api/federfall/info`; a client from before this existed ignores it and keeps requesting only the defaults, so group mapping won't work for that client until it updates.
+- **The provider must allow the scope.** If it answers `invalid_scope`, grant it to this client on the provider side.
+
+#### Nextcloud
+
+Nextcloud's OIDC provider app only emits `groups` when the `groups` scope is requested, which the above handles. Two of its own knobs matter as well:
+
+```bash
+# GIDs (the default) or display names in the claim — must match what you put
+# in FEDERFALL_OIDC_*_GROUP below
+occ config:app:set oidc group_claim_type --value "displayname"
+```
+
+Nextcloud also reports `email_verified: false` until the user confirms their address in their personal settings, which is why fresh SSO accounts show up as "invite pending" — see `FEDERFALL_OIDC_TRUST_EMAIL` above.
+
+If your app is older than the scope support and you can't update it yet, there is a server-only alternative: attach a custom claim to a scope PocketBase already requests.
+
+```bash
+occ oidc:create-claim groups profile <CLIENT_ID> getUserGroupsDisplayName
+occ oidc:list-claim
+```
+
+Use `getUserGroups` instead for GIDs. Avoid the `...String` variants — they return one comma-joined string, which is read as a single oddly-named group.
+
 ### OAuth2 as the only sign-in method
 
 If you want everyone to sign in through your provider and not with a password at all, turn password auth off:
@@ -290,7 +326,11 @@ FEDERFALL_OIDC_CARER_GROUP: "federfall-carers"
 FEDERFALL_OIDC_ALLOWED_GROUPS: ""                     # if set, only members of these may register at all
 ```
 
+Setting any of these makes the app request the groups scope from a generic OIDC provider, which is what gets the claim sent at all — see [About OAuth2 scopes](#about-oauth2-scopes). The group names must match what the claim actually carries, which for several providers is an internal id rather than the display name you see in their admin UI.
+
 With a supervisor group configured, putting yourself in it at the provider is the cleanest bootstrap: your first sign-in lands you straight in as a supervisor. Anyone matching no group becomes a guest for a supervisor to promote. Plain social logins (Google, GitHub) don't carry groups, so there everyone falls back to guest.
+
+The mapping is applied when the account is first created, not on every sign-in. Changing someone's groups at the provider afterwards does not change their Federfall role — a supervisor changes it in the app (or deletes the account so the next sign-in re-provisions it).
 
 ## Finder data retention
 

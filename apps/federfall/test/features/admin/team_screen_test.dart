@@ -74,14 +74,16 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<AppUser> signInWithOAuth2(
     String provider,
-    Future<void> Function(Uri url) openUrl,
-  ) async => throw UnimplementedError();
+    Future<void> Function(Uri url) openUrl, {
+    List<String> scopes = const [],
+  }) async => throw UnimplementedError();
 
   @override
   Future<AppUser> signInWithOAuth2Code(
     String provider, {
     required String redirectUrl,
     required Future<String> Function(Uri authorizationUrl) authenticate,
+    List<String> scopes = const [],
   }) async => throw UnimplementedError();
 }
 

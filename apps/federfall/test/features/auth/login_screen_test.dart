@@ -97,6 +97,7 @@ class FakeAuthRepository implements AuthRepository {
 
   List<OAuthProvider> providers = const [];
   String? oauthProviderUsed;
+  List<String>? oauthScopesUsed;
 
   @override
   Future<List<OAuthProvider>> oauthProviders() async => providers;
@@ -104,9 +105,11 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<AppUser> signInWithOAuth2(
     String provider,
-    Future<void> Function(Uri url) openUrl,
-  ) async {
+    Future<void> Function(Uri url) openUrl, {
+    List<String> scopes = const [],
+  }) async {
     oauthProviderUsed = provider;
+    oauthScopesUsed = scopes;
     if (onSignInWithOAuth2 != null) return onSignInWithOAuth2!();
     return const AppUser(id: 'u1', email: 'staff@example.org');
   }
@@ -116,8 +119,10 @@ class FakeAuthRepository implements AuthRepository {
     String provider, {
     required String redirectUrl,
     required Future<String> Function(Uri authorizationUrl) authenticate,
+    List<String> scopes = const [],
   }) async {
     oauthProviderUsed = provider;
+    oauthScopesUsed = scopes;
     if (onSignInWithOAuth2 != null) return onSignInWithOAuth2!();
     return const AppUser(id: 'u1', email: 'staff@example.org');
   }
@@ -433,6 +438,41 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(repo.oauthProviderUsed, 'google');
+    // No override configured server-side: PocketBase's own scopes stand.
+    expect(repo.oauthScopesUsed, isEmpty);
+  });
+
+  testWidgets('forwards the scopes the server prescribes for the provider', (
+    tester,
+  ) async {
+    final repo = FakeAuthRepository()
+      ..providers = const [OAuthProvider(name: 'oidc', displayName: 'SSO')];
+    await _pump(
+      tester,
+      repo,
+      info: const ServerInfo(
+        version: '1.0.0',
+        name: 'Federfall',
+        auth: ServerAuthOptions(
+          oauth2: ['oidc'],
+          oauth2Scopes: {
+            'oidc': ['openid', 'email', 'profile', 'groups'],
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Continue with SSO'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(repo.oauthScopesUsed, [
+      'openid',
+      'email',
+      'profile',
+      'groups',
+    ]);
   });
 
   testWidgets('an abandoned OAuth wait can be cancelled', (tester) async {

@@ -50,7 +50,23 @@ docker run --rm \
   "$IMAGE" superuser upsert "$ADMIN_EMAIL" "$ADMIN_PASS"
 
 echo "==> Starting server on :$PORT"
+# Two dummy OAuth2 providers are registered so /api/federfall/info has
+# something to report scopes for (federfall-lnz3): a generic OIDC one, which
+# must be told to ask for the groups scope because a group mapping is
+# configured below, and a social one, which must NOT be (an unknown scope
+# fails the whole authorization request there). Nothing ever signs in through
+# either — the credentials are fake — this only exercises the settings + info
+# hooks.
 docker run -d --name "$NAME" -p "$PORT:8090" \
+  -e FEDERFALL_OAUTH2_PROVIDERS=oidc,google \
+  -e FEDERFALL_OAUTH2_OIDC_CLIENT_ID=test-client \
+  -e FEDERFALL_OAUTH2_OIDC_CLIENT_SECRET=test-secret \
+  -e FEDERFALL_OAUTH2_OIDC_AUTH_URL=https://id.invalid/authorize \
+  -e FEDERFALL_OAUTH2_OIDC_TOKEN_URL=https://id.invalid/token \
+  -e FEDERFALL_OAUTH2_OIDC_USERINFO_URL=https://id.invalid/userinfo \
+  -e FEDERFALL_OAUTH2_GOOGLE_CLIENT_ID=test-client \
+  -e FEDERFALL_OAUTH2_GOOGLE_CLIENT_SECRET=test-secret \
+  -e FEDERFALL_OIDC_CARER_GROUP=federfall-carers \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
   -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
   -v "$DATA:/pb/pb_data" \

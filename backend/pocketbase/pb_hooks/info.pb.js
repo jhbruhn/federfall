@@ -22,6 +22,28 @@
 //   auth                 — enabled auth methods, derived from live PB config:
 //                            password       (users.passwordAuth.enabled)
 //                            oauth2         (enabled provider names)
+//                            oauth2Scopes   (federfall-lnz3, optional) the OAuth2
+//                                            scopes the app should request per
+//                                            provider. PocketBase hardcodes its
+//                                            own minimal set (openid/email/
+//                                            profile for OIDC) and exposes no
+//                                            way to widen it server-side —
+//                                            upstream's position is that scopes
+//                                            belong to the client, which builds
+//                                            the authorization URL
+//                                            (pocketbase#3727,
+//                                            pocketbase/discussions#7114). So
+//                                            the server can only PRESCRIBE them
+//                                            here and let the app apply them.
+//                                            Present only when a group->role
+//                                            mapping is configured, since an
+//                                            IdP releases the groups claim only
+//                                            to a request that asked for the
+//                                            matching scope — without it the
+//                                            mapping in
+//                                            oauth2_provisioning.pb.js can
+//                                            never fire. Derived from that
+//                                            config; there is no scope env.
 //                            passwordReset  (SMTP configured — reset mail can
 //                                            actually be delivered)
 //                            selfSignup     (always false — Federfall is
@@ -89,18 +111,59 @@ routerAdd(
     // instance) made this true with no password form to show the link on.
     const passwordReset = password && smtpEnabled;
 
+    // Derived, not configured: asking for the groups scope is exactly what
+    // configuring a group mapping implies, so there is no separate env for it
+    // to drift out of sync with (an operator who has to restate the scope list
+    // by hand is one `openid` away from breaking sign-in entirely).
+    //
+    // PocketBase's own OIDC scopes are openid/email/profile and it offers no
+    // way to widen them server-side, so the full set is published here and the
+    // app requests it in place of the one PocketBase built into the URL.
+    const groupsEnv = [
+      "FEDERFALL_OIDC_SUPERVISOR_GROUP",
+      "FEDERFALL_OIDC_COORDINATOR_GROUP",
+      "FEDERFALL_OIDC_CARER_GROUP",
+      "FEDERFALL_OIDC_ALLOWED_GROUPS",
+    ];
+    let groupsConfigured = false;
+    for (let i = 0; i < groupsEnv.length; i++) {
+      const v = $os.getenv(groupsEnv[i]);
+      if (v && v !== "") groupsConfigured = true;
+    }
+    // The scope is named after the claim it releases — the same value
+    // oauth2_provisioning.pb.js reads the groups out of.
+    const groupsClaim = $os.getenv("FEDERFALL_OIDC_GROUPS_CLAIM") || "groups";
+
+    const oauth2Scopes = {};
+    if (groupsConfigured) {
+      for (let i = 0; i < oauth2.length; i++) {
+        // Generic OIDC only (PocketBase names those oidc/oidc2/oidc3). Group
+        // mapping is an OIDC feature, and handing an unknown scope to a social
+        // provider like Google fails the whole authorization request.
+        if (oauth2[i].indexOf("oidc") !== 0) continue;
+        const scopes = ["openid", "email", "profile"];
+        if (scopes.indexOf(groupsClaim) < 0) scopes.push(groupsClaim);
+        oauth2Scopes[oauth2[i]] = scopes;
+      }
+    }
+
+    const auth = {
+      password: password,
+      oauth2: oauth2,
+      passwordReset: passwordReset,
+      selfSignup: false,
+    };
+    // Omitted entirely when no provider has an override, so the payload stays
+    // exactly as it was for the common case.
+    if (Object.keys(oauth2Scopes).length > 0) auth.oauth2Scopes = oauth2Scopes;
+
     return e.json(200, {
       service: "federfall",
       federfall: true,
       version: VERSION.split(".").slice(0, 2).join("."),
       minClient: MIN_CLIENT,
       name: name,
-      auth: {
-        password: password,
-        oauth2: oauth2,
-        passwordReset: passwordReset,
-        selfSignup: false,
-      },
+      auth: auth,
     });
   },
   // Unauthenticated: the client hits this before any login exists.
