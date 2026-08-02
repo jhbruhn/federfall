@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.11.0](https://github.com/jhbruhn/federfall/compare/v0.10.0...v0.11.0) (2026-08-02)
+
+
+### Features
+
+* **auth:** block sign-in when app and server majors disagree ([9839f7b](https://github.com/jhbruhn/federfall/commit/9839f7ba7f2e2eab4406b61454362e7484a08eec))
+* **backend:** condition_labels view for the recorded diagnosis vocabulary ([0cea11e](https://github.com/jhbruhn/federfall/commit/0cea11eba11c8b6cbb19828d3d1f1fa4cd8fed01))
+* **cases:** filter the browser by outcome and diagnosis ([1cb3291](https://github.com/jhbruhn/federfall/commit/1cb3291f2ae0ef8e1ed353aff0662a8bfbba87fc))
+* **cases:** keep an interrupted intake wizard recoverable ([2128e0e](https://github.com/jhbruhn/federfall/commit/2128e0e858d62545878d76b860e24625d6d3f225))
+* **cases:** keep the finder's contact details in an intake draft ([423d92d](https://github.com/jhbruhn/federfall/commit/423d92d1937c0857b46eca4b5db084df8944935c))
+* **statistics:** assemble the report CSV server-side, with a busy spinner ([a811d5f](https://github.com/jhbruhn/federfall/commit/a811d5f93fa428a83a00ed526340941039813109))
+* **statistics:** tap a breakdown row through to the cases it counts ([273b3e1](https://github.com/jhbruhn/federfall/commit/273b3e1c996c229afc44710678d33eed075248cf))
+
+
+### Bug Fixes
+
+* **statistics:** attribute the intake-map preview thumbnail ([ddafb5f](https://github.com/jhbruhn/federfall/commit/ddafb5fc01c5806098626916714fac8c79bfc307))
+
 ## [0.10.0](https://github.com/jhbruhn/federfall/compare/v0.9.0...v0.10.0) (2026-07-26)
 
 
