@@ -4,9 +4,9 @@ import 'package:pocketbase/pocketbase.dart';
 
 part 'condition_label.freezed.dart';
 
-/// One diagnosis the org has actually recorded, read from the `condition_labels`
-/// view (federfall-ye5e): its display [label] and the number of cases carrying
-/// it.
+/// One diagnosis the org has actually recorded, read from the
+/// `condition_labels` view (federfall-ye5e): its display [label] and the number
+/// of cases carrying it.
 ///
 /// A `case_conditions` row is either a `conditions` code-list reference or its
 /// own free text, so the view groups on the resolved label — which is why this
