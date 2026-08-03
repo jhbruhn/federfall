@@ -6,11 +6,17 @@
 // parts, DB-authored labels) and ALL localization happens here through
 // report_common.typ's STRINGS / shared_strings.json.
 //
-// Layout: portrait summary pages (KPIs, intake curve, breakdowns, the
-// markings the org applied), then the per-case table on LANDSCAPE pages —
-// thirteen columns do not fit portrait, and that table is the same table the
-// hook's CSV writes, column for column, because both read the same
-// `case_report_rows` view (1700000063 + 1700000066).
+// Layout: portrait summary pages (KPIs, intake curve, breakdowns), then the
+// per-case table on LANDSCAPE pages — thirteen columns do not fit portrait,
+// and that table is the same table the hook's CSV writes, column for column,
+// because both read the same `case_report_rows` view (1700000063 + 1700000066
+// + 1700000067).
+//
+// Markings have no section of their own: they are one column of the case
+// table, listing what each bird carried at the end of ITS case (see
+// 1700000067). A separate roster of every ring the org applied was tried and
+// dropped — it restated the same rows in a second order and answered a
+// question this report is not for.
 #import "report_common.typ": fmtDate, fmtDateTime, lbl, resolveStrings
 
 #let data = json(bytes(sys.inputs.data))
@@ -183,14 +189,19 @@
 
   // ── Breakdowns ─────────────────────────────────────────────────────────────
   // One shared shape for every label→count list: label, count, share of the
-  // period's intakes. `limit` keeps a long tail from pushing the case list
-  // onto another page; the remainder is stated rather than silently dropped.
-  let breakdown(rows, limit: 8, total: none) = {
+  // period's intakes.
+  //
+  // Every row is printed. An earlier version capped each list at a top-N with a
+  // "… + 9 weitere" line to keep the summary on one page, which was the wrong
+  // trade for this document: the species and diagnosis breakdowns ARE the
+  // report, an org with forty species has forty species, and a reader cannot
+  // tell whether the tail they cannot see is nine cases or ninety. The summary
+  // simply runs onto a second page when the data needs one (Typst breaks the
+  // grid below across pages by itself).
+  let breakdown(rows, total: none) = {
     if rows.len() == 0 {
       return muted[#A.emptySection]
     }
-    let shown = if rows.len() > limit { rows.slice(0, limit) } else { rows }
-    let hidden = rows.len() - shown.len()
     table(
       columns: (1fr, auto, auto),
       align: (left, right, right),
@@ -198,7 +209,7 @@
       // The count and its share need air between them, or "32" and "23 %"
       // read as one number.
       inset: (x, y) => (left: if x == 0 { 2pt } else { 8pt }, right: 2pt, y: 2.6pt),
-      ..shown
+      ..rows
         .map(r => (
           text(size: 9pt)[#r.label],
           text(size: 9pt)[#r.count],
@@ -210,9 +221,6 @@
         ))
         .flatten(),
     )
-    if hidden > 0 {
-      text(size: 8pt, fill: gray)[#(A.more)(hidden)]
-    }
   }
 
   // Outcomes carry three distinct states the hook keeps apart: `none` is the
@@ -236,107 +244,62 @@
       count: o.count,
     ))
 
+  // Two columns, each holding a FIXED sequence of whole sections. Three
+  // arrangements were tried and this is the one that survives both ends of the
+  // data:
+  //
+  //   • one 2×2 grid of individual sections — the taller cell of a pair pushed
+  //     the next pair down, and a long list's continuation landed at the top of
+  //     the next page beside an empty column;
+  //   • every section stacked full width — uniform, but it pushed a normal
+  //     year's summary onto a second page that was 90 % white space;
+  //   • this: two columns of stacked sections, so the pair of columns breaks as
+  //     one and each side simply continues where it left off.
+  //
+  // The assignment is fixed rather than balanced by row count, so the report
+  // has the same shape every year regardless of the data (see the
+  // federfall-ui-prefers-unified-consistent-views note) — Ausgänge/Gründe
+  // left, the three genuinely open-ended lists right.
+  //
+  // Nothing is capped. An earlier version showed a top-8 with a "… + 9 weitere"
+  // line, which was the wrong trade for this document: the species and
+  // diagnosis breakdowns ARE the report, and a reader cannot tell whether the
+  // tail they are not shown is nine cases or ninety.
+  let section(title, rows, total: none, footer: none) = {
+    sectionTitle(title)
+    breakdown(rows, total: total)
+    if footer != none { footer }
+    v(12pt)
+  }
+
   v(12pt)
   grid(
     columns: (1fr, 1fr),
-    column-gutter: 16pt,
-    row-gutter: 12pt,
+    column-gutter: 18pt,
     [
-      #sectionTitle(A.sectionOutcomes)
-      // Every intake is in exactly one bucket above (including "still open"),
-      // so the column has a total and printing it lets a reader check that.
-      #breakdown(outcomeRows, limit: 8, total: t.intakes)
-      #v(1pt)
-      #line(length: 100%, stroke: 0.5pt + black)
-      #v(1pt)
-      #table(
-        columns: (1fr, auto),
-        align: (left, right),
-        stroke: none,
-        inset: (x: 2pt, y: 2.6pt),
-        text(size: 9pt, weight: "bold")[#A.total],
-        text(size: 9pt, weight: "bold")[#t.intakes],
-      )
+      #section(A.sectionOutcomes, outcomeRows, total: t.intakes, footer: [
+        // Every intake is in exactly one bucket above (including "still open"),
+        // so the column has a total and printing it lets a reader check that.
+        #v(1pt)
+        #line(length: 100%, stroke: 0.5pt + black)
+        #v(1pt)
+        #table(
+          columns: (1fr, auto),
+          align: (left, right),
+          stroke: none,
+          inset: (x: 2pt, y: 2.6pt),
+          text(size: 9pt, weight: "bold")[#A.total],
+          text(size: 9pt, weight: "bold")[#t.intakes],
+        )
+      ])
+      #section(A.sectionReasons, data.at("reasons", default: ()), total: t.intakes)
     ],
     [
-      #sectionTitle(A.sectionSpecies)
-      #breakdown(data.at("species", default: ()), total: t.intakes)
-    ],
-    [
-      #sectionTitle(A.sectionReasons)
-      #breakdown(data.at("reasons", default: ()), total: t.intakes)
-    ],
-    [
-      #sectionTitle(A.sectionConditions)
-      #breakdown(data.at("conditions", default: ()), total: t.intakes)
+      #section(A.sectionSpecies, data.at("species", default: ()), total: t.intakes)
+      #section(A.sectionConditions, data.at("conditions", default: ()), total: t.intakes)
+      #section(A.sectionCities, data.at("cities", default: ()), total: t.intakes)
     ],
   )
-
-  v(12pt)
-  sectionTitle(A.sectionCities)
-  breakdown(data.at("cities", default: ()), limit: 12, total: t.intakes)
-
-  // ── Markings ───────────────────────────────────────────────────────────────
-  // Scoped by APPLICATION date, not by the case cohort above (the hook says
-  // so too): "how many rings did we issue in 2026" is the figure a ringing
-  // scheme or authority asks for, and it is not the same question as "which
-  // birds came in in 2026". Each section states its own basis so the two
-  // cannot be misread as one.
-  let markings = data.at("markings", default: (total: 0, byType: (), rows: ()))
-  let markingBasis = if periodYear != none {
-    (A.markingsApplied)(fmtDate(S, data.period.from), fmtDate(S, data.period.to))
-  } else {
-    A.markingsAppliedAll
-  }
-  pagebreak(weak: true)
-  sectionTitle(A.sectionMarkings)
-  text(size: 8.5pt, fill: gray)[
-    #(A.countMarkings)(markings.total) · #markingBasis
-  ]
-  v(5pt)
-  if markings.rows.len() == 0 [
-    #muted[#A.emptySection]
-  ] else {
-    if markings.byType.len() > 0 {
-      text(size: 9pt)[
-        #markings.byType.map(b => b.label + " " + str(b.count)).join(" · ")
-      ]
-      v(6pt)
-    }
-    // Only `Schema` is free text of unbounded length, so it takes the slack;
-    // everything else is a code or a date and `auto` sizes it exactly.
-    table(
-      columns: (auto, auto, auto, 1fr, auto, auto, auto),
-      align: (left, left, left, left, left, left, left),
-      stroke: (x, y) => if y == 0 {
-        (bottom: 0.75pt + black)
-      } else {
-        (bottom: 0.25pt + luma(200))
-      },
-      inset: (x: 3pt, y: 3.5pt),
-      table.header(
-        text(size: 8.5pt, weight: "bold")[#A.colMarkingType],
-        text(size: 8.5pt, weight: "bold")[#A.colMarkingColour],
-        text(size: 8.5pt, weight: "bold")[#A.colMarkingCode],
-        text(size: 8.5pt, weight: "bold")[#A.colMarkingScheme],
-        text(size: 8.5pt, weight: "bold")[#A.colMarkingApplied],
-        text(size: 8.5pt, weight: "bold")[#A.colMarkingCase],
-        text(size: 8.5pt, weight: "bold")[#A.colMarkingRemoved],
-      ),
-      ..markings.rows
-        .map(m => (
-          m.at("type", default: ""),
-          m.at("colour", default: ""),
-          m.at("code", default: ""),
-          m.at("schemeOrg", default: ""),
-          fmtDate(S, m.at("appliedAt", default: none)),
-          m.at("caseNumber", default: ""),
-          fmtDate(S, m.at("removedAt", default: none)),
-        ))
-        .flatten()
-        .map(cell => text(size: 8.5pt)[#if cell == none [] else [#cell]]),
-    )
-  }
 
   // ── Case list (landscape) ──────────────────────────────────────────────────
   // Thirteen columns need the long edge. `set page` merges field-wise, so the

@@ -2035,18 +2035,50 @@ def main():
                               "city": "Oldenburg", "region": "Niedersachsen"})["id"]
     mk(T, "dispositions", {"case": ar_case, "org": ORG, "type": "released",
                            "disposed_at": "2019-07-05 10:00:00.000Z"})
+    # ── The `markings` cell is evaluated at the CASE'S OWN END (1700000067),
+    # not "active on the animal today", so these four rings pin all four edges
+    # of that window. `markings` is animal-scoped (no `case` field), which is
+    # exactly why the window matters: without it a later admission's ring would
+    # print on this 2019 row.
+    # (1) applied during care, never removed → released with it.
     mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
                        "code": "DEH-A9001", "colour": "rot", "is_active": True,
                        "applied_in_case": ar_case,
                        "applied_at": "2019-06-20 09:00:00.000Z"})
-    # Removed, so it must NOT appear in the per-case `markings` cell (that
-    # column is "what is on the bird now") even though the PDF's markings
-    # section still records that it was applied.
+    # (2) already on the bird at admission and still on at release → the
+    # "what did it arrive wearing" case, which needs no column of its own.
     mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
-                       "code": "DEH-A9002", "is_active": False,
+                       "code": "DEH-A9002", "is_active": True,
+                       "applied_at": "2017-04-01 09:00:00.000Z"})
+    # (3) removed DURING care → not what the bird left with.
+    mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
+                       "code": "DEH-A9003", "is_active": False,
                        "applied_at": "2019-06-21 09:00:00.000Z",
                        "removed_at": "2019-06-30 09:00:00.000Z"})
-    # A second 2019 case whose species is a spreadsheet formula: the CSV must
+    # (4) applied AFTER this case closed (a later admission) → must not
+    # backdate onto this row. Still active today, so an `is_active` filter
+    # would have printed it.
+    mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
+                       "code": "DEH-A9004", "is_active": True,
+                       "applied_at": "2021-08-01 09:00:00.000Z"})
+    # (5) released with it, removed LATER → the row must still record it, which
+    # an `is_active` filter would have dropped.
+    mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
+                       "code": "DEH-A9005", "is_active": False,
+                       "applied_at": "2019-06-22 09:00:00.000Z",
+                       "removed_at": "2020-01-15 09:00:00.000Z"})
+    # (6) deactivated with no removal date at all: the date is the fact and it
+    # is missing, so the report drops it rather than asserting the bird had it.
+    mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
+                       "code": "DEH-A9006", "is_active": False,
+                       "applied_at": "2019-06-23 09:00:00.000Z"})
+    # A SECOND, still-open case for the same bird: with no disposition to
+    # evaluate against, its window ends now — so the 2021 ring belongs on this
+    # row (and not on the closed one above), which is the whole point of dating
+    # the column per case rather than per animal.
+    mk(T, "cases", {"animal": ar_animal, "active_carer": A, "org": ORG,
+                    "admitted_at": "2019-11-20 10:00:00.000Z", "city": "Jever"})
+    # A third 2019 case whose species is a spreadsheet formula: the CSV must
     # neutralise it (OWASP CSV injection) — several cells are user-authored.
     ar_animal2 = mk(T, "animals", {"species": "=cmd|'/c calc'!A1",
                                    "org": ORG})["id"]
@@ -2117,18 +2149,47 @@ def main():
           and header[3] == "Markierung" and header[12] == "Aufnahmegründe",
           header)
     check("CSV covers exactly the cases admitted in the year",
-          len(lines) == 3, f"{len(lines)} lines: {lines}")
-    row = next((ln for ln in lines if ln.startswith("2019-")
-                or "Jahresvogel" in ln), "")
+          len(lines) == 4, f"{len(lines)} lines: {lines}")
+    # Picked by their own dates, not by animal: both rows below are the same
+    # bird, which is exactly what the markings window has to tell apart.
+    row = next((ln for ln in lines if "2019-06-15" in ln), "")
+    open_row = next((ln for ln in lines if "2019-11-20" in ln), "")
+    check("setup: both of the bird's 2019 cases are on the report",
+          bool(row) and bool(open_row), lines)
     check("the row carries the animal, ISO dates and the localized outcome",
           "Hohltaube" in row and "Jahresvogel" in row
           and "2019-06-15" in row and "2019-07-05" in row
           and "Ausgewildert" in row and "Abgeschlossen" in row, row)
     check("the row's day count spans admission to disposition",
           ",20," in row, row)
-    # The active ring is on the bird; the removed one is not.
-    check("only ACTIVE markings appear in the per-case markings cell",
-          "DEH-A9001" in row and "DEH-A9002" not in row, row)
+    check("a ring applied during care and kept is on the row",
+          "DEH-A9001" in row, row)
+    check("a ring the bird arrived wearing is too",
+          "DEH-A9002" in row, row)
+    check("a ring removed DURING care is not",
+          "DEH-A9003" not in row, row)
+    check("a ring from a LATER admission does not backdate onto this case",
+          "DEH-A9004" not in row, row)
+    check("a ring removed AFTER release is still what it was released with",
+          "DEH-A9005" in row, row)
+    check("a ring deactivated with no removal date is dropped, not asserted",
+          "DEH-A9006" not in row, row)
+    # Oldest first, so the cell reads as the bird's own history.
+    check("the cell orders markings by when they were applied",
+          row.index("DEH-A9002") < row.index("DEH-A9001") < row.index("DEH-A9005"),
+          row)
+    # The still-open case on the SAME bird: window ends now, so the 2021 ring
+    # is on this row though it is absent from the closed one, and the rings
+    # removed since are gone from it though the closed row still records them.
+    check("an open case's markings are those the bird carries now",
+          "DEH-A9004" in open_row and "DEH-A9001" in open_row
+          and "DEH-A9002" in open_row, open_row)
+    check("...and not the ones removed since",
+          "DEH-A9005" not in open_row and "DEH-A9003" not in open_row,
+          open_row)
+    check("the same bird's two cases therefore carry different markings",
+          row != open_row and ("DEH-A9004" in open_row) != ("DEH-A9004" in row),
+          f"closed: {row}\nopen:   {open_row}")
     check("a formula-looking cell is neutralised with a leading apostrophe",
           "'=cmd" in text_csv, [ln for ln in lines if "cmd" in ln])
     # English switches the header AND the enum cells, from the same file the

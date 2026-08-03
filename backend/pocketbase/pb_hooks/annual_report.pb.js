@@ -11,8 +11,13 @@
 // context, so two routes could not share the ~200 lines of gathering and
 // aggregation below, and the whole point of this change is that the PDF's
 // per-case table and the CSV are the SAME table. Both read the
-// `case_report_rows` view (1700000063 + 1700000066), which is the single
-// definition of that table's columns; neither selects columns of its own.
+// `case_report_rows` view (1700000063 + 1700000066 + 1700000067), which is the
+// single definition of that table's columns; neither selects columns of its own.
+// That includes the `markings` column: the view evaluates it at each case's own
+// end, so the row says what the bird carried at release (and what it had already
+// arrived with, if that ring stayed on) rather than what is on the animal today
+// — see 1700000067. There is deliberately no separate markings roster in the
+// PDF; the column is the record.
 //
 // The CSV is why this is the only hook in pb_hooks that localizes anything.
 // The PDFs can stay untranslated here because a Typst template does the
@@ -514,65 +519,6 @@ routerAdd(
       bump(conditionCounts, label);
     }
 
-    // ── Markings: scoped by APPLICATION date, not by the case cohort. "How
-    // many rings did we issue in 2026" is the figure a ringing scheme asks
-    // for, and it is a different question from "which birds came in in 2026"
-    // — a bird admitted in December and ringed in January belongs to one and
-    // not the other. The PDF prints each section's basis for that reason.
-    // Unlike the per-case `markings` column (which shows what is currently on
-    // the bird), this lists removals too: it is the record of what the org
-    // did.
-    const markingTypeLabels = {};
-    for (const t of e.app.findRecordsByFilter(
-      "marking_types",
-      "id != ''",
-      "",
-      0,
-      0,
-    )) {
-      markingTypeLabels[t.id] = t.getString("label");
-    }
-    const markingFilter =
-      year !== null
-        ? "org = {:org} && applied_at >= {:from} && applied_at < {:to}"
-        : "org = {:org}";
-    const markingRecords = e.app.findRecordsByFilter(
-      "markings",
-      markingFilter,
-      "applied_at",
-      0,
-      0,
-      rowParams,
-    );
-    const caseNumbers = {};
-    const markingTypeCounts = {};
-    const markingRows = markingRecords.map((m) => {
-      const inCase = m.getString("applied_in_case");
-      if (inCase && caseNumbers[inCase] === undefined) {
-        try {
-          caseNumbers[inCase] = e.app
-            .findRecordById("cases", inCase)
-            .getString("case_number");
-        } catch (_) {
-          // The case was deleted (supervisor-only cascade, see 1700000057)
-          // while the animal-level marking survived — the marking is still a
-          // real thing the org applied, so it is reported without a case.
-          caseNumbers[inCase] = "";
-        }
-      }
-      const typeLabel = markingTypeLabels[m.getString("type")] || "";
-      bump(markingTypeCounts, typeLabel);
-      return {
-        type: typeLabel,
-        colour: m.getString("colour"),
-        code: m.getString("code"),
-        schemeOrg: m.getString("scheme_org"),
-        appliedAt: partsOf(m.getString("applied_at")),
-        caseNumber: inCase ? caseNumbers[inCase] : "",
-        removedAt: partsOf(m.getString("removed_at")),
-      };
-    });
-
     let orgRec = null;
     try {
       orgRec = e.app.findRecordById("organisations", org);
@@ -610,11 +556,6 @@ routerAdd(
       reasons: ranked(reasonCounts),
       conditions: ranked(conditionCounts),
       cities: ranked(cityCounts),
-      markings: {
-        total: markingRows.length,
-        byType: ranked(markingTypeCounts),
-        rows: markingRows,
-      },
       cases: caseRows.map((r) => ({
         caseNumber: r.caseNumber,
         species: r.species,

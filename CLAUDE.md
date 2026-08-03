@@ -142,11 +142,16 @@ name-first header over Overview / History tabs. See
 fragmented sections.
 
 **Reporting is server-side, and the table is defined once** (federfall-dk0c): the
-`case_report_rows` view (1700000063 + 1700000066) IS the annual report's per-case table.
-`pb_hooks/annual_report.pb.js` reads it for BOTH outputs of
+`case_report_rows` view (1700000063 + 1700000066 + 1700000067) IS the annual report's
+per-case table. `pb_hooks/annual_report.pb.js` reads it for BOTH outputs of
 `GET /api/federfall/reports/annual` — the Typst PDF (`typst/annual_report.typ`: portrait
 summary + landscape case list) and, via `?format=csv`, the same columns as a spreadsheet —
-so the two cannot drift. `?year=` selects the cases **admitted** in that calendar year
+so the two cannot drift. Its `markings` column is evaluated **at each case's own end** (the
+terminal disposition, or now while open), not on `is_active`: a row must say what that bird
+carried at release — including a ring it arrived wearing and kept — and must not print a
+ring from a *later* admission or drop one removed after release. There is deliberately no
+separate markings roster; the column is the record. Nothing on the summary page is
+truncated (no top-N), so a long breakdown simply continues in its column. `?year=` selects the cases **admitted** in that calendar year
 (the intake cohort, boundaries in the caller's zone via `?tzOffsetMinutes=`); omitting it
 reports everything. The app just picks a period and a format
 (`features/statistics/annual_report_sheet.dart`) and hands the bytes to the share sheet —
