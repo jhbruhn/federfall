@@ -268,22 +268,26 @@ void main() {
     String state = 'st4te',
     String codeVerifier = 'verifier',
     String scope = '',
-  }) => AuthMethodsList(
-    oauth2: AuthMethodOAuth2(
-      providers: [
-        AuthMethodProvider(
-          name: 'oidc',
-          state: state,
-          codeVerifier: codeVerifier,
-          authURL:
-              'https://id.example/authorize'
-              '?client_id=x&state=$state'
-              '${scope.isEmpty ? '' : '&scope=${Uri.encodeQueryComponent(scope)}'}'
-              '&redirect_uri=',
-        ),
-      ],
-    ),
-  );
+  }) {
+    final scopeParam = scope.isEmpty
+        ? ''
+        : '&scope=${Uri.encodeQueryComponent(scope)}';
+    return AuthMethodsList(
+      oauth2: AuthMethodOAuth2(
+        providers: [
+          AuthMethodProvider(
+            name: 'oidc',
+            state: state,
+            codeVerifier: codeVerifier,
+            authURL:
+                'https://id.example/authorize'
+                '?client_id=x&state=$state$scopeParam'
+                '&redirect_uri=',
+          ),
+        ],
+      ),
+    );
+  }
 
   test(
     'signInWithOAuth2Code appends the deep link, exchanges the code and '
