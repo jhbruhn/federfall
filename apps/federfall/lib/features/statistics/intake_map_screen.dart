@@ -194,9 +194,13 @@ class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
               initialCenter: bounds.center,
               initialZoom: _fitMaxZoom,
               maxZoom: _maxZoom,
+              interactionOptions: const InteractionOptions(
+                flags: MapWheelZoom.flags,
+              ),
             ),
             children: [
               const MapTileLayer(),
+              const MapWheelZoom(),
               MarkerLayer(
                 markers: [
                   for (final location in data)

@@ -29,6 +29,7 @@ export 'widgets/kpi_card.dart';
 export 'widgets/loading_view.dart';
 export 'widgets/map_attribution.dart';
 export 'widgets/map_tile_layer.dart';
+export 'widgets/map_wheel_zoom.dart';
 export 'widgets/menu_action.dart';
 export 'widgets/offline_notice.dart';
 export 'widgets/primary_button.dart';

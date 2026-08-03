@@ -267,12 +267,23 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _centre,
-              initialZoom: widget.initial == null ? 5.5 : 16,
+              // Whole zoom levels: off an integer zoom, `TileLayer` fetches
+              // `zoom.round()` and rescales every 256px tile to
+              // `256 * 2^(zoom - round(zoom))`, which is a visible resample at
+              // devicePixelRatio 1. 5.5 was 71% of native on every tile.
+              initialZoom: widget.initial == null ? 5 : 16,
+              // The tile pyramid ends at `TileLayer`'s `maxNativeZoom` (19);
+              // beyond it flutter_map just magnifies z19 tiles.
+              maxZoom: 19,
+              interactionOptions: const InteractionOptions(
+                flags: MapWheelZoom.flags,
+              ),
               onMapEvent: _onMapEvent,
               onTap: (_, point) => _mapController.move(point, 16),
             ),
             children: const [
               MapTileLayer(),
+              MapWheelZoom(),
               MapAttribution(),
             ],
           ),
