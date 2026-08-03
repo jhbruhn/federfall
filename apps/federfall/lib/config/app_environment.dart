@@ -44,6 +44,13 @@ abstract final class AppEnvironment {
   /// Whether a build-time PocketBase URL override was provided.
   static bool get hasPocketbaseUrlOverride => pocketbaseUrlOverride.isNotEmpty;
 
+  // The MAP_* defines below are only the FALLBACK map source. The server can
+  // prescribe one at runtime through `/api/federfall/info` (federfall-el1f) —
+  // it has to be able to, since these constants are baked into the web bundle
+  // and the APK and are not configuration at all on a published image. Read the
+  // effective values through `MapConfig`/`mapConfigProvider`, never from here
+  // directly; these apply when the server prescribes nothing.
+
   /// Raw `MAP_MODE` define (defaults to `vector`, see [mapMode]).
   static const String mapModeName = String.fromEnvironment(
     'MAP_MODE',

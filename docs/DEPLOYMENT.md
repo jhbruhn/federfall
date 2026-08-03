@@ -98,18 +98,56 @@ FEDERFALL_GEOCODE_CACHE_DISABLED: "1"        # bypass the cache entirely (debugg
 ### Maps
 
 Map *tiles* are a separate matter from geocoding.
-Which tile server the app uses is baked into the web build rather than read from the environment, and defaults to the public [OpenFreeMap](https://openfreemap.org) vector tile style (`MAP_MODE: "vector"`, `MAP_STYLE_URL`).
-To point at a classic raster tile server instead, edit `apps/federfall/dart_defines/production.json`, set `MAP_MODE` to `"raster"`, set `MAP_TILE_URL`/`MAP_ATTRIBUTION`/`MAP_ATTRIBUTION_URL` to that provider, and rebuild the image.
+By default the app renders the public [OpenFreeMap](https://openfreemap.org) vector tile style, and you can point it somewhere else from the environment — the server tells the app which tile source to use, so this works on the published image and needs no rebuild.
+Both the web app and the Android app pick it up; the Android app follows whichever server it is signed in to.
 
-If you do change either URL, you have to allow the new host in the app's Content-Security-Policy as well, or the browser will block the tiles and your maps will come up blank.
-The policy the container sends only permits the two origins that ship as defaults, so list yours instead:
+A raster tile server:
 
 ```yaml
-FEDERFALL_MAP_TILE_ORIGINS: "https://tiles.yourdomain.tld"
+FEDERFALL_MAP_MODE: "raster"
+FEDERFALL_MAP_TILE_URL: "https://tiles.yourdomain.tld/{z}/{x}/{y}.png"
+FEDERFALL_MAP_ATTRIBUTION: "© OpenStreetMap contributors"
+FEDERFALL_MAP_ATTRIBUTION_URL: "https://www.openstreetmap.org/copyright"   # optional
 ```
 
-That is a comma-separated list of origins, and it is the only part of the policy you should normally need to touch.
-It is added to both `img-src` and `connect-src`, which covers raster tiles and vector styles alike.
+Or a different vector style:
+
+```yaml
+FEDERFALL_MAP_MODE: "vector"
+FEDERFALL_MAP_STYLE_URL: "https://tiles.yourdomain.tld/styles/liberty"
+FEDERFALL_MAP_ATTRIBUTION: "© OpenMapTiles © OpenStreetMap contributors"
+```
+
+A commercial provider that keys its tiles takes one more variable:
+
+```yaml
+FEDERFALL_MAP_API_KEY: "your-provider-key"
+```
+
+The app substitutes it for a `{key}` token anywhere in the URL — and in vector mode also inside the style's own tile, sprite and glyph URLs, which is the part you cannot do by hand from here.
+For a raster provider you can equally just write the key straight into `FEDERFALL_MAP_TILE_URL` as a query parameter; both work.
+
+Be aware that **this key is public**: `/api/federfall/info` is unauthenticated, so anyone who can reach your server can read it.
+That is not really a step down from the alternative — a web app hands its map key to every browser's devtools, and the release APK is a public download — but it does reduce extraction to a single request.
+Restrict the key to your domain at the provider if they support it, and prefer a provider whose free tier needs no key at all.
+
+The mode, the URL for that mode, and the attribution are **all three required together**.
+Set an incomplete combination and the whole thing is ignored — the container logs a warning saying so, and the app keeps its built-in default.
+That is deliberate: nearly every tile provider requires you to display a specific credit, and a map that quietly renders your new provider's tiles under the built-in OpenFreeMap credit is a licensing problem rather than a cosmetic one.
+The attribution *link* is the one optional part; without it the credit shows as plain text instead of linking a copyright page that describes some other provider.
+
+You do **not** need to touch the Content-Security-Policy for this.
+The policy the container sends derives its allowed origins from the URLs above, so a tile server you configure is a tile server the browser is allowed to load.
+
+The exception is a vector style whose sprites, glyphs or tiles live on a *different* host than the style JSON itself — nothing can infer those from the URL, so list them:
+
+```yaml
+FEDERFALL_MAP_TILE_ORIGINS: "https://sprites.yourdomain.tld"
+```
+
+That is a comma-separated list of origins added to both `img-src` and `connect-src`, and it is the only part of the policy you should normally need to touch.
+Setting it also *replaces* the two default origins (OpenFreeMap and OpenStreetMap) that are otherwise allowed — the origins derived from your `FEDERFALL_MAP_*` URLs are always added on top either way.
+If your maps come up blank on the web app, this is the first thing to check: the browser console will name the origin it blocked.
 
 The whole policy can be replaced if you need something the above cannot express — self-hosted fonts, say:
 

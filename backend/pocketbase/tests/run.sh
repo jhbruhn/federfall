@@ -50,6 +50,11 @@ docker run --rm \
   "$IMAGE" superuser upsert "$ADMIN_EMAIL" "$ADMIN_PASS"
 
 echo "==> Starting server on :$PORT"
+# A runtime map source is prescribed too (federfall-el1f): raster mode with an
+# attribution and a provider API key, plus a style URL for the *other* mode that
+# must therefore be ignored by /info while still contributing its origin to the
+# CSP.
+#
 # Two dummy OAuth2 providers are registered so /api/federfall/info has
 # something to report scopes for (federfall-lnz3): a generic OIDC one, which
 # must be told to ask for the groups scope because a group mapping is
@@ -67,6 +72,11 @@ docker run -d --name "$NAME" -p "$PORT:8090" \
   -e FEDERFALL_OAUTH2_GOOGLE_CLIENT_ID=test-client \
   -e FEDERFALL_OAUTH2_GOOGLE_CLIENT_SECRET=test-secret \
   -e FEDERFALL_OIDC_CARER_GROUP=federfall-carers \
+  -e FEDERFALL_MAP_MODE=raster \
+  -e FEDERFALL_MAP_TILE_URL='https://raster.invalid/{z}/{x}/{y}.png' \
+  -e FEDERFALL_MAP_STYLE_URL=https://vector.invalid/style.json \
+  -e FEDERFALL_MAP_ATTRIBUTION='© Test Tiles' \
+  -e FEDERFALL_MAP_API_KEY=test-map-key \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
   -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
   -v "$DATA:/pb/pb_data" \

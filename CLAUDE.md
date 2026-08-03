@@ -159,6 +159,22 @@ fragmented sections.
 - **Build-time config** (`AppEnvironment`): `POCKETBASE_URL`, `MAP_TILE_URL`,
   `MAP_ATTRIBUTION` come from `dart_defines/<flavor>.json` as compile-time constants — they
   need a rebuild, not hot reload (a stale build silently falls back to defaults).
+- **Map source is runtime, not build-time** (federfall-el1f): the `MAP_*` defines are only a
+  fallback. `/api/federfall/info` may carry a `map` block (`FEDERFALL_MAP_MODE` +
+  the URL for that mode + `FEDERFALL_MAP_ATTRIBUTION`, optionally `_ATTRIBUTION_URL` /
+  `_API_KEY`) and it wins. Read the effective values from `mapConfigProvider` /
+  `MapConfig`, never `AppEnvironment.map*` directly. Three invariants: the block is
+  **all-or-nothing** (mode+URL+attribution, else `info.pb.js` drops it with a warning —
+  a half-applied override credits the wrong provider, which is a licensing problem, and
+  there is no per-mode default attribution to fall back to); `web_headers.pb.js`
+  **derives** the CSP origins from the same `FEDERFALL_MAP_*` URLs, so a prescribed source
+  can't be blocked by the policy that server sent (`FEDERFALL_MAP_TILE_ORIGINS` remains for
+  sprite/glyph hosts on another origin, and replaces the two shipped defaults);
+  and `MapTileLayer` is **keyed on the resolved config** because the vector path reads its
+  style in `initState` — the router only awaits `serverInfoProvider` on the
+  *unauthenticated* path, so a warm start can build a map before `/info` lands and the
+  layer has to be replaced, not updated in place. `apiKey` is served over an
+  unauthenticated endpoint, i.e. deliberately public (documented in `info.pb.js`).
 - **Geocoding** is proxied through PB hooks (`pb_hooks/geocode.pb.js`) for CORS + server-side
   rate-limiting; configurable via `FEDERFALL_NOMINATIM_URL` / `FEDERFALL_GEOCODER_KEY` /
   `FEDERFALL_USER_AGENT`. Public OSM Nominatim blocks server traffic and placeholder UA

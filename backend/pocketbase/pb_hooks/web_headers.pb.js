@@ -36,14 +36,25 @@
 //   frame-ancestors 'none'                no embedding → no clickjacking.
 //
 // Env:
-//   FEDERFALL_MAP_TILE_ORIGINS  comma list of tile-server origins to allow
-//                               (default covers both shipped defaults:
-//                               https://tiles.openfreemap.org, the default
+//   FEDERFALL_MAP_TILE_URL      the runtime map source served by info.pb.js
+//   FEDERFALL_MAP_STYLE_URL     (federfall-el1f). Their ORIGINS are added to
+//                               the policy automatically, so prescribing a tile
+//                               server cannot leave the browser blocking the
+//                               very tiles the server asked for. Read here only
+//                               for that derivation — info.pb.js owns whether
+//                               the config is complete enough to hand out.
+//   FEDERFALL_MAP_TILE_ORIGINS  comma list of extra tile-server origins to
+//                               allow, replacing the two shipped defaults
+//                               (https://tiles.openfreemap.org, the default
 //                               MAP_STYLE_URL for vector mode, and
 //                               https://tile.openstreetmap.org, the default
-//                               MAP_TILE_URL for raster mode). Must match
-//                               whichever MAP_STYLE_URL/MAP_TILE_URL the web
-//                               bundle was actually built with.
+//                               MAP_TILE_URL for raster mode) — the fallback
+//                               the app uses when the server prescribes
+//                               nothing, so they stay allowed unless you say
+//                               otherwise. Still needed when a style's own
+//                               sprite/glyph/tile hosts live on a DIFFERENT
+//                               origin than the style JSON, which no
+//                               derivation from the URL can know.
 //   FEDERFALL_CSP               full replacement policy for the SPA, for
 //                               operators whose setup needs more; "off"
 //                               disables the header entirely.
@@ -97,11 +108,27 @@ routerUse((e) => {
     if (cspEnv.toLowerCase() !== "off") {
       let csp = cspEnv;
       if (!csp) {
-        const tiles = ($os.getenv("FEDERFALL_MAP_TILE_ORIGINS") ||
+        const listed = ($os.getenv("FEDERFALL_MAP_TILE_ORIGINS") ||
           "https://tiles.openfreemap.org,https://tile.openstreetmap.org")
           .split(",")
           .map((s) => s.trim())
-          .filter((s) => s !== "")
+          .filter((s) => s !== "");
+
+        // Scheme + host + port of a configured map URL. A raster template is
+        // not a parseable URL ({z}/{x}/{y} braces), so match the origin off the
+        // front rather than handing the whole thing to a URL parser.
+        const originOf = (raw) => {
+          const m = /^(https?:\/\/[^/?#]+)/i.exec((raw || "").trim());
+          return m ? m[1] : "";
+        };
+        const derived = [
+          originOf($os.getenv("FEDERFALL_MAP_TILE_URL")),
+          originOf($os.getenv("FEDERFALL_MAP_STYLE_URL")),
+        ].filter((s) => s !== "");
+
+        const tiles = listed
+          .concat(derived)
+          .filter((s, i, all) => all.indexOf(s) === i)
           .join(" ");
         csp = [
           "default-src 'self'",

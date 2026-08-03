@@ -46,13 +46,29 @@ services:
       # per-client rate limits (the geocode budget) are shared by all users:
       # FEDERFALL_TRUSTED_PROXY_HEADERS: "X-Forwarded-For"
       # FEDERFALL_TRUSTED_PROXY_USE_LEFTMOST_IP: "false"  # "true" only for multi-proxy chains
+      # Map tiles — the server prescribes the source, so this works on the
+      # published image with no rebuild (both web and the Android app). Mode,
+      # the URL for that mode, and the attribution are required TOGETHER: an
+      # incomplete set is ignored with a warning, because a map showing one
+      # provider's tiles under another's credit is a licensing problem. The
+      # CSP below picks up these origins automatically. See docs/DEPLOYMENT.md:
+      # FEDERFALL_MAP_MODE: "raster"          # or "vector"
+      # FEDERFALL_MAP_TILE_URL: "https://tiles.yourdomain.tld/{z}/{x}/{y}.png"
+      # FEDERFALL_MAP_STYLE_URL: "https://tiles.yourdomain.tld/styles/liberty"
+      # FEDERFALL_MAP_ATTRIBUTION: "© OpenStreetMap contributors"
+      # FEDERFALL_MAP_ATTRIBUTION_URL: "https://www.openstreetmap.org/copyright"
+      # Provider key, substituted for a {key} token in the URLs above (and, in
+      # vector mode, inside the style's own tile/sprite URLs). NOTE /info is
+      # unauthenticated, so this key is PUBLIC — restrict it by domain at the
+      # provider:
+      # FEDERFALL_MAP_API_KEY: ""
       # Content-Security-Policy for the SPA (pb_hooks/web_headers.pb.js).
-      # Default already covers the shipped MAP_STYLE_URL (OpenFreeMap) and
-      # MAP_TILE_URL (OSM raster) origins — only set this if you changed
-      # either to a different host: list the tile origins the policy should
-      # allow (comma-separated). FEDERFALL_CSP replaces the whole policy
-      # ("off" disables it):
-      # FEDERFALL_MAP_TILE_ORIGINS: "https://tiles.openfreemap.org,https://tile.openstreetmap.org"
+      # The origins of the map URLs above are always allowed, and the shipped
+      # defaults (OpenFreeMap + OSM raster) are too — set this only for hosts
+      # nothing can derive from those URLs, e.g. a vector style whose
+      # sprites/glyphs live elsewhere (comma-separated; replaces the two
+      # defaults). FEDERFALL_CSP replaces the whole policy ("off" disables it):
+      # FEDERFALL_MAP_TILE_ORIGINS: "https://sprites.yourdomain.tld"
       # FEDERFALL_CSP: ""
       # Geocoding proxy — see backend/pocketbase/README.md:
       # FEDERFALL_NOMINATIM_URL: "https://nominatim.example.org"

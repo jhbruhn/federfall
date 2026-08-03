@@ -191,6 +191,28 @@ def main():
     # scope, and can't do OIDC group mapping anyway.
     check("a social provider keeps PocketBase's own scopes",
           "google" not in scopes, auth)
+    # federfall-el1f: the tile source is a build-time define in the app, so the
+    # server prescribes one here for self-hosters on the published image.
+    m = (info or {}).get("map") or {}
+    check("the configured map source is prescribed",
+          m.get("mode") == "raster"
+          and m.get("tileUrl") == "https://raster.invalid/{z}/{x}/{y}.png",
+          m)
+    # Only the URL for the active mode: a leftover variable for the other
+    # rendering path must not travel along and get read as the wrong thing.
+    check("the other mode's URL is not prescribed", "styleUrl" not in m, m)
+    # The credit travels with the URL or neither applies — tiles from one
+    # provider under another's attribution is a licensing problem.
+    check("the prescription carries its attribution",
+          m.get("attribution") == "© Test Tiles", m)
+    check("an unset attribution link stays absent (plain text, not a wrong "
+          "copyright page)", "attributionUrl" not in m, m)
+    # Commercial providers key their tiles, and a vector style needs the key
+    # substituted into the style's own source/sprite URLs — only the client can
+    # do that, so the key travels as its own field. This endpoint is public, so
+    # a key set here is public: see the note in info.pb.js.
+    check("the provider API key is handed to the client",
+          m.get("apiKey") == "test-map-key", m)
 
     # ── fixtures ────────────────────────────────────────────────────────────
     A = mkuser(T, "a@f.local", "carer")["id"]
@@ -1606,6 +1628,20 @@ def main():
           "https://tile.openstreetmap.org" in spa_csp, spa_csp)
     check("SPA CSP allows the default vector style/tile origin",
           "https://tiles.openfreemap.org" in spa_csp, spa_csp)
+    # federfall-el1f: the policy derives its origins from the configured map
+    # URLs, so a server-prescribed tile source cannot end up blocked by the
+    # very policy that server sent — that would just relocate the footgun into
+    # "set these two unrelated variables consistently".
+    check("SPA CSP derives the prescribed raster tile origin",
+          "https://raster.invalid" in spa_csp, spa_csp)
+    check("SPA CSP derives the configured vector style origin",
+          "https://vector.invalid" in spa_csp, spa_csp)
+    check("derived origins do not leak the URL path or template",
+          "{z}" not in spa_csp and "style.json" not in spa_csp, spa_csp)
+    # A key lives in the query string of a tile URL, and the derivation cuts at
+    # the origin — so it cannot end up in a header sent to every visitor.
+    check("derived origins carry no query string (no API key in the header)",
+          "test-map-key" not in spa_csp and "?" not in spa_csp, spa_csp)
     check("SPA CSP lets connect-src read picked-image blobs",
           "connect-src 'self' blob:" in spa_csp, spa_csp)
     check("SPA keeps COOP/COEP isolation",
