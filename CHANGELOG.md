@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.15.0](https://github.com/jhbruhn/federfall/compare/v0.14.1...v0.15.0) (2026-08-03)
+
+
+### Features
+
+* **reporting:** annual report as a server-rendered PDF, CSV off the same route ([b120c9a](https://github.com/jhbruhn/federfall/commit/b120c9a0312f080a04fd1fd54a627facdc69db4c))
+* **reporting:** date the annual report's markings per case, drop the roster ([5c9a719](https://github.com/jhbruhn/federfall/commit/5c9a71967c31e02899e8299d5d1474db224fd648))
+* **reporting:** year selector for the annual report export ([cc2b9d4](https://github.com/jhbruhn/federfall/commit/cc2b9d45e1c7efc8e20eb408cdc25661b3da75eb))
+
+
+### Bug Fixes
+
+* **l10n:** restore the arrow in the hydration help text ([299ef3e](https://github.com/jhbruhn/federfall/commit/299ef3effbab43d7b389012c1b6ee5c18bdd1773))
+* **map:** step whole zoom levels on scroll-wheel zoom ([0ce6e51](https://github.com/jhbruhn/federfall/commit/0ce6e5115f096a46eaa612358c3d4290b7371038))
+* **statistics:** frame the intake map via initialCameraFit so tiles load ([f070f47](https://github.com/jhbruhn/federfall/commit/f070f47b0729cf5e0503fb9d1ce8d5ba4d80a2e5))
+* **web:** bundle Noto text-fallback fonts instead of fetching them from Google ([ed22ce5](https://github.com/jhbruhn/federfall/commit/ed22ce5def298f5c6aa396503b00c843129fa51f))
+
+
+### Performance Improvements
+
+* **map:** stop pre-fetching a ring of off-screen tiles ([3379676](https://github.com/jhbruhn/federfall/commit/337967679d3ef5deb11dbb3685cb40925568973c))
+
 ## [0.14.1](https://github.com/jhbruhn/federfall/compare/v0.14.0...v0.14.1) (2026-08-03)
 
 
