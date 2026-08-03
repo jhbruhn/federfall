@@ -82,6 +82,40 @@ class PbCaseReportRepository {
     return _get(uri);
   });
 
+  /// The annual report for [year] (federfall-dk0c), rendered server-side by
+  /// `pb_hooks/annual_report.pb.js` — a Typst PDF, or the same table as a CSV
+  /// when [csv] is set.
+  ///
+  /// The report covers the cases *admitted* in [year]; a null [year] reports
+  /// every case on record. The period's boundaries are the CALLER'S midnight,
+  /// so [tzOffsetMinutes] decides which side of New Year a late-evening
+  /// admission falls on — pass it (see [fetchPdf] for why the server cannot
+  /// work it out itself).
+  ///
+  /// Both formats come off one route because they are one table: the hook
+  /// reads the `case_report_rows` view for either. The CSV is written
+  /// server-side rather than here so its columns cannot drift from the PDF's
+  /// case list, and it arrives BOM-prefixed and localized — the caller only
+  /// has to hand the bytes to a share sheet.
+  ///
+  /// The longer timeout is deliberate: unlike a single case, this compiles a
+  /// whole year of them (a landscape table page per ~20 cases).
+  Future<Uint8List> fetchAnnualReport({
+    int? year,
+    bool csv = false,
+    String lang = 'de',
+    int? tzOffsetMinutes,
+    Duration? timeout,
+  }) => _guard(() async {
+    final uri = pb.buildURL('/api/federfall/reports/annual', {
+      if (year != null) 'year': '$year',
+      if (csv) 'format': 'csv',
+      'lang': lang,
+      if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',
+    });
+    return _get(uri);
+  }, timeout: timeout ?? const Duration(minutes: 2));
+
   Future<Uint8List> _get(Uri uri) async {
     final res = await _httpClient.get(
       uri,
@@ -100,9 +134,12 @@ class PbCaseReportRepository {
   /// Mirrors `PbGeocodingRepository._guard`: timeout → network,
   /// [ClientException] → [RepositoryException.fromClient], any other failure
   /// wrapped so the UI error states get a stable type.
-  Future<R> _guard<R>(Future<R> Function() op) async {
+  ///
+  /// [timeout] overrides [networkTimeout] for the calls that legitimately take
+  /// longer than fetching one case's report.
+  Future<R> _guard<R>(Future<R> Function() op, {Duration? timeout}) async {
     try {
-      return await op().timeout(networkTimeout);
+      return await op().timeout(timeout ?? networkTimeout);
     } on TimeoutException {
       throw const RepositoryException(
         'Could not reach the server',

@@ -27,7 +27,9 @@ Typst binary. The image is built by the unified **repo-root `Dockerfile`**
 backend/pocketbase/
 ├─ pb_migrations/      # schema migrations (.js) — COMMITTED, baked into image
 ├─ pb_hooks/           # JS hooks (*.pb.js)     — COMMITTED, baked into image
-├─ typst/              # case-report templates (report/receipt) + vendored QR package
+├─ typst/              # report templates (case report / receipt / annual report),
+│                      #   shared_strings.json (the strings the CSV writer needs
+│                      #   too) + vendored QR package
 ├─ pb_data/            # SQLite DB, uploads, logs — gitignored (dev bind mount)
 └─ tests/              # backend rule/hook tests (need a live PB — see run.sh)
 ```

@@ -141,6 +141,21 @@ name-first header over Overview / History tabs. See
 `federfall-ui-prefers-unified-consistent-views` memory — favor one consistent view over
 fragmented sections.
 
+**Reporting is server-side, and the table is defined once** (federfall-dk0c): the
+`case_report_rows` view (1700000063 + 1700000066) IS the annual report's per-case table.
+`pb_hooks/annual_report.pb.js` reads it for BOTH outputs of
+`GET /api/federfall/reports/annual` — the Typst PDF (`typst/annual_report.typ`: portrait
+summary + landscape case list) and, via `?format=csv`, the same columns as a spreadsheet —
+so the two cannot drift. `?year=` selects the cases **admitted** in that calendar year
+(the intake cohort, boundaries in the caller's zone via `?tzOffsetMinutes=`); omitting it
+reports everything. The app just picks a period and a format
+(`features/statistics/annual_report_sheet.dart`) and hands the bytes to the share sheet —
+there is deliberately no client-side CSV encoder any more. Because the CSV has no template
+to translate in, `typst/shared_strings.json` holds the column titles + the `caseStatus` /
+`disposition` label maps, read by the hook AND merged into `report_common.typ`'s `STRINGS`;
+it is the one place in `pb_hooks/` that localizes anything. `tests/run.sh` bind-mounts
+`typst/` (the image is cached by tag, so a template edit would otherwise go untested).
+
 ## Conventions & Patterns
 
 - **Git:** commit directly on `main` (no feature branches); push only when asked — do NOT
@@ -155,7 +170,18 @@ fragmented sections.
   `admissionReasonLabel`), resolving `l10n` like `Validators` does.
 - **PocketBase JSVM gotcha:** each hook route handler / `onRecord*` callback runs in an
   isolated context — **file-level helpers/consts are NOT in scope inside a handler**. Define
-  everything a handler needs inside it (expect `ReferenceError` otherwise).
+  everything a handler needs inside it (expect `ReferenceError` otherwise). That isolation is
+  also why one route serves two output formats where the payload is shared (`case_report.pb.js`
+  branches on `?widthDots=`, `annual_report.pb.js` on `?format=`) — two routes could not share
+  the gathering code.
+- **Reading a VIEW collection from a hook** (federfall-dk0c): PocketBase only infers a view
+  column's type when it traces back to a real collection field. A plain `c.status` is typed;
+  anything computed (`COALESCE(...)`, `group_concat(...)`) falls back to type **`json`**, and
+  `getString()` on a json field returns the raw JSON — `"Hohltaube"` *with* the quotes. The
+  REST API decodes that on the way out, so only a server-side reader sees it, and it fails
+  quietly: a date won't parse, an enum won't match its label map, a CSV formula guard inspects
+  `"` instead of `=`. Ask the collection which fields are `json` (`field.type()`) and decode
+  those — do not sniff per value, a city legitimately named `true` parses as JSON too.
 - **Build-time config** (`AppEnvironment`): `POCKETBASE_URL`, `MAP_TILE_URL`,
   `MAP_ATTRIBUTION` come from `dart_defines/<flavor>.json` as compile-time constants — they
   need a rebuild, not hot reload (a stale build silently falls back to defaults).

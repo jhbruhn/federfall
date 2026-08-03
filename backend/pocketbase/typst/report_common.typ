@@ -1,10 +1,21 @@
 // federfall-i0wq.1 — shared Typst i18n + timeline-rendering helpers, used by
-// BOTH report.typ (A4 PDF) and receipt.typ (narrow thermal PNG). Splitting
-// this out keeps "add a language" / "change an event's text" a one-file edit
-// for both outputs instead of two. Callers own their own `data`/`lang`/`S`
-// (each template's `sys.inputs` differ — report.typ has no widthDots,
-// receipt.typ does) and pass `S` explicitly into the helpers below rather
-// than this file closing over a module-level one.
+// report.typ (A4 PDF), receipt.typ (narrow thermal PNG) and
+// annual_report.typ (federfall-dk0c). Splitting this out keeps "add a
+// language" / "change an event's text" a one-file edit for all three outputs
+// instead of three. Callers own their own `data`/`lang`/`S` (each template's
+// `sys.inputs` differ — report.typ has no widthDots, receipt.typ does) and
+// pass `S` explicitly into the helpers below rather than this file closing
+// over a module-level one.
+//
+// `shared_strings.json` holds the subset a NON-Typst consumer also needs: the
+// annual report's CSV is written by annual_report.pb.js, which has no template
+// to translate in, so the two enum maps and the report table's column titles
+// live in that file and are merged in by `resolveStrings` below (call sites
+// still read them as plain `S.caseStatus` / `S.disposition`). Everything that
+// is a Typst closure — eggCount, freqEveryNHours, quarantineUntil,
+// placementHandedOffTo — necessarily stays here.
+#let SHARED = json("shared_strings.json")
+
 #let STRINGS = (
   de: (
     title: "Fallbericht",
@@ -35,20 +46,9 @@
       immature: "Jungvogel",
       adult: "Altvogel",
     ),
-    caseStatus: (
-      in_care: "In Pflege",
-      ready_for_release: "Auswilderungsbereit",
-      disposed: "Abgeschlossen",
-    ),
+    // caseStatus + disposition come from shared_strings.json (see SHARED
+    // above) — the CSV writer needs the same two maps.
     certainty: (suspected: "Verdacht", confirmed: "Bestätigt"),
-    disposition: (
-      released: "Ausgewildert",
-      placed_in_aviary: "In Voliere untergebracht",
-      died: "Verstorben",
-      euthanized: "Eingeschläfert",
-      transferred: "Übergeben",
-      returned_to_owner: "An Besitzer zurück",
-    ),
     dispositionUnknown: "Unbekannter Ausgang",
     hydration: (normal: "Normal", mild: "Leicht", moderate: "Mäßig", severe: "Schwer"),
     mentation: (
@@ -143,6 +143,54 @@
     vitalMmColor: "Schleimhäute",
     placementMoved: "Platzierung",
     placementHandedOffTo: (name) => "Übergeben an " + name,
+    // federfall-dk0c — annual report only. Its per-case table's column titles
+    // are NOT here: they live in shared_strings.json's `reportColumns`,
+    // because the CSV of that same table prints the same headers.
+    annual: (
+      title: "Jahresbericht",
+      titleAllTime: "Fallbericht — Gesamtzeitraum",
+      periodLabel: "Berichtszeitraum",
+      periodIntakes: (from, to) => "Aufnahmen " + from + " – " + to,
+      periodAllTime: "alle erfassten Aufnahmen",
+      kpiIntakes: "Aufnahmen",
+      kpiClosed: "Abgeschlossen",
+      kpiInCare: "Noch in Pflege",
+      kpiAvgDays: "Ø Pflegedauer",
+      kpiReleaseRate: "Auswilderungsquote",
+      daysUnit: "d",
+      sectionMonthly: "Aufnahmen pro Monat",
+      sectionYearly: "Aufnahmen pro Jahr",
+      sectionOutcomes: "Ausgänge",
+      sectionSpecies: "Arten",
+      sectionReasons: "Aufnahmegründe",
+      sectionConditions: "Diagnosen",
+      sectionCities: "Fundorte",
+      sectionMarkings: "Markierungen",
+      sectionCases: "Fallliste",
+      stillOpen: "noch offen",
+      total: "Summe",
+      more: (n) => "… + " + str(n) + " weitere",
+      markingsApplied: (from, to) => "angelegt " + from + " – " + to,
+      markingsAppliedAll: "alle erfassten",
+      colMarkingType: "Typ",
+      colMarkingColour: "Farbe",
+      colMarkingCode: "Code",
+      colMarkingScheme: "Schema",
+      colMarkingApplied: "Angelegt",
+      colMarkingCase: "Fall",
+      colMarkingRemoved: "Entfernt",
+      decimalSep: ",",
+      countCases: (n) => if n == 1 { "1 Fall" } else { str(n) + " Fälle" },
+      countMarkings: (n) => if n == 1 { "1 Markierung" } else { str(n) + " Markierungen" },
+      months: ("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"),
+      empty: "Keine Aufnahmen im Berichtszeitraum.",
+      emptySection: "Keine Angaben.",
+      // The report counts the cases ADMITTED in the period (see
+      // annual_report.pb.js); saying so on the page keeps a reader from
+      // reading it as "cases closed in 2026" and mis-adding two reports.
+      basisNote: "Grundlage: alle Fälle mit Aufnahmedatum im Berichtszeitraum."
+        + " Der Ausgang wird auch dann gezählt, wenn er später erfolgte.",
+    ),
   ),
   en: (
     title: "Case Report",
@@ -173,20 +221,9 @@
       immature: "Immature",
       adult: "Adult",
     ),
-    caseStatus: (
-      in_care: "In care",
-      ready_for_release: "Ready for release",
-      disposed: "Closed",
-    ),
+    // caseStatus + disposition come from shared_strings.json (see SHARED
+    // above) — the CSV writer needs the same two maps.
     certainty: (suspected: "Suspected", confirmed: "Confirmed"),
-    disposition: (
-      released: "Released",
-      placed_in_aviary: "Placed in aviary",
-      died: "Died",
-      euthanized: "Euthanized",
-      transferred: "Transferred",
-      returned_to_owner: "Returned to owner",
-    ),
     dispositionUnknown: "Unknown outcome",
     hydration: (normal: "Normal", mild: "Mild", moderate: "Moderate", severe: "Severe"),
     mentation: (
@@ -277,10 +314,65 @@
     vitalMmColor: "Mucous membranes",
     placementMoved: "Placement",
     placementHandedOffTo: (name) => "Handed off to " + name,
+    // federfall-dk0c — annual report only. Its per-case table's column titles
+    // are NOT here: they live in shared_strings.json's `reportColumns`,
+    // because the CSV of that same table prints the same headers.
+    annual: (
+      title: "Annual Report",
+      titleAllTime: "Case Report — All Time",
+      periodLabel: "Reporting period",
+      periodIntakes: (from, to) => "Intakes " + from + " – " + to,
+      periodAllTime: "all recorded intakes",
+      kpiIntakes: "Intakes",
+      kpiClosed: "Closed",
+      kpiInCare: "Still in care",
+      kpiAvgDays: "Avg. time in care",
+      kpiReleaseRate: "Release rate",
+      daysUnit: "d",
+      sectionMonthly: "Intakes per month",
+      sectionYearly: "Intakes per year",
+      sectionOutcomes: "Outcomes",
+      sectionSpecies: "Species",
+      sectionReasons: "Reasons for admission",
+      sectionConditions: "Diagnoses",
+      sectionCities: "Find locations",
+      sectionMarkings: "Markings",
+      sectionCases: "Case list",
+      stillOpen: "still open",
+      total: "Total",
+      more: (n) => "… + " + str(n) + " more",
+      markingsApplied: (from, to) => "applied " + from + " – " + to,
+      markingsAppliedAll: "all recorded",
+      colMarkingType: "Type",
+      colMarkingColour: "Colour",
+      colMarkingCode: "Code",
+      colMarkingScheme: "Scheme",
+      colMarkingApplied: "Applied",
+      colMarkingCase: "Case",
+      colMarkingRemoved: "Removed",
+      decimalSep: ".",
+      countCases: (n) => if n == 1 { "1 case" } else { str(n) + " cases" },
+      countMarkings: (n) => if n == 1 { "1 marking" } else { str(n) + " markings" },
+      months: ("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"),
+      empty: "No intakes in the reporting period.",
+      emptySection: "No data.",
+      // The report counts the cases ADMITTED in the period (see
+      // annual_report.pb.js); saying so on the page keeps a reader from
+      // reading it as "cases closed in 2026" and mis-adding two reports.
+      basisNote: "Basis: every case admitted within the reporting period."
+        + " Its outcome is counted even if it happened later.",
+    ),
   ),
 )
 
-#let resolveStrings(lang) = STRINGS.at(lang, default: STRINGS.de)
+// The shared subset (shared_strings.json — caseStatus, disposition,
+// reportColumns) is merged ON TOP of the per-language dict above, so call
+// sites read `S.caseStatus` exactly as they did when it was inline. Typst's
+// `+` on dictionaries merges, and an unknown `lang` falls back to German in
+// both halves independently.
+#let resolveStrings(lang) = (
+  STRINGS.at(lang, default: STRINGS.de) + SHARED.at(lang, default: SHARED.de)
+)
 
 // `lbl` resolves a stable wire value through a STRINGS map, falling back to
 // the wire value itself if this app version doesn't know it (mirrors

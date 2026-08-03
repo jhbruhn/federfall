@@ -177,4 +177,88 @@ void main() {
       );
     });
   });
+
+  group('fetchAnnualReport', () {
+    Future<Uri> capture(
+      Future<void> Function(PbCaseReportRepository) call,
+    ) async {
+      Uri? seenUri;
+      final repo = PbCaseReportRepository(
+        pb,
+        httpClient: MockClient((request) async {
+          seenUri = request.url;
+          return http.Response.bytes(utf8.encode('%PDF-1'), 200);
+        }),
+      );
+      await call(repo);
+      return seenUri!;
+    }
+
+    test('asks for one year as a PDF by default', () async {
+      final uri = await capture(
+        (repo) => repo.fetchAnnualReport(year: 2026, tzOffsetMinutes: 120),
+      );
+
+      expect(uri.path, '/api/federfall/reports/annual');
+      // No `format` at all, rather than `format=pdf`: the route's default IS
+      // the PDF, so the absent param and the explicit one must not both exist.
+      expect(uri.queryParameters, {
+        'year': '2026',
+        'lang': 'de',
+        'tzOffsetMinutes': '120',
+      });
+    });
+
+    test('csv switches the format on the same route', () async {
+      final uri = await capture(
+        (repo) => repo.fetchAnnualReport(year: 2026, csv: true, lang: 'en'),
+      );
+
+      expect(uri.path, '/api/federfall/reports/annual');
+      expect(uri.queryParameters, {
+        'year': '2026',
+        'format': 'csv',
+        'lang': 'en',
+      });
+    });
+
+    test('a null year omits the param, meaning every case on record', () async {
+      final uri = await capture((repo) => repo.fetchAnnualReport());
+
+      expect(uri.queryParameters.containsKey('year'), isFalse);
+      expect(uri.queryParameters, {'lang': 'de'});
+    });
+
+    test('gets its own timeout, not the per-case one', () async {
+      // A year of cases is a whole landscape table to compile, so the 30s
+      // default that suits one case would abandon a legitimately slow render.
+      final repo = PbCaseReportRepository(
+        pb,
+        networkTimeout: const Duration(milliseconds: 20),
+        httpClient: MockClient((request) async {
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+          return http.Response.bytes(utf8.encode('%PDF-1'), 200);
+        }),
+      );
+
+      expect(
+        await repo.fetchAnnualReport(year: 2026),
+        utf8.encode('%PDF-1'),
+        reason: 'the longer annual timeout applies, not networkTimeout',
+      );
+      expect(
+        () => repo.fetchAnnualReport(
+          year: 2026,
+          timeout: const Duration(milliseconds: 20),
+        ),
+        throwsA(
+          isA<RepositoryException>().having(
+            (e) => e.isNetwork,
+            'isNetwork',
+            true,
+          ),
+        ),
+      );
+    });
+  });
 }

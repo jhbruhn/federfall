@@ -39,10 +39,6 @@ Future<PbConditionLabelsRepository> conditionLabelsRepository(Ref ref) async =>
     PbConditionLabelsRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
-Future<PbCaseReportRowsRepository> caseReportRowsRepository(Ref ref) async =>
-    PbCaseReportRowsRepository(await _client(ref));
-
-@Riverpod(keepAlive: true)
 Future<PbFindersRepository> findersRepository(Ref ref) async =>
     PbFindersRepository(await _client(ref));
 

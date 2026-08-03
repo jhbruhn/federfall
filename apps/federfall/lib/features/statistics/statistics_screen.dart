@@ -1,16 +1,11 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
-import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
-import 'package:federfall/features/statistics/case_report.dart';
+import 'package:federfall/features/statistics/annual_report_sheet.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -20,7 +15,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
 
 /// Reporting statistics (FED-7.2): outcome breakdown, intakes by species,
 /// conditions recorded and average time in care. Reached from the dashboard by
@@ -35,8 +29,6 @@ class StatisticsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
-  bool _exporting = false;
-
   /// Lists the cases behind a breakdown row. Every figure on this screen is
   /// org-wide and counts closed cases too, so the query has to widen past the
   /// browser's "my active cases" default — otherwise the list would come up
@@ -78,21 +70,13 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         title: Text(l10n.statsTitle),
         actions: [
           IconButton(
-            // The same inline busy affordance the other two fetch-then-share
-            // actions use (_ShareReportButton / _PrintReportButton in
-            // case_detail_screen.dart) — a greyed-out icon alone leaves the
-            // user watching a dead button on a slow link.
-            icon: _exporting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.download_outlined),
-            tooltip: l10n.statsExportCsv,
-            // Disabled while an export runs — a second tap would launch
-            // another load and a second share sheet.
-            onPressed: _exporting ? null : _exportCsv,
+            icon: const Icon(Icons.download_outlined),
+            tooltip: l10n.statsExportAction,
+            // The busy state lives in the sheet, on the format button that was
+            // actually tapped (federfall-dk0c) — the report is compiled
+            // server-side and can take a moment, and a spinner on the button
+            // you pressed says more than one on the app bar.
+            onPressed: () => showAnnualReportSheet(context),
           ),
         ],
       ),
@@ -187,68 +171,6 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         ),
       ),
     );
-  }
-
-  /// Builds the per-case CSV (org-wide for the viewer's role) and hands it to
-  /// the platform share/download sheet.
-  Future<void> _exportCsv() async {
-    final l10n = context.l10n;
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _exporting = true);
-    try {
-      // One pre-joined read off the `case_report_rows` view (federfall-80tc)
-      // instead of pulling `cases`, `dispositions` and `animals` whole to the
-      // device to join them here. Loaded inline from the (keep-alive)
-      // repository rather than a dedicated autoDispose provider, which would
-      // dispose mid-await on an imperative read.
-      final repo = await ref.read(caseReportRowsRepositoryProvider.future);
-      final rows = await repo.all();
-      if (rows.isEmpty) {
-        messenger.showSnackBar(SnackBar(content: Text(l10n.statsExportEmpty)));
-        return;
-      }
-      String two(int n) => n.toString().padLeft(2, '0');
-      String isoDate(DateTime d) =>
-          '${d.year.toString().padLeft(4, '0')}-${two(d.month)}-${two(d.day)}';
-      final csv = encodeCaseReportCsv(
-        rows: rows,
-        header: [
-          l10n.csvColCaseNumber,
-          l10n.csvColSpecies,
-          l10n.csvColName,
-          l10n.csvColAdmitted,
-          l10n.csvColFound,
-          l10n.csvColStatus,
-          l10n.csvColOutcome,
-          l10n.csvColEnded,
-          l10n.csvColDaysInCare,
-          l10n.csvColCity,
-          l10n.csvColRegion,
-          l10n.csvColReasons,
-        ],
-        status: (s) => caseStatusLabel(l10n, s),
-        outcome: (o) => dispositionTypeLabel(l10n, o),
-        date: isoDate,
-      );
-      final filename = 'federfall-cases-${DateTime.now().year}.csv';
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              Uint8List.fromList(utf8.encode(csv)),
-              mimeType: 'text/csv',
-              name: filename,
-            ),
-          ],
-          fileNameOverrides: [filename],
-        ),
-      );
-    } on Object catch (e, stackTrace) {
-      reportCaughtError(e, stackTrace);
-      messenger.showSnackBar(SnackBar(content: Text(errorMessage(l10n, e))));
-    } finally {
-      if (mounted) setState(() => _exporting = false);
-    }
   }
 }
 

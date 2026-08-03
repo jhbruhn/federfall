@@ -30,6 +30,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The Typst templates are mounted alongside the hooks below, not taken from the
+# baked image: the image is CACHED by tag (see the inspect-or-build below), so a
+# report-template or shared_strings.json edit would otherwise be silently tested
+# against whatever was in the image the day it was first built.
 echo "==> Ensuring image $IMAGE exists"
 # Lean PocketBase-only image (no Flutter web) — the `backend` target of the
 # repo-root Dockerfile. Context is the repo root so the baked migrations/hooks
@@ -79,6 +83,7 @@ docker run -d --name "$NAME" -p "$PORT:8090" \
   -e FEDERFALL_MAP_API_KEY=test-map-key \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
   -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
+  -v "$PB_DIR/typst:/pb/typst:ro" \
   -v "$DATA:/pb/pb_data" \
   "$IMAGE" >/dev/null
 

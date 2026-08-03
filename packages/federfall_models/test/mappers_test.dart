@@ -72,69 +72,6 @@ void main() {
     });
   });
 
-  group('CaseReportRow.fromRecord', () {
-    test('maps the pre-joined report row and derives days in care', () {
-      final r = RecordModel({
-        'id': 'case0000000001',
-        'case_number': '2026-014',
-        'species': 'Columba livia',
-        'name': 'Pip',
-        'admitted_at': '2026-03-10 09:00:00.000Z',
-        'found_at': '',
-        'status': 'disposed',
-        'outcome': 'released',
-        'ended_at': '2026-03-20 09:00:00.000Z',
-        'city': 'Oldenburg',
-        'region': 'NI',
-        'reasons': 'Verletzung; Katzenangriff',
-        'org': 'org00000000001',
-      });
-
-      final row = CaseReportRow.fromRecord(r);
-
-      expect(row.id, 'case0000000001');
-      expect(row.caseNumber, '2026-014');
-      expect(row.species, 'Columba livia');
-      expect(row.name, 'Pip');
-      expect(row.status, CaseStatus.disposed);
-      expect(row.outcome, DispositionType.released);
-      expect(row.foundAt, isNull, reason: 'empty date → null');
-      expect(row.endedAt?.day, 20);
-      expect(row.reasons, 'Verletzung; Katzenangriff');
-      expect(row.daysInCare, 10);
-    });
-
-    test('an open case has no outcome and no days in care', () {
-      final r = RecordModel({
-        'id': 'case0000000002',
-        'species': 'Columba livia',
-        'admitted_at': '2026-03-10 09:00:00.000Z',
-        'status': 'in_care',
-        // The view emits '' rather than null for an absent disposition.
-        'outcome': '',
-        'ended_at': '',
-        'reasons': '',
-      });
-
-      final row = CaseReportRow.fromRecord(r);
-
-      expect(row.outcome, isNull);
-      expect(row.endedAt, isNull);
-      expect(row.daysInCare, isNull);
-      expect(row.name, isNull);
-      expect(row.reasons, isEmpty);
-    });
-
-    test('a disposition dated before admission spans no days', () {
-      final row = CaseReportRow(
-        id: 'c',
-        admittedAt: DateTime(2026, 3, 10),
-        endedAt: DateTime(2026, 3),
-      );
-      expect(row.daysInCare, isNull);
-    });
-  });
-
   group('Animal.fromRecord', () {
     test('maps name, sex, lifetime status, tags', () {
       final r = RecordModel({

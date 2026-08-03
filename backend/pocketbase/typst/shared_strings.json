@@ -1,0 +1,86 @@
+{
+  "_comment": [
+    "federfall-dk0c — the ONE place the report table's column titles and the",
+    "two enum label maps the table prints are defined, because they now have",
+    "two consumers in two different languages:",
+    "",
+    "  • report_common.typ merges this into its own STRINGS dict (so",
+    "    `S.caseStatus` / `S.disposition` keep working unchanged in report.typ",
+    "    and receipt.typ), and annual_report.typ reads `reportColumns` for the",
+    "    per-case table header;",
+    "  • annual_report.pb.js reads the same file to write the CSV, which has no",
+    "    template layer to translate in — it is the only hook in pb_hooks that",
+    "    localizes anything, and it does so from here rather than from a second",
+    "    copy of these strings.",
+    "",
+    "Only plain strings live here. The rest of report_common.typ's STRINGS",
+    "stays in that file: it contains Typst closures (eggCount, freqEveryNHours,",
+    "quarantineUntil, placementHandedOffTo) that JSON cannot express, and",
+    "splitting the dict any further than the two maps the CSV actually needs",
+    "would trade one source of truth for two.",
+    "",
+    "An unmapped wire value is printed as-is by both consumers (Typst's `lbl`,",
+    "the hook's own lookup) — an enum this build does not know is not something",
+    "either may guess at."
+  ],
+  "de": {
+    "caseStatus": {
+      "in_care": "In Pflege",
+      "ready_for_release": "Auswilderungsbereit",
+      "disposed": "Abgeschlossen"
+    },
+    "disposition": {
+      "released": "Ausgewildert",
+      "placed_in_aviary": "In Voliere untergebracht",
+      "died": "Verstorben",
+      "euthanized": "Eingeschläfert",
+      "transferred": "Übergeben",
+      "returned_to_owner": "An Besitzer zurück"
+    },
+    "reportColumns": {
+      "caseNumber": "Fallnummer",
+      "species": "Art",
+      "name": "Name",
+      "markings": "Markierung",
+      "found": "Gefunden",
+      "admitted": "Aufnahme",
+      "ended": "Ende",
+      "days": "Tage",
+      "status": "Status",
+      "outcome": "Ausgang",
+      "city": "Ort",
+      "region": "Region",
+      "reasons": "Aufnahmegründe"
+    }
+  },
+  "en": {
+    "caseStatus": {
+      "in_care": "In care",
+      "ready_for_release": "Ready for release",
+      "disposed": "Closed"
+    },
+    "disposition": {
+      "released": "Released",
+      "placed_in_aviary": "Placed in aviary",
+      "died": "Died",
+      "euthanized": "Euthanized",
+      "transferred": "Transferred",
+      "returned_to_owner": "Returned to owner"
+    },
+    "reportColumns": {
+      "caseNumber": "Case no.",
+      "species": "Species",
+      "name": "Name",
+      "markings": "Marking",
+      "found": "Found",
+      "admitted": "Admitted",
+      "ended": "Ended",
+      "days": "Days",
+      "status": "Status",
+      "outcome": "Outcome",
+      "city": "City",
+      "region": "Region",
+      "reasons": "Reasons for admission"
+    }
+  }
+}

@@ -2019,6 +2019,147 @@ def main():
     check("an egg laid AFTER the disposition does not",
           report_len(wcase) == in_len, f"{in_len} -> {report_len(wcase)}")
 
+    # ── federfall-dk0c: annual report route (PDF + CSV) ──────────────────────
+    # One route, two formats, one table: both read `case_report_rows`, so the
+    # CSV assertions below are also assertions about the PDF's case list. The
+    # PDF's own text is not inspectable from here (subsetted fonts, compressed
+    # streams) — the CSV is, and it is the same columns.
+    print("\n[annual report route]")
+    ar_type = listf(T, "marking_types", "id != ''")[0]["id"]
+    # A private year nothing else in this suite touches, so the counts below
+    # are exact rather than "at least".
+    ar_animal = mk(T, "animals", {"species": "Hohltaube", "org": ORG,
+                                  "name": "Jahresvogel"})["id"]
+    ar_case = mk(T, "cases", {"animal": ar_animal, "active_carer": A, "org": ORG,
+                              "admitted_at": "2019-06-15 10:00:00.000Z",
+                              "city": "Oldenburg", "region": "Niedersachsen"})["id"]
+    mk(T, "dispositions", {"case": ar_case, "org": ORG, "type": "released",
+                           "disposed_at": "2019-07-05 10:00:00.000Z"})
+    mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
+                       "code": "DEH-A9001", "colour": "rot", "is_active": True,
+                       "applied_in_case": ar_case,
+                       "applied_at": "2019-06-20 09:00:00.000Z"})
+    # Removed, so it must NOT appear in the per-case `markings` cell (that
+    # column is "what is on the bird now") even though the PDF's markings
+    # section still records that it was applied.
+    mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
+                       "code": "DEH-A9002", "is_active": False,
+                       "applied_at": "2019-06-21 09:00:00.000Z",
+                       "removed_at": "2019-06-30 09:00:00.000Z"})
+    # A second 2019 case whose species is a spreadsheet formula: the CSV must
+    # neutralise it (OWASP CSV injection) — several cells are user-authored.
+    ar_animal2 = mk(T, "animals", {"species": "=cmd|'/c calc'!A1",
+                                   "org": ORG})["id"]
+    ar_case2 = mk(T, "cases", {"animal": ar_animal2, "active_carer": A,
+                               "org": ORG,
+                               "admitted_at": "2019-09-01 10:00:00.000Z"})["id"]
+
+    def annual(query, token, method="GET"):
+        return req_bytes(method, "/api/federfall/reports/annual" + query, token)
+
+    s, _, _ = annual("", None)
+    check("annual report requires auth", s == 401, f"status {s}")
+    s, _, _ = annual("", gtok)
+    check("guest CANNOT fetch the annual report", s == 403, f"status {s}")
+    # The figures are org-wide by construction (every case, regardless of carer
+    # or share), which is exactly why `case_report_rows` is coordinator/
+    # supervisor-only. A carer must not get that roster through a report route.
+    s, _, _ = annual("", toks["a"])
+    check("a carer CANNOT fetch the annual report", s == 403, f"status {s}")
+    s, _, _ = annual("", td)
+    check("other-org member CANNOT fetch the annual report", s == 403,
+          f"status {s}")
+
+    for label, tok in [("coordinator", toks["coord"]), ("supervisor", toks["sup"])]:
+        s, body, hdrs = annual("?year=2019", tok)
+        check(f"{label} gets the annual PDF (200, application/pdf)",
+              s == 200 and hdrs.get("Content-Type") == "application/pdf"
+              and bool(body) and body[:5] == b"%PDF-",
+              f"status {s} type {hdrs.get('Content-Type')}")
+    s, body, hdrs = annual("", toks["sup"])
+    check("no ?year= renders the all-time report",
+          s == 200 and bool(body) and body[:5] == b"%PDF-", f"status {s}")
+    check("all-time PDF is named for the whole period",
+          "gesamt" in hdrs.get("Content-Disposition", ""),
+          hdrs.get("Content-Disposition"))
+    # A year with no intakes must still render (a page saying so), not 500.
+    s, body, _ = annual("?year=1999", toks["sup"])
+    check("an empty year still renders a PDF",
+          s == 200 and bool(body) and body[:5] == b"%PDF-", f"status {s}")
+    s, body, _ = annual("?year=2019&lang=en", toks["sup"])
+    check("?lang=en renders the annual PDF",
+          s == 200 and bool(body) and body[:5] == b"%PDF-", f"status {s}")
+    for bad in ["?year=abc", "?year=42", "?year=99999", "?format=xlsx"]:
+        s, _, _ = annual(bad, toks["sup"])
+        check(f"annual report rejects {bad}", s == 400, f"status {s}")
+
+    # ── CSV ──────────────────────────────────────────────────────────────────
+    s, body, hdrs = annual("?year=2019&format=csv", toks["sup"])
+    check("?format=csv returns a CSV (200, text/csv)",
+          s == 200 and hdrs.get("Content-Type", "").startswith("text/csv"),
+          f"status {s} type {hdrs.get('Content-Type')}")
+    check("CSV is offered as a download named for the year",
+          'filename="federfall-jahresbericht-2019.csv"'
+          in hdrs.get("Content-Disposition", ""),
+          hdrs.get("Content-Disposition"))
+    # The BOM is what makes spreadsheet apps read the file as UTF-8 at all,
+    # and the hook encodes UTF-8 by hand rather than trusting the host's
+    # string→bytes conversion — so this checks the actual bytes, umlauts and
+    # all, not just that a body came back.
+    check("CSV starts with a UTF-8 BOM", body[:3] == b"\xef\xbb\xbf",
+          repr(body[:6]))
+    text_csv = body[3:].decode("utf-8")
+    check("CSV uses CRLF line endings", "\r\n" in text_csv)
+    lines = [ln for ln in text_csv.split("\r\n") if ln]
+    header = lines[0].split(",")
+    check("CSV header is the 13 report columns, localized",
+          len(header) == 13 and header[0] == "Fallnummer"
+          and header[3] == "Markierung" and header[12] == "Aufnahmegründe",
+          header)
+    check("CSV covers exactly the cases admitted in the year",
+          len(lines) == 3, f"{len(lines)} lines: {lines}")
+    row = next((ln for ln in lines if ln.startswith("2019-")
+                or "Jahresvogel" in ln), "")
+    check("the row carries the animal, ISO dates and the localized outcome",
+          "Hohltaube" in row and "Jahresvogel" in row
+          and "2019-06-15" in row and "2019-07-05" in row
+          and "Ausgewildert" in row and "Abgeschlossen" in row, row)
+    check("the row's day count spans admission to disposition",
+          ",20," in row, row)
+    # The active ring is on the bird; the removed one is not.
+    check("only ACTIVE markings appear in the per-case markings cell",
+          "DEH-A9001" in row and "DEH-A9002" not in row, row)
+    check("a formula-looking cell is neutralised with a leading apostrophe",
+          "'=cmd" in text_csv, [ln for ln in lines if "cmd" in ln])
+    # English switches the header AND the enum cells, from the same file the
+    # Typst templates read (shared_strings.json).
+    s, body, hdrs = annual("?year=2019&format=csv&lang=en", toks["sup"])
+    text_en = body[3:].decode("utf-8")
+    check("?lang=en localizes the CSV header and its enum cells",
+          s == 200 and text_en.split("\r\n")[0].split(",")[0] == "Case no."
+          and "Released" in text_en and "Ausgewildert" not in text_en,
+          text_en.split("\r\n")[:2])
+    check("the English CSV is named for the English report",
+          "annual-report-2019" in hdrs.get("Content-Disposition", ""),
+          hdrs.get("Content-Disposition"))
+    # The period is the CALLER'S calendar year, not UTC's: at UTC+1 an
+    # admission stamped 23:30 on 31 December is a 1 January case. The old
+    # client-side CSV formatted PocketBase's UTC instant instead and put it in
+    # the wrong year — the same year it had just been filtered into.
+    ar_animal3 = mk(T, "animals", {"species": "Turteltaube", "org": ORG})["id"]
+    mk(T, "cases", {"animal": ar_animal3, "active_carer": A, "org": ORG,
+                    "admitted_at": "2018-12-31 23:30:00.000Z"})
+    s, body, _ = annual("?year=2019&format=csv&tzOffsetMinutes=60", toks["sup"])
+    text_tz = body[3:].decode("utf-8")
+    check("a New Year's Eve admission belongs to the caller's local year",
+          "Turteltaube" in text_tz and "2019-01-01" in text_tz, text_tz)
+    s, body, _ = annual("?year=2018&format=csv&tzOffsetMinutes=60", toks["sup"])
+    check("...and not to the UTC one",
+          "Turteltaube" not in body[3:].decode("utf-8"))
+    # Write attempts have no business here (the route is GET-only).
+    s, _, _ = annual("?year=2019", toks["sup"], method="POST")
+    check("the annual report route rejects POST", s >= 400, f"status {s}")
+
     # ── federfall-oxqk / federfall-zdcb: member removal ──────────────────────
     # oxqk turned out to be a false positive (users.deleteRule IS
     # supervisor-scoped; the reviewer read the down-migration), but the suite

@@ -1,41 +1,29 @@
-import 'dart:async';
-
 import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
+import 'package:federfall/features/statistics/annual_report_sheet.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/features/statistics/statistics_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:mocktail/mocktail.dart';
-
-class MockCaseReportRowsRepo extends Mock
-    implements PbCaseReportRowsRepository {}
 
 Future<void> _pump(
   WidgetTester tester,
   Statistics stats, {
   UserRole role = UserRole.coordinator,
   List<IntakeLocation> locations = const [],
-  PbCaseReportRowsRepository? reportRows,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         statisticsProvider.overrideWith((ref) async => stats),
-        if (reportRows != null)
-          caseReportRowsRepositoryProvider.overrideWith(
-            (ref) async => reportRows,
-          ),
         // The statistics screen's intake-map preview card loads through the
         // real repositories otherwise, which need network — stub it out so
         // this test stays focused on the KPI/breakdown figures.
@@ -251,37 +239,19 @@ void main() {
     expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
   });
 
-  testWidgets('the CSV export shows an inline spinner while it loads', (
+  testWidgets('the export action opens the annual-report sheet', (
     tester,
   ) async {
-    // federfall-80tc: the export button now swaps its icon for a spinner like
-    // the case-report share/print buttons do, and it reads ONE pre-joined row
-    // set instead of three whole collections.
-    final repo = MockCaseReportRowsRepo();
-    final pending = Completer<List<CaseReportRow>>();
-    when(repo.all).thenAnswer((_) => pending.future);
-
-    await _pump(tester, _emptyStats, reportRows: repo);
+    // federfall-dk0c: the app bar no longer exports anything itself — the PDF
+    // and the CSV are two renderings of one server-side report, so the action
+    // opens the sheet that picks a period and a format.
+    await _pump(tester, _emptyStats);
     await tester.tap(find.byIcon(Icons.download_outlined));
-    await tester.pump();
-
-    expect(find.byIcon(Icons.download_outlined), findsNothing);
-    expect(
-      find.descendant(
-        of: find.byType(AppBar),
-        matching: find.byType(CircularProgressIndicator),
-      ),
-      findsOneWidget,
-    );
-
-    // Nothing to export: the snackbar says so and the icon comes back — no
-    // share sheet, so this stays clear of the platform channel.
-    pending.complete(const []);
     await tester.pumpAndSettle();
 
-    expect(find.text('No cases to export'), findsOneWidget);
-    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
-    verify(repo.all).called(1);
+    expect(find.byType(AnnualReportSheet), findsOneWidget);
+    expect(find.text('PDF report'), findsOneWidget);
+    expect(find.text('CSV table'), findsOneWidget);
   });
 
   testWidgets('a carer gets the unauthorized view, not the figures', (
