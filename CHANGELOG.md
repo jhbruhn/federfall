@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/jhbruhn/federfall/compare/v0.11.1...v0.12.0) (2026-08-03)
+
+
+### Features
+
+* **maps:** default to OSM raster tiles instead of OpenFreeMap vector ([ddda18d](https://github.com/jhbruhn/federfall/commit/ddda18df84e0224bd804c05f7a245b0d140b80ef))
+* **maps:** serve the map tile source from /api/federfall/info ([908e20c](https://github.com/jhbruhn/federfall/commit/908e20c98c69610f930866a587542843fac3f85c))
+
 ## [0.11.1](https://github.com/jhbruhn/federfall/compare/v0.11.0...v0.11.1) (2026-08-02)
 
 
