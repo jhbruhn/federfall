@@ -82,6 +82,7 @@
     "statsExportAction": "Bericht exportieren",
     "statsExportPeriod": "Berichtszeitraum",
     "statsExportAllTime": "Gesamt",
+    "statsExportEarlierYears": "Frühere Jahre",
     "statsExportPdf": "PDF-Bericht",
     "statsExportCsv": "CSV-Tabelle",
     "statsExportFileName": "federfall-jahresbericht-{period}",

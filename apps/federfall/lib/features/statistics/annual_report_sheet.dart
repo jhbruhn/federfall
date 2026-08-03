@@ -2,33 +2,27 @@ import 'dart:async';
 
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// The period an annual report covers. Both bounded options resolve to a
-/// calendar YEAR rather than a rolling window (unlike the intake map's
-/// `_Period`): an annual report is filed for a year, and "the last 12 months"
-/// is not a period any authority asks about.
-enum ReportPeriod {
-  /// The year in progress — a mid-year interim figure.
-  thisYear,
-
-  /// The year just gone. This is the one that gets filed, and the reason the
-  /// export offers a year at all: the report is written in January.
-  lastYear,
-
-  /// Every case on record, for a founding-to-date total.
-  allTime;
-
-  /// The `year` the report route wants, or null for [allTime].
-  int? yearAt(DateTime now) => switch (this) {
-    ReportPeriod.thisYear => now.year,
-    ReportPeriod.lastYear => now.year - 1,
-    ReportPeriod.allTime => null,
-  };
+/// The years offered behind the export sheet's "earlier years" picker: every
+/// year with a recorded intake, newest first, minus the two the segmented
+/// control already shows as buttons.
+///
+/// Only years that actually have intakes ([intakeYears], off `Statistics`) —
+/// a fixed "last ten years" range would invite printing a report for a year
+/// the org did not exist. A gap year with no admissions is likewise not
+/// offered: there is nothing in it to report.
+List<int> earlierReportYears(List<int> intakeYears, DateTime now) {
+  final shown = {now.year, now.year - 1};
+  return [
+    for (final year in intakeYears)
+      if (!shown.contains(year)) year,
+  ];
 }
 
 /// Opens the annual-report export sheet (federfall-dk0c): pick a period, then
@@ -48,8 +42,20 @@ class AnnualReportSheet extends ConsumerStatefulWidget {
 }
 
 class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
-  /// Defaults to the year just ended — the one an annual report is for.
-  ReportPeriod _period = ReportPeriod.lastYear;
+  /// Resolved once, in `initState`: the sheet's own labels and its default
+  /// selection must not shift if it happens to be open across midnight on New
+  /// Year's Eve, and the year sent to the server has to be the one the button
+  /// said.
+  late final DateTime _now = DateTime.now();
+
+  /// The selected period: a calendar year, or null for every case on record.
+  /// Defaults to the year in progress.
+  late int? _year = _now.year;
+
+  /// A year chosen from the picker, which then joins the segmented control as
+  /// its own button — so the selection stays a single value with a single
+  /// visible state instead of a segment plus a competing dropdown.
+  int? _pickedYear;
 
   /// Which format is currently being fetched, so only the tapped button shows
   /// a spinner (and neither can be tapped twice into two share sheets).
@@ -65,8 +71,8 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
     // offset — which is what decides whether a New Year's Eve admission counts
     // to the closing year or the opening one.
     final lang = Localizations.localeOf(context).languageCode;
-    final tzOffsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final year = _period.yearAt(DateTime.now());
+    final tzOffsetMinutes = _now.timeZoneOffset.inMinutes;
+    final year = _year;
     final filename =
         '${l10n.statsExportFileName('${year ?? l10n.statsExportFileAllTime}')}'
         '.${csv ? 'csv' : 'pdf'}';
@@ -108,8 +114,17 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final now = DateTime.now();
     final busy = _busyCsv != null;
+
+    // The years on record come off the statistics the screen behind this sheet
+    // has already loaded — the same org-wide, coordinator/supervisor scope the
+    // report itself runs in, so there is nothing extra to fetch. Until it
+    // lands (or if it fails) the two recent years and "all time" still work;
+    // only the picker waits.
+    final earlierYears = earlierReportYears(
+      ref.watch(statisticsProvider).value?.intakeYears ?? const [],
+      _now,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -131,30 +146,77 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          // The two year options are labelled with the year itself rather than
-          // "this"/"last": in January the difference matters and a concrete
-          // number leaves nothing to work out.
-          SegmentedButton<ReportPeriod>(
+          // Labelled with the years themselves rather than "this"/"last": in
+          // January the difference matters, and a concrete number leaves
+          // nothing to work out. A year taken from the picker becomes a fourth
+          // button here.
+          SegmentedButton<int?>(
+            showSelectedIcon: false,
             segments: [
+              ButtonSegment(value: _now.year, label: Text('${_now.year}')),
               ButtonSegment(
-                value: ReportPeriod.lastYear,
-                label: Text('${now.year - 1}'),
+                value: _now.year - 1,
+                label: Text('${_now.year - 1}'),
               ),
+              if (_pickedYear != null)
+                ButtonSegment(
+                  value: _pickedYear,
+                  label: Text('$_pickedYear'),
+                ),
               ButtonSegment(
-                value: ReportPeriod.thisYear,
-                label: Text('${now.year}'),
-              ),
-              ButtonSegment(
-                value: ReportPeriod.allTime,
+                value: null,
                 label: Text(l10n.statsExportAllTime),
               ),
             ],
-            selected: {_period},
+            selected: {_year},
             onSelectionChanged: busy
                 ? null
-                : (s) => setState(() => _period = s.single),
+                : (s) => setState(() => _year = s.single),
           ),
-          const SizedBox(height: AppSpacing.lg),
+          if (earlierYears.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: PopupMenuButton<int>(
+                enabled: !busy,
+                // Selecting from the picker also selects the period: opening
+                // the menu to choose a year and then having to press the
+                // resulting button as well would be a second step for a
+                // decision already made.
+                onSelected: (year) => setState(() {
+                  _pickedYear = year;
+                  _year = year;
+                }),
+                itemBuilder: (context) => [
+                  for (final year in earlierYears)
+                    PopupMenuItem(value: year, child: Text('$year')),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        l10n.statsExportEarlierYears,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
           PrimaryButton(
             label: l10n.statsExportPdf,
             icon: Icons.picture_as_pdf_outlined,

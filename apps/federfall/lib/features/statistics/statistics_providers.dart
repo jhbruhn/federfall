@@ -39,6 +39,7 @@ class Statistics {
     required this.bySpecies,
     required this.byCondition,
     required this.avgTimeInCareDays,
+    this.intakeYears = const [],
   });
 
   /// Total cases in scope.
@@ -58,6 +59,16 @@ class Statistics {
 
   /// Mean days from admission to terminal disposition, or null if none.
   final double? avgTimeInCareDays;
+
+  /// Every calendar year that has at least one intake, newest first — the years
+  /// an annual report can actually be run for (federfall-dk0c's export sheet
+  /// offers these rather than a guessed range, so it never invites the user to
+  /// print a year that was always empty).
+  ///
+  /// Years are the LOCAL ones, matching how the report route resolves a
+  /// period's boundaries from the caller's own UTC offset — a case admitted at
+  /// 00:30 on New Year's Day belongs to the year the carer was living in.
+  final List<int> intakeYears;
 }
 
 /// Sorts a label→count map into [StatCount]s, highest count first then label.
@@ -116,6 +127,11 @@ Statistics computeStatistics({
     for (final c in recordedConditions) c.label: c.caseCount,
   };
 
+  final intakeYears = <int>{
+    for (final c in cases)
+      if (c.admittedAt != null) c.admittedAt!.toLocal().year,
+  }.toList()..sort((a, b) => b.compareTo(a));
+
   final admittedByCase = {for (final c in cases) c.id: c.admittedAt};
   var totalDays = 0.0;
   var disposedWithSpan = 0;
@@ -140,6 +156,7 @@ Statistics computeStatistics({
     avgTimeInCareDays: disposedWithSpan == 0
         ? null
         : totalDays / disposedWithSpan,
+    intakeYears: intakeYears,
   );
 }
 

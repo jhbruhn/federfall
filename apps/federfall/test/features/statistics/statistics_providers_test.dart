@@ -50,6 +50,21 @@ void main() {
     expect(s.openCases, 2);
   });
 
+  test('reports the years that have intakes, newest first', () {
+    // federfall-dk0c: the annual-report export offers exactly these as periods,
+    // so a duplicate year collapses, a case with no admission date contributes
+    // nothing, and the order is the one the picker shows.
+    final s = run(
+      cases: [
+        _case('c1', admittedAt: DateTime(2024, 5, 4)),
+        _case('c2', admittedAt: DateTime(2026)),
+        _case('c3', admittedAt: DateTime(2024, 11, 30)),
+        _case('c4'),
+      ],
+    );
+    expect(s.intakeYears, [2026, 2024]);
+  });
+
   test('outcome breakdown uses the latest disposition per case', () {
     final s = run(
       cases: [_case('c1'), _case('c2')],

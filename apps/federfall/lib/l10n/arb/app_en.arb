@@ -271,6 +271,8 @@
     "@statsExportPeriod": { "description": "Label above the period selector in the export sheet" },
     "statsExportAllTime": "All time",
     "@statsExportAllTime": { "description": "Period option covering every recorded case" },
+    "statsExportEarlierYears": "Earlier years",
+    "@statsExportEarlierYears": { "description": "Opens a menu of the remaining years that have intakes on record, beyond the two the export sheet shows as buttons" },
     "statsExportPdf": "PDF report",
     "@statsExportPdf": { "description": "Button that downloads/shares the annual report as a PDF" },
     "statsExportCsv": "CSV table",
