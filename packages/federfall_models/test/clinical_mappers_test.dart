@@ -735,7 +735,7 @@ void main() {
           RecordModel({
             'id': 'v1',
             'case': 'c1',
-            if (raw != null) 'reminder_lead_minutes': raw,
+            'reminder_lead_minutes': ?raw,
           }),
         );
         expect(a.reminderLeadMinutes, isNull, reason: 'raw: $raw');
