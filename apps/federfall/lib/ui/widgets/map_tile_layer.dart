@@ -64,6 +64,12 @@ class _MapTileLayerBodyState extends State<_MapTileLayerBody> {
       return TileLayer(
         urlTemplate: widget.config.rasterUrl,
         userAgentPackageName: _userAgentPackageName,
+        // No pre-emptive ring of off-screen tiles. flutter_map's default of 1
+        // is sized for a phone viewport: a full-screen map on a 3440x1440
+        // desktop display already needs ~105 tiles, and the ring pushes each
+        // zoom change past 150 requests — the burst the OSM Tile Usage Policy
+        // is asking us not to make, in exchange for a head start on a pan.
+        panBuffer: 0,
         tileProvider: NetworkTileProvider(
           cachingProvider: BuiltInMapCachingProvider.getOrCreateInstance(),
         ),
