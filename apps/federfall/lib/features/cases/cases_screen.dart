@@ -1,4 +1,8 @@
 import 'package:federfall/core/realtime/live_refresh.dart';
+// Prefixed: this file also needs `memberLabel` from `placements_providers`,
+// which declares an `orgMembersProvider` of its own (the active-only handoff
+// roster). The filter wants the FULL roster — see `_carerOptions`.
+import 'package:federfall/features/admin/admin_providers.dart' as admin;
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/case_facets.dart';
@@ -6,6 +10,7 @@ import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
+import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
@@ -121,6 +126,24 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
     );
   }
 
+  /// The app bar title for the current filter. A carer filter names whose
+  /// caseload this is — arriving from the dashboard's workload card, "All
+  /// cases" would read as though the tap had not taken. Only then is the roster
+  /// read, so the plain tab still costs no `users` request.
+  String _title(AppLocalizations l10n) {
+    final carerId = _query.carer;
+    if (carerId == null) {
+      return _query.allScope ? l10n.casesAllTitle : l10n.casesTitle;
+    }
+    final members = ref.watch(admin.orgMembersProvider).value;
+    final carer = members?.where((m) => m.id == carerId).firstOrNull;
+    // Until the roster lands (or if the id is unknown) the honest fallback is
+    // the widened scope this filter implies, not a name we don't have.
+    return carer == null
+        ? l10n.casesAllTitle
+        : l10n.casesCarerTitle(memberLabel(carer));
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -152,7 +175,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_query.allScope ? l10n.casesAllTitle : l10n.casesTitle),
+        title: Text(_title(l10n)),
         actions: const [AccountMenu()],
       ),
       floatingActionButton: showFab
@@ -224,8 +247,9 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
                         c,
                         d.animalsById[c.animal],
                         // Redundant in the "mine" scope — every case is
-                        // already the signed-in user's.
-                        showCarer: _query.allScope,
+                        // already the signed-in user's — and under a carer
+                        // filter, where the app bar already names them.
+                        showCarer: _query.allScope && _query.carer == null,
                         selected: c.id == selectedId,
                       );
                     },
@@ -284,6 +308,15 @@ class _SearchBar extends StatelessWidget {
 
 /// Bottom sheet holding the secondary filters. Edits its own copy of the query
 /// and pushes each change up live, so the list behind it updates immediately.
+///
+/// Every `DropdownMenu` here sets `requestFocusOnTap: false`. They are pickers
+/// over a closed set — the carers, species, outcomes and diagnoses that exist —
+/// so there is nothing a typed value could mean. Left at the default the field
+/// is editable on desktop/web (the flag resolves per platform: read-only on
+/// Android/iOS, focusable elsewhere), and since none of them sets
+/// `enableFilter`, typing only overwrites the label of a selection that is
+/// still in force. The intake screen's species field is the deliberate
+/// exception: there a new species is a legitimate free-text value.
 class _FilterSheet extends ConsumerStatefulWidget {
   const _FilterSheet({
     required this.initial,
@@ -330,6 +363,16 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
     ];
   }
 
+  /// Carers offered by the filter: the FULL roster, deactivated members
+  /// included. Two reasons it isn't the active-only handoff list — filtering by
+  /// a carer is not assigning to them, and a deactivated member can still hold
+  /// open cases (only *deleting* one is blocked on their caseload), which is
+  /// precisely the caseload someone goes looking for. It also keeps the
+  /// dropdown able to name whatever the dashboard's workload card handed over,
+  /// instead of rendering it as a blank the user can neither read nor clear.
+  List<AppUser> get _carerOptions =>
+      ref.watch(admin.orgMembersProvider).value ?? const [];
+
   Future<void> _pickDateRange() async {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
@@ -346,6 +389,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final range = _query.admittedRange;
+    final carers = _carerOptions;
 
     return SafeArea(
       child: Padding(
@@ -381,9 +425,39 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
                 ButtonSegment(value: true, label: Text(l10n.casesScopeAll)),
               ],
               selected: {_query.allScope},
-              onSelectionChanged: (s) =>
-                  _apply(_query.copyWith(allScope: s.first)),
+              // Inert while a carer is picked — that names the caseload to
+              // show, so it stands in for the mine/all split rather than
+              // intersecting with it (see CaseQuery.carer). Disabled instead of
+              // hidden so the relationship is visible, not mysterious.
+              onSelectionChanged: _query.carer != null
+                  ? null
+                  : (s) => _apply(_query.copyWith(allScope: s.first)),
             ),
+            // Also shown while the roster is still loading if a carer filter is
+            // already in force, so the badge never counts a facet with no
+            // control on screen to clear it.
+            if (carers.isNotEmpty || _query.carer != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              _FilterLabel(l10n.placementFieldCarer),
+              DropdownMenu<String?>(
+                initialSelection: _query.carer,
+                expandedInsets: EdgeInsets.zero,
+                requestFocusOnTap: false,
+                dropdownMenuEntries: [
+                  DropdownMenuEntry(
+                    value: null,
+                    label: l10n.casesFilterCarerAny,
+                  ),
+                  for (final m in carers)
+                    DropdownMenuEntry(value: m.id, label: memberLabel(m)),
+                ],
+                onSelected: (id) => _apply(
+                  id == null
+                      ? _query.copyWith(clearCarer: true)
+                      : _query.copyWith(carer: id),
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             _FilterLabel(l10n.casesActivityLabel),
             SegmentedButton<CaseActivity>(
@@ -411,6 +485,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
               DropdownMenu<String?>(
                 initialSelection: _query.species,
                 expandedInsets: EdgeInsets.zero,
+                requestFocusOnTap: false,
                 dropdownMenuEntries: [
                   DropdownMenuEntry(
                     value: null,
@@ -431,6 +506,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
             DropdownMenu<DispositionType?>(
               initialSelection: _query.outcome,
               expandedInsets: EdgeInsets.zero,
+              requestFocusOnTap: false,
               dropdownMenuEntries: [
                 DropdownMenuEntry(
                   value: null,
@@ -453,6 +529,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
             DropdownMenu<String?>(
               initialSelection: _query.condition,
               expandedInsets: EdgeInsets.zero,
+              requestFocusOnTap: false,
               dropdownMenuEntries: [
                 DropdownMenuEntry(
                   value: null,

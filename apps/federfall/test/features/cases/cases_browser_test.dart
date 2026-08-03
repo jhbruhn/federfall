@@ -132,6 +132,48 @@ void main() {
     expect(_ids(result), ['ready']);
   });
 
+  test('carer filter shows that carer instead of the mine/all scope', () {
+    // The default scope is "mine", and a carer filter has to override it —
+    // intersecting the two would yield nothing for every carer but the
+    // signed-in one (federfall-9mit).
+    final cases = [
+      _c('mine'),
+      _c('theirs', carer: 'other'),
+      _c('third', carer: 'someone'),
+    ];
+
+    expect(_ids(run(cases, const CaseQuery(carer: 'other'))), ['theirs']);
+    // …and it also narrows a query already widened to all cases.
+    expect(
+      _ids(run(cases, const CaseQuery(allScope: true, carer: 'other'))),
+      ['theirs'],
+    );
+  });
+
+  test('carer filter still respects the other facets', () {
+    final result = run([
+      _c('open', carer: 'other'),
+      _c('closed', carer: 'other', status: CaseStatus.disposed),
+    ], const CaseQuery(carer: 'other'));
+
+    // The workload card counts OPEN cases, so its tap-through must land on the
+    // browser's active default — the same number it showed.
+    expect(_ids(result), ['open']);
+  });
+
+  test('a carer facet counts instead of the scope it supersedes', () {
+    const mine = CaseQuery();
+    expect(mine.activeFacetCount, 0);
+    expect(const CaseQuery(allScope: true).activeFacetCount, 1);
+    expect(const CaseQuery(carer: 'other').activeFacetCount, 1);
+    // Not 2: the scope toggle is inert while a carer is named, so badging both
+    // would count a filter the user cannot see.
+    expect(
+      const CaseQuery(allScope: true, carer: 'other').activeFacetCount,
+      1,
+    );
+  });
+
   test('outcome filter matches the terminal disposition (federfall-5puj)', () {
     final result = filterCases(
       [_c('released'), _c('died'), _c('open')],
@@ -197,6 +239,7 @@ void main() {
       'status': 'ready_for_release',
       'outcome': 'placed_in_aviary',
       'condition': 'Katzenbiss',
+      'carer': 'u123',
       'year': '2025',
     });
 
@@ -205,6 +248,7 @@ void main() {
     expect(q.status, CaseStatus.readyForRelease);
     expect(q.outcome, DispositionType.placedInAviary);
     expect(q.condition, 'Katzenbiss');
+    expect(q.carer, 'u123');
     expect(q.admittedRange?.start.year, 2025);
     expect(q.admittedRange?.end.year, 2025);
   });
@@ -220,6 +264,20 @@ void main() {
     expect(q.copyWith(clearOutcome: true).condition, 'Katzenbiss');
     expect(q.copyWith(clearCondition: true).condition, isNull);
     expect(q.copyWith(clearCondition: true).outcome, DispositionType.died);
+  });
+
+  test('copyWith clears the carer facet without touching the others', () {
+    const q = CaseQuery(carer: 'u123', condition: 'Katzenbiss');
+
+    expect(q.copyWith(clearCarer: true).carer, isNull);
+    expect(q.copyWith(clearCarer: true).condition, 'Katzenbiss');
+    expect(q.copyWith(carer: 'u456').carer, 'u456');
+  });
+
+  test('the carer facet takes part in equality', () {
+    expect(const CaseQuery(carer: 'a'), isNot(const CaseQuery(carer: 'b')));
+    expect(const CaseQuery(carer: 'a'), isNot(const CaseQuery()));
+    expect(const CaseQuery(carer: 'a'), const CaseQuery(carer: 'a'));
   });
 
   test('CaseQuery.fromParams falls back to defaults for empty params', () {

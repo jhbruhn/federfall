@@ -1,4 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
+// The FULL roster provider — the one the filter's carer picker reads (not
+// `placements_providers`' active-only namesake).
+import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
@@ -32,6 +35,7 @@ Future<void> _pump(
   CaseQuery? pending,
   CaseFacets facets = CaseFacets.empty,
   List<ConditionLabel> recorded = const [],
+  List<AppUser> members = const [],
 }) async {
   // Compact width so the account menu sits in the app bar (on wider widths it
   // moves to the navigation rail, which this standalone screen has no shell to
@@ -55,6 +59,7 @@ Future<void> _pump(
         pendingCaseQueryProvider.overrideWith(() => _SeededPending(pending)),
         caseFacetsProvider.overrideWith((ref) async => facets),
         recordedConditionsProvider.overrideWith((ref) async => recorded),
+        orgMembersProvider.overrideWith((ref) async => members),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
@@ -453,5 +458,110 @@ void main() {
 
     expect(find.text('2026-001'), findsOneWidget);
     expect(find.text('2026-002'), findsNothing);
+  });
+
+  group('carer filter (federfall-9mit)', () {
+    const anna = AppUser(
+      id: 'anna',
+      email: 'anna@example.org',
+      name: 'Anna',
+      role: UserRole.carer,
+      isActive: true,
+    );
+    const cases = [
+      Case(
+        id: 'c1',
+        animal: 'a1',
+        caseNumber: '2026-001',
+        activeCarer: 'anna',
+      ),
+      Case(id: 'c2', animal: 'a1', caseNumber: '2026-002', activeCarer: 'me'),
+    ];
+
+    testWidgets('a handed-over carer filter names them and lists their cases', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        cases: cases,
+        pending: const CaseQuery(carer: 'anna'),
+        members: const [anna],
+      );
+
+      // The dashboard's workload card queues the filter without widening the
+      // scope, so this also proves the carer supersedes the "mine" default.
+      expect(find.text('2026-001'), findsOneWidget);
+      expect(find.text('2026-002'), findsNothing);
+      // Titled by whose caseload it is — "All cases" would read as though the
+      // tap had not taken.
+      expect(find.text('Cases of Anna'), findsOneWidget);
+    });
+
+    testWidgets('falls back to the widened title until the roster lands', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        cases: cases,
+        pending: const CaseQuery(carer: 'anna'),
+      );
+
+      // No roster to name the id with — the honest fallback is the scope the
+      // filter implies, not a name we do not have.
+      expect(find.text('All cases'), findsOneWidget);
+      expect(find.text('2026-001'), findsOneWidget);
+    });
+
+    testWidgets('the sheet picks a carer and parks the scope toggle', (
+      tester,
+    ) async {
+      await _pump(tester, cases: cases, members: const [anna]);
+
+      expect(find.text('2026-002'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Any carer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Anna').last);
+      await tester.pumpAndSettle();
+
+      // The list behind the sheet swaps to Anna's caseload…
+      expect(find.text('2026-001'), findsOneWidget);
+      expect(find.text('2026-002'), findsNothing);
+      // …and the mine/all toggle goes inert, because the carer stands in for
+      // it rather than intersecting with it.
+      final scope = tester.widget<SegmentedButton<bool>>(
+        find.byType(SegmentedButton<bool>),
+      );
+      expect(scope.onSelectionChanged, isNull);
+    });
+
+    testWidgets('the filter pickers take no free text', (tester) async {
+      await _pump(
+        tester,
+        cases: cases,
+        // A species so that picker is offered too — all four have to hold.
+        animalsById: const {'a1': Animal(id: 'a1', species: 'Columba livia')},
+        members: const [anna],
+        recorded: const [
+          ConditionLabel(id: 'k1', label: 'Katzenbiss', caseCount: 1),
+        ],
+      );
+
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+
+      // Closed sets, so a typed value could not mean anything — and left at
+      // the platform default these fields are editable on desktop/web while
+      // filtering nothing, silently overwriting a selection still in force.
+      final menus = tester.widgetList<DropdownMenu<Object?>>(
+        find.byWidgetPredicate((w) => w is DropdownMenu),
+      );
+      expect(menus, hasLength(4));
+      for (final menu in menus) {
+        expect(menu.requestFocusOnTap, isFalse);
+      }
+    });
   });
 }

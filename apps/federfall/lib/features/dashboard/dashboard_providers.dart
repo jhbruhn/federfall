@@ -1,4 +1,5 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -15,6 +16,7 @@ class DashboardSummary {
     required this.intakesThisYear,
     required this.byStatus,
     this.inAviaryCount = 0,
+    this.openByCarer = const {},
   });
 
   /// Cases that have not yet been disposed.
@@ -28,6 +30,17 @@ class DashboardSummary {
 
   /// Active-case counts per status, in [CaseStatus] order (disposed excluded).
   final Map<CaseStatus, int> byStatus;
+
+  /// Open (non-disposed) case count per active-carer user id, for the carer
+  /// workload card (federfall-9mit). Same definition of "open caseload" the
+  /// server uses to guard deleting a member (`active_carer = {:id} && status
+  /// != 'disposed'`, `main.pb.js`), so the two never disagree.
+  ///
+  /// Only meaningful for coordinators/supervisors, who read org-wide: a
+  /// carer's own case list holds other people's cases only where they were
+  /// shared, so their per-carer figures would be a fragment. The card that
+  /// shows this gates on `canViewReports` for that reason.
+  final Map<String, int> openByCarer;
 }
 
 /// The active (non-disposed) statuses, in display order.
@@ -44,6 +57,7 @@ DashboardSummary buildDashboardSummary(
   int inAviaryCount = 0,
 }) {
   final byStatus = {for (final s in _activeStatuses) s: 0};
+  final openByCarer = <String, int>{};
   var active = 0;
   var intakes = 0;
 
@@ -55,6 +69,13 @@ DashboardSummary buildDashboardSummary(
       if (status != null && byStatus.containsKey(status)) {
         byStatus[status] = byStatus[status]! + 1;
       }
+      // `active_carer` is optional server-side, so an unassigned open case is
+      // possible (rare — the create rule pins it to the caller). It belongs to
+      // nobody's workload, so it is left out rather than bucketed under ''.
+      final carer = c.activeCarer;
+      if (carer != null && carer.isNotEmpty) {
+        openByCarer[carer] = (openByCarer[carer] ?? 0) + 1;
+      }
     }
     final admitted = c.admittedAt;
     if (admitted != null && admitted.year == now.year) intakes++;
@@ -65,6 +86,7 @@ DashboardSummary buildDashboardSummary(
     intakesThisYear: intakes,
     byStatus: byStatus,
     inAviaryCount: inAviaryCount,
+    openByCarer: openByCarer,
   );
 }
 
@@ -88,4 +110,61 @@ Future<DashboardSummary> dashboardSummary(Ref ref) async {
     DateTime.now(),
     inAviaryCount: inAviary,
   );
+}
+
+/// One row of the carer workload card: a team member and their open caseload.
+@immutable
+class CarerWorkload {
+  const CarerWorkload({required this.user, required this.openCases});
+
+  final AppUser user;
+
+  /// Open (non-disposed) cases where [user] is the active carer.
+  final int openCases;
+}
+
+/// Pure join of the team roster with [openByCarer], busiest carer first then
+/// name — so the card leads with who needs relieving and ends with who has
+/// capacity. Kept separate from the provider so it can be unit-tested.
+///
+/// A member is listed when they can currently take cases (active, non-guest)
+/// **or** when they still hold open ones. That second clause is not
+/// hypothetical: deactivating a member is not blocked on their caseload (only
+/// deleting them is, `main.pb.js`), so a deactivated carer can sit on open
+/// cases nobody can be handed — exactly the row a coordinator has to see.
+List<CarerWorkload> buildCarerWorkload(
+  List<AppUser> members,
+  Map<String, int> openByCarer,
+) {
+  return [
+    for (final m in members)
+      if ((m.isActive && m.role != UserRole.guest) ||
+          (openByCarer[m.id] ?? 0) > 0)
+        CarerWorkload(user: m, openCases: openByCarer[m.id] ?? 0),
+  ]..sort((a, b) {
+    final byLoad = b.openCases.compareTo(a.openCases);
+    if (byLoad != 0) return byLoad;
+    return memberLabel(a.user).toLowerCase().compareTo(
+      memberLabel(b.user).toLowerCase(),
+    );
+  });
+}
+
+/// Open caseload per team member, for the dashboard's carer workload card
+/// (federfall-9mit).
+///
+/// Reads the *full* roster (`members()`, active and not) rather than the
+/// handoff picker's active-only list, so a deactivated member's stranded cases
+/// still surface — see [buildCarerWorkload].
+///
+/// Coordinators/supervisors only; the card gates on `canViewReports`. The
+/// counts ride on [dashboardSummaryProvider]'s case list, which is scoped to
+/// what the caller may read — org-wide for those two roles, a fragment for a
+/// carer (see [DashboardSummary.openByCarer]).
+@riverpod
+Future<List<CarerWorkload>> carerWorkload(Ref ref) async {
+  final summaryFuture = ref.watch(dashboardSummaryProvider.future);
+  final usersRepo = await ref.watch(usersRepositoryProvider.future);
+  final (summary, members) = await (summaryFuture, usersRepo.members()).wait;
+  return buildCarerWorkload(members, summary.openByCarer);
 }

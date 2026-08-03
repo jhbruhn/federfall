@@ -139,6 +139,8 @@
     "dashboardActiveCases": "Aktive Fälle",
     "dashboardIntakesThisYear": "Aufnahmen dieses Jahr",
     "dashboardInAviary": "In Voliere",
+    "dashboardWorkloadTitle": "Auslastung der Pflegestellen",
+    "dashboardWorkloadEmpty": "Keine Teammitglieder",
     "todayTitle": "Heute",
     "worklistEmpty": "Nichts zu erledigen – alles im Griff.",
     "worklistSeeAll": "Alle anzeigen",
@@ -236,6 +238,11 @@
     "casesFilterSpeciesAny": "Alle Arten",
     "casesFilterOutcomeAny": "Alle Ausgänge",
     "casesFilterConditionAny": "Alle Diagnosen",
+    "casesFilterCarerAny": "Alle Pflegestellen",
+    "casesCarerTitle": "Fälle von {name}",
+    "@casesCarerTitle": {
+        "placeholders": { "name": { "type": "String" } }
+    },
     "casesFilterDateRange": "Aufnahmedatum",
     "casesClearFilters": "Zurücksetzen",
     "caseNewTitle": "Neuer Fall",

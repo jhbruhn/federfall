@@ -25,14 +25,15 @@ class CaseQuery {
     this.species,
     this.outcome,
     this.condition,
+    this.carer,
     this.admittedRange,
     this.text = '',
   });
 
   /// Seeds a query from deep-link route parameters (dashboard tap-through,
   /// ctw.6): `scope=all`, `activity=active|closed|all`, `status=<wire>`,
-  /// `species=<name>`, `outcome=<wire>`, `condition=<label>`, `year=<yyyy>`.
-  /// Unknown/absent params fall back to defaults.
+  /// `species=<name>`, `outcome=<wire>`, `condition=<label>`, `carer=<userId>`,
+  /// `year=<yyyy>`. Unknown/absent params fall back to defaults.
   factory CaseQuery.fromParams(Map<String, String> params) {
     final year = int.tryParse(params['year'] ?? '');
     return CaseQuery(
@@ -46,6 +47,7 @@ class CaseQuery {
       species: params['species'],
       outcome: DispositionType.fromWire(params['outcome']),
       condition: params['condition'],
+      carer: params['carer'],
       admittedRange: year == null
           ? null
           : DateTimeRange(
@@ -57,6 +59,9 @@ class CaseQuery {
 
   /// `false` = only the signed-in user's own cases ("My cases"); `true` widens
   /// to everything they may access (the server rules already scope that).
+  ///
+  /// Ignored while [carer] is set — that names the caseload to show, so it
+  /// supersedes the mine/all split rather than intersecting with it.
   final bool allScope;
 
   /// Active / closed / all split.
@@ -81,6 +86,17 @@ class CaseQuery {
   /// diagnosis, which is worse.
   final String? condition;
 
+  /// The user id whose caseload to show — matched against `active_carer` — or
+  /// null for any carer. Set by the dashboard's carer-workload card
+  /// (federfall-9mit) and by the filter sheet's carer picker.
+  ///
+  /// This *replaces* the [allScope] scope rather than narrowing it: picking a
+  /// carer while scoped to "mine" would otherwise intersect to nothing for
+  /// every carer but the signed-in one. What the server lets through is
+  /// unaffected — a carer who filters by a colleague sees only the cases that
+  /// colleague shared with them, which is the honest answer.
+  final String? carer;
+
   /// Admission-date window (inclusive), or null for any date.
   final DateTimeRange? admittedRange;
 
@@ -93,8 +109,15 @@ class CaseQuery {
 
   /// Count of non-default filter facets, excluding the (always-visible) search
   /// text. Drives the badge on the collapsed filter button.
+  /// A set [carer] counts instead of [allScope], not on top of it — the scope
+  /// toggle is inert while a carer is named, so counting both would badge a
+  /// filter the user cannot see.
   int get activeFacetCount =>
-      (allScope ? 1 : 0) +
+      (carer != null
+          ? 1
+          : allScope
+          ? 1
+          : 0) +
       (activity != CaseActivity.active ? 1 : 0) +
       (status != null ? 1 : 0) +
       (species != null ? 1 : 0) +
@@ -113,12 +136,14 @@ class CaseQuery {
     String? species,
     DispositionType? outcome,
     String? condition,
+    String? carer,
     DateTimeRange? admittedRange,
     String? text,
     bool clearStatus = false,
     bool clearSpecies = false,
     bool clearOutcome = false,
     bool clearCondition = false,
+    bool clearCarer = false,
     bool clearRange = false,
   }) => CaseQuery(
     allScope: allScope ?? this.allScope,
@@ -127,6 +152,7 @@ class CaseQuery {
     species: clearSpecies ? null : (species ?? this.species),
     outcome: clearOutcome ? null : (outcome ?? this.outcome),
     condition: clearCondition ? null : (condition ?? this.condition),
+    carer: clearCarer ? null : (carer ?? this.carer),
     admittedRange: clearRange ? null : (admittedRange ?? this.admittedRange),
     text: text ?? this.text,
   );
@@ -140,6 +166,7 @@ class CaseQuery {
       other.species == species &&
       other.outcome == outcome &&
       other.condition == condition &&
+      other.carer == carer &&
       other.admittedRange == admittedRange &&
       other.text == text;
 
@@ -151,6 +178,7 @@ class CaseQuery {
     species,
     outcome,
     condition,
+    carer,
     admittedRange,
     text,
   );
@@ -236,7 +264,14 @@ List<Case> filterCases(
   final to = range == null ? null : DateUtils.dateOnly(range.end);
 
   return cases.where((c) {
-    if (!query.allScope && c.activeCarer != myUserId) return false;
+    // A named carer replaces the mine/all scope rather than narrowing it —
+    // see [CaseQuery.carer].
+    final carer = query.carer;
+    if (carer != null) {
+      if (c.activeCarer != carer) return false;
+    } else if (!query.allScope && c.activeCarer != myUserId) {
+      return false;
+    }
 
     switch (query.activity) {
       case CaseActivity.active:

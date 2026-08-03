@@ -1,7 +1,10 @@
+import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
+import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/home/account_menu.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
@@ -27,6 +30,11 @@ class DashboardScreen extends ConsumerWidget {
     // Live-sync the caseload KPIs as cases are admitted / dispositioned.
     // A carer's KPIs include cases shared *with* them, so watch 'case_shares'
     // too — a share grants/revokes visibility without changing the case record.
+    // The carer workload card rides along: it watches this summary, so
+    // invalidating it rebuilds the card — and that re-reads the roster too, so
+    // a handoff moves a case between rows without a second subscription.
+    // (A pure role/activation change lands on the next refresh; nothing here
+    // subscribes to 'users'.)
     ref.liveRefresh(
       const ['cases', 'dispositions', 'case_shares'],
       () => ref.invalidate(dashboardSummaryProvider),
@@ -56,6 +64,8 @@ class DashboardScreen extends ConsumerWidget {
 
           // Wide screens place the actionable Today preview and the caseload
           // overview side-by-side (federfall-zbe); narrower ones stack them.
+          // The workload card follows the caseload in both — it is reference
+          // material for the oversight roles, not an action list.
           final body = context.isExpanded
               ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,7 +76,12 @@ class DashboardScreen extends ConsumerWidget {
                       child: _WorklistPreview(showEmptyState: true),
                     ),
                     const SizedBox(width: AppSpacing.lg),
-                    Expanded(child: caseload),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [caseload, const _CarerWorkloadCard()],
+                      ),
+                    ),
                   ],
                 )
               : Column(
@@ -78,6 +93,7 @@ class DashboardScreen extends ConsumerWidget {
                   children: [
                     const _WorklistPreview(showEmptyState: true),
                     caseload,
+                    const _CarerWorkloadCard(),
                   ],
                 );
 
@@ -163,6 +179,68 @@ class _WorklistPreview extends ConsumerWidget {
           },
           orElse: () => const SizedBox.shrink(),
         );
+  }
+}
+
+/// Who is carrying how much (federfall-9mit): every team member with their open
+/// caseload, busiest first, each row tapping through to that carer's open cases
+/// in the Cases tab.
+///
+/// Coordinators and supervisors only — they read org-wide, so the figures are
+/// the whole picture; a carer sees their own cases plus what was shared with
+/// them, which would make the same card a misleading fragment. Renders nothing
+/// for every other role (the server rules stay the real boundary).
+class _CarerWorkloadCard extends ConsumerWidget {
+  const _CarerWorkloadCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final role = ref.watch(currentUserProvider).value?.role;
+    if (!canViewReports(role)) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.lg),
+      child: AsyncValueView<List<CarerWorkload>>(
+        value: ref.watch(carerWorkloadProvider),
+        onRetry: () => ref.invalidate(carerWorkloadProvider),
+        // The card slots into the dashboard's own scroll view, so a spinner
+        // here would push the caseload around on every refresh; it simply
+        // appears once loaded.
+        loading: const SizedBox.shrink(),
+        data: (rows) => BreakdownCard(
+          title: l10n.dashboardWorkloadTitle,
+          emptyMessage: l10n.dashboardWorkloadEmpty,
+          rows: [
+            for (final row in rows)
+              BreakdownRow(
+                memberLabel(row.user),
+                row.openCases,
+                subtitle: _subtitle(l10n, row.user),
+                // Open cases, so the target keeps the browser's "active"
+                // default — the list then holds exactly the number tapped.
+                onTap: () => showCasesFiltered(
+                  context,
+                  ref,
+                  CaseQuery(carer: row.user.id),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The member's role, plus an "inactive" note when they are deactivated —
+  /// a deactivated member with open cases is the row that needs acting on, and
+  /// without the note their presence in a workload list looks like a bug.
+  static String? _subtitle(AppLocalizations l10n, AppUser user) {
+    final role = user.role;
+    final parts = [
+      if (role != null) userRoleLabel(l10n, role),
+      if (!user.isActive) l10n.memberInactive,
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 }
 

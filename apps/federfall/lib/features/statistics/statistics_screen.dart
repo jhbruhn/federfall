@@ -139,11 +139,12 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                 const SizedBox(height: AppSpacing.lg),
                 const _IntakeMapCard(),
                 const SizedBox(height: AppSpacing.md),
-                _Breakdown(
+                BreakdownCard(
                   title: l10n.statsSectionOutcomes,
+                  emptyMessage: l10n.statsEmpty,
                   rows: [
                     for (final o in s.outcomes)
-                      _BreakdownRow(
+                      BreakdownRow(
                         dispositionTypeLabel(l10n, o.type),
                         o.count,
                         // A disposition whose wire value this build doesn't
@@ -155,11 +156,12 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
-                _Breakdown(
+                BreakdownCard(
                   title: l10n.statsSectionSpecies,
+                  emptyMessage: l10n.statsEmpty,
                   rows: [
                     for (final c in s.bySpecies)
-                      _BreakdownRow(
+                      BreakdownRow(
                         c.label,
                         c.count,
                         onTap: () => _showCases(CaseQuery(species: c.label)),
@@ -167,11 +169,12 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
-                _Breakdown(
+                BreakdownCard(
                   title: l10n.statsSectionConditions,
+                  emptyMessage: l10n.statsEmpty,
                   rows: [
                     for (final c in s.byCondition)
-                      _BreakdownRow(
+                      BreakdownRow(
                         c.label,
                         c.count,
                         onTap: () => _showCases(CaseQuery(condition: c.label)),
@@ -246,115 +249,6 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
-  }
-}
-
-/// One row of a [_Breakdown]: a label, its count, and — when the cases behind
-/// that number can be listed — the tap that goes and lists them.
-@immutable
-class _BreakdownRow {
-  const _BreakdownRow(this.label, this.count, {this.onTap});
-
-  final String label;
-  final int count;
-
-  /// Null for a bucket no filter can express, which is only the "unknown
-  /// outcome" one. The chevron follows this, so a row never promises a
-  /// destination it does not have (as [KpiCard] does).
-  final VoidCallback? onTap;
-}
-
-/// A titled card listing label · count rows, sorted by the caller. Each row
-/// taps through to the cases it counts, the way the dashboard KPIs do — a
-/// number the user can't ask "which ones?" about is a dead end
-/// (federfall-5puj).
-class _Breakdown extends StatelessWidget {
-  const _Breakdown({required this.title, required this.rows});
-
-  final String title;
-  final List<_BreakdownRow> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    return Card(
-      // The rows ripple edge to edge, so the card has to clip them.
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.md,
-              AppSpacing.md,
-              AppSpacing.sm,
-            ),
-            child: Text(title, style: theme.textTheme.titleMedium),
-          ),
-          if (rows.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                0,
-                AppSpacing.md,
-                AppSpacing.md,
-              ),
-              child: Text(
-                l10n.statsEmpty,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            )
-          else ...[
-            for (final row in rows) _BreakdownTile(row),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _BreakdownTile extends StatelessWidget {
-  const _BreakdownTile(this.row);
-
-  final _BreakdownRow row;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: row.onTap,
-      child: ConstrainedBox(
-        // A real touch target, not just a line of text.
-        constraints: const BoxConstraints(minHeight: 48),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Row(
-            children: [
-              Expanded(child: Text(row.label)),
-              Text('${row.count}', style: theme.textTheme.titleMedium),
-              const SizedBox(width: AppSpacing.xs),
-              // Reserved even without a chevron, so the counts of a card whose
-              // rows aren't uniformly tappable still line up in one column.
-              SizedBox(
-                width: 18,
-                child: row.onTap == null
-                    ? null
-                    : Icon(
-                        Icons.chevron_right,
-                        size: 18,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
