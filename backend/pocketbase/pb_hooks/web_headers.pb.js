@@ -147,9 +147,20 @@ routerUse((e) => {
       h.set("Content-Security-Policy", csp);
     }
     h.set("X-Content-Type-Options", "nosniff");
-    // same-origin: cross-origin navigations get no Referer at all; same-origin
-    // ones still get the full URL (harmless — it's our own origin).
-    h.set("Referrer-Policy", "same-origin");
+    // strict-origin-when-cross-origin (the modern browser default): same-origin
+    // requests keep the full URL (harmless — it's our own origin), cross-origin
+    // ones send the bare origin, and an https→http downgrade sends nothing.
+    //
+    // NOT "same-origin" (federfall-txxj), which sent no Referer cross-origin at
+    // all: on web the ONLY cross-origin traffic is map tiles, and a browser
+    // forbids scripts from setting User-Agent, so flutter_map's
+    // userAgentPackageName does not apply there. With the Referer stripped too,
+    // tile requests carried NO identification whatsoever — exactly the shape
+    // the OSM Tile Usage Policy says may be blocked, and it was: 403s on the
+    // web app while the Android build (which can send its own UA) was fine.
+    // The origin is the identification, and no path — so a case URL never
+    // leaves this origin either way.
+    h.set("Referrer-Policy", "strict-origin-when-cross-origin");
     // Deny everything except the device features intake photo capture and
     // location tagging actually use, and only for this origin (no iframes).
     h.set(

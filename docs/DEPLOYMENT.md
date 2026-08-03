@@ -112,8 +112,12 @@ FEDERFALL_MAP_ATTRIBUTION_URL: "https://www.openstreetmap.org/copyright"   # opt
 
 > **Repoint `FEDERFALL_MAP_TILE_URL` before you grow.**
 > The [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles) does not cover using their public tiles as an application backend — it is fine while a couple of carers occasionally look at find-locations, and not fine as your permanent map layer.
-> Federfall holds up its own end of that policy (identifies itself in the user agent, caches tiles on disk, never bulk-prefetches), but the traffic decision is yours.
+> Federfall holds up its own end of that policy (caches tiles on disk, never bulk-prefetches, and identifies itself — in the user agent on Android, and on web via the `Referer`, since browsers forbid a script from setting a user agent), but the traffic decision is yours.
 > A self-hosted tile server or a commercial provider is the same one variable.
+>
+> That web identification is why the container sends `Referrer-Policy: strict-origin-when-cross-origin`.
+> If you override it with something stricter (`same-origin`, `no-referrer`) at a reverse proxy, OSM sees anonymous tile requests and answers **403** — a map that stays blank on the web app while Android works is this.
+> Only the bare origin is ever sent cross-origin, never a case URL.
 
 Vector tiles instead — a self-hosted [OpenFreeMap](https://openfreemap.org)/OpenMapTiles stack is considerably cheaper to serve than a raster one:
 

@@ -1650,8 +1650,12 @@ def main():
           f"{sh.get('Cross-Origin-Opener-Policy')}/{sh.get('Cross-Origin-Embedder-Policy')}")
 
     # ── federfall-xvlw: Referrer-Policy + Permissions-Policy on the SPA ──────
-    check("SPA gets Referrer-Policy: same-origin",
-          sh.get("Referrer-Policy") == "same-origin", sh.get("Referrer-Policy"))
+    # federfall-txxj: NOT "same-origin" — that stripped the Referer from map
+    # tile requests, which on web is the only identification they can carry
+    # (the browser forbids setting User-Agent), and OSM 403s such requests.
+    check("SPA gets Referrer-Policy: strict-origin-when-cross-origin",
+          sh.get("Referrer-Policy") == "strict-origin-when-cross-origin",
+          sh.get("Referrer-Policy"))
     perms = sh.get("Permissions-Policy") or ""
     check("SPA Permissions-Policy allows camera/geolocation for self only",
           "camera=(self)" in perms and "geolocation=(self)" in perms, perms)
