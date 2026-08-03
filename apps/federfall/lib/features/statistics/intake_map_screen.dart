@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 
 /// The period a case's `admittedAt` must fall in for its pin to show.
 enum _Period { thisYear, last12Months, allTime }
@@ -29,9 +28,17 @@ class IntakeMapScreen extends ConsumerStatefulWidget {
 }
 
 class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
-  static const _fallbackCentre = LatLng(51.16, 10.45);
+  /// Ceiling for the automatic fit, see [_cameraFit]. Street level, not rooftop
+  /// — far enough in to place a cluster of finds, not so far that a tight
+  /// cluster opens on a view with no landmarks.
+  static const double _fitMaxZoom = 16;
 
-  final _mapController = MapController();
+  /// Ceiling for the camera itself. The tile pyramid ends at `TileLayer`'s
+  /// `maxNativeZoom` (19); past it flutter_map keeps drawing z19 tiles at an
+  /// ever larger scale, so without this a few scroll-wheel notches — far easier
+  /// to overshoot than a pinch — turn the map into magnified pixels.
+  static const double _maxZoom = 19;
+
   _Period _period = _Period.thisYear;
 
   /// The active filter range, resolved once per period change (not on every
@@ -39,13 +46,6 @@ class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
   /// so a fresh `DateTime.now()` each rebuild would mint a distinct argument
   /// every time and reload forever.
   late DateTimeRange? _range = _rangeFor(_period);
-
-  /// The last data list passed to [_fit] — fitting the camera moves the map,
-  /// which rebuilds [FlutterMap]; without this guard, refitting on every
-  /// rebuild would re-trigger itself forever. A fresh provider load always
-  /// hands back a new list instance, so identity is enough to detect
-  /// "already fitted".
-  List<IntakeLocation>? _fitted;
 
   static DateTimeRange? _rangeFor(_Period period) {
     final now = DateTime.now();
@@ -62,27 +62,43 @@ class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _mapController.dispose();
-    super.dispose();
-  }
-
-  void _fit(List<IntakeLocation> locations) {
-    if (locations.isEmpty) return;
-    if (locations.length == 1) {
-      _mapController.move(locations.single.point, 12);
-      return;
-    }
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: LatLngBounds.fromPoints([
-          for (final l in locations) l.point,
-        ]),
-        padding: const EdgeInsets.all(AppSpacing.xl),
-      ),
-    );
-  }
+  /// How the camera frames [bounds] when the map is built.
+  ///
+  /// Handed to `MapOptions.initialCameraFit` rather than applied through a
+  /// `MapController.fitCamera` in a post-frame callback, which is what this
+  /// screen used to do and is why the map came up with **no tiles at all**
+  /// until the first scroll. `TileLayer` only ever *fetches* tiles from a
+  /// `MapEvent` (`_loadTiles`); the tiles a rebuild creates for a new camera
+  /// are left unfetched — `TileImageManager.createMissingTiles` returns them
+  /// and the layer's `build` drops that list. So when a camera move's
+  /// tile-update event does not reach the layer, as a controller-driven fit's
+  /// did not on web, the layer keeps only the tiles it loaded when it mounted:
+  /// the *pre-fit* camera, positioned off-screen and invisible, while the
+  /// markers sit at the fitted camera. The first real gesture emitted an event
+  /// and the whole map appeared at once. `initialCameraFit` is applied by
+  /// `FlutterMap` itself, at the point in its own lifecycle where that works —
+  /// the statistics mini-map has always framed itself this way and never had
+  /// the bug. The map's `initialCenter` then seeds the pre-fit camera over the
+  /// same pins, so even the mount-time load asks for tiles the viewer sees.
+  ///
+  /// `forceIntegerZoomLevel` is not cosmetic: a raster tile is only pixel-exact
+  /// when the camera sits on an integer zoom. Off it, `TileLayer` fetches
+  /// `zoom.round()` and draws each 256px tile at `256 * 2^(zoom - round(zoom))`
+  /// — between 71% and 141% of native — so a fitted zoom of 8.37 renders the
+  /// whole map through a resample. That is invisible on a phone's 3x screen and
+  /// glaring at devicePixelRatio 1, i.e. on the desktop where this full-screen
+  /// map is actually read.
+  ///
+  /// [_fitMaxZoom] also guards a degenerate fit: `CameraFit.bounds` divides the
+  /// viewport by the bounds' pixel size, so a lone pin — or two cases found at
+  /// the *same* coordinates (one nest, one finder) — gives a zero-size bounds,
+  /// an infinite scale, and a zoom of `double.infinity`.
+  static CameraFit _cameraFit(LatLngBounds bounds) => CameraFit.bounds(
+    bounds: bounds,
+    padding: const EdgeInsets.all(AppSpacing.xl),
+    maxZoom: _fitMaxZoom,
+    forceIntegerZoomLevel: true,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -150,21 +166,34 @@ class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
         value: locations,
         onRetry: () => ref.invalidate(intakeLocationsProvider),
         data: (data) {
-          if (!identical(_fitted, data)) {
-            _fitted = data;
-            WidgetsBinding.instance.addPostFrameCallback((_) => _fit(data));
-          }
           if (data.isEmpty) {
             return EmptyView(
               icon: Icons.map_outlined,
               message: l10n.intakeMapEmpty,
             );
           }
+          final bounds = LatLngBounds.fromPoints([
+            for (final l in data) l.point,
+            // A single find would otherwise be a zero-size bounds built from
+            // one point, which `LatLngBounds.fromPoints` rejects outright.
+            if (data.length == 1) data.single.point,
+          ]);
           return FlutterMap(
-            mapController: _mapController,
-            options: const MapOptions(
-              initialCenter: _fallbackCentre,
-              initialZoom: 5.5,
+            // Keyed on the period so choosing one re-frames the map: FlutterMap
+            // applies `initialCameraFit` once per State, so a new fit only
+            // takes effect on a fresh one. Deliberately NOT keyed on the data —
+            // a realtime refresh should add pins, not yank the camera out from
+            // under someone who has panned away.
+            key: ValueKey(_period),
+            options: MapOptions(
+              initialCameraFit: _cameraFit(bounds),
+              // The pre-fit camera, i.e. what the tile layer loads on mount.
+              // Whole zoom level, and already over the pins: 5.5 rendered every
+              // tile at 71% of native, and the fallback centre spent a
+              // viewport's worth of tile requests on the wrong part of Germany.
+              initialCenter: bounds.center,
+              initialZoom: _fitMaxZoom,
+              maxZoom: _maxZoom,
             ),
             children: [
               const MapTileLayer(),

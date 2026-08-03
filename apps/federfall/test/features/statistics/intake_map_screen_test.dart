@@ -5,6 +5,7 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart' hide Finder;
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -137,6 +138,35 @@ void main() {
       expect(find.text('CASE c1'), findsOneWidget);
     },
   );
+
+  // Two finds at the same coordinates give `CameraFit.bounds` a zero-size
+  // bounds, so its viewport/bounds scale — and the zoom it derives from it —
+  // is infinite. Nothing downstream clamps that, so the fit has to. It also
+  // has to land on a whole zoom level: a raster tile is only pixel-exact
+  // there, and off it every tile on screen is drawn through a resample.
+  testWidgets('fits coincident pins to a finite, whole zoom level', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    when(() => cases.list()).thenAnswer(
+      (_) async => [
+        for (final id in ['c1', 'c2'])
+          Case(
+            id: id,
+            animal: 'a1',
+            admittedAt: now,
+            findGeo: const GeoPoint(lat: 52.5, lon: 13.4),
+          ),
+      ],
+    );
+
+    await pump(tester);
+
+    final zoom = MapCamera.of(tester.element(find.byType(MarkerLayer))).zoom;
+    expect(zoom.isFinite, isTrue);
+    expect(zoom, zoom.roundToDouble());
+    expect(zoom, lessThanOrEqualTo(16));
+  });
 
   testWidgets('shows an empty state when nothing has a find-location', (
     tester,
