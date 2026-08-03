@@ -148,3 +148,18 @@ String eggFateLabel(AppLocalizations l10n, EggFate f) => switch (f) {
   EggFate.discarded => l10n.eggFateDiscarded,
   EggFate.unknown => l10n.eggFateUnknown,
 };
+
+/// "2026-001 · Bella" — how a case names itself outside its own screen: in a
+/// reminder notification, a calendar entry, a worklist row. Whichever of the
+/// two parts exist, falling back to a placeholder for a case with neither.
+String caseTitleLabel(
+  AppLocalizations l10n, {
+  String? caseNumber,
+  String? animalName,
+}) {
+  final parts = [
+    ?caseNumber,
+    if (animalName != null && animalName.isNotEmpty) animalName,
+  ];
+  return parts.isEmpty ? l10n.worklistUnnumberedCase : parts.join(' · ');
+}

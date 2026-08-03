@@ -1,3 +1,4 @@
+import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
@@ -238,17 +239,15 @@ List<PlannedReminder> mergeReminders({
   return kept..sort(soonestFirst);
 }
 
-/// "2026-001 · Bella" — the case number and the bird's name, whichever exist,
-/// falling back to a generic label for an unnumbered, unnamed case.
+/// "2026-001 · Bella" for the case a reminder belongs to — the shared spelling,
+/// so a notification names a case exactly as the worklist row and the calendar
+/// entry for the same case do.
 String _caseTitle(
   AppLocalizations l10n,
   Case c,
   Map<String, String?> animalNameById,
-) {
-  final name = animalNameById[c.animal];
-  final title = [
-    ?c.caseNumber,
-    if (name != null && name.isNotEmpty) name,
-  ].join(' · ');
-  return title.isEmpty ? l10n.worklistUnnumberedCase : title;
-}
+) => caseTitleLabel(
+  l10n,
+  caseNumber: c.caseNumber,
+  animalName: animalNameById[c.animal],
+);

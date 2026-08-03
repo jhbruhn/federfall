@@ -127,5 +127,17 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- federfall-v3a8: "add to calendar" on a vet appointment. add_2_calendar
+             calls intent.resolveActivity() before starting the insert intent, and
+             under API 30+ package visibility that returns null for anything not
+             declared here — i.e. WITHOUT this block the action silently reports
+             "nothing was added" on every modern device, calendar app installed or
+             not. No READ_CALENDAR/WRITE_CALENDAR permissions: nothing is written
+             behind the user's back, the calendar app's own editor opens prefilled
+             and they save it. -->
+        <intent>
+            <action android:name="android.intent.action.INSERT"/>
+            <data android:mimeType="vnd.android.cursor.item/event"/>
+        </intent>
     </queries>
 </manifest>

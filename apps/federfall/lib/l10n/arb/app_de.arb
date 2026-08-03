@@ -186,6 +186,8 @@
     "vetAppointmentMarkAttended": "Als wahrgenommen markieren",
     "vetAppointmentReopen": "Wieder öffnen",
     "vetAppointmentAddOutcome": "Ergebnis ergänzen",
+    "vetAppointmentAddToCalendar": "Zum Kalender hinzufügen",
+    "vetAppointmentCalendarNotAdded": "Es wurde nichts zum Kalender hinzugefügt.",
     "vetAppointmentCancel": "Termin absagen",
     "vetAppointmentUncancel": "Absage aufheben",
     "vetAppointmentEditAction": "Bearbeiten",

@@ -1,8 +1,12 @@
+import 'package:federfall/core/calendar/calendar_export.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
+import 'package:federfall/features/cases/vet_appointments/vet_appointment_calendar.dart';
 import 'package:federfall/features/cases/vet_appointments/vet_appointment_sheet.dart';
+import 'package:federfall/features/reminders/reminder_settings.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -43,6 +47,42 @@ class VetAppointmentTile extends ConsumerWidget {
       ..invalidate(caseBundleProvider(caseId))
       ..invalidate(worklistSourceProvider);
   });
+
+  /// Hands the appointment to the device's calendar app (federfall-v3a8).
+  ///
+  /// A one-way hand-off: the calendar's own editor opens prefilled and the user
+  /// saves it there, so nothing links the two afterwards — editing the
+  /// appointment here does not update the calendar entry, and exporting twice
+  /// makes two entries. That is why this is an explicit action rather than
+  /// something the sheet does on save.
+  Future<void> _addToCalendar(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    return runQuickAction(context, () async {
+      // Already resolved — the appointment list this tile came from is served
+      // off the same bundle — so this awaits nothing in practice.
+      final bundle = await ref.read(caseBundleProvider(caseId).future);
+      final event = vetAppointmentCalendarEvent(
+        l10n: l10n,
+        appointment: appointment,
+        caseTitle: caseTitleLabel(
+          l10n,
+          caseNumber: bundle.medicalCase.caseNumber,
+          animalName: bundle.animal?.name,
+        ),
+        defaultLead: await ref.read(appointmentReminderLeadProvider.future),
+      );
+      if (event == null) return;
+      if (await ref.read(calendarExporterProvider).add(event)) return;
+      // Nothing landed: no calendar app, or the editor was cancelled. The
+      // platforms don't distinguish those, so say only what is certain — on
+      // Android nothing visible happened at all, and silence there would read
+      // as success.
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.vetAppointmentCalendarNotAdded)),
+      );
+    });
+  }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
@@ -121,6 +161,21 @@ class VetAppointmentTile extends ConsumerWidget {
                     focusOutcome: true,
                   ),
                 ),
+                // Only while the visit is still ahead and unresolved — the same
+                // set of appointments that gets a reminder. A calendar entry is
+                // for something that is going to happen; an attended, cancelled
+                // or past appointment belongs in the case history, which is
+                // exactly where this tile already is.
+                if (startsAt != null &&
+                    startsAt.isAfter(DateTime.now()) &&
+                    !attended &&
+                    !cancelled &&
+                    ref.watch(calendarExporterProvider).isSupported)
+                  MenuAction(
+                    icon: Icons.event_outlined,
+                    label: l10n.vetAppointmentAddToCalendar,
+                    onTap: () => _addToCalendar(context, ref),
+                  ),
                 MenuAction(
                   icon: cancelled
                       ? Icons.event_repeat_outlined

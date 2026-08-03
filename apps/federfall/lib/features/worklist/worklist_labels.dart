@@ -1,3 +1,4 @@
+import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:flutter/material.dart';
@@ -26,14 +27,12 @@ String worklistGroupLabel(AppLocalizations l10n, WorklistKind kind) =>
 
 /// Row title — the case number and animal name (whichever are present),
 /// falling back to a placeholder when neither is.
-String worklistItemTitle(AppLocalizations l10n, WorklistItem item) {
-  final name = item.animalName;
-  final parts = [
-    ?item.caseNumber,
-    if (name != null && name.isNotEmpty) name,
-  ];
-  return parts.isEmpty ? l10n.worklistUnnumberedCase : parts.join(' · ');
-}
+String worklistItemTitle(AppLocalizations l10n, WorklistItem item) =>
+    caseTitleLabel(
+      l10n,
+      caseNumber: item.caseNumber,
+      animalName: item.animalName,
+    );
 
 /// Row subtitle — the drug and/or a relative due/age phrase, as of [now].
 String worklistItemDetail(

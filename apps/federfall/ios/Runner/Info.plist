@@ -58,6 +58,14 @@
 	<string>Federfall uses Bluetooth to discover and connect to a receipt printer.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Federfall uses your local network to discover and connect to a receipt printer.</string>
+	<!-- federfall-v3a8: "add to calendar" on a vet appointment. add_2_calendar
+	     presents EventKit's own event editor, so iOS demands a usage string even
+	     though the app never reads the calendar itself. Both keys: iOS 17+ asks
+	     for write-only access, earlier versions read the full-access key. -->
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Federfall adds a vet appointment to your calendar when you ask it to.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Federfall adds a vet appointment to your calendar when you ask it to.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
