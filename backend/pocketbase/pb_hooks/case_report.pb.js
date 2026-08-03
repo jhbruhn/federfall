@@ -157,7 +157,7 @@ routerAdd(
     // ── Gather everything the case timeline shows (mirrors
     // CaseBundle.fromRecord / case_timeline.dart's event list): the case,
     // animal, finder, and every child-by-case (or child-by-animal, for
-    // markings) collection.
+    // markings and egg records) collection.
     const byCase = (collection) =>
       e.app.findRecordsByFilter(collection, "case = {:c}", "", 0, 0, {
         c: caseId,
@@ -408,8 +408,19 @@ routerAdd(
       });
     }
 
+    // Also the case's end for the egg window further down: the LATEST
+    // disposition, matching what eggsInCaseWindow reads off the bundle (whose
+    // dispositions come newest-first, so it takes the first one).
+    let closedAtMs = null;
     for (const r of byCase("dispositions")) {
-      push(r.getString("disposed_at") || r.getString("created"), "disposition", {
+      const disposedAt = r.getString("disposed_at") || r.getString("created");
+      const ms = disposedAt
+        ? new Date(String(disposedAt).replace(" ", "T")).getTime()
+        : NaN;
+      if (!isNaN(ms) && (closedAtMs === null || ms > closedAtMs)) {
+        closedAtMs = ms;
+      }
+      push(disposedAt, "disposition", {
         type: r.getString("type") || null,
         releaseLocation: r.getString("release_location"),
         releaseType: r.getString("release_type"),
@@ -426,6 +437,71 @@ routerAdd(
         note: r.getString("note"),
         done: !!r.getString("done_at"),
       });
+    }
+
+    // Egg records (federfall-4agw) are animal-scoped like markings — there is
+    // deliberately no `case` field (1700000056), so timeline membership is
+    // computed from the animal. Unlike markings, though, they are narrowed to
+    // this case's own window, exactly as eggsInCaseWindow (eggs_providers.dart)
+    // does: a ring is a standing property of the bird, a laying event is dated,
+    // and a lifetime of them would swamp one episode's chronology. Window =
+    // admission (unbounded before it when none is recorded) to the latest
+    // disposition, or to now while the case is still open.
+    if (animalId) {
+      const admittedAt = caseRec.getString("admitted_at");
+      const fromMs = admittedAt
+        ? new Date(String(admittedAt).replace(" ", "T")).getTime()
+        : NaN;
+      const untilMs = closedAtMs !== null ? closedAtMs : Date.now();
+      const eggs = e.app.findRecordsByFilter(
+        "egg_records",
+        "animal = {:a}",
+        "",
+        0,
+        0,
+        { a: animalId },
+      );
+      for (const r of eggs) {
+        const laidAt = r.getString("laid_at") || r.getString("created");
+        const ms = laidAt
+          ? new Date(String(laidAt).replace(" ", "T")).getTime()
+          : NaN;
+        if (isNaN(ms)) continue;
+        if (!isNaN(fromMs) && ms < fromMs) continue;
+        if (ms > untilMs) continue;
+        // `attribution` is carried even when it is "confirmed" — the template
+        // decides what deserves saying, and a presumed layer must not be
+        // printed as an established fact.
+        push(laidAt, "egg", {
+          count: r.getInt("count") || null,
+          fertility: r.getString("fertility") || null,
+          fate: r.getString("fate") || null,
+          attribution: r.getString("attribution") || null,
+          notes: r.getString("notes"),
+        });
+      }
+    }
+
+    // Vet appointments (federfall-fnpo). `attended_at` / `cancelled_at` are two
+    // independent stamps, so the two booleans below have THREE meaningful
+    // combinations the template must distinguish: attended, cancelled, and
+    // neither — an unresolved appointment (including a past one) may not read
+    // as attended just because it is over.
+    for (const r of byCase("vet_appointments")) {
+      push(
+        r.getString("starts_at") || r.getString("created"),
+        "vet_appointment",
+        {
+          vet: r.getString("vet"),
+          reason: r.getString("reason"),
+          // A different fact from `reason` — what the vet actually said — so it
+          // is sent as its own field and labelled separately in the template
+          // (mirrors VetAppointmentTile's _OutcomeBox).
+          outcome: r.getString("outcome"),
+          attended: !!r.getString("attended_at"),
+          cancelled: !!r.getString("cancelled_at"),
+        },
+      );
     }
 
     for (const exam of byCase("exams")) {

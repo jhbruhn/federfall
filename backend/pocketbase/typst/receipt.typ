@@ -118,8 +118,15 @@
     #let (title, detail) = renderEvent(S, e)
     #line(length: 100%, stroke: 1pt + black)
     #v(2pt)
+    // The DATE column is the flexible one, not the kind: at ~27 mono chars a
+    // long kind next to a date-with-time (a vet appointment: "02.08.2026,
+    // 14:17" + "Tierarzttermin") exceeds the line, and a kind title is a
+    // single unbreakable word — given `1fr` it does not wrap, it overprints
+    // the date. The date has a space in it, so it breaks cleanly into
+    // date / time instead. Short rows are unaffected (the auto kind column
+    // takes its natural width either way).
     #grid(
-      columns: (auto, 1fr),
+      columns: (1fr, auto),
       align: (left, right),
       text(size: 8pt)[#fmtAt(S, e)],
       text(size: 8pt)[#title],

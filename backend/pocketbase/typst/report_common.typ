@@ -79,6 +79,26 @@
       injected: "Injiziert",
     ),
     mmTexture: (moist: "Feucht", tacky: "Klebrig", dry: "Trocken"),
+    eggCount: (n) => if n == 1 { "1 Ei" } else { str(n) + " Eier" },
+    eggFertility: (
+      unknown: "Unbekannt",
+      fertile: "Befruchtet",
+      infertile: "Unbefruchtet",
+    ),
+    eggFate: (
+      in_nest: "Im Nest",
+      dummy_swapped: "Attrappe eingelegt",
+      removed: "Entnommen",
+      hatched: "Geschlüpft",
+      broken: "Zerbrochen",
+      discarded: "Entsorgt",
+      unknown: "Unbekannt",
+    ),
+    eggAttribution: (confirmed: "Bestätigt", presumed: "vermutlich"),
+    vetOutcomeLabel: "Ergebnis",
+    vetAttended: "Wahrgenommen",
+    vetCancelled: "Abgesagt",
+    vetUnresolved: "Offen",
     freq: (once: "Einmalig", as_needed: "Bei Bedarf"),
     freqScheduled: (
       "24": "1× täglich",
@@ -105,8 +125,10 @@
       placement: "Platzierung",
       disposition: "Ausgang",
       follow_up: "Nachkontrolle",
+      vet_appointment: "Tierarzttermin",
       exam: "Untersuchung",
       quarantine: "Quarantäne",
+      egg: "Ei-Ablage",
     ),
     milestone: (admitted: "Aufgenommen", created: "Fall angelegt"),
     quarantineUntil: (date) => "Quarantäne bis " + date,
@@ -195,6 +217,22 @@
       injected: "Injected",
     ),
     mmTexture: (moist: "Moist", tacky: "Tacky", dry: "Dry"),
+    eggCount: (n) => if n == 1 { "1 egg" } else { str(n) + " eggs" },
+    eggFertility: (unknown: "Unknown", fertile: "Fertile", infertile: "Infertile"),
+    eggFate: (
+      in_nest: "In the nest",
+      dummy_swapped: "Swapped for a dummy",
+      removed: "Removed",
+      hatched: "Hatched",
+      broken: "Broken",
+      discarded: "Discarded",
+      unknown: "Unknown",
+    ),
+    eggAttribution: (confirmed: "Confirmed", presumed: "presumed"),
+    vetOutcomeLabel: "Outcome",
+    vetAttended: "Attended",
+    vetCancelled: "Cancelled",
+    vetUnresolved: "Open",
     freq: (once: "Once", as_needed: "As needed"),
     freqScheduled: (
       "24": "Once daily",
@@ -221,8 +259,10 @@
       placement: "Placement",
       disposition: "Outcome",
       follow_up: "Recheck",
+      vet_appointment: "Vet appointment",
       exam: "Exam",
       quarantine: "Quarantine",
+      egg: "Egg record",
     ),
     milestone: (admitted: "Admitted", created: "Case opened"),
     quarantineUntil: (date) => "Quarantine until " + date,
@@ -266,10 +306,13 @@
     second: 0,
   ).display(S.dateTimeFmt)
 }
-// Journal + administration show a time-of-day (mirrors formatEventDate's
-// withTime split in the app, case_timeline.dart); everything else is a
-// date-only entry.
-#let fmtAt(S, e) = if e.kind == "journal" or e.kind == "administration" {
+// Journal, administration and vet appointments show a time-of-day (mirrors
+// formatEventDate's withTime split in the app, case_timeline.dart — an
+// appointment's `starts_at` is required, so it always has a real one);
+// everything else is a date-only entry.
+#let fmtAt(S, e) = if (
+  e.kind == "journal" or e.kind == "administration" or e.kind == "vet_appointment"
+) {
   fmtDateTime(S, e.at)
 } else {
   fmtDate(S, e.at)
@@ -401,6 +444,27 @@
     let note = e.at("note", default: none)
     let base = if note != none and note != "" { note } else { S.followUpDefault }
     if e.at("done", default: false) { base + " (" + S.followUpDone + ")" } else { base }
+  } else if e.kind == "vet_appointment" {
+    // Attended wins if both stamps are somehow set (mirrors _StatusChip's
+    // switch order). "Neither" gets its own word instead of being left blank:
+    // a past appointment nobody resolved must not read as attended.
+    let resolution = if e.at("attended", default: false) {
+      S.vetAttended
+    } else if e.at("cancelled", default: false) {
+      S.vetCancelled
+    } else {
+      S.vetUnresolved
+    }
+    let vet = e.at("vet", default: none)
+    // Labelled, because "what we went for" and "what came of it" are different
+    // facts — the same reason the tile boxes the outcome off.
+    let outcome = e.at("outcome", default: none)
+    joinDash((
+      if vet != none and vet != "" { vet },
+      e.at("reason", default: none),
+      if outcome != none and outcome != "" { S.vetOutcomeLabel + ": " + outcome },
+      resolution,
+    ))
   } else if e.kind == "exam" {
     let bc = e.at("bodyCondition", default: none)
     let temp = e.at("temperature", default: none)
@@ -436,6 +500,27 @@
       let base = if until != none { (S.quarantineUntil)(until) } else { S.kindTitle.quarantine }
       joinDash((base, e.at("reason", default: none)))
     }
+  } else if e.kind == "egg" {
+    let count = e.at("count", default: none)
+    // "unknown" is what these store when nobody looked — the tile leaves it
+    // out rather than printing a non-answer, and so does this.
+    let fertility = e.at("fertility", default: none)
+    let fate = e.at("fate", default: none)
+    let bits = joinDot((
+      if count != none { (S.eggCount)(count) },
+      if fertility != none and fertility != "unknown" { lbl(S.eggFertility, fertility) },
+      if fate != none and fate != "unknown" { lbl(S.eggFate, fate) },
+    ))
+    // A layer that is only guessed at is not a fact the report may assert
+    // (mirrors EggEntryTile's "presumed" chip); anything but "confirmed" says so.
+    let attribution = e.at("attribution", default: none)
+    let attr = if attribution != none and attribution != "confirmed" {
+      lbl(S.eggAttribution, attribution)
+    }
+    let head = if attr == none { bits } else if bits == "" { attr } else {
+      bits + " (" + attr + ")"
+    }
+    joinDash((if head != "" { head }, e.at("notes", default: none)))
   } else {
     ""
   }

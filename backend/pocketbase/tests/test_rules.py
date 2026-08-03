@@ -1870,6 +1870,32 @@ def main():
     # new edge here: a read-only share must ALSO get the report (unlike
     # editing, which the edit-share-only checks above already cover).
     print("\n[case report PDF route]")
+    # federfall-wwn1: vet appointments and egg records belong to the chronology
+    # this report claims to mirror. Each is a renderEvent branch in
+    # report_common.typ with its own STRINGS entries in BOTH locales, and a key
+    # missing from one of them is a Typst panic — i.e. a 500 out of this route.
+    # Putting these rows on aex_case is what turns the de/en fetches below into
+    # a real check on them (the PDF's own text is not inspectable from here:
+    # subsetted fonts, compressed streams).
+    mk(T, "vet_appointments", {
+        "case": aex_case, "org": ORG, "starts_at": "2026-06-26 14:30:00.000Z",
+        "vet": "Dr. Meyer", "reason": "Flügel röntgen",
+        "outcome": "Fraktur verheilt", "attended_at": "2026-06-26 15:10:00.000Z"})
+    mk(T, "vet_appointments", {
+        "case": aex_case, "org": ORG, "starts_at": "2026-06-27 09:00:00.000Z",
+        "vet": "Tierklinik Nord", "reason": "Kontrolle",
+        "cancelled_at": "2026-06-26 18:00:00.000Z"})
+    # Neither stamp set: renders as unresolved, NOT as attended.
+    mk(T, "vet_appointments", {
+        "case": aex_case, "org": ORG, "starts_at": "2026-06-28 09:00:00.000Z"})
+    # A presumed layer, and a bare record with no enum values at all.
+    mk(T, "egg_records", {"animal": animal, "org": ORG, "count": 2,
+                          "laid_at": "2026-06-29 07:00:00.000Z",
+                          "fertility": "fertile", "fate": "dummy_swapped",
+                          "attribution": "presumed", "notes": "Attrappen rein"})
+    mk(T, "egg_records", {"animal": animal, "org": ORG, "count": 1,
+                          "laid_at": "2026-06-30 07:00:00.000Z"})
+
     s, _, _ = req_bytes("GET", f"/api/federfall/cases/{aex_case}/report.pdf")
     check("report route requires auth", s == 401, f"status {s}")
     s, _, _ = req_bytes("GET", f"/api/federfall/cases/{aex_case}/report.pdf", gtok)
@@ -1903,6 +1929,55 @@ def main():
         "GET", f"/api/federfall/cases/{aex_case}/report.pdf?lang=fr", toks["a"])
     check("unmapped ?lang= falls back to German (200, application/pdf)",
           s == 200 and bool(body) and body[:5] == b"%PDF-", f"status {s}")
+
+    # The thermal-receipt variant (federfall-i0wq) is the same payload through
+    # the same renderEvent, so a template panic on either new kind surfaces here
+    # too — and it is the layout with no width to spare (federfall-wwn1 had to
+    # make the date column the flexible one so a long kind title stopped
+    # overprinting it).
+    s, body, hdrs = req_bytes(
+        "GET", f"/api/federfall/cases/{aex_case}/report.pdf?widthDots=384",
+        toks["a"])
+    check("?widthDots= renders the thermal receipt (200, image/png)",
+          s == 200 and hdrs.get("Content-Type") == "image/png"
+          and bool(body) and body[:8] == b"\x89PNG\r\n\x1a\n",
+          f"status {s} type {hdrs.get('Content-Type')}")
+
+    # federfall-wwn1: egg records carry no `case` (1700000056) — the report
+    # derives membership from the animal, and narrows it to the case's own
+    # window exactly as eggsInCaseWindow does client-side, or one treatment
+    # episode's chronology would list a lifetime of laying events. The window
+    # here is pinned by a fixed admission + disposition, so this does not depend
+    # on when the suite runs. The PDF text can't be read from here, but the
+    # render IS deterministic in LENGTH for identical content (only an embedded
+    # timestamp varies, at a fixed width), so a row that does or doesn't appear
+    # shows up as a changed or unchanged byte count.
+    wanimal = mk(T, "animals", {"species": "Ringeltaube", "org": ORG})["id"]
+    wcase = mk(T, "cases", {"animal": wanimal, "active_carer": A, "org": ORG,
+                            "admitted_at": "2026-03-01 08:00:00.000Z"})["id"]
+    mk(T, "dispositions", {"case": wcase, "org": ORG, "type": "released",
+                           "disposed_at": "2026-03-20 10:00:00.000Z"})
+
+    def report_len(cid):
+        st, bd, _ = req_bytes("GET", f"/api/federfall/cases/{cid}/report.pdf",
+                              toks["a"])
+        return len(bd) if st == 200 and bd else 0
+
+    base_len = report_len(wcase)
+    check("setup: the window case's report renders", base_len > 0)
+    mk(T, "egg_records", {"animal": wanimal, "org": ORG, "count": 2,
+                          "laid_at": "2026-03-10 06:00:00.000Z"})
+    in_len = report_len(wcase)
+    check("an egg laid inside the case window enters the chronology",
+          in_len != base_len, f"{base_len} -> {in_len}")
+    mk(T, "egg_records", {"animal": wanimal, "org": ORG, "count": 1,
+                          "laid_at": "2026-02-01 06:00:00.000Z"})
+    check("an egg laid BEFORE admission does not",
+          report_len(wcase) == in_len, f"{in_len} -> {report_len(wcase)}")
+    mk(T, "egg_records", {"animal": wanimal, "org": ORG, "count": 1,
+                          "laid_at": "2026-04-01 06:00:00.000Z"})
+    check("an egg laid AFTER the disposition does not",
+          report_len(wcase) == in_len, f"{in_len} -> {report_len(wcase)}")
 
     # ── federfall-oxqk / federfall-zdcb: member removal ──────────────────────
     # oxqk turned out to be a false positive (users.deleteRule IS
