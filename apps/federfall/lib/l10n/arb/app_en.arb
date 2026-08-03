@@ -1828,7 +1828,7 @@
     "@examBodyConditionHelp": { "description": "Helper explaining the 1-5 body condition scale" },
     "examHydrationLabel": "Hydration",
     "@examHydrationLabel": { "description": "Label for the hydration assessment" },
-    "examHydrationHelp": "Normal – Severe = increasing dehydration (approx. 5 / 7 / ≥10 %)",
+    "examHydrationHelp": "Normal → Severe = increasing dehydration (approx. 5 / 7 / ≥10 %)",
     "@examHydrationHelp": { "description": "Helper explaining the hydration/dehydration severity scale" },
     "examMentationLabel": "Attitude",
     "@examMentationLabel": { "description": "Label for the mentation/attitude assessment" },
