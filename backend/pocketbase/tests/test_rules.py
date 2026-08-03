@@ -1145,6 +1145,73 @@ def main():
     s, _ = req("GET", f"/api/collections/follow_ups/records/{fu['id']}", te)
     check("other-org member CANNOT read the recheck", s != 200, f"status {s}")
 
+    # ── vet_appointments (federfall-fnpo) ───────────────────────────────────
+    # Case-scoped exactly like follow_ups: the owner can book and read a visit;
+    # a same-org outsider with no share cannot; another org sees nothing.
+    print("\n[vet_appointments]")
+    vacase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+
+    def mk_appointment(tok, **extra):
+        body = {
+            "case": vacase, "starts_at": "2026-08-06 12:30:00.000Z",
+            "vet": "Tierklinik Dr. Meyer", "reason": "Roentgen Fluegel",
+            "org": ORG,
+        }
+        body.update(extra)
+        return req("POST", "/api/collections/vet_appointments/records", tok, body)
+
+    s, va = mk_appointment(toks["a"])
+    check("owner can book a vet appointment", s == 200, f"{s} {va}")
+    s, _ = req("GET", f"/api/collections/vet_appointments/records/{va['id']}", toks["a"])
+    check("owner can read the appointment", s == 200, f"status {s}")
+    s, _ = mk_appointment(td)
+    check("same-org outsider CANNOT book an appointment", s != 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/vet_appointments/records/{va['id']}", td)
+    check("same-org outsider CANNOT read the appointment", s != 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/vet_appointments/records/{va['id']}", te)
+    check("other-org member CANNOT read the appointment", s != 200, f"status {s}")
+
+    # starts_at is the one required field — an appointment with no "when" is not
+    # an appointment, and the worklist/reminder planner both key off it.
+    s, _ = mk_appointment(toks["a"], starts_at="")
+    check("an appointment without starts_at is rejected", s != 200, f"status {s}")
+
+    # The outcome is written after the visit, on the same record.
+    s, _ = req("PATCH", f"/api/collections/vet_appointments/records/{va['id']}",
+               toks["a"], {"outcome": "Fraktur verheilt",
+                           "attended_at": "2026-08-06 13:10:00.000Z"})
+    check("owner can add the outcome afterwards", s == 200, f"status {s}")
+
+    # reminder_lead_minutes: PocketBase has no null for a number field, and it
+    # skips min/max validation for a zero on an optional field — so 0 IS
+    # accepted and is indistinguishable from "never set". That is precisely why
+    # VetAppointment.fromRecord reads 0 as "follow the device default", and why
+    # muting is a separate bool rather than a 0/-1 sentinel here.
+    s, _ = req("PATCH", f"/api/collections/vet_appointments/records/{va['id']}",
+               toks["a"], {"reminder_lead_minutes": 180})
+    check("a positive reminder lead is accepted", s == 200, f"status {s}")
+    s, back = req("PATCH", f"/api/collections/vet_appointments/records/{va['id']}",
+                  toks["a"], {"reminder_lead_minutes": 0})
+    check("a zero reminder lead round-trips as 0, not null — the client must "
+          "treat it as unset", s == 200 and (back or {}).get("reminder_lead_minutes") == 0,
+          f"{s} {back}")
+    # min:1 still earns its place: it rejects a negative, so no client can
+    # smuggle in a sentinel the mapper would misread as a real lead.
+    s, _ = req("PATCH", f"/api/collections/vet_appointments/records/{va['id']}",
+               toks["a"], {"reminder_lead_minutes": -30})
+    check("a negative reminder lead is rejected", s != 200, f"status {s}")
+
+    # Deleting the case takes its appointments with it (cascadeDelete), like
+    # every other case relation.
+    delcase = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
+    s, delva = req("POST", "/api/collections/vet_appointments/records", toks["a"], {
+        "case": delcase, "starts_at": "2026-08-06 12:30:00.000Z", "org": ORG,
+    })
+    check("appointment on the throwaway case created", s == 200, f"status {s}")
+    req("DELETE", f"/api/collections/cases/records/{delcase}", toks["sup"])
+    s, _ = req("GET", f"/api/collections/vet_appointments/records/{delva['id']}", toks["a"])
+    check("deleting the case cascades to its appointments", s == 404, f"status {s}")
+
     # ── medication_due view (cr3.6) ─────────────────────────────────────────
     # next_due = last_dose + interval_hours for a scheduled med; the view is the
     # carer's worklist source, scoped to their own cases.

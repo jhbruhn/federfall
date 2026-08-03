@@ -22,6 +22,7 @@ const _caseTimelineCollections = [
   'placements',
   'dispositions',
   'follow_ups',
+  'vet_appointments',
   'exams',
   'exam_findings',
   'markings',

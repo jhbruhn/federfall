@@ -195,6 +195,98 @@ void main() {
     });
   });
 
+  group('buildWorklist — vet appointments', () {
+    VetAppointment appointment({
+      required DateTime startsAt,
+      String id = 'v1',
+      String caseId = 'c1',
+      String? vet = 'Dr. Meyer',
+      DateTime? attendedAt,
+      DateTime? cancelledAt,
+    }) => VetAppointment(
+      id: id,
+      caseId: caseId,
+      startsAt: startsAt,
+      vet: vet,
+      attendedAt: attendedAt,
+      cancelledAt: cancelledAt,
+    );
+
+    test('an upcoming appointment within the window appears', () {
+      final startsAt = _now.add(const Duration(days: 3));
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medicationsDue: const [],
+        appointments: [appointment(startsAt: startsAt)],
+        now: _now,
+      );
+      expect(items.single.kind, WorklistKind.vetAppointment);
+      expect(items.single.severity, WorklistSeverity.upcoming);
+      expect(items.single.dueAt, startsAt);
+      expect(items.single.appointment?.vet, 'Dr. Meyer');
+    });
+
+    test('a missed appointment stays, as overdue — it still needs marking '
+        'attended or cancelled', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medicationsDue: const [],
+        appointments: [
+          appointment(startsAt: _now.subtract(const Duration(days: 2))),
+        ],
+        now: _now,
+      );
+      expect(items.single.severity, WorklistSeverity.overdue);
+    });
+
+    test('attended and cancelled appointments are excluded', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medicationsDue: const [],
+        appointments: [
+          appointment(
+            startsAt: _now.subtract(const Duration(days: 1)),
+            attendedAt: _now,
+          ),
+          appointment(
+            id: 'v2',
+            startsAt: _now.add(const Duration(days: 1)),
+            cancelledAt: _now,
+          ),
+        ],
+        now: _now,
+      );
+      expect(items, isEmpty);
+    });
+
+    test('an appointment beyond the window does not appear yet', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medicationsDue: const [],
+        appointments: [
+          appointment(startsAt: _now.add(vetAppointmentWindow * 2)),
+        ],
+        now: _now,
+      );
+      expect(items, isEmpty);
+    });
+
+    test('an appointment on an out-of-scope case is ignored', () {
+      final items = buildWorklist(
+        cases: [_case('c1')],
+        medicationsDue: const [],
+        appointments: [
+          appointment(
+            caseId: 'other',
+            startsAt: _now.add(const Duration(days: 1)),
+          ),
+        ],
+        now: _now,
+      );
+      expect(items, isEmpty);
+    });
+  });
+
   group('buildWorklist — stale cases', () {
     test('a case untouched past the threshold is flagged stale', () {
       final last = _now.subtract(const Duration(days: 10));

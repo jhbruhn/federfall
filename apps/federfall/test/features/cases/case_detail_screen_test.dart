@@ -179,7 +179,7 @@ void main() {
         // until something (e.g. an explicit SharedPreferences mock install
         // elsewhere in the same test) perturbed the timing enough to turn a
         // latent retry loop into a hard "Timer still pending" failure.
-        // Mirrors medication_reminders_test.dart's isolation of the same
+        // Mirrors reminders_test.dart's isolation of the same
         // family provider.
         collectionEventsProvider.overrideWith(
           (ref, collection) => const Stream<RecordSubscriptionEvent>.empty(),

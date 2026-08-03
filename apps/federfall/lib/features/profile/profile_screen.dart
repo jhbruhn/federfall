@@ -10,6 +10,7 @@ import 'package:federfall/features/printing/printer_labels.dart';
 import 'package:federfall/features/printing/printer_service.dart';
 import 'package:federfall/features/printing/printer_settings.dart';
 import 'package:federfall/features/profile/edit_profile_sheet.dart';
+import 'package:federfall/features/reminders/reminder_lead.dart';
 import 'package:federfall/features/reminders/reminder_scheduler.dart';
 import 'package:federfall/features/reminders/reminder_settings.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -118,7 +119,11 @@ class _ProfileBody extends StatelessWidget {
           const Divider(height: AppSpacing.lg),
           _MfaToggle(enabled: user.mfaEnabled),
           // Local notifications don't exist on the web build.
-          if (!kIsWeb) const _RemindersToggle(),
+          if (!kIsWeb) ...[
+            const _RemindersToggle(),
+            const _AppointmentRemindersToggle(),
+            const _AppointmentLeadRow(),
+          ],
           // unified_esc_pos_printer has no web support (federfall-i0wq).
           if (!kIsWeb) ...[
             const Divider(height: AppSpacing.lg),
@@ -220,6 +225,131 @@ class _RemindersToggle extends ConsumerWidget {
       onChanged: enabled.isLoading
           ? null
           : (v) => _toggle(context, ref, enabled: v),
+    );
+  }
+}
+
+/// Opt-in switch for vet-appointment reminders (federfall-fnpo).
+///
+/// Separate from [_RemindersToggle] because they are separate wants: dose pings
+/// every few hours and a heads-up before a vet visit are not the same kind of
+/// interruption, and they land in separate Android channels so the OS can mute
+/// one without the other.
+class _AppointmentRemindersToggle extends ConsumerWidget {
+  const _AppointmentRemindersToggle();
+
+  Future<void> _toggle(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool enabled,
+  }) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    if (enabled) {
+      final granted = await ref
+          .read(reminderSchedulerProvider)
+          .requestPermissions();
+      if (!granted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.remindersPermissionDenied)),
+        );
+        return;
+      }
+    }
+    await ref
+        .read(appointmentRemindersEnabledProvider.notifier)
+        .set(enabled: enabled);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final enabled = ref.watch(appointmentRemindersEnabledProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.event_outlined),
+      title: Text(l10n.appointmentRemindersToggleTitle),
+      subtitle: Text(l10n.appointmentRemindersToggleSubtitle),
+      value: enabled.value ?? false,
+      onChanged: enabled.isLoading
+          ? null
+          : (v) => _toggle(context, ref, enabled: v),
+    );
+  }
+}
+
+/// The default lead time for appointment reminders (federfall-fnpo). Only shown
+/// while appointment reminders are on — a lead time with nothing to lead is
+/// noise.
+///
+/// The choice list deliberately has no "none": that is what the switch above is
+/// for, and a switch left on with a default of "none" would produce no
+/// reminders with no visible reason. An individual appointment may still opt
+/// out, in its own sheet.
+class _AppointmentLeadRow extends ConsumerWidget {
+  const _AppointmentLeadRow();
+
+  Future<void> _pick(
+    BuildContext context,
+    WidgetRef ref,
+    Duration current,
+  ) async {
+    final l10n = context.l10n;
+    final picked = await showAppSheet<Duration>(
+      context,
+      builder: (_) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                ),
+                child: Text(
+                  l10n.appointmentReminderLeadTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              RadioGroup<Duration>(
+                groupValue: current,
+                onChanged: (value) => Navigator.of(context).pop(value),
+                child: Column(
+                  children: [
+                    for (final lead in kReminderLeadChoices)
+                      RadioListTile<Duration>(
+                        value: lead,
+                        title: Text(reminderLeadLabel(l10n, lead)),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) {
+      await ref.read(appointmentReminderLeadProvider.notifier).set(picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    if (!(ref.watch(appointmentRemindersEnabledProvider).value ?? false)) {
+      return const SizedBox.shrink();
+    }
+    final lead = ref.watch(appointmentReminderLeadProvider).value;
+    return ListTile(
+      leading: const Icon(Icons.schedule_outlined),
+      title: Text(l10n.appointmentReminderLeadTitle),
+      subtitle: Text(l10n.appointmentReminderLeadSubtitle),
+      trailing: Text(lead == null ? '' : reminderLeadLabel(l10n, lead)),
+      onTap: lead == null ? null : () => _pick(context, ref, lead),
     );
   }
 }

@@ -687,4 +687,80 @@ void main() {
       );
     });
   });
+
+  group('VetAppointment.fromRecord', () {
+    test('maps the instant, the practice and both text fields', () {
+      final a = VetAppointment.fromRecord(
+        RecordModel({
+          'id': 'v1',
+          'case': 'c1',
+          'starts_at': '2026-08-06 12:30:00.000Z',
+          'vet': 'Tierklinik Dr. Meyer',
+          'reason': 'Röntgen Flügel',
+          'outcome': 'Fraktur verheilt',
+          'attended_at': '2026-08-06 13:10:00.000Z',
+          'created_by': 'u1',
+          'org': 'org1',
+        }),
+      );
+      expect(a.caseId, 'c1');
+      expect(a.startsAt, DateTime.utc(2026, 8, 6, 12, 30));
+      expect(a.vet, 'Tierklinik Dr. Meyer');
+      expect(a.reason, 'Röntgen Flügel');
+      expect(a.outcome, 'Fraktur verheilt');
+      expect(a.attendedAt, DateTime.utc(2026, 8, 6, 13, 10));
+      expect(a.cancelledAt, isNull);
+      expect(a.createdBy, 'u1');
+      expect(a.org, 'org1');
+    });
+
+    test('a cancellation is not an attendance', () {
+      final a = VetAppointment.fromRecord(
+        RecordModel({
+          'id': 'v1',
+          'case': 'c1',
+          'cancelled_at': '2026-08-05 09:00:00.000Z',
+        }),
+      );
+      expect(a.attendedAt, isNull);
+      expect(a.cancelledAt, DateTime.utc(2026, 8, 5, 9));
+    });
+
+    // PocketBase has no null for a number field: an absent or cleared
+    // reminder_lead_minutes arrives as 0, which must read as "follow the
+    // device default" rather than "remind me zero minutes ahead".
+    test('a zero or absent lead means no override', () {
+      for (final raw in [null, 0, '']) {
+        final a = VetAppointment.fromRecord(
+          RecordModel({
+            'id': 'v1',
+            'case': 'c1',
+            if (raw != null) 'reminder_lead_minutes': raw,
+          }),
+        );
+        expect(a.reminderLeadMinutes, isNull, reason: 'raw: $raw');
+      }
+      expect(
+        VetAppointment.fromRecord(
+          RecordModel({'id': 'v1', 'case': 'c1', 'reminder_lead_minutes': 180}),
+        ).reminderLeadMinutes,
+        180,
+      );
+    });
+
+    test('reminder_muted defaults to false, never null', () {
+      expect(
+        VetAppointment.fromRecord(
+          RecordModel({'id': 'v1', 'case': 'c1'}),
+        ).reminderMuted,
+        isFalse,
+      );
+      expect(
+        VetAppointment.fromRecord(
+          RecordModel({'id': 'v1', 'case': 'c1', 'reminder_muted': true}),
+        ).reminderMuted,
+        isTrue,
+      );
+    });
+  });
 }

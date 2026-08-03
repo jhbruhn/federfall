@@ -201,6 +201,32 @@ void main() {
     });
   });
 
+  group('PbVetAppointmentsRepository', () {
+    setUp(() => wire('vet_appointments'));
+
+    test('forCase filters by case, soonest first', () async {
+      await PbVetAppointmentsRepository(pb).forCase('case1');
+      verify(() => pb.filter('case = {:c}', {'c': 'case1'})).called(1);
+      expect(capturedQuery()[1], 'starts_at');
+    });
+
+    test(
+      'openForCarer excludes attended and cancelled, bounded below',
+      () async {
+        final since = DateTime.utc(2026, 7, 4);
+        await PbVetAppointmentsRepository(pb).openForCarer('u1', since: since);
+        verify(
+          () => pb.filter(
+            'case.active_carer = {:u} && attended_at = "" && cancelled_at = ""'
+            ' && starts_at >= {:since}',
+            {'u': 'u1', 'since': since},
+          ),
+        ).called(1);
+        expect(capturedQuery()[1], 'starts_at');
+      },
+    );
+  });
+
   group('PbFindersRepository', () {
     setUp(() => wire('finders'));
 

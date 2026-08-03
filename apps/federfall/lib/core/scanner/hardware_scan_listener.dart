@@ -13,7 +13,7 @@ part 'hardware_scan_listener.g.dart';
 /// scanner hardware instead of a phone camera.
 ///
 /// Started once from the app root (`ref.listen` in `app.dart`, mirroring
-/// `medicationRemindersProvider`) and kept alive for the rest of the
+/// `remindersProvider`) and kept alive for the rest of the
 /// session. Calling `router.go()` directly here (rather than through
 /// go_router's redirect, unlike the phone-camera path in `router.dart`) is
 /// safe: a hardware scan isn't also delivered to go_router automatically the

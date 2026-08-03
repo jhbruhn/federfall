@@ -177,7 +177,7 @@ class _ShareReportButtonState extends ConsumerState<_ShareReportButton> {
     final l10n = context.l10n;
     final messenger = ScaffoldMessenger.of(context);
     // The report's language follows the app's own UI language, same as
-    // `medication_reminders.dart` does for notification text — captured
+    // `reminders.dart` does for notification text — captured
     // before the first await, matching l10n/messenger above. The server has
     // no timezone database (see case_report.pb.js), so this device's own
     // offset (DST and all) is sent directly rather than a zone name.

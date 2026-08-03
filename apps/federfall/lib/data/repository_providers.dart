@@ -93,6 +93,10 @@ Future<PbFollowUpsRepository> followUpsRepository(Ref ref) async =>
     PbFollowUpsRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbVetAppointmentsRepository> vetAppointmentsRepository(Ref ref) async =>
+    PbVetAppointmentsRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbMedicationDueRepository> medicationDueRepository(Ref ref) async =>
     PbMedicationDueRepository(await _client(ref));
 

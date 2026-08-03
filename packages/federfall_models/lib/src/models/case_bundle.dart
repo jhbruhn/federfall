@@ -8,6 +8,7 @@ import 'package:federfall_models/src/models/finder.dart';
 import 'package:federfall_models/src/models/marking.dart';
 import 'package:federfall_models/src/models/medical_case.dart';
 import 'package:federfall_models/src/models/quarantine.dart';
+import 'package:federfall_models/src/models/vet_appointment.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -24,7 +25,7 @@ const String caseBundleExpand =
     'medications_via_case,medication_administrations_via_case,'
     'placements_via_case,dispositions_via_case,follow_ups_via_case,'
     'exams_via_case,exams_via_case.exam_findings_via_exam,'
-    'quarantine_records_via_case';
+    'quarantine_records_via_case,vet_appointments_via_case';
 
 /// PocketBase truncates each expanded back-relation at 1000 records. A list
 /// of exactly this length may be incomplete — consumers fall back to the
@@ -32,7 +33,7 @@ const String caseBundleExpand =
 const int pbExpandListCap = 1000;
 
 /// Everything the case detail shows, mapped from one expanded case record:
-/// the case itself, its animal and finder, and all twelve timeline sources.
+/// the case itself, its animal and finder, and all thirteen timeline sources.
 /// Replaces one request per collection with a single round trip, and gives
 /// realtime refreshes a single provider to invalidate.
 ///
@@ -61,6 +62,7 @@ abstract class CaseBundle with _$CaseBundle {
     @Default(<Exam>[]) List<Exam> exams,
     @Default(<ExamFinding>[]) List<ExamFinding> examFindings,
     @Default(<Quarantine>[]) List<Quarantine> quarantines,
+    @Default(<VetAppointment>[]) List<VetAppointment> vetAppointments,
   }) = _CaseBundle;
 
   factory CaseBundle.fromRecord(RecordModel r) {
@@ -197,6 +199,12 @@ abstract class CaseBundle with _$CaseBundle {
         Quarantine.fromRecord,
         by: (q) => q.created,
         descending: true,
+      ),
+      vetAppointments: rel(
+        r,
+        'vet_appointments_via_case',
+        VetAppointment.fromRecord,
+        by: (a) => a.startsAt ?? a.created,
       ),
     );
   }

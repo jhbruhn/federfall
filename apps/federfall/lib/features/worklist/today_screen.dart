@@ -23,6 +23,7 @@ class TodayScreen extends ConsumerStatefulWidget {
   /// Display order of the groups (most time-critical first).
   static const List<WorklistKind> _order = [
     WorklistKind.medicationDue,
+    WorklistKind.vetAppointment,
     WorklistKind.followUpDue,
     WorklistKind.quarantineEnding,
     WorklistKind.staleCase,

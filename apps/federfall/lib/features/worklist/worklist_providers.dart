@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -24,11 +25,18 @@ part 'worklist_providers.g.dart';
 /// `WidgetRef.liveRefresh`.
 const worklistLiveCollections = [
   'follow_ups',
+  'vet_appointments',
   'medications',
   'medication_administrations',
   'quarantine_records',
   'cases',
 ];
+
+/// How far back unresolved vet appointments are still fetched. A missed
+/// appointment stays on the worklist until somebody marks it attended or
+/// cancelled, but one forgotten for a month is not a live task any more and
+/// must not be queried forever.
+const appointmentBacklog = Duration(days: 30);
 
 /// Re-evaluates the worklist every minute so time-relative items — a dose
 /// becoming due, a quarantine ending — surface as their moment arrives, the one
@@ -67,6 +75,7 @@ class WorklistSource {
     this.cases = const [],
     this.medicationsDue = const [],
     this.followUps = const [],
+    this.appointments = const [],
     this.lastActivityByCase = const {},
     this.quarantineUntilByCase = const {},
     this.animalNameById = const {},
@@ -76,6 +85,10 @@ class WorklistSource {
   final List<Case> cases;
   final List<MedicationDue> medicationsDue;
   final List<FollowUp> followUps;
+
+  /// Unresolved vet appointments on those cases — including ones beyond the
+  /// worklist's own window, which the reminder planner still needs.
+  final List<VetAppointment> appointments;
   final Map<String, DateTime?> lastActivityByCase;
   final Map<String, DateTime?> quarantineUntilByCase;
   final Map<String, String?> animalNameById;
@@ -97,6 +110,7 @@ Future<WorklistSource> worklistSource(Ref ref) async {
     animalsRepo,
     followUpsRepo,
     quarantineRepo,
+    appointmentsRepo,
   ) = await (
     ref.watch(casesRepositoryProvider.future),
     ref.watch(medicationDueRepositoryProvider.future),
@@ -104,6 +118,7 @@ Future<WorklistSource> worklistSource(Ref ref) async {
     ref.watch(animalsRepositoryProvider.future),
     ref.watch(followUpsRepositoryProvider.future),
     ref.watch(caseQuarantineRepositoryProvider.future),
+    ref.watch(vetAppointmentsRepositoryProvider.future),
   ).wait;
 
   final allCases = await casesRepo.list(sort: '-created');
@@ -114,7 +129,10 @@ Future<WorklistSource> worklistSource(Ref ref) async {
 
   final animalIds = {for (final c in myActive) c.animal};
 
-  // Independent queries, all fired at once and awaited together.
+  // Independent queries, all fired at once and awaited together. `.wait`
+  // rejects with a ParallelWaitError if ANY of them fails, which is right for
+  // these: a worklist missing a source silently would be worse than an error
+  // with a retry.
   final (medicationsDue, followUps, activity, animals, quarantine) = await (
     medDueRepo.mine(me),
     followUpsRepo.openForCarer(me),
@@ -123,10 +141,31 @@ Future<WorklistSource> worklistSource(Ref ref) async {
     quarantineRepo.all(),
   ).wait;
 
+  // Appointments are the exception, and deliberately tolerant. The app/server
+  // compatibility gate checks the MAJOR version only, and an APK that
+  // auto-updated ahead of its container is the common self-hoster case — such a
+  // client 404s on `vet_appointments`. In the `.wait` above that would take
+  // down the whole worklist AND every reminder; degrading to "no appointments"
+  // costs only the feature that cannot work anyway.
+  var appointments = const <VetAppointment>[];
+  try {
+    appointments = await appointmentsRepo.openForCarer(
+      me,
+      since: DateTime.now().toUtc().subtract(appointmentBacklog),
+    );
+  } on Object catch (error, stackTrace) {
+    reportCaughtError(
+      error,
+      stackTrace,
+      context: 'Loading vet appointments for the worklist failed',
+    );
+  }
+
   return WorklistSource(
     cases: myActive,
     medicationsDue: medicationsDue,
     followUps: followUps,
+    appointments: appointments,
     lastActivityByCase: {for (final a in activity) a.id: a.lastActivity},
     quarantineUntilByCase: {for (final q in quarantine) q.id: q.until},
     animalNameById: {for (final a in animals) a.id: a.name},
@@ -140,6 +179,7 @@ Future<List<WorklistItem>> worklist(Ref ref) async {
     cases: source.cases,
     medicationsDue: source.medicationsDue,
     followUps: source.followUps,
+    appointments: source.appointments,
     lastActivityByCase: source.lastActivityByCase,
     quarantineUntilByCase: source.quarantineUntilByCase,
     animalNameById: source.animalNameById,

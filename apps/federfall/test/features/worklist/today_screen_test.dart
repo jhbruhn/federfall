@@ -78,6 +78,34 @@ void main() {
     expect(find.byTooltip('Log dose'), findsOneWidget);
   });
 
+  testWidgets('a vet appointment names the practice and offers no quick '
+      'action — attending it means writing the outcome, which is the sheet', (
+    tester,
+  ) async {
+    await _pump(tester, [
+      WorklistItem(
+        kind: WorklistKind.vetAppointment,
+        caseId: 'c1',
+        caseNumber: '2026-004',
+        animalName: 'Otto',
+        dueAt: _now.add(const Duration(hours: 3)),
+        severity: WorklistSeverity.upcoming,
+        appointment: VetAppointment(
+          id: 'v1',
+          caseId: 'c1',
+          startsAt: _now.add(const Duration(hours: 3)),
+          vet: 'Dr. Meyer',
+        ),
+      ),
+    ]);
+
+    expect(find.text('Vet appointments'), findsOneWidget);
+    expect(find.text('2026-004 · Otto'), findsOneWidget);
+    expect(find.textContaining('Dr. Meyer'), findsOneWidget);
+    expect(find.byType(IconButton), findsNothing);
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+  });
+
   testWidgets('wide screens show the worklist beside a selection placeholder', (
     tester,
   ) async {

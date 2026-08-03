@@ -7,6 +7,7 @@ import 'package:federfall/core/logging/logging_observer.dart';
 import 'package:federfall/routing/url_strategy/url_strategy.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 /// `vector_map_tiles`'s tile loader (`_VectorTileModelLoader.startLoading` in
 /// `grid/tile_model.dart`) awaits its sprite-atlas fetch outside its own
@@ -23,6 +24,16 @@ bool _isBenignVectorTileCancellation(Object error) =>
 
 Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // `intl`'s date symbols, which `DateFormat` needs before it will accept a
+  // locale. Inside the widget tree flutter_localizations' delegate loads them
+  // as a side effect, but the reminder planner formats appointment times with
+  // no BuildContext and runs from a provider the root widget merely `listen`s —
+  // i.e. possibly before that delegate. Without this, a cold start could throw
+  // ArgumentError('Invalid locale "de"') out of the planner and schedule
+  // nothing at all, medication reminders included. (Synchronous work behind an
+  // already-completed Future, so the await costs a microtask.)
+  await initializeDateFormatting();
 
   // One configured logger drives the global error handlers, the provider
   // observer and the in-app appLoggerProvider, so every log shares config.

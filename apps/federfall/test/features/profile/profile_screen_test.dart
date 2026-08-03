@@ -255,7 +255,8 @@ void main() {
     expect(find.textContaining('Epson TM-T88IV'), findsOneWidget);
     expect(find.textContaining('10.0.0.5:9100'), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.text('Test print'), 100);
+    await tester.ensureVisible(find.text('Test print'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Test print'));
     await tester.pumpAndSettle();
 
@@ -277,7 +278,8 @@ void main() {
       printerService: printer,
     );
 
-    await tester.scrollUntilVisible(find.text('Test print'), 100);
+    await tester.ensureVisible(find.text('Test print'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Test print'));
     await tester.pumpAndSettle();
 
@@ -297,6 +299,8 @@ void main() {
       printerService: printer,
     );
 
+    await tester.ensureVisible(find.byTooltip('Remove printer'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Remove printer'));
     await tester.pumpAndSettle();
     expect(find.text('Remove printer?'), findsOneWidget);
@@ -306,6 +310,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Epson TM-T88IV'), findsOneWidget);
 
+    await tester.ensureVisible(find.byTooltip('Remove printer'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Remove printer'));
     await tester.pumpAndSettle();
     await tester.tap(

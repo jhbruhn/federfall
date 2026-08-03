@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 /// Leading icon for a worklist item's kind.
 IconData worklistIcon(WorklistKind kind) => switch (kind) {
   WorklistKind.medicationDue => Icons.vaccines_outlined,
+  WorklistKind.vetAppointment => Icons.local_hospital_outlined,
   WorklistKind.followUpDue => Icons.event_repeat_outlined,
   WorklistKind.quarantineEnding => Icons.shield_outlined,
   WorklistKind.staleCase => Icons.history_outlined,
@@ -17,6 +18,7 @@ IconData worklistIcon(WorklistKind kind) => switch (kind) {
 String worklistGroupLabel(AppLocalizations l10n, WorklistKind kind) =>
     switch (kind) {
       WorklistKind.medicationDue => l10n.worklistGroupMeds,
+      WorklistKind.vetAppointment => l10n.worklistGroupAppointments,
       WorklistKind.followUpDue => l10n.worklistGroupFollowUps,
       WorklistKind.quarantineEnding => l10n.worklistGroupQuarantine,
       WorklistKind.staleCase => l10n.worklistGroupStale,
@@ -46,7 +48,11 @@ String worklistItemDetail(
     item.drug == null
         ? _relativeDue(l10n, item.dueAt, now)
         : '${item.drug} · ${_relativeDue(l10n, item.dueAt, now)}',
-  WorklistKind.followUpDue => _withNote(
+  WorklistKind.vetAppointment => _withPrefix(
+    item.appointment?.vet,
+    _relativeDue(l10n, item.dueAt, now),
+  ),
+  WorklistKind.followUpDue => _withPrefix(
     item.followUp?.note,
     _relativeDue(l10n, item.dueAt, now),
   ),
@@ -56,9 +62,10 @@ String worklistItemDetail(
   },
 };
 
-/// "{note} · {relative}" when a note is present, else just the relative phrase.
-String _withNote(String? note, String relative) =>
-    (note != null && note.isNotEmpty) ? '$note · $relative' : relative;
+/// "{prefix} · {relative}" when the prefix (a recheck's note, an appointment's
+/// practice) is present, else just the relative phrase.
+String _withPrefix(String? prefix, String relative) =>
+    (prefix != null && prefix.isNotEmpty) ? '$prefix · $relative' : relative;
 
 /// A relative phrase for [due] vs [now]: "Due in N h/days" ahead, or
 /// "Overdue by N h/days" once past.

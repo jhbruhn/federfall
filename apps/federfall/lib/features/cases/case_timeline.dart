@@ -21,6 +21,8 @@ import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_tile.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
+import 'package:federfall/features/cases/vet_appointments/vet_appointment_tile.dart';
+import 'package:federfall/features/cases/vet_appointments/vet_appointments_providers.dart';
 import 'package:federfall/features/cases/weights/weight_entry_tile.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -90,6 +92,7 @@ class CaseTimeline extends ConsumerWidget {
     final exams = ref.watch(examsForCaseProvider(caseId));
     final examFindings = ref.watch(examFindingsForCaseProvider(caseId));
     final quarantines = ref.watch(quarantineForCaseProvider(caseId));
+    final appointments = ref.watch(vetAppointmentsForCaseProvider(caseId));
     final isLoading =
         journal.isLoading ||
         weights.isLoading ||
@@ -103,7 +106,8 @@ class CaseTimeline extends ConsumerWidget {
         followUps.isLoading ||
         exams.isLoading ||
         examFindings.isLoading ||
-        quarantines.isLoading;
+        quarantines.isLoading ||
+        appointments.isLoading;
     final error =
         journal.error ??
         weights.error ??
@@ -117,7 +121,8 @@ class CaseTimeline extends ConsumerWidget {
         followUps.error ??
         exams.error ??
         examFindings.error ??
-        quarantines.error;
+        quarantines.error ??
+        appointments.error;
 
     // The active quarantine is the latest record (forCase sorts newest-first),
     // so only it gets the inline "end now" shortcut.
@@ -153,6 +158,9 @@ class CaseTimeline extends ConsumerWidget {
             _DispositionEvent(disposition),
           for (final followUp in followUps.value ?? const <FollowUp>[])
             _FollowUpEvent(followUp),
+          for (final appointment
+              in appointments.value ?? const <VetAppointment>[])
+            _VetAppointmentEvent(appointment),
           for (final exam in exams.value ?? const <Exam>[])
             _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
           for (final quarantine
@@ -290,6 +298,12 @@ class CaseTimeline extends ConsumerWidget {
       ),
       _FollowUpEvent(:final followUp) => FollowUpTile(
         followUp: followUp,
+        caseId: caseId,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _VetAppointmentEvent(:final appointment) => VetAppointmentTile(
+        appointment: appointment,
         caseId: caseId,
         canEdit: canEdit,
         isLast: isLast,
@@ -449,6 +463,19 @@ class _FollowUpEvent extends _Event {
   DateTime get at =>
       followUp.dueAt ??
       followUp.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A vet appointment placed on the timeline by when it is (or was) booked for.
+class _VetAppointmentEvent extends _Event {
+  const _VetAppointmentEvent(this.appointment);
+
+  final VetAppointment appointment;
+
+  @override
+  DateTime get at =>
+      appointment.startsAt ??
+      appointment.created ??
       DateTime.fromMillisecondsSinceEpoch(0);
 }
 

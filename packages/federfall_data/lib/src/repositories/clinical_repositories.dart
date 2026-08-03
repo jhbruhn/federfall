@@ -143,6 +143,42 @@ class PbFollowUpsRepository extends PbRepository<FollowUp> {
   );
 }
 
+/// Repository over the `vet_appointments` collection (booked vet visits on a
+/// case).
+class PbVetAppointmentsRepository extends PbRepository<VetAppointment> {
+  PbVetAppointmentsRepository(PocketBase pb)
+    : super(
+        pb: pb,
+        collection: 'vet_appointments',
+        fromRecord: VetAppointment.fromRecord,
+      );
+
+  /// Appointments for a case, soonest first.
+  Future<List<VetAppointment>> forCase(String caseId) => list(
+    filter: filterExpr('case = {:c}', {'c': caseId}),
+    sort: 'starts_at',
+  );
+
+  /// Unresolved appointments across the cases a carer is responsible for — one
+  /// query for the worklist instead of one per case.
+  ///
+  /// Bounded below by [since] so an appointment nobody ever marked attended or
+  /// cancelled stops being fetched eventually. There is deliberately no upper
+  /// bound: the worklist's own window decides how far ahead to *show*, and the
+  /// reminder planner needs the ones beyond it.
+  Future<List<VetAppointment>> openForCarer(
+    String userId, {
+    required DateTime since,
+  }) => list(
+    filter: filterExpr(
+      'case.active_carer = {:u} && attended_at = "" && cancelled_at = ""'
+      ' && starts_at >= {:since}',
+      {'u': userId, 'since': since},
+    ),
+    sort: 'starts_at',
+  );
+}
+
 /// Repository over the org-wide `medication_due` view (cr3.6): each active
 /// prescription with its server-computed next-due time, the worklist's
 /// medications-due source.

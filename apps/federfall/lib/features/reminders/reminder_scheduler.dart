@@ -85,6 +85,20 @@ class LocalReminderScheduler implements ReminderScheduler {
       },
     );
 
+    // Create every channel up front so ALL of them appear in Android's
+    // notification settings immediately. Otherwise a channel only exists once
+    // its first reminder has been scheduled — i.e. the whole point of splitting
+    // them (mute doses, keep appointments) would be impossible until too late.
+    for (final channel in ReminderChannel.values) {
+      await _android?.createNotificationChannel(
+        AndroidNotificationChannel(
+          channel.channelId,
+          channel.channelName,
+          importance: Importance.high,
+        ),
+      );
+    }
+
     // A tap on a notification while the app was terminated launches the app
     // instead of reaching the callback above — replay it once here.
     final launch = await _plugin.getNotificationAppLaunchDetails();
@@ -107,19 +121,12 @@ class LocalReminderScheduler implements ReminderScheduler {
 
   @override
   Future<void> replaceAll(List<PlannedReminder> reminders) async {
-    await _plugin.cancelAll();
-
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'medication_reminders',
-        // The channel name shows up in Android's notification settings.
-        // German to match the app's fixed UI language (app.dart).
-        'Medikamenten-Erinnerungen',
-        importance: Importance.high,
-        priority: Priority.high,
-        category: AndroidNotificationCategory.reminder,
-      ),
-    );
+    // Pending only, NOT cancelAll(): that also dismisses what is already
+    // SHOWING. Reconciles are frequent (every dose logged, every appointment
+    // edited), so with two sources a full cancel would keep yanking an unread
+    // appointment reminder out of the notification shade. Sign-out still uses
+    // cancelAll — there the shade content is the point.
+    await _plugin.cancelAllPendingNotifications();
 
     for (final r in reminders) {
       try {
@@ -128,11 +135,11 @@ class LocalReminderScheduler implements ReminderScheduler {
           title: r.title,
           body: r.body,
           payload: r.payload,
-          // The due moment is an absolute instant; scheduling it in UTC fires
+          // The fire moment is an absolute instant; scheduling it in UTC fires
           // at the right time in any device timezone, DST included (zones
           // only matter for recurring `matchDateTimeComponents` schedules).
-          scheduledDate: tz.TZDateTime.from(r.dueAtUtc, tz.UTC),
-          notificationDetails: details,
+          scheduledDate: tz.TZDateTime.from(r.fireAtUtc, tz.UTC),
+          notificationDetails: _detailsFor(r.channel),
           // Inexact on purpose: exact delivery needs Android's "Alarms &
           // reminders" special access, which can only be granted on a system
           // settings page — a jarring detour for no clinical gain (doses are
@@ -145,7 +152,7 @@ class LocalReminderScheduler implements ReminderScheduler {
         reportCaughtError(
           error,
           stackTrace,
-          context: 'Scheduling medication reminder failed',
+          context: 'Scheduling reminder failed',
         );
       }
     }
@@ -154,6 +161,26 @@ class LocalReminderScheduler implements ReminderScheduler {
   @override
   Future<void> cancelAll() => _plugin.cancelAll();
 }
+
+/// One details object per channel, built once rather than per scheduled
+/// reminder. Not `const`, because the ids and names come off
+/// [ReminderChannel] — duplicating them into a const map here is exactly how a
+/// channel id and its registration drift apart.
+final Map<ReminderChannel, NotificationDetails> _detailsByChannel = {
+  for (final channel in ReminderChannel.values)
+    channel: NotificationDetails(
+      android: AndroidNotificationDetails(
+        channel.channelId,
+        channel.channelName,
+        importance: Importance.high,
+        priority: Priority.high,
+        category: AndroidNotificationCategory.reminder,
+      ),
+    ),
+};
+
+NotificationDetails _detailsFor(ReminderChannel channel) =>
+    _detailsByChannel[channel]!;
 
 /// The platform-appropriate scheduler. keepAlive: the underlying plugin is a
 /// process-wide singleton and must be initialised exactly once.

@@ -10,6 +10,7 @@ import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
 import 'package:federfall/features/cases/placements/placement_sheet.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_sheet.dart';
+import 'package:federfall/features/cases/vet_appointments/vet_appointment_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -31,6 +32,7 @@ enum _AddKind {
   dose,
   marking,
   placement,
+  vetAppointment,
   followUp,
   outcome,
 }
@@ -75,6 +77,8 @@ Future<void> showAddEntrySheet(
     // asking for it before the field is visible (federfall-0se6).
     case _AddKind.placement:
       await showPlacementSheet(context, medicalCase: medicalCase);
+    case _AddKind.vetAppointment:
+      await showVetAppointmentSheet(context, caseId: caseId);
     case _AddKind.followUp:
       await showFollowUpSheet(context, caseId: caseId);
     case _AddKind.outcome:
@@ -175,6 +179,11 @@ class _AddEntrySheet extends ConsumerWidget {
       (
         l10n.timelineGroupLifecycle,
         [
+          _Entry(
+            _AddKind.vetAppointment,
+            Icons.medical_services_outlined,
+            l10n.timelineAddVetAppointment,
+          ),
           _Entry(
             _AddKind.followUp,
             Icons.event_repeat_outlined,

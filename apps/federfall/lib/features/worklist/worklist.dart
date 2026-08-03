@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 /// The kinds of derived task surfaced on the worklist (UX Phase D, cr3.1).
 enum WorklistKind {
   medicationDue,
+  vetAppointment,
   followUpDue,
   quarantineEnding,
   staleCase,
@@ -28,6 +29,7 @@ class WorklistItem {
     this.drug,
     this.medication,
     this.followUp,
+    this.appointment,
   });
 
   final WorklistKind kind;
@@ -53,6 +55,10 @@ class WorklistItem {
   /// done from the worklist. Null for other kinds.
   final FollowUp? followUp;
 
+  /// The appointment behind a [WorklistKind.vetAppointment] item, so the row
+  /// can name the practice. Null for other kinds.
+  final VetAppointment? appointment;
+
   @override
   bool operator ==(Object other) =>
       other is WorklistItem &&
@@ -64,7 +70,8 @@ class WorklistItem {
       other.animalName == animalName &&
       other.drug == drug &&
       other.medication == medication &&
-      other.followUp == followUp;
+      other.followUp == followUp &&
+      other.appointment == appointment;
 
   @override
   int get hashCode => Object.hash(
@@ -77,6 +84,7 @@ class WorklistItem {
     drug,
     medication,
     followUp,
+    appointment,
   );
 }
 
@@ -86,6 +94,11 @@ const medicationDueWindow = Duration(hours: 24);
 
 /// How far ahead a recheck counts as "due" on the worklist.
 const followUpDueWindow = Duration(days: 7);
+
+/// How far ahead a vet appointment counts as "due" on the worklist. Matches
+/// [followUpDueWindow]: both are things somebody scheduled, and behaving
+/// differently for no structural reason would be the surprise.
+const vetAppointmentWindow = Duration(days: 7);
 
 /// How long an active case may go untouched before it counts as "stale".
 const staleThreshold = Duration(days: 7);
@@ -107,11 +120,13 @@ List<WorklistItem> buildWorklist({
   required List<MedicationDue> medicationsDue,
   required DateTime now,
   List<FollowUp> followUps = const [],
+  List<VetAppointment> appointments = const [],
   Map<String, DateTime?> lastActivityByCase = const {},
   Map<String, DateTime?> quarantineUntilByCase = const {},
   Map<String, String?> animalNameById = const {},
   Duration medicationWindow = medicationDueWindow,
   Duration followUpWindow = followUpDueWindow,
+  Duration appointmentWindow = vetAppointmentWindow,
   Duration staleAfter = staleThreshold,
 }) {
   final items = <WorklistItem>[];
@@ -198,6 +213,34 @@ List<WorklistItem> buildWorklist({
         caseNumber: c.caseNumber,
         animalName: animalNameById[c.animal],
         followUp: f,
+      ),
+    );
+  }
+
+  // Vet appointments coming up within the window (or already missed).
+  //
+  // No lower bound, like rechecks: an appointment nobody marked attended or
+  // cancelled keeps showing as overdue, because that is exactly what still
+  // needs doing. The floor that stops them accumulating forever lives in the
+  // query (PbVetAppointmentsRepository.openForCarer), not here.
+  final appointmentThreshold = now.add(appointmentWindow);
+  for (final a in appointments) {
+    final c = casesById[a.caseId];
+    final startsAt = a.startsAt;
+    if (c == null || startsAt == null) continue;
+    if (a.attendedAt != null || a.cancelledAt != null) continue;
+    if (!startsAt.isBefore(appointmentThreshold)) continue;
+    items.add(
+      WorklistItem(
+        kind: WorklistKind.vetAppointment,
+        caseId: a.caseId,
+        dueAt: startsAt,
+        severity: startsAt.isAfter(now)
+            ? WorklistSeverity.upcoming
+            : WorklistSeverity.overdue,
+        caseNumber: c.caseNumber,
+        animalName: animalNameById[c.animal],
+        appointment: a,
       ),
     );
   }

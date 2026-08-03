@@ -125,6 +125,19 @@ void main() {
           'quarantine_records_via_case': [
             {'id': 'quar0000000001', 'case': 'case0000000001'},
           ],
+          'vet_appointments_via_case': [
+            {
+              'id': 'vapt0000000002',
+              'case': 'case0000000001',
+              'starts_at': '2026-08-06 12:30:00.000Z',
+              'vet': 'Dr. Meyer',
+            },
+            {
+              'id': 'vapt0000000001',
+              'case': 'case0000000001',
+              'starts_at': '2026-07-06 12:30:00.000Z',
+            },
+          ],
         },
       });
 
@@ -144,11 +157,17 @@ void main() {
       expect(b.exams.single.id, 'exam0000000001');
       expect(b.examFindings.single.exam, 'exam0000000001');
       expect(b.quarantines.single.id, 'quar0000000001');
+      expect(b.vetAppointments.map((a) => a.vet), [null, 'Dr. Meyer']);
 
       // Sorted like the per-collection queries: journal newest first,
-      // weights oldest first (the trend chart's order).
+      // weights oldest first (the trend chart's order), appointments soonest
+      // first.
       expect(b.journal.map((e) => e.text), ['newer', 'older']);
       expect(b.weights.map((w) => w.weightG), [300, 310]);
+      expect(b.vetAppointments.map((a) => a.id), [
+        'vapt0000000001',
+        'vapt0000000002',
+      ]);
     });
 
     test('an unexpanded record maps to an empty bundle', () {
@@ -171,6 +190,7 @@ void main() {
       expect(b.exams, isEmpty);
       expect(b.examFindings, isEmpty);
       expect(b.quarantines, isEmpty);
+      expect(b.vetAppointments, isEmpty);
     });
   });
 }
