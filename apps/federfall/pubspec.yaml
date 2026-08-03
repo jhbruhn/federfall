@@ -72,3 +72,19 @@ flutter:
           weight: 500
         - asset: assets/fonts/Roboto-Bold.ttf
           weight: 700
+    # Text-fallback families for glyphs Roboto's 923 codepoints lack (federfall-
+    # sbtx). On web there are no system fonts: CanvasKit/skwasm would otherwise
+    # download a per-glyph Noto slice from fonts.gstatic.com, which the CSP
+    # blocks and the engine retries on every layout of that text. Declaring them
+    # here is only half the fix — the engine checks coverage against the families
+    # a TextStyle names, so they must also be listed in AppTheme's
+    # fontFamilyFallback. Licences: assets/fonts/OFL.txt.
+    - family: Noto Sans Symbols
+      fonts:
+        - asset: assets/fonts/NotoSansSymbols-Regular.ttf
+    - family: Noto Sans Symbols 2
+      fonts:
+        - asset: assets/fonts/NotoSansSymbols2-Regular.ttf
+    - family: Noto Color Emoji
+      fonts:
+        - asset: assets/fonts/NotoColorEmoji.ttf

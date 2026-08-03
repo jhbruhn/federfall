@@ -13,11 +13,17 @@
 // from fonts.gstatic.com at startup), and the API is the serving origin
 // itself. The only cross-origin traffic left is map tiles.
 //
-// Known tradeoff: the engine also fetches per-glyph Noto FALLBACK fonts from
-// fonts.gstatic.com for glyphs no bundled font covers (mainly emoji in
-// user-entered text). This policy blocks that — such glyphs render as boxes
-// on web. Operators who prefer emoji over strict same-origin can set
-// FEDERFALL_CSP and append https://fonts.gstatic.com to font-src/connect-src.
+// The engine also fetches per-glyph Noto FALLBACK fonts for codepoints no
+// bundled font covers, from fonts.gstatic.com — this policy blocks that, and
+// the engine re-queues the failed download on every layout of that text, so one
+// stray glyph is an endless stream of console errors plus boxes on screen.
+// federfall-sbtx: the app therefore bundles the fallbacks it realistically
+// needs (Noto Sans Symbols, Symbols 2, Color Emoji — pubspec.yaml plus
+// AppTheme.fontFamilyFallback, which is the half that actually suppresses the
+// download). Remaining gap by choice: CJK/Arabic/Indic text would add ~12 MB of
+// assets, so it still hits this policy and renders as boxes. Operators serving
+// such text can set FEDERFALL_CSP and append https://fonts.gstatic.com to
+// font-src/connect-src — at the cost of a per-glyph request to Google.
 //
 //   script-src 'self' 'wasm-unsafe-eval'  wasm-unsafe-eval is what lets the
 //                                         browser instantiate the dart2wasm /

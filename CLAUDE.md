@@ -173,6 +173,17 @@ it is the one place in `pb_hooks/` that localizes anything. `tests/run.sh` bind-
 - **l10n:** every user-facing string lives in `app_en.arb` + `app_de.arb` (German is the
   primary UI language). Enum→label helpers in `features/cases/cases_labels.dart` (e.g.
   `admissionReasonLabel`), resolving `l10n` like `Validators` does.
+- **Fonts are bundled, never downloaded** (federfall-sbtx): web has no system fonts —
+  CanvasKit/skwasm resolves a codepoint no loaded font covers by fetching a per-glyph Noto
+  slice from `fonts.gstatic.com`, which `web_headers.pb.js`'s CSP blocks and the engine then
+  **retries on every layout of that text** (one `→` in an ARB string produced an endless
+  console error stream on a deployed instance). So `assets/fonts/` holds Roboto plus Noto Sans
+  Symbols / Symbols 2 / Color Emoji (COLRv1 — what the engine's own slices use), declared in
+  `pubspec.yaml`. Declaring them is only half of it: the engine tests coverage against the
+  families a `TextStyle` names, so they must ALSO be in `AppTheme.fontFamilyFallback`
+  (`test/theme/app_theme_fallbacks_test.dart` pins both halves). Roboto covers only 923
+  codepoints, so **prefer a covered character in ARB strings** (`–` not `→`) — anything
+  outside the bundled set still renders as a box on web.
 - **PocketBase JSVM gotcha:** each hook route handler / `onRecord*` callback runs in an
   isolated context — **file-level helpers/consts are NOT in scope inside a handler**. Define
   everything a handler needs inside it (expect `ReferenceError` otherwise). That isolation is

@@ -868,7 +868,7 @@
     "examBodyConditionLabel": "Ernährungszustand",
     "examBodyConditionHelp": "1 = abgemagert · 5 = adipös",
     "examHydrationLabel": "Hydratation",
-    "examHydrationHelp": "Normal → Schwer = zunehmende Dehydratation (ca. 5 / 7 / ≥10 %)",
+    "examHydrationHelp": "Normal – Schwer = zunehmende Dehydratation (ca. 5 / 7 / ≥10 %)",
     "examMentationLabel": "Verhalten",
     "examWeightLabel": "Gewicht (g)",
     "examTemperatureLabel": "Temp. (°C)",
