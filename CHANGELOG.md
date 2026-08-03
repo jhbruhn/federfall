@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1](https://github.com/jhbruhn/federfall/compare/v0.14.0...v0.14.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* **intake:** promote the first intake photo to the animal portrait ([72c3714](https://github.com/jhbruhn/federfall/commit/72c3714d8d1696385c3c165209b4a1453eebe042))
+* **models:** use a null-aware element in the vet lead test ([6f17b07](https://github.com/jhbruhn/federfall/commit/6f17b07c64ce8874c0f0b26abaddf6dd57a66af4))
+
 ## [0.14.0](https://github.com/jhbruhn/federfall/compare/v0.13.1...v0.14.0) (2026-08-03)
 
 
