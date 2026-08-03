@@ -937,10 +937,24 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
   /// Step 2 — documentation and people: photos, notes, the optional finder and
   /// the create action (with the optional intake exam).
   Widget _buildFinishStep(AppLocalizations l10n) {
+    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // The intake route promotes the first photo to the bird's org-wide
+        // portrait (federfall-v1yh), so it leaves the case's access scope —
+        // say so here, since an admission shot taken at handover can have the
+        // finder in it.
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Text(
+            l10n.caseIntakePhotoPortraitHint,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
         StagedPhotos(
           photos: _intakePhotos,
           enabled: !_busy,

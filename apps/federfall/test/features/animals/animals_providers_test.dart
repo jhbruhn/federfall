@@ -1,6 +1,13 @@
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class _MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
 AnimalListItem _item(
   String id, {
@@ -39,38 +46,53 @@ void main() {
     expect(filterAnimals(registry, 'zzz'), isEmpty);
   });
 
-  group('pickAvatarSource', () {
-    const animal = Animal(id: 'a1', species: 'Columba livia', name: 'Pip');
-
-    Case caseWith(String id, List<String> photos) =>
-        Case(id: id, animal: 'a1', intakePhotos: photos);
-
-    test('prefers the animal photo when set', () {
-      final src = pickAvatarSource(
-        animal.copyWith(photo: 'face.jpg'),
-        [
-          caseWith('c1', ['intake.jpg']),
+  // The avatar resolves `animals.photo` only (federfall-v1yh) — no case-scoped
+  // intake-photo fallback, which is what made the portrait depend on who was
+  // looking. Intake promotes the first admission photo onto the animal.
+  group('animal avatar URL', () {
+    ProviderContainer containerFor(Animal animal, PbAnimalsRepository repo) {
+      final container = ProviderContainer(
+        overrides: [
+          animalByIdProvider('a1').overrideWith((ref) async => animal),
+          animalsRepositoryProvider.overrideWith((ref) async => repo),
         ],
       );
-      expect(src!.collection, AvatarCollection.animals);
-      expect(src.recordId, 'a1');
-      expect(src.filename, 'face.jpg');
+      addTearDown(container.dispose);
+      return container;
+    }
+
+    test('thumbnail and full-res URLs come from animals.photo', () async {
+      final repo = _MockAnimalsRepo();
+      final thumb = Uri.parse('https://pb.test/face.jpg?thumb=200x200');
+      final full = Uri.parse('https://pb.test/face.jpg');
+      when(
+        () => repo.fileUrl('a1', 'face.jpg', thumb: '200x200'),
+      ).thenReturn(thumb);
+      when(() => repo.fileUrl('a1', 'face.jpg')).thenReturn(full);
+      final container = containerFor(
+        const Animal(id: 'a1', species: 'Columba livia', photo: 'face.jpg'),
+        repo,
+      );
+
+      expect(await container.read(animalAvatarUrlProvider('a1').future), thumb);
+      expect(
+        await container.read(animalAvatarFullUrlProvider('a1').future),
+        full,
+      );
     });
 
-    test('falls back to the newest case with an intake photo', () {
-      // Cases are newest-first; the newest has no photo, so the next wins.
-      final src = pickAvatarSource(animal, [
-        caseWith('c2', const []),
-        caseWith('c1', ['first.jpg', 'second.jpg']),
-      ]);
-      expect(src!.collection, AvatarCollection.cases);
-      expect(src.recordId, 'c1');
-      expect(src.filename, 'first.jpg');
-    });
+    test('is null without a photo, and asks for no file URL', () async {
+      final repo = _MockAnimalsRepo();
+      final container = containerFor(
+        const Animal(id: 'a1', species: 'Columba livia'),
+        repo,
+      );
 
-    test('returns null when nothing has a photo', () {
-      expect(pickAvatarSource(animal, [caseWith('c1', const [])]), isNull);
-      expect(pickAvatarSource(animal, const []), isNull);
+      expect(
+        await container.read(animalAvatarUrlProvider('a1').future),
+        isNull,
+      );
+      verifyNever(() => repo.fileUrl(any(), any(), thumb: any(named: 'thumb')));
     });
   });
 }

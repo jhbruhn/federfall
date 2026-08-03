@@ -372,6 +372,7 @@
     "journalAddPhotos": "Fotos hinzufügen",
     "photoAddAction": "Fotos hinzufügen",
     "photoCaptureAction": "Foto aufnehmen",
+    "caseIntakePhotoPortraitHint": "Das erste Foto wird zum Portrait des Vogels und ist für die ganze Organisation sichtbar – am besten ein Bild, auf dem nur der Vogel zu sehen ist.",
     "photoViewLabel": "Foto {index} von {total} ansehen",
     "journalTakePhoto": "Foto aufnehmen",
     "journalEditTitle": "Journaleintrag bearbeiten",

@@ -887,6 +887,8 @@
     "@photoAddAction": { "description": "Generic button to pick photos from the gallery" },
     "photoCaptureAction": "Take photo",
     "@photoCaptureAction": { "description": "Generic button to capture a photo with the camera" },
+    "caseIntakePhotoPortraitHint": "The first photo becomes the bird's portrait and is visible to everyone in your organisation — a shot of the bird alone works best.",
+    "@caseIntakePhotoPortraitHint": { "description": "Intake wizard hint: the first admission photo is promoted to the animal's org-wide portrait" },
     "photoViewLabel": "View photo {index} of {total}",
     "@photoViewLabel": {
         "description": "Semantic label on a photo thumbnail that opens the full-size viewer",

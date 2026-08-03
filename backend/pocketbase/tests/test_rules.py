@@ -1563,26 +1563,30 @@ def main():
     # Multipart intake: the Dart SDK sends the payload as an `@jsonPayload`
     # field next to the `intake_photos` files — exactly what the app does for
     # a photo intake.
-    boundary = "----fedintakeboundary"
-    payload = json.dumps({"species": "Stadttaube", "name": "Foto",
-                          "case": {"intake_notes": "with photo"}})
-    mp = (
-        f"--{boundary}\r\n"
-        'Content-Disposition: form-data; name="@jsonPayload"\r\n\r\n'
-        f"{payload}\r\n"
-        f"--{boundary}\r\n"
-        'Content-Disposition: form-data; name="intake_photos"; filename="in.png"\r\n'
-        "Content-Type: image/png\r\n\r\n"
-    ).encode() + _PNG_1X1 + f"\r\n--{boundary}--\r\n".encode()
-    r = urllib.request.Request(
-        BASE + "/api/federfall/intake", data=mp, method="POST",
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
-                 "Authorization": toks["a"]})
-    try:
-        resp = urllib.request.urlopen(r)
-        s, mic = resp.status, json.loads(resp.read().decode())
-    except urllib.error.HTTPError as err:
-        s, mic = err.code, None
+    def multipart_intake(token, payload_obj, filename="in.png"):
+        boundary = "----fedintakeboundary"
+        payload = json.dumps(payload_obj)
+        mp = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="@jsonPayload"\r\n\r\n'
+            f"{payload}\r\n"
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="intake_photos"; filename="{filename}"\r\n'
+            "Content-Type: image/png\r\n\r\n"
+        ).encode() + _PNG_1X1 + f"\r\n--{boundary}--\r\n".encode()
+        r = urllib.request.Request(
+            BASE + "/api/federfall/intake", data=mp, method="POST",
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
+                     "Authorization": token})
+        try:
+            resp = urllib.request.urlopen(r)
+            return resp.status, json.loads(resp.read().decode())
+        except urllib.error.HTTPError as err:
+            return err.code, None
+
+    s, mic = multipart_intake(toks["a"], {
+        "species": "Stadttaube", "name": "Foto",
+        "case": {"intake_notes": "with photo"}})
     check("multipart intake (jsonPayload + photos) succeeds",
           s == 200 and bool(mic and mic.get("id")), f"status {s}")
     _, mcase = req("GET", f"/api/collections/cases/records/{mic['id']}", T)
@@ -1590,6 +1594,42 @@ def main():
           len(mcase.get("intake_photos") or []) == 1, mcase.get("intake_photos"))
     check("multipart intake parsed the jsonPayload fields",
           mcase.get("intake_notes") == "with photo", mcase.get("intake_notes"))
+
+    # federfall-v1yh: the first intake photo is promoted to animals.photo in
+    # the same transaction. cases.intake_photos is case-scoped while
+    # animals.photo is org-wide identity data, so this promotion is the ONLY
+    # reason a bird's portrait is visible to a member with no access to its
+    # case — the client dropped its case-scoped avatar fallback.
+    manimal = mic["animal"]
+    _, mani = req("GET", f"/api/collections/animals/records/{manimal}", td)
+    mportrait = mani.get("photo")
+    check("intake promoted the first photo to animals.photo",
+          bool(mportrait), mani)
+    check("outsider carer CANNOT view the intake case (promotion is the point)",
+          req("GET", f"/api/collections/cases/records/{mic['id']}", td)[0] != 200)
+    mtok_d = file_token(td)
+    check("outsider carer's file token serves the promoted portrait",
+          file_status(
+              f"/api/files/animals/{manimal}/{mportrait}?token={mtok_d}") == 200)
+
+    # A later intake for the same bird must not replace the portrait (nor may
+    # it overwrite one a user picked) — fill-when-empty only.
+    s, mic2 = multipart_intake(toks["a"], {"animal": manimal}, "second.png")
+    check("second intake for the same animal succeeds", s == 200, f"status {s}")
+    _, mani2 = req("GET", f"/api/collections/animals/records/{manimal}", td)
+    check("second intake does NOT overwrite the portrait",
+          mani2.get("photo") == mportrait, mani2.get("photo"))
+
+    # The portrait is an independent copy, not a pointer into the case's
+    # storage dir: PocketBase deletes files by `<collection>/<record>/` prefix,
+    # so a case delete (which takes its whole timeline) must leave it intact.
+    s, _ = req("DELETE", f"/api/collections/cases/records/{mic['id']}",
+               toks["sup"])
+    check("supervisor deletes the photo intake case", s == 204, f"status {s}")
+    mtok_d = file_token(td)
+    check("promoted portrait survives deleting the case it came from",
+          file_status(
+              f"/api/files/animals/{manimal}/{mportrait}?token={mtok_d}") == 200)
 
     # Atomicity: a case that fails validation must roll back the already-
     # created finder + animal (no orphaned, carer-invisible PII).

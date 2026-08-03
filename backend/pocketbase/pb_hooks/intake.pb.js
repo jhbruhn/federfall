@@ -99,11 +99,10 @@ routerAdd(
     let created = null;
     e.app.runInTransaction((tx) => {
       // Animal: reuse (re-identified return, must be same-org) or create.
-      let aId = animalId;
-      if (aId) {
-        let animal;
+      let animal;
+      if (animalId) {
         try {
-          animal = tx.findRecordById("animals", aId);
+          animal = tx.findRecordById("animals", animalId);
         } catch (_) {
           throw new BadRequestError("Unknown animal.");
         }
@@ -111,13 +110,13 @@ routerAdd(
           throw new BadRequestError("Unknown animal.");
         }
       } else {
-        const animal = new Record(tx.findCollectionByNameOrId("animals"));
+        animal = new Record(tx.findCollectionByNameOrId("animals"));
         animal.set("species", species);
         if (str(body.name)) animal.set("name", str(body.name));
         animal.set("org", org);
         tx.save(animal);
-        aId = animal.id;
       }
+      const aId = animal.id;
 
       // Finder (PII): only when at least one contact field is filled.
       let finderId = "";
@@ -151,6 +150,29 @@ routerAdd(
       if (photos.length > 0) rec.set("intake_photos", photos);
       tx.save(rec); // case_number/status hook runs in this transaction
       created = rec;
+
+      // federfall-v1yh — promote the first intake photo to the bird's
+      // portrait when it has none. `animals.photo` is org-wide readable
+      // identity data while `cases.intake_photos` is case-scoped, so the
+      // header avatar used to exist only for people on the case — worst for
+      // the carer holding a bird they have no case for yet, who is exactly
+      // who the org-wide identity layer is for. This deliberately widens ONE
+      // clinical photo per bird to the whole org (an intake shot can carry
+      // the finder's hands/home, whose PII is otherwise case-gated); the
+      // wizard nudges for a bird-only portrait and anyone can swap the
+      // picture afterwards. Only ever fills an EMPTY field: a portrait a user
+      // chose — or one an earlier intake promoted — is never overwritten.
+      //
+      // The same uploaded File is saved onto two records. PocketBase keys
+      // blobs as `<collectionId>/<recordId>/<name>` and re-opens the
+      // multipart reader per upload, so each record gets its own copy and
+      // deleting one leaves the other's file intact. Both fields carry the
+      // same maxSize/mimeTypes (1700000017 / 1700000048), so a file the case
+      // accepted cannot fail validation here and abort the intake.
+      if (photos.length > 0 && !animal.getString("photo")) {
+        animal.set("photo", photos[0]);
+        tx.save(animal);
+      }
 
       // Intake weight: a real weights row (single source of truth + trend),
       // baselined at admission — was a separate client call before.

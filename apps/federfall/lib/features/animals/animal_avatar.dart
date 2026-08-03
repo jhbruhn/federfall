@@ -13,10 +13,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-/// Round animal portrait for the detail headers (ctw.7). Shows the resolved
-/// avatar image (the animal's own photo, else the latest case admission photo)
-/// or a pets placeholder. When [editable], tapping opens the set/replace/remove
-/// flow — reachable from both the animal lifetime header and the case header.
+/// Round animal portrait for the detail headers (ctw.7). Shows the animal's
+/// photo — filled at intake from the first admission photo — or a pets
+/// placeholder. When [editable], tapping opens the set/replace/remove flow —
+/// reachable from both the animal lifetime header and the case header.
 class AnimalAvatar extends ConsumerWidget {
   const AnimalAvatar({
     required this.animalId,
