@@ -98,25 +98,32 @@ FEDERFALL_GEOCODE_CACHE_DISABLED: "1"        # bypass the cache entirely (debugg
 ### Maps
 
 Map *tiles* are a separate matter from geocoding.
-By default the app renders the public [OpenFreeMap](https://openfreemap.org) vector tile style, and you can point it somewhere else from the environment — the server tells the app which tile source to use, so this works on the published image and needs no rebuild.
+The server tells the app which tile source to use, so you point the maps wherever you like from the environment — no image rebuild, and no APK rebuild.
 Both the web app and the Android app pick it up; the Android app follows whichever server it is signed in to.
 
-A raster tile server:
+The shipped `docker-compose.yml` sets OpenStreetMap's public raster tiles:
 
 ```yaml
 FEDERFALL_MAP_MODE: "raster"
-FEDERFALL_MAP_TILE_URL: "https://tiles.yourdomain.tld/{z}/{x}/{y}.png"
+FEDERFALL_MAP_TILE_URL: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 FEDERFALL_MAP_ATTRIBUTION: "© OpenStreetMap contributors"
 FEDERFALL_MAP_ATTRIBUTION_URL: "https://www.openstreetmap.org/copyright"   # optional
 ```
 
-Or a different vector style:
+> **Repoint `FEDERFALL_MAP_TILE_URL` before you grow.**
+> The [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles) does not cover using their public tiles as an application backend — it is fine while a couple of carers occasionally look at find-locations, and not fine as your permanent map layer.
+> Federfall holds up its own end of that policy (identifies itself in the user agent, caches tiles on disk, never bulk-prefetches), but the traffic decision is yours.
+> A self-hosted tile server or a commercial provider is the same one variable.
+
+Vector tiles instead — a self-hosted [OpenFreeMap](https://openfreemap.org)/OpenMapTiles stack is considerably cheaper to serve than a raster one:
 
 ```yaml
 FEDERFALL_MAP_MODE: "vector"
 FEDERFALL_MAP_STYLE_URL: "https://tiles.yourdomain.tld/styles/liberty"
 FEDERFALL_MAP_ATTRIBUTION: "© OpenMapTiles © OpenStreetMap contributors"
 ```
+
+Expect worse rendering than raster if you do: the vector path draws tiles on the Dart canvas with no GPU acceleration, which costs frame rate and label quality. It is supported, just not the default.
 
 A commercial provider that keys its tiles takes one more variable:
 

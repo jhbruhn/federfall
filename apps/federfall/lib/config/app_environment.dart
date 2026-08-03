@@ -51,21 +51,26 @@ abstract final class AppEnvironment {
   // effective values through `MapConfig`/`mapConfigProvider`, never from here
   // directly; these apply when the server prescribes nothing.
 
-  /// Raw `MAP_MODE` define (defaults to `vector`, see [mapMode]).
+  /// Raw `MAP_MODE` define (defaults to `raster`, see [mapMode]).
   static const String mapModeName = String.fromEnvironment(
     'MAP_MODE',
-    defaultValue: 'vector',
+    defaultValue: 'raster',
   );
 
   /// Which map rendering path the find-location map (FED-4.2) uses.
   ///
-  /// `vector` (the default) renders a MapLibre-style vector tile source
-  /// ([mapStyleUrl], e.g. OpenFreeMap) through `vector_map_tiles`. `raster`
-  /// falls back to a classic `{z}/{x}/{y}.png` tile server ([mapTileUrl]) —
-  /// set it for self-hosted or commercial raster tile providers.
+  /// `raster` (the default) draws a classic `{z}/{x}/{y}.png` tile server
+  /// ([mapTileUrl]) as plain images. `vector` renders a MapLibre-style vector
+  /// tile source ([mapStyleUrl], e.g. OpenFreeMap) through `vector_map_tiles`.
+  ///
+  /// Raster is the default because `vector_map_tiles` rasterizes on the Dart
+  /// canvas with no GPU path, which costs both frame rate and label quality
+  /// next to blitting ready-made images. Vector stays supported — it is what a
+  /// self-hosted OpenFreeMap/OpenMapTiles stack serves, and it is cheaper to
+  /// host — so operators who prefer it set `FEDERFALL_MAP_MODE=vector`.
   static MapMode get mapMode => switch (mapModeName) {
-    'raster' => MapMode.raster,
-    _ => MapMode.vector,
+    'vector' => MapMode.vector,
+    _ => MapMode.raster,
   };
 
   /// MapLibre style JSON URL used in [MapMode.vector] mode. Defaults to
@@ -76,18 +81,31 @@ abstract final class AppEnvironment {
   );
 
   /// Raster tile URL template used in [MapMode.raster] mode. Defaults to the
-  /// public OSM tile server — point at a self-hosted tile server in
-  /// production to respect OSM's usage policy.
+  /// public OSM tile server.
+  ///
+  /// Since [mapMode] defaults to raster, this is what a stock deployment
+  /// requests. The OSM Tile Usage Policy does not really cover an application
+  /// backend, so an operator with more than a handful of users is expected to
+  /// repoint it (`FEDERFALL_MAP_TILE_URL`, no rebuild needed) at a self-hosted
+  /// or commercial tile server — see docs/DEPLOYMENT.md. What the app owes the
+  /// policy either way it already does: identifies itself in
+  /// `MapTileLayer._userAgentPackageName`, caches tiles on disk, and never
+  /// bulk-prefetches.
   static const String mapTileUrl = String.fromEnvironment(
     'MAP_TILE_URL',
     defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   );
 
   /// Attribution shown on the map, matching whichever of [mapStyleUrl] /
-  /// [mapTileUrl] is active for the current [mapMode].
+  /// [mapTileUrl] is active for the current [mapMode] — so the default credits
+  /// OSM, whose raster tiles [mapTileUrl] points at. Switching [mapMode] to
+  /// `vector` without a matching style keeps this correct too: OpenFreeMap
+  /// serves OpenStreetMap data. Any *other* provider needs its own credit,
+  /// which is why the runtime override (federfall-el1f) refuses to apply a URL
+  /// without one.
   static const String mapAttribution = String.fromEnvironment(
     'MAP_ATTRIBUTION',
-    defaultValue: 'OpenFreeMap © OpenMapTiles Data from OpenStreetMap',
+    defaultValue: '© OpenStreetMap contributors',
   );
 
   /// Copyright/licence page the map attribution links to. Defaults to the OSM

@@ -51,12 +51,22 @@ services:
       # the URL for that mode, and the attribution are required TOGETHER: an
       # incomplete set is ignored with a warning, because a map showing one
       # provider's tiles under another's credit is a licensing problem. The
-      # CSP below picks up these origins automatically. See docs/DEPLOYMENT.md:
-      # FEDERFALL_MAP_MODE: "raster"          # or "vector"
-      # FEDERFALL_MAP_TILE_URL: "https://tiles.yourdomain.tld/{z}/{x}/{y}.png"
+      # CSP below picks up these origins automatically. See docs/DEPLOYMENT.md.
+      #
+      # Set explicitly to OSM raster below rather than left to the app's own
+      # default, so what this stack serves is visible here and one edit away.
+      # REPOINT FEDERFALL_MAP_TILE_URL at your own tile server for anything
+      # beyond a handful of users: the OSM Tile Usage Policy
+      # (https://operations.osmfoundation.org/policies/tiles) does not cover
+      # using their public tiles as an application backend.
+      FEDERFALL_MAP_MODE: "raster"          # or "vector"
+      FEDERFALL_MAP_TILE_URL: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      FEDERFALL_MAP_ATTRIBUTION: "© OpenStreetMap contributors"
+      FEDERFALL_MAP_ATTRIBUTION_URL: "https://www.openstreetmap.org/copyright"
+      # Vector instead: a self-hosted OpenFreeMap/OpenMapTiles stack is cheaper
+      # to serve, at the cost of rendering quality and frame rate (the Dart
+      # renderer has no GPU path). Swap the two URLs and the mode:
       # FEDERFALL_MAP_STYLE_URL: "https://tiles.yourdomain.tld/styles/liberty"
-      # FEDERFALL_MAP_ATTRIBUTION: "© OpenStreetMap contributors"
-      # FEDERFALL_MAP_ATTRIBUTION_URL: "https://www.openstreetmap.org/copyright"
       # Provider key, substituted for a {key} token in the URLs above (and, in
       # vector mode, inside the style's own tile/sprite URLs). NOTE /info is
       # unauthenticated, so this key is PUBLIC — restrict it by domain at the

@@ -9,9 +9,25 @@ void main() {
       final config = MapConfig.resolve(null);
 
       expect(config.mode, AppEnvironment.mapMode);
-      expect(config.url, AppEnvironment.mapStyleUrl);
       expect(config.attribution, AppEnvironment.mapAttribution);
       expect(config.attributionUrl, AppEnvironment.mapAttributionUrl);
+      // url tracks the mode, since only one of the two defines is ever in play.
+      expect(
+        config.url,
+        config.mode == MapMode.raster
+            ? AppEnvironment.mapTileUrl
+            : AppEnvironment.mapStyleUrl,
+      );
+    });
+
+    // Raster by default: vector_map_tiles has no GPU path, so it costs frame
+    // rate and label quality against plain image tiles.
+    test('the shipped default is raster OSM, credited to OSM', () {
+      final config = MapConfig.resolve(null);
+
+      expect(config.mode, MapMode.raster);
+      expect(config.url, 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+      expect(config.attribution, '© OpenStreetMap contributors');
     });
 
     test('takes the whole prescription when the server sends one', () {

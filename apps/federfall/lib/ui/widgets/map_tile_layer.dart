@@ -10,14 +10,14 @@ import 'package:vector_map_tiles/vector_map_tiles.dart';
 /// The source comes from [mapConfigProvider] — the server's prescription when
 /// it sends one, otherwise the build-time defines (federfall-el1f). Picks a
 /// rendering path from its [MapConfig.mode]:
-/// - `vector` (default): loads a MapLibre style (e.g. OpenFreeMap) and renders
-///   it through `vector_map_tiles`.
-/// - `raster`: a classic raster [TileLayer], for self-hosted or commercial
-///   raster tile servers. Enables flutter_map's built-in disk caching
-///   explicitly, which the OpenStreetMap Tile Usage Policy requires when
-///   pointed at OSM's public raster tiles (the policy's primary requirement);
-///   the vector path gets its own file-based tile cache from
-///   `vector_map_tiles`.
+/// - `raster` (default): a classic raster [TileLayer]. Enables flutter_map's
+///   built-in disk caching explicitly, which the OpenStreetMap Tile Usage
+///   Policy requires when pointed at OSM's public raster tiles (the policy's
+///   primary requirement, and the stock default points there).
+/// - `vector`: loads a MapLibre style (e.g. OpenFreeMap) and renders it through
+///   `vector_map_tiles`, which brings its own file-based tile cache. Not the
+///   default: it rasterizes on the Dart canvas with no GPU path, so both frame
+///   rate and label quality trail plain image tiles.
 ///
 /// Note: while pointed at a public/free tile provider, do NOT pre-fetch or
 /// bulk-download tiles (e.g. to seed an offline area) — most usage policies
