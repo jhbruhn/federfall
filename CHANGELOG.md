@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/jhbruhn/federfall/compare/v0.12.0...v0.13.0) (2026-08-03)
+
+
+### Features
+
+* **dashboard:** add a carer workload card and a carer case filter ([737cc4c](https://github.com/jhbruhn/federfall/commit/737cc4cd78a3b2766b82a934caad0eb30a5ebabb))
+
 ## [0.12.0](https://github.com/jhbruhn/federfall/compare/v0.11.1...v0.12.0) (2026-08-03)
 
 
