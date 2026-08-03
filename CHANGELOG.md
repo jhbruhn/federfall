@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.0](https://github.com/jhbruhn/federfall/compare/v0.13.1...v0.14.0) (2026-08-03)
+
+
+### Features
+
+* **cases:** add a vet appointment to the device calendar ([b5ceeab](https://github.com/jhbruhn/federfall/commit/b5ceeaba7cd39610db89e7a54d5df64e269fdd43))
+* **cases:** vet appointments per case, on the Today card, with reminders ([c1b09af](https://github.com/jhbruhn/federfall/commit/c1b09af2bce188b6ba98dd807f915f1bae325556))
+
+
+### Bug Fixes
+
+* **cases:** report vet appointments and egg records ([2889c55](https://github.com/jhbruhn/federfall/commit/2889c553eca8bf2531198df08d436d13afb9e34b))
+
 ## [0.13.1](https://github.com/jhbruhn/federfall/compare/v0.13.0...v0.13.1) (2026-08-03)
 
 
