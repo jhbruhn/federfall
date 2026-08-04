@@ -2368,6 +2368,192 @@ def main():
     check("a row past its org's retention window CAN be deleted", s == 204,
           f"status {s}")
 
+    # ── federfall-qt96.3: domain emitters (Tier A) ──────────────────────────
+    # Every write through the ordinary collection API becomes one named event.
+    print("\n[audit emitters]")
+
+    def audit_for(subject_id, action=None):
+        flt = f'subject_id = "{subject_id}"'
+        if action:
+            flt += f' && action = "{action}"'
+        s, d = req("GET", "/api/collections/audit_events/records?sort=created"
+                   "&perPage=50&filter=" + urllib.parse.quote(flt), toks["sup"])
+        return d["items"] if s == 200 else []
+
+    def audit_count():
+        s, d = req("GET", "/api/collections/audit_events/records?perPage=1",
+                   toks["sup"])
+        return d["totalItems"] if s == 200 else -1
+
+    ea_animal = mk(toks["a"], "animals",
+                   {"species": "Ringeltaube", "name": "Pip", "org": ORG})["id"]
+    rows = audit_for(ea_animal, "animal.created")
+    check("creating an animal emits animal.created", len(rows) == 1, rows)
+    ev = rows[0] if rows else {}
+    check("the event snapshots who acted",
+          ev.get("actor_id") == A and ev.get("actor_role") == "carer"
+          and ev.get("actor_kind") == "user", ev)
+    check("the event names its subject", ev.get("subject_label") == "Pip"
+          and ev.get("subject_collection") == "animals", ev)
+
+    ea_case = mk(toks["a"], "cases",
+                 {"animal": ea_animal, "active_carer": A, "org": ORG})["id"]
+    rows = audit_for(ea_case, "case.created")
+    check("creating a case emits case.created", len(rows) == 1, rows)
+    ev = rows[0] if rows else {}
+    check("a case event carries its own case_id", ev.get("case_id") == ea_case, ev)
+    check("...and the animal in refs",
+          (ev.get("refs") or {}).get("animal") == ea_animal, ev)
+
+    ea_weight = mk(toks["a"], "weights", {"animal": ea_animal, "case": ea_case,
+                                          "weight_g": 300, "org": ORG})["id"]
+    check("a case-scoped row is correlated to its case",
+          (audit_for(ea_weight, "weight.created") or [{}])[0].get("case_id")
+          == ea_case, "wrong case_id")
+
+    req("PATCH", f"/api/collections/weights/records/{ea_weight}", toks["a"],
+        {"weight_g": 310})
+    rows = audit_for(ea_weight, "weight.updated")
+    check("updating emits weight.updated with the field change",
+          len(rows) == 1 and rows[0]["changes"] == [
+              {"field": "weight_g", "from": 300, "to": 310}],
+          rows[0]["changes"] if rows else rows)
+
+    # A PATCH that changes nothing is not an event: only `updated` moved, and
+    # a log full of "X changed X to X" is a log nobody reads.
+    req("PATCH", f"/api/collections/weights/records/{ea_weight}", toks["a"],
+        {"weight_g": 310})
+    check("a no-op update emits nothing",
+          len(audit_for(ea_weight, "weight.updated")) == 1, "duplicate")
+
+    # e.next() runs before the emit, so a rejected write cannot be logged.
+    before_n = audit_count()
+    s, _ = req("PATCH", f"/api/collections/weights/records/{ea_weight}",
+               toks["a"], {"weight_g": -5})
+    check("a rejected write is not logged", s >= 400 and audit_count() == before_n,
+          f"status {s}")
+    before_n = audit_count()
+    s, _ = req("POST", "/api/collections/weights/records", toks["d"],
+               {"animal": ea_animal, "case": ea_case, "weight_g": 1,
+                "org": "org00000notreal"})
+    check("a write refused by the rules is not logged either",
+          s >= 400 and audit_count() == before_n, f"status {s}")
+
+    # The rest of the timeline, one create each.
+    ea_journal = mk(toks["a"], "journal_entries",
+                    {"case": ea_case, "text": "wound check", "org": ORG})["id"]
+    ea_marking = mk(toks["a"], "markings",
+                    {"animal": ea_animal, "type": ar_type, "code": "AB-12",
+                     "org": ORG})["id"]
+    ea_egg = mk(toks["a"], "egg_records",
+                {"animal": ea_animal, "count": 2, "org": ORG})["id"]
+    ea_med = mk(toks["a"], "medications",
+                {"case": ea_case, "drug": "Meloxicam",
+                 "frequency_kind": "as_needed", "dose_unit": "mg",
+                 "org": ORG})["id"]
+    ea_adm = mk(toks["a"], "medication_administrations",
+                {"case": ea_case, "medication": ea_med, "drug": "Meloxicam",
+                 "administered_at": "2026-06-20 08:00:00.000Z", "org": ORG})["id"]
+    ea_disp = mk(toks["a"], "dispositions",
+                 {"case": ea_case, "type": "released",
+                  "disposed_at": "2026-06-21 09:00:00.000Z", "org": ORG})["id"]
+    for what, sid, action in (
+        ("journal", ea_journal, "journal.created"),
+        ("marking", ea_marking, "marking.created"),
+        ("egg record", ea_egg, "egg_record.created"),
+        ("medication", ea_med, "medication.prescribed"),
+        ("administration", ea_adm, "administration.logged"),
+        ("disposition", ea_disp, "disposition.created"),
+    ):
+        check(f"a {what} emits {action}", len(audit_for(sid, action)) == 1,
+              [r["action"] for r in audit_for(sid)])
+    check("the marking is labelled by its code",
+          (audit_for(ea_marking) or [{}])[0].get("subject_label") == "AB-12",
+          "no label")
+
+    # Deleting is an event in its own right — and the one that most needs to
+    # outlive its subject, since the row it describes is gone.
+    s, _ = req("DELETE", f"/api/collections/journal_entries/records/{ea_journal}",
+               toks["a"])
+    rows = audit_for(ea_journal, "journal.deleted")
+    check("deleting emits journal.deleted", s == 204 and len(rows) == 1,
+          f"status {s} {rows}")
+    check("the deletion event survives its subject",
+          (rows or [{}])[0].get("case_id") == ea_case, rows)
+
+    # A handoff is one action, not three: the placement is the record, and the
+    # carer move + share-on-handoff it triggers ride along in `detail`.
+    ea_place = mk(toks["a"], "placements",
+                  {"case": ea_case, "to_user": B, "org": ORG})["id"]
+    rows = audit_for(ea_place, "case.handoff")
+    check("a placement naming a to_user is a case.handoff", len(rows) == 1, rows)
+    ev = rows[0] if rows else {}
+    check("the handoff records both ends and the derived carer move",
+          (ev.get("detail") or {}).get("from") == A
+          and (ev.get("detail") or {}).get("to") == B
+          and (ev.get("detail") or {}).get("carer_moved") is True, ev)
+    check("no separate event for the derived carer change",
+          len(audit_for(ea_case, "case.updated")) == 0, "case.updated leaked")
+
+    # A supervisor changing org settings is exactly the kind of change that
+    # should leave a trace; the superuser dashboard is audited the same way,
+    # taking the org from the record because a superuser has none of their own.
+    req("PATCH", f"/api/collections/organisations/records/{ORG}", toks["sup"],
+        {"settings": {"quarantineDefaultDays": 14}})
+    rows = audit_for(ORG, "org.settings_updated")
+    check("an org settings change is logged", len(rows) >= 1, rows)
+    check("...with the supervisor as actor",
+          (rows or [{}])[-1].get("actor_role") == "supervisor", rows)
+    req("PATCH", f"/api/collections/organisations/records/{ORG}", T,
+        {"settings": {"quarantineDefaultDays": 15}})
+    rows = audit_for(ORG, "org.settings_updated")
+    check("a superuser dashboard change is logged too",
+          len(rows) >= 2 and rows[-1].get("actor_kind") == "superuser",
+          [r.get("actor_kind") for r in rows])
+
+    # A finder is a member of the public: the log records THAT one was touched
+    # and never who they are, or finder_retention.pb.js's scrub would be
+    # defeated by the one table that has no delete path.
+    ea_finder = mk(toks["a"], "finders",
+                   {"last_name": "Geheim", "phone": "0151 4711",
+                    "city": "Bremen", "org": ORG})["id"]
+    rows = audit_for(ea_finder, "finder.created")
+    check("creating a finder is logged", len(rows) == 1, rows)
+    check("...but never by name", (rows or [{}])[0].get("subject_label") == "",
+          rows)
+    # As a supervisor: the finders update rule only reaches a carer through a
+    # linked case, and this finder deliberately has none. Redaction is a
+    # property of the emitter, not of who triggered it.
+    req("PATCH", f"/api/collections/finders/records/{ea_finder}", toks["sup"],
+        {"phone": "0151 0000", "city": "Kiel"})
+    changed = (audit_for(ea_finder, "finder.updated") or [{}])[0].get("changes") or []
+    by_field = {c["field"]: c for c in changed}
+    check("a finder's contact detail is redacted to the fact of the change",
+          by_field.get("phone") == {"field": "phone", "redacted": True},
+          by_field.get("phone"))
+    check("...while what the GDPR scrub keeps stays readable",
+          by_field.get("city", {}).get("to") == "Kiel", by_field.get("city"))
+    check("no finder PII reaches the log at all",
+          "Geheim" not in json.dumps(audit_for(ea_finder))
+          and "4711" not in json.dumps(audit_for(ea_finder)), "PII leaked")
+
+    # Moving a bird between aviaries is an animal.updated. aviary_stays is a
+    # ledger aviary_stays.pb.js derives from it, so it is deliberately not a
+    # second event (and could not be one: the collection is superuser-only).
+    ea_aviary = mk(toks["sup"], "aviaries", {"name": "Voliere Audit",
+                                             "org": ORG})["id"]
+    check("creating an aviary is logged",
+          len(audit_for(ea_aviary, "aviary.created")) == 1, "missing")
+    req("PATCH", f"/api/collections/animals/records/{ea_animal}", toks["sup"],
+        {"current_aviary": ea_aviary})
+    moved = (audit_for(ea_animal, "animal.updated") or [{}])[0].get("changes") or []
+    check("moving a bird is one animal.updated carrying the aviary",
+          any(c["field"] == "current_aviary" and c["to"] == ea_aviary
+              for c in moved), moved)
+    check("the derived residency ledger is not a second event",
+          len(listf(toks["sup"], "audit_events",
+                    'subject_collection = "aviary_stays"')) == 0, "leaked")
+
     # ── federfall-0tf: geocode proxy guards ─────────────────────────────────
     # Runs LAST: the flood exhausts the geocode rate budget for this client IP,
     # so nothing may query the geocode routes after this block. All requests

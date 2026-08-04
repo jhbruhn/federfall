@@ -48,6 +48,10 @@
 const ACTIONS = {
   // ── cases and their timeline ───────────────────────────────────────────────
   CASE_INTAKE: "case.intake",
+  // A case created straight through the collection API rather than the intake
+  // route — the Admin UI, an import, an older client. Distinct from
+  // case.intake, which means "a bird was admitted" as one human action.
+  CASE_CREATED: "case.created",
   CASE_UPDATED: "case.updated",
   CASE_DELETED: "case.deleted",
   CASE_HANDOFF: "case.handoff",
@@ -83,6 +87,7 @@ const ACTIONS = {
   JOURNAL_DELETED: "journal.deleted",
 
   PLACEMENT_CREATED: "placement.created",
+  PLACEMENT_UPDATED: "placement.updated",
   PLACEMENT_DELETED: "placement.deleted",
 
   DISPOSITION_CREATED: "disposition.created",
@@ -91,6 +96,12 @@ const ACTIONS = {
 
   EXAM_SAVED: "exam.saved",
   EXAM_DELETED: "exam.deleted",
+  // The findings of an exam normally ride along inside exam.saved (the route
+  // writes them in one transaction). These cover a finding edited on its own
+  // through the collection API, which the rules still allow.
+  EXAM_FINDING_CREATED: "exam_finding.created",
+  EXAM_FINDING_UPDATED: "exam_finding.updated",
+  EXAM_FINDING_DELETED: "exam_finding.deleted",
 
   EGG_RECORD_CREATED: "egg_record.created",
   EGG_RECORD_UPDATED: "egg_record.updated",
@@ -112,13 +123,14 @@ const ACTIONS = {
   AVIARY_CREATED: "aviary.created",
   AVIARY_UPDATED: "aviary.updated",
   AVIARY_DELETED: "aviary.deleted",
-  AVIARY_STAY_STARTED: "aviary_stay.started",
-  AVIARY_STAY_UPDATED: "aviary_stay.updated",
-  AVIARY_STAY_ENDED: "aviary_stay.ended",
+  // No aviary_stay.* actions: the residency ledger is derived from
+  // `animals.current_aviary` by aviary_stays.pb.js and has no API of its own.
+  // The human action is the animal.updated that moved the bird.
 
   // ── finders (ids only — never names, see the header) ───────────────────────
   FINDER_CREATED: "finder.created",
   FINDER_UPDATED: "finder.updated",
+  FINDER_DELETED: "finder.deleted",
   FINDER_PII_PURGED: "finder.pii_purged",
   FINDER_ORPHAN_DELETED: "finder.orphan_deleted",
 
@@ -254,6 +266,294 @@ function diff(collection, before, after) {
   return out;
 }
 
+// ── The audited surface ──────────────────────────────────────────────────────
+//
+// Which collection-API write becomes which action. audit_domain.pb.js registers
+// one generic request hook per verb over the keys of this map, so ADDING A
+// COLLECTION HERE IS ALL IT TAKES to audit it — there is no per-collection
+// handler to write. That indirection is not cosmetic: a hook handler runs in an
+// isolated JSVM context where file-level bindings are out of scope, so a
+// per-collection table could not be read from inside the handler at all. A
+// required module can, which is why this map lives here and not there.
+//
+// A `null` verb means "not reachable/meaningful through the collection API" —
+// e.g. a finder is never deleted by a person, only by the retention cron, which
+// emits finder.orphan_deleted itself.
+const COLLECTION_ACTIONS = {
+  // ── the case and its timeline ──────────────────────────────────────────────
+  cases: {
+    created: ACTIONS.CASE_CREATED,
+    updated: ACTIONS.CASE_UPDATED,
+    deleted: ACTIONS.CASE_DELETED,
+  },
+  animals: {
+    created: ACTIONS.ANIMAL_CREATED,
+    updated: ACTIONS.ANIMAL_UPDATED,
+    deleted: ACTIONS.ANIMAL_DELETED,
+  },
+  weights: {
+    created: ACTIONS.WEIGHT_CREATED,
+    updated: ACTIONS.WEIGHT_UPDATED,
+    deleted: ACTIONS.WEIGHT_DELETED,
+  },
+  markings: {
+    created: ACTIONS.MARKING_CREATED,
+    updated: ACTIONS.MARKING_UPDATED,
+    deleted: ACTIONS.MARKING_DELETED,
+  },
+  case_conditions: {
+    created: ACTIONS.CONDITION_ADDED,
+    updated: ACTIONS.CONDITION_UPDATED,
+    deleted: ACTIONS.CONDITION_REMOVED,
+  },
+  medications: {
+    created: ACTIONS.MEDICATION_PRESCRIBED,
+    updated: ACTIONS.MEDICATION_UPDATED,
+    deleted: ACTIONS.MEDICATION_DELETED,
+  },
+  medication_administrations: {
+    created: ACTIONS.ADMINISTRATION_LOGGED,
+    updated: ACTIONS.ADMINISTRATION_UPDATED,
+    deleted: ACTIONS.ADMINISTRATION_DELETED,
+  },
+  journal_entries: {
+    created: ACTIONS.JOURNAL_CREATED,
+    updated: ACTIONS.JOURNAL_UPDATED,
+    deleted: ACTIONS.JOURNAL_DELETED,
+  },
+  // `created` is refined to case.handoff when the placement names a to_user —
+  // see refine() below.
+  placements: {
+    created: ACTIONS.PLACEMENT_CREATED,
+    updated: ACTIONS.PLACEMENT_UPDATED,
+    deleted: ACTIONS.PLACEMENT_DELETED,
+  },
+  dispositions: {
+    created: ACTIONS.DISPOSITION_CREATED,
+    updated: ACTIONS.DISPOSITION_UPDATED,
+    deleted: ACTIONS.DISPOSITION_DELETED,
+  },
+  exams: {
+    created: ACTIONS.EXAM_SAVED,
+    updated: ACTIONS.EXAM_SAVED,
+    deleted: ACTIONS.EXAM_DELETED,
+  },
+  // The exam route writes findings inside its own transaction, so these fire
+  // only for a finding edited directly through the collection API.
+  exam_findings: {
+    created: ACTIONS.EXAM_FINDING_CREATED,
+    updated: ACTIONS.EXAM_FINDING_UPDATED,
+    deleted: ACTIONS.EXAM_FINDING_DELETED,
+  },
+  egg_records: {
+    created: ACTIONS.EGG_RECORD_CREATED,
+    updated: ACTIONS.EGG_RECORD_UPDATED,
+    deleted: ACTIONS.EGG_RECORD_DELETED,
+  },
+  follow_ups: {
+    created: ACTIONS.FOLLOW_UP_CREATED,
+    updated: ACTIONS.FOLLOW_UP_UPDATED,
+    deleted: ACTIONS.FOLLOW_UP_DELETED,
+  },
+  vet_appointments: {
+    created: ACTIONS.VET_APPOINTMENT_CREATED,
+    updated: ACTIONS.VET_APPOINTMENT_UPDATED,
+    deleted: ACTIONS.VET_APPOINTMENT_DELETED,
+  },
+  quarantine_records: {
+    created: ACTIONS.QUARANTINE_SET,
+    updated: ACTIONS.QUARANTINE_UPDATED,
+    deleted: ACTIONS.QUARANTINE_CLEARED,
+  },
+
+  // ── housing ────────────────────────────────────────────────────────────────
+  aviaries: {
+    created: ACTIONS.AVIARY_CREATED,
+    updated: ACTIONS.AVIARY_UPDATED,
+    deleted: ACTIONS.AVIARY_DELETED,
+  },
+  // NOT aviary_stays: superuser-only by rule and written exclusively by
+  // aviary_stays.pb.js from `animals.current_aviary`, so a request hook there
+  // would never fire. Moving a bird is audited as the animal.updated it is.
+
+  // ── the organisation itself ────────────────────────────────────────────────
+  // Create/delete are superuser-only; what a supervisor can do is change the
+  // settings — retention windows, quarantine defaults, audit_log_client_info —
+  // which is exactly the kind of change that should leave a trace.
+  organisations: {
+    created: null,
+    updated: ACTIONS.ORG_SETTINGS_UPDATED,
+    deleted: null,
+  },
+
+  // ── finders: ids only, never names (see the header) ────────────────────────
+  finders: {
+    created: ACTIONS.FINDER_CREATED,
+    updated: ACTIONS.FINDER_UPDATED,
+    deleted: ACTIONS.FINDER_DELETED,
+  },
+
+  // ── supervisor-managed code lists ──────────────────────────────────────────
+  // One action for all of them; `subject_collection` says which list, so the
+  // renderer needs one case instead of five.
+  conditions: {
+    created: ACTIONS.CODE_LIST_CREATED,
+    updated: ACTIONS.CODE_LIST_UPDATED,
+    deleted: ACTIONS.CODE_LIST_DELETED,
+  },
+  admission_reasons: {
+    created: ACTIONS.CODE_LIST_CREATED,
+    updated: ACTIONS.CODE_LIST_UPDATED,
+    deleted: ACTIONS.CODE_LIST_DELETED,
+  },
+  marking_types: {
+    created: ACTIONS.CODE_LIST_CREATED,
+    updated: ACTIONS.CODE_LIST_UPDATED,
+    deleted: ACTIONS.CODE_LIST_DELETED,
+  },
+  medication_routes: {
+    created: ACTIONS.CODE_LIST_CREATED,
+    updated: ACTIONS.CODE_LIST_UPDATED,
+    deleted: ACTIONS.CODE_LIST_DELETED,
+  },
+  medication_products: {
+    created: ACTIONS.CODE_LIST_CREATED,
+    updated: ACTIONS.CODE_LIST_UPDATED,
+    deleted: ACTIONS.CODE_LIST_DELETED,
+  },
+};
+
+// What a row of each collection is CALLED, for `subject_label`. First non-empty
+// field wins. Absent (or empty) means the envelope carries no label and the app
+// renders the action and subject alone — which the design requires it to do
+// anyway, since `detail` may only enrich.
+//
+// `finders` is deliberately absent and additionally forced to "" in emit():
+// a finder's name must never reach this table.
+const LABEL_FIELDS = {
+  cases: ["case_number"],
+  animals: ["name", "species"],
+  aviaries: ["name"],
+  users: ["name", "email"],
+  markings: ["code"],
+  medications: ["drug"],
+  vet_appointments: ["vet"],
+  organisations: ["name"],
+  conditions: ["label"],
+  admission_reasons: ["label"],
+  marking_types: ["label"],
+  medication_routes: ["label"],
+  medication_products: ["name", "label"],
+};
+
+// Ids worth correlating on beyond `case_id`, when the record carries them.
+const REF_FIELDS = ["animal", "aviary", "to_user", "from_user", "shared_with"];
+
+function subjectLabel(record) {
+  try {
+    const name = String(record.collection().name);
+    if (name === "finders") return "";
+    const fields = LABEL_FIELDS[name] || [];
+    for (const f of fields) {
+      const v = String(record.get(f) || "").trim();
+      if (v) return v.slice(0, 200);
+    }
+  } catch (_) {
+    // Unknown shape — no label.
+  }
+  return "";
+}
+
+function refsFor(record) {
+  const refs = {};
+  let any = false;
+  for (const f of REF_FIELDS) {
+    try {
+      const v = String(record.get(f) || "");
+      if (v) {
+        refs[f] = v;
+        any = true;
+      }
+    } catch (_) {
+      // Field not on this collection.
+    }
+  }
+  return any ? refs : null;
+}
+
+// The few places where the verb alone is too coarse to be worth reading.
+// Derived side effects are folded in here rather than emitted as their own
+// events: a handoff's share-on-handoff and carer change are consequences of one
+// human action, not three things that happened.
+function refine(collection, verb, record, changes) {
+  if (collection === "placements" && verb === "created") {
+    const to = String(record.getString("to_user") || "");
+    if (to) {
+      return {
+        action: ACTIONS.CASE_HANDOFF,
+        detail: {
+          from: String(record.getString("from_user") || ""),
+          to: to,
+          // main.pb.js moves cases.active_carer and leaves the previous carer a
+          // read share, both inside this same request.
+          carer_moved: true,
+        },
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * The whole Tier A body: turn one collection-API write into one audit row.
+ * Called from audit_domain.pb.js AFTER e.next(), so a rejected save logs
+ * nothing.
+ *
+ * @param verb   "created" | "updated" | "deleted"
+ * @param before for "updated" only, e.record.original().fieldsData() captured
+ *               BEFORE e.next().
+ */
+function emitRecordChange(e, verb, before) {
+  try {
+    const record = e.record;
+    const collection = String(record.collection().name);
+    const spec = COLLECTION_ACTIONS[collection];
+    if (!spec) return; // not an audited collection
+    let action = spec[verb];
+    if (!action) return; // this verb is covered elsewhere (or cannot happen)
+
+    let changes = null;
+    if (verb === "updated") {
+      changes = diff(collection, before, record.fieldsData());
+      // Nothing actually changed (a no-op PATCH, or only autodates moved).
+      if (!changes.length) return;
+    }
+
+    let detail = null;
+    const refined = refine(collection, verb, record, changes);
+    if (refined) {
+      action = refined.action;
+      detail = refined.detail;
+    }
+
+    emit(e, action, {
+      record: record,
+      subject: {
+        collection: collection,
+        id: record.id,
+        label: subjectLabel(record),
+      },
+      refs: refsFor(record),
+      changes: changes,
+      detail: detail,
+    });
+  } catch (err) {
+    $app
+      .logger()
+      .warn("audit: record change not recorded", "verb", String(verb), "err", String(err));
+  }
+}
+
 // One id per HTTP request, so the rows a single action produced can be read
 // back together. The router event carries a per-request store; anything without
 // one (a cron tick, a model-only hook) gets a fresh id, which is correct — it
@@ -378,6 +678,11 @@ function emit(e, action, opts) {
         org = "";
       }
     }
+    // An organisation has no `org` field — it IS one. Without this, a superuser
+    // editing org settings from the dashboard would fall through to the "no org"
+    // branch below and go unlogged, which is the opposite of who most needs
+    // logging (a supervisor's own edit resolves via their auth record).
+    if (!org && subjectCollection === "organisations") org = subjectId;
     if (!org) {
       // Refusing to guess: a row in the wrong org is visible to the wrong
       // supervisors. A superuser acting outside any org, or a failed login for
@@ -451,6 +756,10 @@ module.exports = {
   SEVERITY: SEVERITY,
   ACTOR: ACTOR,
   SENSITIVE: SENSITIVE,
+  COLLECTION_ACTIONS: COLLECTION_ACTIONS,
+  AUDITED_COLLECTIONS: Object.keys(COLLECTION_ACTIONS),
   diff: diff,
   emit: emit,
+  emitRecordChange: emitRecordChange,
+  subjectLabel: subjectLabel,
 };
