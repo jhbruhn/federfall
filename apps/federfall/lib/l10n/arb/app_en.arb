@@ -2215,5 +2215,22 @@
     "auditTitle": "Audit log",
     "auditEmpty": "Nothing recorded yet",
     "auditFilterAll": "All",
-    "auditCaseSectionTitle": "Who changed what"
+    "auditCaseSectionTitle": "Who changed what",
+    "auditFieldType": "Outcome",
+    "auditFieldCount": "Count",
+    "auditFieldDose": "Dose",
+    "auditFieldFrequency": "Frequency",
+    "auditFieldIntervalHours": "Interval (h)",
+    "auditFieldMeasuredAt": "Measured",
+    "auditFieldAdministeredAt": "Administered",
+    "auditFieldDisposedAt": "Outcome date",
+    "auditFieldDueAt": "Due",
+    "auditFieldDoneAt": "Completed",
+    "auditFieldStartsAt": "Appointment",
+    "auditFieldAdmittedAt": "Admitted",
+    "auditFieldQuarantineUntil": "Quarantine until",
+    "auditFieldCapacity": "Capacity",
+    "auditFieldAccess": "Access",
+    "auditFieldLabel": "Label",
+    "auditFieldCertainty": "Diagnostic certainty"
 }

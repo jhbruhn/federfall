@@ -3,6 +3,7 @@ import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/gen/app_localizations.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 /// Turns an [AuditEvent] into something a screen can lay out.
 ///
@@ -205,6 +206,27 @@ String auditFieldLabel(
   'role' => l10n.auditFactRole,
   'is_active' => l10n.memberActiveLabel,
   'password' => l10n.authPasswordLabel,
+  'type' => l10n.auditFieldType,
+  'count' => l10n.auditFieldCount,
+  'dose' || 'dose_rate' => l10n.auditFieldDose,
+  'frequency_kind' => l10n.auditFieldFrequency,
+  'interval_hours' => l10n.auditFieldIntervalHours,
+  'measured_at' => l10n.auditFieldMeasuredAt,
+  'administered_at' => l10n.auditFieldAdministeredAt,
+  'disposed_at' => l10n.auditFieldDisposedAt,
+  'due_at' => l10n.auditFieldDueAt,
+  'done_at' => l10n.auditFieldDoneAt,
+  'starts_at' => l10n.auditFieldStartsAt,
+  'admitted_at' => l10n.auditFieldAdmittedAt,
+  'quarantine_until' => l10n.auditFieldQuarantineUntil,
+  'capacity' => l10n.auditFieldCapacity,
+  'access' => l10n.auditFieldAccess,
+  'label' => l10n.auditFieldLabel,
+  'certainty' => l10n.auditFieldCertainty,
+  'examined_at' => l10n.examDateLabel,
+  'hydration' => l10n.examHydrationLabel,
+  'mentation' => l10n.examMentationLabel,
+  'dose_unit' => l10n.medUnit,
   _ => field,
 };
 
@@ -244,8 +266,47 @@ String auditValueLabel(
       final v = ShareAccess.fromWire(wire);
       return v == null ? wire : shareAccessLabel(l10n, v);
     case 'is_active':
+    case 'active':
       return wire == 'true' ? l10n.memberActiveLabel : l10n.memberInactive;
+    // The outcome of a case — the single most consequential value this log
+    // records, and the reason `type` is stored as a wire string rather than as
+    // a label: the server has no business deciding which language it is read
+    // in (federfall-9k2g).
+    case 'type':
+      final v = DispositionType.fromWire(wire);
+      return v == null ? wire : dispositionTypeLabel(l10n, v);
+    case 'certainty':
+      final v = Certainty.fromWire(wire);
+      return v == null ? wire : certaintyLabel(l10n, v);
+    case 'frequency_kind':
+      final v = MedicationFrequencyKind.fromWire(wire);
+      // The interval belongs to a sibling field; the log records them
+      // separately, so this names the kind alone.
+      return v == null ? wire : medicationFrequencyLabel(l10n, v, null);
+    case 'fate':
+      final v = EggFate.fromWire(wire);
+      return v == null ? wire : eggFateLabel(l10n, v);
+    case 'hydration':
+      final v = Hydration.fromWire(wire);
+      return v == null ? wire : hydrationLabel(l10n, v);
+    case 'mentation':
+      final v = Mentation.fromWire(wire);
+      return v == null ? wire : mentationLabel(l10n, v);
+    case 'system':
+      final v = BodySystem.fromWire(wire);
+      return v == null ? wire : bodySystemLabel(l10n, v);
     default:
+      // A timestamp is stored as PocketBase writes it. Shown raw it is the
+      // ugliest thing on the screen and the least readable, so the schema's
+      // own naming convention (_at / _date) is enough to know to format it.
+      if (field.endsWith('_at') || field.endsWith('_date')) {
+        final parsed = DateTime.tryParse(wire.replaceFirst(' ', 'T'));
+        if (parsed != null) {
+          return DateFormat.yMd(
+            l10n.localeName,
+          ).add_Hm().format(parsed.toLocal());
+        }
+      }
       return wire;
   }
 }

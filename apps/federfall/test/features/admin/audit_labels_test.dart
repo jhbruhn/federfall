@@ -3,6 +3,7 @@ import 'package:federfall/l10n/gen/app_localizations.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 AuditEvent _event({
   AuditAction? action = AuditAction.caseUpdated,
@@ -35,6 +36,10 @@ void main() {
   late AppLocalizations en;
 
   setUpAll(() async {
+    // In the app the localization delegates load these; a pure unit test has
+    // to ask for them itself before any DateFormat runs.
+    await initializeDateFormatting('de');
+    await initializeDateFormatting('en');
     de = await AppLocalizations.delegate.load(const Locale('de'));
     en = await AppLocalizations.delegate.load(const Locale('en'));
   });
@@ -84,6 +89,36 @@ void main() {
 
     test('an unknown field falls back to the column name', () {
       expect(auditFieldLabel(de, 'cases', 'wing_span_cm'), 'wing_span_cm');
+    });
+
+    test('a timestamp is formatted, not shown as PocketBase stored it', () {
+      final shown = auditValueLabel(
+        de,
+        'dispositions',
+        'disposed_at',
+        '2026-06-21 09:00:00.000Z',
+      );
+
+      expect(shown, isNot(contains('T')));
+      expect(shown, isNot(contains('.000Z')));
+      expect(shown, contains('2026'));
+    });
+
+    test('a field that only looks like a date is left alone', () {
+      expect(auditValueLabel(de, 'cases', 'notes', '2026-06-21'), '2026-06-21');
+    });
+
+    test('the outcome type is translated, not shown as its wire value', () {
+      // The reason it is stored as 'died' rather than as a label: the server
+      // must not decide which language the log is read in.
+      expect(
+        auditValueLabel(de, 'dispositions', 'type', 'died'),
+        de.dispositionDied,
+      );
+      expect(
+        auditValueLabel(en, 'dispositions', 'type', 'died'),
+        en.dispositionDied,
+      );
     });
 
     test('an unknown enum value falls back to the stored string', () {
@@ -184,6 +219,41 @@ void main() {
       );
 
       expect(text, de.auditChangeCleared('Pip'));
+    });
+
+    test('a create reads as values being set, not as a diff from nothing', () {
+      // federfall-9k2g: creates carry their content in the same `changes`
+      // shape an update uses, so one renderer covers all three verbs.
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.dispositionCreated,
+          subjectCollection: 'dispositions',
+          subjectLabel: '',
+          changes: const [AuditFieldChange(field: 'type', to: 'released')],
+        ),
+      );
+
+      expect(line.title, de.auditActionDispositionCreated);
+      expect(
+        line.facts.single.value,
+        contains(de.dispositionReleased),
+        reason: 'the outcome must be visible, it is the point of the row',
+      );
+    });
+
+    test('a delete reads as what was destroyed', () {
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.eggRecordDeleted,
+          subjectCollection: 'egg_records',
+          subjectLabel: '',
+          changes: const [AuditFieldChange(field: 'count', from: '4')],
+        ),
+      );
+
+      expect(line.facts.single.value, contains(de.auditChangeCleared('4')));
     });
 
     test('the line summarises how many fields changed', () {

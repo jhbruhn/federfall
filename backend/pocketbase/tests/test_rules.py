@@ -2504,6 +2504,52 @@ def main():
     check("a journal entry carries no copy of its text",
           label_of(ea_journal) == "", label_of(ea_journal))
 
+    # federfall-9k2g — a create used to record nothing at all about what it
+    # wrote, so "Ausgang erfasst" never said whether the bird was released or
+    # died. Content lands in `changes` with from=null, the same shape an update
+    # produces, so one renderer handles all three verbs.
+    def content_of(subject_id, action):
+        rows = audit_for(subject_id, action)
+        return {c["field"]: c.get("to", c.get("from"))
+                for c in ((rows or [{}])[0].get("changes") or [])}
+
+    disp = content_of(ea_disp, "disposition.created")
+    check("a disposition records WHICH outcome it was",
+          disp.get("type") == "released", disp)
+    check("...and when", "disposed_at" in disp, disp)
+    # record.get() hands JS a Go types.DateTime, not a string; stringifying one
+    # naively stores it WITH quotes, which then parses as no date at all.
+    check("a recorded date is a plain value, not a quoted one",
+          '"' not in str(disp.get("disposed_at", "")), disp)
+    check("an unset date is not recorded as an empty string",
+          all(v not in ("", '""') for v in disp.values()), disp)
+    check("an egg record records the count", 
+          content_of(ea_egg, "egg_record.created").get("count") == 2,
+          content_of(ea_egg, "egg_record.created"))
+    med = content_of(ea_med, "medication.prescribed")
+    check("a medication records the regimen, not just the drug name",
+          med.get("dose_unit") == "mg" and med.get("frequency_kind") == "as_needed",
+          med)
+    check("the drug itself is not repeated — it is already the label",
+          "drug" not in med, med)
+
+    # A delete is the harsher case: afterwards the record is gone and this row
+    # is the only description of it that survives.
+    ea_doomed = mk(toks["sup"], "egg_records",
+                   {"animal": ea_animal, "count": 4, "org": ORG})["id"]
+    req("DELETE", f"/api/collections/egg_records/records/{ea_doomed}", toks["sup"])
+    gone = audit_for(ea_doomed, "egg_record.deleted")
+    check("a delete records what was destroyed", len(gone) == 1, gone)
+    check("...as a `from` value, so it reads as cleared rather than set",
+          [c for c in ((gone or [{}])[0].get("changes") or [])
+           if c["field"] == "count"] == [{"field": "count", "from": 4}],
+          (gone or [{}])[0].get("changes"))
+
+    # Free clinical text stays out of the log entirely, on create as on delete.
+    jrows = audit_for(ea_journal)
+    check("a journal entry never records its text",
+          "wound check" not in json.dumps(jrows), "text leaked")
+
     # Deleting is an event in its own right — and the one that most needs to
     # outlive its subject, since the row it describes is gone.
     s, _ = req("DELETE", f"/api/collections/journal_entries/records/{ea_journal}",

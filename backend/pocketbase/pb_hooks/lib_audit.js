@@ -265,14 +265,30 @@ function isSensitive(collection, field) {
 
 function normalize(v) {
   if (v === null || v === undefined) return "";
-  if (typeof v === "object") {
+  if (typeof v !== "object") return v;
+
+  let json;
+  try {
+    json = JSON.stringify(v);
+  } catch (_) {
+    return String(v);
+  }
+  if (json === undefined) return String(v);
+  // A Go value that marshals to a JSON SCALAR reaches JS as an object —
+  // types.DateTime is the everyday case, and record.get() hands one back for
+  // every date field. Stringifying it keeps the quotes, so the row would store
+  // '"2026-06-20 07:30:00.000Z"' (unparseable as a date on the way out) and an
+  // unset date would store '""' rather than being recognised as empty. Unwrap
+  // it back to the plain value. Note fieldsData() does NOT do this — it yields
+  // plain JS — which is why only the create/delete path hit it.
+  if (json.length >= 2 && json[0] === '"' && json[json.length - 1] === '"') {
     try {
-      return JSON.stringify(v);
+      return JSON.parse(json);
     } catch (_) {
-      return String(v);
+      return json;
     }
   }
-  return v;
+  return json;
 }
 
 function clamp(v) {
@@ -551,8 +567,101 @@ const LABEL_QUANTITIES = {
   weights: { field: "weight_g", suffix: " g" },
 };
 
+// What a CREATE wrote, and what a DELETE destroyed (federfall-by7w / 9k2g).
+//
+// An update explains itself — a diff of what moved is inherently bounded. A
+// create and a delete had nothing at all until now, so "Ausgang erfasst" never
+// said whether the bird was released or died, which is the single most
+// consequential fact this app records. A delete is worse: afterwards the row
+// is gone and this is the only description of it that survives.
+//
+// An ALLOWLIST rather than the whole record, for three reasons: dumping every
+// column would put relation ids and long free text into a table with no delete
+// path; `changes` has a size limit; and a row nobody can read is not better
+// than an empty one. So: the two or three fields that say what happened.
+//
+// Fields that ARE the subject label are left out — the label already shows the
+// weight and the drug, and printing them twice in one line is noise.
+//
+// Empty by DESIGN, not omission:
+//   journal_entries  — the text; see LABEL_FIELDS. The row records that a note
+//                      was written on a case, never the note.
+//   finders          — nothing, ever.
+//   organisations    — settings is one json blob; the update diff covers it and
+//                      a create/delete cannot happen through the API anyway.
+const CONTENT_FIELDS = {
+  cases: ["admitted_at", "age_class", "status"],
+  animals: ["species", "name", "sex"],
+  weights: ["measured_at"],
+  markings: ["applied_at", "removed_at", "is_active"],
+  case_conditions: ["certainty", "onset_date", "resolved_date"],
+  medications: [
+    "dose_rate",
+    "dose_unit",
+    "frequency_kind",
+    "interval_hours",
+    "started_at",
+    "ended_at",
+  ],
+  medication_administrations: ["dose", "dose_unit", "administered_at"],
+  placements: ["moved_in_at", "where_holding"],
+  // `type` is the one that matters: released, died, euthanised, transferred.
+  dispositions: ["type", "disposed_at", "release_type", "transfer_type"],
+  exams: ["examined_at", "body_condition", "hydration", "mentation"],
+  exam_findings: ["system", "status"],
+  egg_records: ["count", "laid_at", "fate"],
+  follow_ups: ["due_at", "done_at"],
+  vet_appointments: ["starts_at", "attended_at", "cancelled_at"],
+  quarantine_records: ["set_at", "quarantine_until"],
+  aviaries: ["capacity", "active"],
+  // case_shares: nothing — refine() already puts who and what access in detail.
+  users: ["role", "is_active"],
+  conditions: ["label", "active"],
+  admission_reasons: ["label", "active"],
+  marking_types: ["label", "active"],
+  medication_routes: ["label", "active"],
+  medication_products: ["active"],
+  journal_entries: [],
+  finders: [],
+  organisations: [],
+};
+
 // Ids worth correlating on beyond `case_id`, when the record carries them.
 const REF_FIELDS = ["animal", "aviary", "to_user", "from_user", "shared_with"];
+
+/**
+ * The allowlisted content of [record] as change entries.
+ *
+ * @param created true for a create (values land in `to`), false for a delete
+ *                (they land in `from`, which is what "cleared (was X)" reads
+ *                as — the right sentence for something that no longer exists).
+ */
+function contentOf(collection, record, created) {
+  const out = [];
+  for (const field of CONTENT_FIELDS[collection] || []) {
+    let value;
+    try {
+      value = normalize(record.get(field));
+    } catch (_) {
+      continue; // not a field on this collection
+    }
+    // An unset field is not content. `false` and `0` are, so this cannot be a
+    // truthiness test: "quarantine lifted" and "capacity 0" both matter.
+    if (value === "" || value === null || value === undefined) continue;
+
+    if (isSensitive(collection, field)) {
+      out.push({ field: field, redacted: true });
+      continue;
+    }
+    const c = clamp(value);
+    const entry = created
+      ? { field: field, to: c.value }
+      : { field: field, from: c.value };
+    if (c.truncated) entry.truncated = true;
+    out.push(entry);
+  }
+  return out;
+}
 
 /**
  * What to call this record in the log.
@@ -708,6 +817,11 @@ function emitRecordChange(e, verb, before, hints) {
     if (!action) return; // this verb is covered elsewhere (or cannot happen)
 
     let changes = null;
+    if (verb === "created" || verb === "deleted") {
+      // Same shape as an update, so one renderer handles all three: a create
+      // reads "set to X" and a delete "cleared (was X)" with no new strings.
+      changes = contentOf(collection, record, verb === "created");
+    }
     if (verb === "updated") {
       changes = diff(collection, before, record.fieldsData());
       // A changed password shows up only as the tokenKey PocketBase rotated

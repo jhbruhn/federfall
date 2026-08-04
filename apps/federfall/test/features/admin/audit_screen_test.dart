@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
-import 'package:federfall/features/admin/audit/audit_providers.dart';
 import 'package:federfall/features/admin/audit/audit_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -189,7 +188,7 @@ void main() {
       );
     });
 
-    testWidgets('shows the case\'s own events to a supervisor', (tester) async {
+    testWidgets("shows the case's own events to a supervisor", (tester) async {
       await _pump(
         tester,
         role: UserRole.supervisor,

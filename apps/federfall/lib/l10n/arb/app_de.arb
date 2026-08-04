@@ -1159,5 +1159,22 @@
     "auditTitle": "Protokoll",
     "auditEmpty": "Noch keine Einträge",
     "auditFilterAll": "Alle",
-    "auditCaseSectionTitle": "Wer was geändert hat"
+    "auditCaseSectionTitle": "Wer was geändert hat",
+    "auditFieldType": "Ausgang",
+    "auditFieldCount": "Anzahl",
+    "auditFieldDose": "Dosis",
+    "auditFieldFrequency": "Häufigkeit",
+    "auditFieldIntervalHours": "Intervall (h)",
+    "auditFieldMeasuredAt": "Gemessen am",
+    "auditFieldAdministeredAt": "Gegeben am",
+    "auditFieldDisposedAt": "Ausgang am",
+    "auditFieldDueAt": "Fällig am",
+    "auditFieldDoneAt": "Erledigt am",
+    "auditFieldStartsAt": "Termin",
+    "auditFieldAdmittedAt": "Aufgenommen am",
+    "auditFieldQuarantineUntil": "Quarantäne bis",
+    "auditFieldCapacity": "Plätze",
+    "auditFieldAccess": "Zugriff",
+    "auditFieldLabel": "Bezeichnung",
+    "auditFieldCertainty": "Sicherheit der Diagnose"
 }
