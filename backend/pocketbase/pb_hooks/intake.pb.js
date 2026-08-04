@@ -232,6 +232,32 @@ routerAdd(
         );
         tx.save(idem);
       }
+
+      // federfall-qt96.4 — ONE event for the whole intake. This route never
+      // fires request hooks (everything above is tx.save), and even if it did,
+      // five `*.created` rows would describe a bird being admitted worse than
+      // one line does. Emitted with the transaction app, so the log entry
+      // commits with the records it describes or not at all.
+      require(`${__hooks}/lib_audit.js`).emit(e, "case.intake", {
+        app: tx,
+        org: org,
+        subject: {
+          collection: "cases",
+          id: rec.id,
+          label: rec.getString("case_number"),
+        },
+        caseId: rec.id,
+        refs: finderId ? { animal: aId, finder: finderId } : { animal: aId },
+        detail: {
+          species: animal.getString("species"),
+          // Whether this was a re-identified returner or a new bird is the
+          // most interesting thing about an intake after the species.
+          reidentified: !!animalId,
+          // The finder is referenced by id in `refs` and never described.
+          has_finder: !!finderId,
+          intake_photos: photos.length,
+        },
+      });
     });
 
     return e.json(200, {

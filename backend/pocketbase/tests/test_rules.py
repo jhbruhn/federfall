@@ -2554,6 +2554,94 @@ def main():
           len(listf(toks["sup"], "audit_events",
                     'subject_collection = "aviary_stays"')) == 0, "leaked")
 
+    # ── federfall-qt96.4: the custom routes (Tier B) ────────────────────────
+    # These write with tx.save inside one transaction, so no request hook ever
+    # fires — each emits a single semantic event instead of one row per record.
+    print("\n[audit: custom routes]")
+    before_n = audit_count()
+    s, _ = req("POST", "/api/federfall/intake", toks["a"], {})
+    check("a rejected intake logs nothing",
+          s == 400 and audit_count() == before_n, f"status {s}")
+
+    s, ic = req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Türkentaube", "name": "Nils",
+        "finder": {"last_name": "Vertraulich", "phone": "0151 2222"},
+        "weight_g": 280, "idempotency_key": "audit-intake-1",
+        "case": {"intake_notes": "gefunden am Deich"},
+    })
+    check("intake succeeds", s == 200, f"{s} {ic}")
+    ir = audit_for(ic["id"], "case.intake") if s == 200 else []
+    check("an intake is ONE case.intake event", len(ir) == 1, ir)
+    ev = ir[0] if ir else {}
+    check("...labelled with the case number it just assigned",
+          ev.get("subject_label") == ic.get("case_number"), ev)
+    check("...carrying the animal and the finder as ids",
+          (ev.get("refs") or {}).get("animal") == ic.get("animal")
+          and bool((ev.get("refs") or {}).get("finder")), ev.get("refs"))
+    check("...and what kind of intake it was",
+          (ev.get("detail") or {}).get("species") == "Türkentaube"
+          and (ev.get("detail") or {}).get("reidentified") is False
+          and (ev.get("detail") or {}).get("has_finder") is True, ev.get("detail"))
+    check("the finder is still never named", "Vertraulich" not in json.dumps(ev),
+          "PII leaked")
+    # The five records it wrote are NOT five events: request hooks cannot fire
+    # for a tx.save, which is the whole reason this route emits by hand.
+    check("no per-record events for the intake's own writes",
+          len(audit_for(ic["animal"], "animal.created")) == 0
+          and len(audit_for(ic["id"], "case.created")) == 0, "duplicated")
+
+    before_n = audit_count()
+    req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Türkentaube", "idempotency_key": "audit-intake-1",
+    })
+    check("replaying the idempotency key logs nothing new",
+          audit_count() == before_n, "replay logged")
+
+    # An exam replaces its findings wholesale; the event says how many there
+    # were and how many were abnormal, not one row per finding.
+    # As the supervisor: the case was handed to B and disposed above, so A no
+    # longer has edit access to it.
+    n_finding_events = len(listf(toks["sup"], "audit_events",
+                                 'subject_collection = "exam_findings"'))
+    s, ex = req("POST", "/api/federfall/exam", toks["sup"], {
+        "case": ea_case, "animal": ea_animal,
+        "exam": {"examined_at": "2026-06-22 10:00:00.000Z"},
+        "findings": [{"system": "eyes", "status": "normal"},
+                     {"system": "wings", "status": "abnormal", "note": "links"}],
+    })
+    check("exam route succeeds", s == 200, f"{s} {ex}")
+    xr = audit_for(ex["id"], "exam.saved") if s == 200 else []
+    check("saving an exam is ONE exam.saved event", len(xr) == 1, xr)
+    ev = xr[0] if xr else {}
+    check("...counting its findings",
+          (ev.get("detail") or {}).get("findings") == 2
+          and (ev.get("detail") or {}).get("abnormal") == 1, ev.get("detail"))
+    check("...correlated to the case it belongs to",
+          ev.get("case_id") == ea_case, ev)
+    check("no per-finding events",
+          len(listf(toks["sup"], "audit_events",
+                    'subject_collection = "exam_findings"')) == n_finding_events,
+          "the route's own finding writes were logged separately")
+
+    # A merge destroys a record. The duplicate's id and name survive only in
+    # the event, which is why it is emitted before the delete.
+    m_keep = mk(toks["sup"], "animals",
+                {"species": "Stadttaube", "name": "Behalten", "org": ORG})["id"]
+    m_gone = mk(toks["sup"], "animals",
+                {"species": "Stadttaube", "name": "Doppelt", "org": ORG})["id"]
+    s, _ = req("POST", "/api/federfall/merge-animals", toks["sup"],
+               {"survivor": m_keep, "duplicate": m_gone, "fields": {}})
+    check("merge succeeds", s == 200, f"status {s}")
+    mr = audit_for(m_keep, "animal.merged")
+    check("merging emits animal.merged on the survivor", len(mr) == 1, mr)
+    ev = mr[0] if mr else {}
+    check("...describing the animal it absorbed, which no longer exists",
+          (ev.get("detail") or {}).get("duplicate_id") == m_gone
+          and (ev.get("detail") or {}).get("duplicate_label") == "Doppelt", ev)
+    check("...as a notice, not routine noise", ev.get("severity") == "notice", ev)
+    s, _ = req("GET", f"/api/collections/animals/records/{m_gone}", toks["sup"])
+    check("the duplicate really is gone", s == 404, f"status {s}")
+
     # ── federfall-0tf: geocode proxy guards ─────────────────────────────────
     # Runs LAST: the flood exhausts the geocode rate budget for this client IP,
     # so nothing may query the geocode routes after this block. All requests

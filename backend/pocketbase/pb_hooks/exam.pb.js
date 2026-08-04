@@ -172,6 +172,26 @@ routerAdd(
           tx.save(w);
         }
       }
+
+      // federfall-qt96.4 — one event for the exam and the findings it replaced
+      // wholesale. Neither the exam nor its findings fire request hooks here
+      // (all tx.save), and the per-finding rows would bury the one fact worth
+      // reading: an examination happened and what it concluded.
+      require(`${__hooks}/lib_audit.js`).emit(e, "exam.saved", {
+        app: tx,
+        org: org,
+        subject: { collection: "exams", id: rec.id, label: "" },
+        caseId: rec.getString("case"),
+        refs: { animal: rec.getString("animal") },
+        detail: {
+          created: !examId,
+          findings: findings.length,
+          // The abnormal ones are the reason anybody reads an exam again.
+          abnormal: findings.filter(
+            (f) => f && typeof f === "object" && String(f.status) === "abnormal",
+          ).length,
+        },
+      });
     });
 
     return e.json(200, { id: saved.id });

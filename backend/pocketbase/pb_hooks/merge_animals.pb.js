@@ -192,6 +192,35 @@ routerAdd(
       survivor.set("current_aviary", aviary);
       tx.save(survivor);
 
+      // federfall-qt96.4 — emitted BEFORE the delete, while the duplicate can
+      // still be described. A merge is destructive and irreversible: the
+      // duplicate's id and name are the only trace left of what was absorbed,
+      // so they go in `detail` rather than being recoverable from anywhere.
+      require(`${__hooks}/lib_audit.js`).emit(e, "animal.merged", {
+        app: tx,
+        org: org,
+        subject: {
+          collection: "animals",
+          id: survivor.id,
+          label: survivor.getString("name") || survivor.getString("species"),
+        },
+        refs: { animal: survivor.id, duplicate: duplicate.id },
+        severity: "notice",
+        detail: {
+          duplicate_id: duplicate.id,
+          duplicate_label:
+            duplicate.getString("name") || duplicate.getString("species"),
+          // Only the three keys the route acts on — `fields` is raw client
+          // input, and an oversized object would fail the row's json size
+          // limit and lose the whole event (emit swallows its errors).
+          field_choices: {
+            name: String(fieldChoices.name || ""),
+            species: String(fieldChoices.species || ""),
+            sex: String(fieldChoices.sex || ""),
+          },
+        },
+      });
+
       tx.delete(duplicate);
       result = survivor;
     });
