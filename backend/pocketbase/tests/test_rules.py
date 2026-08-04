@@ -2472,6 +2472,38 @@ def main():
           (audit_for(ea_marking) or [{}])[0].get("subject_label") == "AB-12",
           "no label")
 
+    # federfall-by7w.1 — an event that does not say WHAT it was about is not
+    # worth writing. Every audited collection has to produce a label.
+    def label_of(subject_id):
+        return (audit_for(subject_id) or [{}])[0].get("subject_label")
+
+    # Each row snapshots the value AS IT WAS then: the create says 300 g and the
+    # later update says 310 g, so the log reads correctly however the record
+    # changes afterwards.
+    wrows = audit_for(ea_weight)
+    check("a weight is labelled with the weight it recorded",
+          [r["subject_label"] for r in wrows][:2] == ["300 g", "310 g"],
+          [r["subject_label"] for r in wrows])
+    check("a medication is labelled with the drug",
+          label_of(ea_med) == "Meloxicam", label_of(ea_med))
+    check("an administration is labelled with the drug too",
+          label_of(ea_adm) == "Meloxicam", label_of(ea_adm))
+
+    # Resolved from another record: the id of a code-list row is meaningless in
+    # a log, and that row can be renamed or deleted later, so the emitter
+    # snapshots its label the way it snapshots every other label.
+    ea_cond = listf(T, "conditions", "active = true")[0]
+    ea_cc = mk(toks["sup"], "case_conditions",
+               {"case": ea_case, "condition": ea_cond["id"], "org": ORG})["id"]
+    check("a diagnosis is labelled with the diagnosis, not its id",
+          label_of(ea_cc) == ea_cond["label"], label_of(ea_cc))
+
+    # A journal entry deliberately has none: it is free clinical text its author
+    # can still edit or delete, and copying it into an append-only table would
+    # quietly make it permanent.
+    check("a journal entry carries no copy of its text",
+          label_of(ea_journal) == "", label_of(ea_journal))
+
     # Deleting is an event in its own right — and the one that most needs to
     # outlive its subject, since the row it describes is gone.
     s, _ = req("DELETE", f"/api/collections/journal_entries/records/{ea_journal}",
@@ -2488,6 +2520,9 @@ def main():
                   {"case": ea_case, "to_user": B, "org": ORG})["id"]
     rows = audit_for(ea_place, "case.handoff")
     check("a placement naming a to_user is a case.handoff", len(rows) == 1, rows)
+    check("...labelled with who took the case on",
+          (rows or [{}])[0].get("subject_label") == "b@f.local",
+          (rows or [{}])[0].get("subject_label"))
     ev = rows[0] if rows else {}
     check("the handoff records both ends and the derived carer move",
           (ev.get("detail") or {}).get("from") == A
@@ -2721,6 +2756,9 @@ def main():
              "access": "read", "org": ORG})["id"]
     rows = audit_for(sh, "case.shared")
     check("sharing a case is logged", len(rows) == 1, rows)
+    check("...labelled with who it was shared with",
+          (rows or [{}])[0].get("subject_label") == "d@f.local",
+          (rows or [{}])[0].get("subject_label"))
     check("...naming who with, at what access, on which case",
           (rows[0].get("detail") or {}) == {"with": D, "access": "read"}
           and rows[0].get("case_id") == ea_case if rows else False, rows)

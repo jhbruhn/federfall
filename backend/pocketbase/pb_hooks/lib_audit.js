@@ -489,12 +489,26 @@ const COLLECTION_ACTIONS = {
 };
 
 // What a row of each collection is CALLED, for `subject_label`. First non-empty
-// field wins. Absent (or empty) means the envelope carries no label and the app
-// renders the action and subject alone — which the design requires it to do
-// anyway, since `detail` may only enrich.
+// field wins.
 //
-// `finders` is deliberately absent and additionally forced to "" in emit():
-// a finder's name must never reach this table.
+// A label must be NEUTRAL — a name, a number, a code, or a string a user typed
+// into a code list. Never a translated phrase: the log is read in German and in
+// English, and a label is stored verbatim, so a German word written here would
+// be frozen in the row forever. Anything enum-shaped (a disposition type, an
+// exam finding's body system) therefore has no label at all and travels as a
+// wire value in `changes`/`detail`, where the app translates it.
+//
+// Absent means the envelope carries no label, which the design requires the app
+// to survive anyway. Two collections are absent ON PURPOSE, not by oversight:
+//
+//   finders          — additionally forced to "" in emit(). A member of the
+//                      public is never named in this table.
+//   journal_entries  — a journal entry is free clinical text its author can
+//                      edit or delete. Copying it into an append-only table
+//                      would quietly make it permanent, and it is the one
+//                      field most likely to mention a person in passing. The
+//                      row says who wrote a note on which case; the note stays
+//                      where it can still be corrected.
 const LABEL_FIELDS = {
   cases: ["case_number"],
   animals: ["name", "species"],
@@ -502,6 +516,8 @@ const LABEL_FIELDS = {
   users: ["name", "email"],
   markings: ["code"],
   medications: ["drug"],
+  // The drug is denormalized onto the administration, so no lookup is needed.
+  medication_administrations: ["drug"],
   vet_appointments: ["vet"],
   organisations: ["name"],
   conditions: ["label"],
@@ -511,17 +527,74 @@ const LABEL_FIELDS = {
   medication_products: ["name", "label"],
 };
 
+// Labels that have to be READ FROM ANOTHER RECORD: `{field: collection}`, tried
+// in order after LABEL_FIELDS comes up empty, and labelled by that record's own
+// LABEL_FIELDS entry.
+//
+// These are relations into user-managed code lists and rosters, where the id is
+// meaningless in a log and the target can be renamed or deleted later — so the
+// label has to be snapshotted at emit time like every other label here. It
+// costs one indexed read per emit, on write paths that already do several.
+const LABEL_RELATIONS = {
+  case_conditions: { condition: "conditions" },
+  case_shares: { shared_with: "users" },
+  // Where the bird went, or who took it on.
+  placements: { to_user: "users", aviary: "aviaries" },
+  // Only reached when a marking carries no code of its own (an unnumbered
+  // marking still says what KIND it was).
+  markings: { type: "marking_types" },
+};
+
+// Values that are a measurement rather than a name. Kept out of LABEL_FIELDS
+// because they need a unit to mean anything, and the unit must be neutral.
+const LABEL_QUANTITIES = {
+  weights: { field: "weight_g", suffix: " g" },
+};
+
 // Ids worth correlating on beyond `case_id`, when the record carries them.
 const REF_FIELDS = ["animal", "aviary", "to_user", "from_user", "shared_with"];
 
-function subjectLabel(record) {
+/**
+ * What to call this record in the log.
+ *
+ * @param app resolves LABEL_RELATIONS. Omit it and only the record's own fields
+ *            are consulted — callers outside a hook (or looking at a
+ *            collection with no relation labels) lose nothing.
+ */
+function subjectLabel(record, app) {
   try {
     const name = String(record.collection().name);
     if (name === "finders") return "";
-    const fields = LABEL_FIELDS[name] || [];
-    for (const f of fields) {
+
+    for (const f of LABEL_FIELDS[name] || []) {
       const v = String(record.get(f) || "").trim();
       if (v) return v.slice(0, 200);
+    }
+
+    const quantity = LABEL_QUANTITIES[name];
+    if (quantity) {
+      const v = record.get(quantity.field);
+      if (v !== null && v !== undefined && String(v) !== "" && Number(v) !== 0) {
+        return String(v) + quantity.suffix;
+      }
+    }
+
+    const relations = LABEL_RELATIONS[name];
+    if (relations && app) {
+      for (const field in relations) {
+        const id = String(record.get(field) || "").trim();
+        if (!id) continue;
+        try {
+          const target = app.findRecordById(relations[field], id);
+          // One level only: the target's own label fields, never its relations.
+          for (const f of LABEL_FIELDS[relations[field]] || []) {
+            const v = String(target.get(f) || "").trim();
+            if (v) return v.slice(0, 200);
+          }
+        } catch (_) {
+          // Target gone or unreadable — try the next relation.
+        }
+      }
     }
   } catch (_) {
     // Unknown shape — no label.
@@ -664,7 +737,7 @@ function emitRecordChange(e, verb, before, hints) {
       subject: {
         collection: collection,
         id: record.id,
-        label: subjectLabel(record),
+        label: subjectLabel(record, e.app),
       },
       refs: refsFor(record),
       changes: changes,
