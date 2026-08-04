@@ -826,6 +826,12 @@ const CONTENT_FIELDS = {
 // Ids worth correlating on beyond `case_id`, when the record carries them.
 const REF_FIELDS = ["animal", "aviary", "to_user", "from_user", "shared_with"];
 
+// Where a record's case is one hop away, because it has no `case` of its own:
+// {collection: {field, collection}}. Read in emit()'s case correlation.
+const CASE_VIA = {
+  exam_findings: { field: "exam", collection: "exams" },
+};
+
 /**
  * The allowlisted content of [record] as change entries.
  *
@@ -1260,6 +1266,28 @@ function emit(e, action, opts) {
         caseId = "";
       }
     }
+    // A record that belongs to a case only through its PARENT. An exam finding
+    // is the one (1700000025: exam, system, status, note, org), so a finding
+    // edited directly through the collection API — which the rules allow, and
+    // which is why exam_finding.* actions exist — filed under no case at all
+    // and never appeared in the activity of the case it was about
+    // (federfall-01wb). Findings written by the exam route are unaffected: that
+    // path emits exam.saved against the exam, which carries the case itself.
+    if (!caseId && rec) {
+      const via = CASE_VIA[subjectCollection];
+      if (via) {
+        try {
+          const parentId = rec.getString(via.field);
+          if (parentId) {
+            caseId = app
+              .findRecordById(via.collection, parentId)
+              .getString("case");
+          }
+        } catch (_) {
+          // Parent gone (a cascading delete) — the row still stands on its own.
+        }
+      }
+    }
 
     // The case NUMBER, snapshotted like every other label here (federfall-
     // by7w.2). Free when the subject IS the case; otherwise one indexed read,
@@ -1353,6 +1381,18 @@ function emitLoginFailed(e, record, detail) {
       $app.logger().info("audit: failed login for an unknown identity");
       return;
     }
+    // Every index on audit_events leads with `org` (1700000068), so a filter
+    // without it cannot use one — and this read runs on EVERY failed attempt,
+    // not just the one that writes a row, against a table that only grows. With
+    // org and actor_id present it is an idx_audit_events_org_actor lookup.
+    // A user with no org cannot be filed under one anyway (emit() refuses to
+    // guess), so there is nothing to dedup and nothing to write.
+    const org = record.getString("org");
+    if (!org) {
+      $app.logger().info("audit: failed login for a user with no org");
+      return;
+    }
+
     const BUCKET_MINUTES = 5;
     const slotMs = BUCKET_MINUTES * 60 * 1000;
     const start = new Date(Math.floor(new Date().getTime() / slotMs) * slotMs);
@@ -1361,11 +1401,12 @@ function emitLoginFailed(e, record, detail) {
 
     const existing = $app.findRecordsByFilter(
       "audit_events",
-      'action = "auth.login_failed" && actor_id = {:a} && created >= {:since}',
+      "org = {:org} && actor_id = {:a}" +
+        ' && action = "auth.login_failed" && created >= {:since}',
       "",
       1,
       0,
-      { a: record.id, since: since },
+      { org: org, a: record.id, since: since },
     );
     if (existing.length > 0) return; // already one row for this window
 
@@ -1373,7 +1414,7 @@ function emitLoginFailed(e, record, detail) {
     d.window_minutes = BUCKET_MINUTES;
     emit(e, ACTIONS.AUTH_LOGIN_FAILED, {
       actor: record,
-      org: record.getString("org"),
+      org: org,
       subject: {
         collection: "users",
         id: record.id,

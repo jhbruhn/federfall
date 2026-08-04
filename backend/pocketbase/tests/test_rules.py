@@ -2807,6 +2807,24 @@ def main():
                     'subject_collection = "exam_findings"')) == n_finding_events,
           "the route's own finding writes were logged separately")
 
+    # federfall-01wb — a finding edited DIRECTLY (which the rules allow, and
+    # which is why exam_finding.* actions exist at all) has no `case` field of
+    # its own: it reaches its case only through its exam. It therefore filed
+    # under no case and never showed up in the activity of the case it was
+    # actually about.
+    ea_finding = listf(toks["sup"], "exam_findings", f'exam = "{ex["id"]}"')[0]
+    req("PATCH", f"/api/collections/exam_findings/records/{ea_finding['id']}",
+        toks["sup"], {"note": "rechts auch"})
+    fr = audit_for(ea_finding["id"], "exam_finding.updated")
+    check("editing a finding directly is logged", len(fr) == 1, fr)
+    check("...against the case its exam belongs to",
+          (fr or [{}])[0].get("case_id") == ea_case, (fr or [{}])[0])
+    _, ea_case_rec = req("GET", f"/api/collections/cases/records/{ea_case}", T)
+    check("...and named by that case's number, like every other case row",
+          (fr or [{}])[0].get("case_label")
+          == (ea_case_rec or {}).get("case_number"),
+          (fr or [{}])[0].get("case_label"))
+
     # A merge destroys a record. The duplicate's id and name survive only in
     # the event, which is why it is emitted before the delete.
     m_keep = mk(toks["sup"], "animals",

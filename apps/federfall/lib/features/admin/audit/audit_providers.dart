@@ -7,6 +7,11 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'audit_providers.g.dart';
 
 /// What the audit feed currently shows.
+///
+/// Constructed explicitly rather than through a `copyWith`: these fields are
+/// not independently optional — a cursor belongs to the page it came from,
+/// and a `copyWith` unable to express "no cursor" (`cursor ?? this.cursor`)
+/// was a trap waiting for the first caller who needed to clear one.
 @immutable
 class AuditFeedState {
   const AuditFeedState({
@@ -14,6 +19,7 @@ class AuditFeedState {
     this.cursor,
     this.hasMore = true,
     this.loadingMore = false,
+    this.pageError,
   });
 
   final List<AuditEvent> events;
@@ -28,17 +34,13 @@ class AuditFeedState {
   /// screen.
   final bool loadingMore;
 
-  AuditFeedState copyWith({
-    List<AuditEvent>? events,
-    PbCursor? cursor,
-    bool? hasMore,
-    bool? loadingMore,
-  }) => AuditFeedState(
-    events: events ?? this.events,
-    cursor: cursor ?? this.cursor,
-    hasMore: hasMore ?? this.hasMore,
-    loadingMore: loadingMore ?? this.loadingMore,
-  );
+  /// Why the last attempt to append a page failed, or null if none did.
+  ///
+  /// Kept in the state rather than thrown: the only caller is a scroll
+  /// listener, which cannot await anything, so a thrown error became an
+  /// unhandled zone error and the supervisor saw the spinner stop and nothing
+  /// else (federfall-ia9n). The screen turns this into a retry row.
+  final Object? pageError;
 }
 
 /// The audit feed for [query], loaded a page at a time.
@@ -59,13 +61,39 @@ class AuditFeed extends _$AuditFeed {
   }
 
   /// Appends the next page. Safe to call repeatedly — it is a no-op while a
-  /// page is in flight or once the feed is exhausted, so a scroll listener can
-  /// fire it as often as it likes.
+  /// page is in flight, once the feed is exhausted, or after a page failed, so
+  /// a scroll listener can fire it as often as it likes.
+  ///
+  /// A failure after [retryPage] would otherwise auto-retry against a server
+  /// that is down for as long as the supervisor keeps the list at the bottom,
+  /// so recovery is an explicit act.
   Future<void> loadMore() async {
     final current = state.value;
-    if (current == null || !current.hasMore || current.loadingMore) return;
+    if (current == null ||
+        !current.hasMore ||
+        current.loadingMore ||
+        current.pageError != null) {
+      return;
+    }
+    await _appendPage(current);
+  }
 
-    state = AsyncData(current.copyWith(loadingMore: true));
+  /// Tries the page that failed again, from the same cursor.
+  Future<void> retryPage() async {
+    final current = state.value;
+    if (current == null || current.pageError == null) return;
+    await _appendPage(current);
+  }
+
+  Future<void> _appendPage(AuditFeedState current) async {
+    state = AsyncData(
+      AuditFeedState(
+        events: current.events,
+        cursor: current.cursor,
+        hasMore: current.hasMore,
+        loadingMore: true,
+      ),
+    );
     try {
       final repo = await ref.read(auditEventsRepositoryProvider.future);
       final next = await repo.search(query: query, after: current.cursor);
@@ -76,12 +104,18 @@ class AuditFeed extends _$AuditFeed {
           hasMore: next.hasMore,
         ),
       );
-    } catch (error, stack) {
+    } on Object catch (error) {
       // Keep what is already on screen: a failed page is not a reason to throw
-      // away the rows the supervisor is reading. The error surfaces once, and
-      // pulling to refresh or scrolling again retries.
-      state = AsyncData(current.copyWith(loadingMore: false));
-      Error.throwWithStackTrace(error, stack);
+      // away the rows the supervisor is reading. The cursor is kept too, so the
+      // retry resumes exactly where this attempt did — no gap, no duplicates.
+      state = AsyncData(
+        AuditFeedState(
+          events: current.events,
+          cursor: current.cursor,
+          hasMore: current.hasMore,
+          pageError: error,
+        ),
+      );
     }
   }
 }

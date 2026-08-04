@@ -524,4 +524,126 @@ void main() {
       expect(lastQuery().isEmpty, isTrue);
     });
   });
+
+  // federfall-ia9n — appending a page used to throw into the scroll listener's
+  // unawaited(), so the failure reached the zone error handler and nothing
+  // else: the spinner stopped and the supervisor was left believing they had
+  // read the log to its end. On an append-only record that is the worst way
+  // for a read to fail.
+  group('a page that fails to append', () {
+    /// A first page of [n] rows with more behind it.
+    PbPage<AuditEvent> firstPage(int n) => PbPage(
+      items: [for (var i = 0; i < n; i++) _event(id: 'audt$i')],
+      cursor: const PbCursor(created: '2026-08-04 09:00:00.000Z', id: 'audt0'),
+    );
+
+    Future<void> scrollToEnd(WidgetTester tester) async {
+      await tester.drag(find.byType(ListView), const Offset(0, -4000));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('says so, and offers the way on', (tester) async {
+      when(
+        () => repo.search(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer((invocation) async {
+        if (invocation.namedArguments[const Symbol('after')] != null) {
+          throw const RepositoryException(
+            'offline',
+            kind: RepositoryErrorKind.network,
+          );
+        }
+        return firstPage(30);
+      });
+
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+      await scrollToEnd(tester);
+
+      expect(
+        find.text("Couldn't load — no connection to the server"),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsOneWidget);
+      // The rows already read stay where they are.
+      expect(find.byType(AuditEventTile), findsWidgets);
+    });
+
+    testWidgets('does not retry itself while the list sits at the end', (
+      tester,
+    ) async {
+      var attempts = 0;
+      when(
+        () => repo.search(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer((invocation) async {
+        if (invocation.namedArguments[const Symbol('after')] != null) {
+          attempts++;
+          throw const RepositoryException(
+            'offline',
+            kind: RepositoryErrorKind.network,
+          );
+        }
+        return firstPage(30);
+      });
+
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+      await scrollToEnd(tester);
+      await scrollToEnd(tester);
+      await scrollToEnd(tester);
+
+      // Recovery is the supervisor's move, not a loop against a server that is
+      // down for as long as they leave the list at the bottom.
+      expect(attempts, 1);
+    });
+
+    testWidgets('resumes from the same cursor when retried', (tester) async {
+      PbCursor? resumedFrom;
+      var fail = true;
+      when(
+        () => repo.search(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer((invocation) async {
+        final after =
+            invocation.namedArguments[const Symbol('after')] as PbCursor?;
+        if (after == null) return firstPage(30);
+        if (fail) {
+          fail = false;
+          throw const RepositoryException(
+            'offline',
+            kind: RepositoryErrorKind.network,
+          );
+        }
+        resumedFrom = after;
+        return PbPage(
+          items: [_event(id: 'page2', subjectLabel: '2026-099')],
+        );
+      });
+
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+      await scrollToEnd(tester);
+      // Built is not the same as reachable: the row sits at the end of a long
+      // list, so it has to be brought into view before it can be tapped.
+      await tester.ensureVisible(find.text('Retry'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(resumedFrom?.id, 'audt0', reason: 'no gap and no duplicates');
+      expect(
+        find.text("Couldn't load — no connection to the server"),
+        findsNothing,
+      );
+      await scrollToEnd(tester);
+      expect(find.textContaining('2026-099'), findsOneWidget);
+    });
+  });
 }

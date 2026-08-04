@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/audit/audit_detail_sheet.dart';
 import 'package:federfall/features/admin/audit/audit_labels.dart';
@@ -124,6 +125,21 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
               itemCount: state.events.length + (state.hasMore ? 1 : 0),
               itemBuilder: (context, i) {
                 if (i >= state.events.length) {
+                  // The tail of the list is either the next page arriving or
+                  // the reason it did not. A failure has to be visible and
+                  // recoverable here: this is the only place it shows, and a
+                  // log the supervisor believes they have read to the end of is
+                  // worse than one that says it stopped (federfall-ia9n).
+                  if (state.pageError case final error?) {
+                    return _PageErrorRow(
+                      error: error,
+                      onRetry: () => unawaited(
+                        ref
+                            .read(auditFeedProvider(_query).notifier)
+                            .retryPage(),
+                      ),
+                    );
+                  }
                   return const Padding(
                     padding: EdgeInsets.all(AppSpacing.lg),
                     child: Center(child: CircularProgressIndicator()),
@@ -134,6 +150,37 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// The end of a feed that stopped short, with the way to carry on.
+class _PageErrorRow extends StatelessWidget {
+  const _PageErrorRow({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        spacing: AppSpacing.sm,
+        children: [
+          Text(
+            loadErrorMessage(l10n, error),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.actionRetry),
+          ),
+        ],
       ),
     );
   }
