@@ -2884,8 +2884,13 @@ def main():
         "audit_events": "the log itself — append-only, and unwritable by rule",
         "geocode_cache": "a cache of upstream responses; no human acts on it",
         "idempotency_keys": "internal replay protection, written by the route",
+        # federfall-by7w.6, decided: NOT audited. Its rules are null, so the
+        # only writer that could ever reach a request hook is a superuser in
+        # the PocketBase dashboard — and an event there would sit next to the
+        # animal.updated that caused the move, reading as a duplicate of it.
         "aviary_stays": "derived from animals.current_aviary by its own hook; "
-                        "the move is audited as that animal.updated",
+                        "the move is audited as that animal.updated, and a "
+                        "dashboard write is deliberately not a second event",
     }
 
     lib = os.path.join(os.path.dirname(os.path.abspath(__file__)),

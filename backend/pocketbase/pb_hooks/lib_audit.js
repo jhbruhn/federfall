@@ -435,8 +435,11 @@ const COLLECTION_ACTIONS = {
     deleted: ACTIONS.AVIARY_DELETED,
   },
   // NOT aviary_stays: superuser-only by rule and written exclusively by
-  // aviary_stays.pb.js from `animals.current_aviary`, so a request hook there
-  // would never fire. Moving a bird is audited as the animal.updated it is.
+  // aviary_stays.pb.js from `animals.current_aviary`, so the only caller a
+  // request hook here could ever see is a superuser in the PocketBase
+  // dashboard. Decided against (federfall-by7w.6): that event would sit beside
+  // the animal.updated that caused the same move and read as a duplicate of
+  // it. Moving a bird is audited as the animal.updated it is.
 
   // ── people and access (federfall-qt96.5) ───────────────────────────────────
   // `updated` is refined below into role_changed / deactivated / mfa_*: those
