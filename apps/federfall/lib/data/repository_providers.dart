@@ -26,6 +26,12 @@ Future<AuthRepository> authRepository(Ref ref) async =>
 Future<PbCasesRepository> casesRepository(Ref ref) async =>
     PbCasesRepository(await _client(ref));
 
+/// Supervisor-only audit log. Read-only by type: the collection has no write
+/// rules at all, so appending to it from the app is a compile error.
+@Riverpod(keepAlive: true)
+Future<PbAuditEventsRepository> auditEventsRepository(Ref ref) async =>
+    PbAuditEventsRepository(await _client(ref));
+
 @Riverpod(keepAlive: true)
 Future<PbAnimalsRepository> animalsRepository(Ref ref) async =>
     PbAnimalsRepository(await _client(ref));

@@ -2211,5 +2211,9 @@
     "auditFactRole": "Role",
     "auditFactFirstUser": "First account in the organisation",
     "auditFieldActiveCarer": "Assigned to",
-    "auditFieldLifetimeStatus": "Lifetime status"
+    "auditFieldLifetimeStatus": "Lifetime status",
+    "auditTitle": "Audit log",
+    "auditEmpty": "Nothing recorded yet",
+    "auditFilterAll": "All",
+    "auditCaseSectionTitle": "Who changed what"
 }

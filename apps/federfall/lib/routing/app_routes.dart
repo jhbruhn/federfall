@@ -99,6 +99,9 @@ abstract final class AppRoutes {
   static const medicationRoutesAdmin = '/admin/medication-routes';
   static const medicationProductsAdmin = '/admin/medications';
 
+  /// Supervisor-only audit log (federfall-qt96).
+  static const audit = '/admin/audit';
+
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 

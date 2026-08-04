@@ -5,6 +5,7 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/admin/audit/audit_screen.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/delete_record_dialogs.dart';
@@ -483,6 +484,11 @@ class _OverviewTab extends StatelessWidget {
           _CasePhotoGallery(caseId: medicalCase.id),
           _PriorCasesSection(medicalCase: medicalCase),
           _CaseActions(medicalCase: medicalCase),
+          // Supervisors only, and it renders nothing at all for anyone else
+          // (federfall-qt96.11). Deliberately last and deliberately not part
+          // of the History tab: the timeline is the clinical chronology a
+          // carer reads, this is who touched the record.
+          CaseActivitySection(caseId: medicalCase.id),
         ],
       ),
     );

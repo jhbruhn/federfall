@@ -1155,5 +1155,9 @@
     "auditFactRole": "Rolle",
     "auditFactFirstUser": "Erstes Konto der Organisation",
     "auditFieldActiveCarer": "Zuständig",
-    "auditFieldLifetimeStatus": "Lebensstatus"
+    "auditFieldLifetimeStatus": "Lebensstatus",
+    "auditTitle": "Protokoll",
+    "auditEmpty": "Noch keine Einträge",
+    "auditFilterAll": "Alle",
+    "auditCaseSectionTitle": "Wer was geändert hat"
 }

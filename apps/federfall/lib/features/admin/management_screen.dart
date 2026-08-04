@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/features/admin/audit/audit_screen.dart';
 import 'package:federfall/features/admin/codelist_admin.dart';
 import 'package:federfall/features/admin/codelist_specs.dart';
 import 'package:federfall/features/admin/medication_products_screen.dart';
@@ -28,7 +29,8 @@ enum _AdminSection {
   medicationProducts(
     Icons.inventory_2_outlined,
     AppRoutes.medicationProductsAdmin,
-  );
+  ),
+  audit(Icons.history_toggle_off, AppRoutes.audit);
 
   const _AdminSection(this.icon, this.route);
 
@@ -43,6 +45,7 @@ enum _AdminSection {
     _AdminSection.markingTypes => l10n.markingTypesAdminTitle,
     _AdminSection.medicationRoutes => l10n.medicationRoutesAdminTitle,
     _AdminSection.medicationProducts => l10n.medProductsAdminTitle,
+    _AdminSection.audit => l10n.auditTitle,
   };
 
   Widget screen() => switch (this) {
@@ -61,6 +64,7 @@ enum _AdminSection {
       spec: medicationRoutesCodelistSpec,
     ),
     _AdminSection.medicationProducts => const MedicationProductsScreen(),
+    _AdminSection.audit => const AuditScreen(),
   };
 }
 

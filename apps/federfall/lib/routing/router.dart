@@ -5,6 +5,7 @@ import 'package:federfall/core/auth/session_refresh.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
+import 'package:federfall/features/admin/audit/audit_screen.dart';
 import 'package:federfall/features/admin/codelist_admin.dart';
 import 'package:federfall/features/admin/codelist_specs.dart';
 import 'package:federfall/features/admin/management_screen.dart';
@@ -360,6 +361,10 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: AppRoutes.medicationProductsAdmin,
         builder: (_, _) => const MedicationProductsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.audit,
+        builder: (_, _) => const AuditScreen(),
       ),
       GoRoute(
         path: AppRoutes.statistics,
