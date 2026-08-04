@@ -13,6 +13,7 @@ any failure.
 import base64
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -2764,6 +2765,71 @@ def main():
           [(r.get("detail") or {}).get("format") for r in rows[-2:]]
           == ["pdf", "receipt"],
           [(r.get("detail") or {}).get("format") for r in rows[-2:]])
+
+    # ── federfall-qt96.7: coverage — the control that replaces a catch-all ──
+    # Every emitter in this log is hand-written, which buys readable events and
+    # costs the guarantee a blind record.* sweep would have given: a collection
+    # added next year is silently unaudited, and nothing complains. This is
+    # what complains. Adding a collection now fails here until someone decides,
+    # in writing, whether it is audited or deliberately not.
+    #
+    # The audited set is READ OUT OF lib_audit.js rather than mirrored here on
+    # purpose — a copy would keep passing after someone removed a collection
+    # from the real map.
+    print("\n[audit coverage]")
+
+    # Why each of these is deliberately unaudited.
+    NOT_AUDITED = {
+        "audit_events": "the log itself — append-only, and unwritable by rule",
+        "geocode_cache": "a cache of upstream responses; no human acts on it",
+        "idempotency_keys": "internal replay protection, written by the route",
+        "aviary_stays": "derived from animals.current_aviary by its own hook; "
+                        "the move is audited as that animal.updated",
+    }
+
+    lib = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "..", "pb_hooks", "lib_audit.js")
+    with open(lib, encoding="utf-8") as fh:
+        lib_src = fh.read()
+    block = lib_src[lib_src.index("const COLLECTION_ACTIONS = {"):]
+    block = block[:block.index("\n};")]
+    audited = set(re.findall(r"^  ([a-z_]+): \{", block, re.M))
+    registry = set(re.findall(r'^  [A-Z0-9_]+: "([a-z0-9_]+\.[a-z0-9_]+)",',
+                              lib_src, re.M))
+    # If either parse breaks, everything below would pass vacuously.
+    check("the emitter registry is readable (parse guard)",
+          len(audited) >= 15 and len(registry) >= 40,
+          f"{len(audited)} collections, {len(registry)} actions")
+
+    s, cols = req("GET", "/api/collections?perPage=200", T)
+    base = [c["name"] for c in cols["items"]
+            if c["type"] != "view" and not c["name"].startswith("_")]
+    check("the schema has collections to check (parse guard)",
+          len(base) >= 25, len(base))
+    unclassified = [n for n in base
+                    if n not in audited and n not in NOT_AUDITED]
+    check("every collection is either audited or explicitly exempt",
+          not unclassified,
+          "unclassified: " + ", ".join(sorted(unclassified))
+          + " — add an emitter in lib_audit.js's COLLECTION_ACTIONS, "
+            "or an entry with a reason in this test's NOT_AUDITED")
+    stale = [n for n in list(audited) + list(NOT_AUDITED)
+             if n not in base]
+    check("nothing is classified that no longer exists",
+          not stale, "stale: " + ", ".join(sorted(stale)))
+
+    # The other half of the contract: `action` is TEXT, so nothing at write
+    # time stops a typo'd action string from being stored — the app would
+    # render it as an unknown line forever. Everything this whole suite
+    # produced must be in the registry.
+    s, d = req("GET", "/api/collections/audit_events/records?perPage=500",
+               toks["sup"])
+    seen = sorted({r["action"] for r in (d["items"] if s == 200 else [])})
+    check("the suite exercised a good part of the registry (parse guard)",
+          len(seen) >= 15, f"only {len(seen)} distinct actions")
+    check("every action ever emitted is in the registry",
+          all(a in registry for a in seen),
+          "not registered: " + ", ".join(a for a in seen if a not in registry))
 
     # ── federfall-0tf: geocode proxy guards ─────────────────────────────────
     # Runs LAST: the flood exhausts the geocode rate budget for this client IP,
