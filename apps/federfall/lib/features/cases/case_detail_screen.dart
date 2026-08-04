@@ -277,7 +277,8 @@ class _PrintReportButtonState extends ConsumerState<_PrintReportButton> {
         messenger.showSnackBar(
           SnackBar(content: Text(l10n.printerNotConfigured)),
         );
-        if (router != null) unawaited(router.push(AppRoutes.profile));
+        // `go`: an imperative push would leave the address bar on the case.
+        if (router != null) router.go(AppRoutes.profile);
         return;
       }
 

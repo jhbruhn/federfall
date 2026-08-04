@@ -166,7 +166,9 @@ class _WorklistPreview extends ConsumerWidget {
                     ),
                     subtitle: Text(l10n.worklistDueCount(list.length)),
                     trailing: TextButton(
-                      onPressed: () => context.push(AppRoutes.today),
+                      // `go`, not `push`: an imperative push leaves the address
+                      // bar on the dashboard while Today is on screen.
+                      onPressed: () => context.go(AppRoutes.today),
                       child: Text(l10n.worklistSeeAll),
                     ),
                   ),

@@ -10,6 +10,7 @@ import 'package:federfall/features/statistics/intake_map_providers.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
+import 'package:federfall/routing/back_or_home.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -65,8 +66,10 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     });
     final stats = ref.watch(statisticsProvider);
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(
+        // Pushed over the app, so a cold open has nothing to pop back to.
+        leading: const BackOrHomeButton(),
         title: Text(l10n.statsTitle),
         actions: [
           IconButton(
@@ -171,6 +174,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         ),
       ),
     );
+
+    return BackOrHomeScope(child: scaffold);
   }
 }
 
@@ -191,7 +196,10 @@ class _IntakeMapCard extends ConsumerWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push(AppRoutes.intakeMap),
+        // `go`, not `push`: the map is a child of /statistics, so this keeps the
+        // address bar honest AND leaves the statistics page beneath it to pop
+        // back to — no fallback needed here.
+        onTap: () => context.go(AppRoutes.intakeMap),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(

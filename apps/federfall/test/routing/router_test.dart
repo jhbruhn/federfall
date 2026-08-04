@@ -432,45 +432,70 @@ void main() {
     expect(find.byType(CaseDetailScreen), findsOneWidget);
   });
 
-  testWidgets('a pushed overlay (profile) is NOT restored across process '
-      'death — the shell comes back instead (federfall-7ev8)', (tester) async {
+  testWidgets('an account surface (profile) IS restored across process death, '
+      'and is not a dead end when it comes back (federfall-7ev8)', (
+    tester,
+  ) async {
     await tester.pumpWidget(const _RestorableApp());
     await tester.pumpAndSettle();
 
-    // Profile is reached with push, so it is an imperative match go_router
-    // drops on restore (the boundary is push vs go, not builder/pageBuilder).
-    unawaited(
-      GoRouter.of(
-        tester.element(find.byType(CasesScreen)),
-      ).push(AppRoutes.profile),
-    );
+    // Profile is reached with `go` (an imperative push never reaches the
+    // address bar), so it is a real location and restore brings it back rather
+    // than dropping it. That used to be avoided because a restored overlay had
+    // an empty back stack and stranded the user; the app bar's back-or-home
+    // fallback is what makes coming back here safe, so assert both halves
+    // together — restoring without the fallback is the bug, not the feature.
+    GoRouter.of(tester.element(find.byType(CasesScreen))).go(AppRoutes.profile);
     await tester.pumpAndSettle();
     expect(find.byType(ProfileScreen), findsOneWidget);
 
     await tester.restartAndRestore();
     await tester.pumpAndSettle();
 
-    expect(find.byType(ProfileScreen), findsNothing);
-    expect(find.byType(CasesScreen), findsOneWidget);
+    expect(find.byType(ProfileScreen), findsOneWidget);
+
+    // Nothing beneath it to pop, yet there is still a way back into the app.
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(CasesScreen), findsWidgets);
   });
 
-  // Every route that must stay non-resumable is reached with push() so it is an
-  // imperative match go_router drops on restore. This locks in the exclusion
-  // policy that used to live in _isResumableLocation: a future push()→go() slip
-  // on any of these silently reopens the stranding bug, and this fails first.
+  // A transient FORM stays non-resumable: it is reached with push(), so it is
+  // an imperative match go_router drops on restore. Keep it that way —
+  // resurrecting a half-filled intake form out of context is worse than landing
+  // on the shell, and the intake draft store is what preserves that work.
   // (casesBrowse is push-only too but renders a CasesScreen, so it has no
   // distinct widget to assert on — it rides the same mechanism.)
+  testWidgets(
+    'the create-case form is not restored across process death '
+    '(federfall-7ev8)',
+    (tester) async {
+      await tester.pumpWidget(const _RestorableApp());
+      await tester.pumpAndSettle();
+
+      unawaited(
+        GoRouter.of(
+          tester.element(find.byType(Navigator).first),
+        ).push(AppRoutes.newCase),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(NewCaseScreen), findsOneWidget); // sanity
+
+      await tester.restartAndRestore();
+      await tester.pumpAndSettle();
+
+      // Restore drops the imperative match: form gone, shell back.
+      expect(find.byType(NewCaseScreen), findsNothing);
+      expect(find.byType(CasesScreen), findsWidgets);
+    },
+  );
+
+  // The account/admin surfaces, by contrast, are addressable locations reached
+  // with go(), so restore DOES bring them back — and must not strand the user
+  // when it does. Each is asserted with its back affordance, because "restored"
+  // is only correct together with "has a way out": that pairing is the whole
+  // reason these moved off push().
   for (final entry in <({String label, String route, Finder overlay})>[
-    (
-      label: 'the create-case form',
-      route: AppRoutes.newCase,
-      overlay: find.byType(NewCaseScreen),
-    ),
-    (
-      label: 'the profile',
-      route: AppRoutes.profile,
-      overlay: find.byType(ProfileScreen),
-    ),
     (
       label: 'the statistics screen',
       route: AppRoutes.statistics,
@@ -483,25 +508,27 @@ void main() {
     ),
   ]) {
     testWidgets(
-      '${entry.label} is not restored across process death (federfall-7ev8)',
+      '${entry.label} is restored across process death, with a way back '
+      '(federfall-7ev8)',
       (tester) async {
         await tester.pumpWidget(const _RestorableApp());
         await tester.pumpAndSettle();
 
-        unawaited(
-          GoRouter.of(
-            tester.element(find.byType(Navigator).first),
-          ).push(entry.route),
-        );
+        GoRouter.of(
+          tester.element(find.byType(Navigator).first),
+        ).go(entry.route);
         await tester.pumpAndSettle();
-        expect(entry.overlay, findsOneWidget); // sanity: on the overlay
+        expect(entry.overlay, findsOneWidget); // sanity: on the surface
 
         await tester.restartAndRestore();
         await tester.pumpAndSettle();
 
-        // Restore drops the imperative match: the overlay is gone and the
-        // shell home is back.
-        expect(entry.overlay, findsNothing);
+        expect(entry.overlay, findsOneWidget);
+
+        // Restored with an empty back stack, so the implied arrow would have
+        // been absent — the explicit fallback is what keeps this reachable.
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
         expect(find.byType(CasesScreen), findsWidgets);
       },
     );

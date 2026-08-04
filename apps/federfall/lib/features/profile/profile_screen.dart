@@ -14,13 +14,12 @@ import 'package:federfall/features/reminders/reminder_lead.dart';
 import 'package:federfall/features/reminders/reminder_scheduler.dart';
 import 'package:federfall/features/reminders/reminder_settings.dart';
 import 'package:federfall/l10n/l10n.dart';
-import 'package:federfall/routing/app_routes.dart';
+import 'package:federfall/routing/back_or_home.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 /// Minimal profile screen (FED-3.3): shows the signed-in user's details and
 /// hosts the sign-out action.
@@ -32,32 +31,16 @@ class ProfileScreen extends ConsumerWidget {
     final l10n = context.l10n;
     final user = ref.watch(currentUserProvider);
 
-    // Profile is a top-level route pushed over the shell, so it can end up with
+    // Profile is a top-level route over the shell, so it can end up with
     // an empty back stack — restored on cold start, or after a redirect refresh
     // (this screen mutates currentUserProvider via the MFA toggle / edit sheet,
-    // which bumps the router's refresh listenable). The auto-implied back arrow
-    // vanishes when there is nothing to pop, so provide an explicit exit that
-    // falls back to the home landing instead of stranding the user here.
-    // Resolved via [GoRouter.maybeOf] so the screen still pumps in widget tests
-    // that mount it without a router (cf. [selectedDetailId]).
-    final router = GoRouter.maybeOf(context);
-    final canPop = router?.canPop() ?? false;
-    void exit() {
-      if (canPop) {
-        router!.pop();
-      } else {
-        router?.go(AppRoutes.home);
-      }
-    }
-
-    return PopScope(
-      canPop: canPop,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) router?.go(AppRoutes.home);
-      },
+    // which bumps the router's refresh listenable). [BackOrHomeButton] and
+    // [BackOrHomeScope] fall back to the home landing in that case, for the app
+    // bar and the system back gesture respectively.
+    return BackOrHomeScope(
       child: Scaffold(
         appBar: AppBar(
-          leading: BackButton(onPressed: exit),
+          leading: const BackOrHomeButton(),
           title: Text(l10n.profileTitle),
           actions: [
             if (user.value case final u?)

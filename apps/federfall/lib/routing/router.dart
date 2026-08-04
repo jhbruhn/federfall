@@ -5,13 +5,7 @@ import 'package:federfall/core/auth/session_refresh.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
-import 'package:federfall/features/admin/audit/audit_screen.dart';
-import 'package:federfall/features/admin/codelist_admin.dart';
-import 'package:federfall/features/admin/codelist_specs.dart';
 import 'package:federfall/features/admin/management_screen.dart';
-import 'package:federfall/features/admin/medication_products_screen.dart';
-import 'package:federfall/features/admin/org_settings_screen.dart';
-import 'package:federfall/features/admin/team_screen.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/features/animals/merge_animal_screen.dart';
@@ -96,9 +90,14 @@ GoRouter router(Ref ref) {
     // process is handled by go_router's own state restoration (federfall-7ev8):
     // this id, plus `MaterialApp.router`'s `restorationScopeId`, plus the
     // per-branch/per-pane `restorationScopeId`s on the shell below. Only the
-    // current `.go()` location is restored; transient screens reached with
-    // `.push()` (create-case, browse, profile, admin, stats) are imperative
-    // matches and are deliberately dropped on restore.
+    // current `.go()` location is restored; screens reached with `.push()` are
+    // imperative matches and are dropped on restore. That split is now
+    // deliberate per surface rather than blanket: the account/admin surfaces
+    // (profile, admin, stats, today) use `.go()` because an imperative push
+    // never reaches the address bar, so they DO come back — safe only because
+    // each carries a back-or-home fallback for the empty stack a restore leaves
+    // behind. The transient FORMS (create-case, browse) stay on `.push()`, so a
+    // half-filled intake is not resurrected out of context.
     //
     // Web: Flutter's RestorationManager is a no-op on web (no engine channel),
     // so there is no last-location restore there — by design. Web users arrive
@@ -321,58 +320,47 @@ GoRouter router(Ref ref) {
         path: AppRoutes.profile,
         builder: (_, _) => const ProfileScreen(),
       ),
-      // Management hub (federfall-zbe): a single full-screen route pushed over
-      // the shell. On wide screens [ManagementScreen] lays out the hub and the
-      // selected section side-by-side itself (internal selection state) — it is
-      // NOT a go_router two-pane, so the hub stays a normal pushed route and
-      // its back-to-app affordance never disappears. On narrow screens it
-      // pushes the section routes below full-screen. Statistics is reached from
-      // the account menu / rail, not the hub.
+      // Management hub (federfall-zbe): a single full-screen route over the
+      // shell, with one child route per admin section. On wide screens
+      // [ManagementScreen] lays out the hub and the section side-by-side itself
+      // — it is NOT a go_router two-pane, so the hub stays one ordinary route
+      // and its back-to-app affordance never disappears. The sections are
+      // children rather than top-level siblings so the hub page sits beneath a
+      // directly-opened section URL, which is what gives it a back button
+      // instead of a dead end. Statistics is reached from the account menu /
+      // rail, not the hub.
       GoRoute(
         path: AppRoutes.admin,
         builder: (_, _) => const ManagementScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.manageTeam,
-        builder: (_, _) => const TeamScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.orgSettings,
-        builder: (_, _) => const OrgSettingsScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.conditionsAdmin,
-        builder: (_, _) => CodelistAdminScreen(spec: conditionsCodelistSpec),
-      ),
-      GoRoute(
-        path: AppRoutes.admissionReasonsAdmin,
-        builder: (_, _) =>
-            CodelistAdminScreen(spec: admissionReasonsCodelistSpec),
-      ),
-      GoRoute(
-        path: AppRoutes.markingTypesAdmin,
-        builder: (_, _) => CodelistAdminScreen(spec: markingTypesCodelistSpec),
-      ),
-      GoRoute(
-        path: AppRoutes.medicationRoutesAdmin,
-        builder: (_, _) =>
-            CodelistAdminScreen(spec: medicationRoutesCodelistSpec),
-      ),
-      GoRoute(
-        path: AppRoutes.medicationProductsAdmin,
-        builder: (_, _) => const MedicationProductsScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.audit,
-        builder: (_, _) => const AuditScreen(),
+        routes: [
+          for (final section in AdminSection.values)
+            GoRoute(
+              path: section.segment,
+              // On expanded widths the hub is part of BOTH this page and the
+              // parent's, so a page transition would slide the whole two-pane
+              // in when all that actually changed is the right pane — it reads
+              // as a new screen opening over the hub. Compact widths really are
+              // a full-screen push and keep the platform transition.
+              pageBuilder: (context, state) {
+                final screen = ManagementScreen(section: section);
+                return context.isExpanded
+                    ? NoTransitionPage(key: state.pageKey, child: screen)
+                    : MaterialPage(key: state.pageKey, child: screen);
+              },
+            ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.statistics,
         builder: (_, _) => const StatisticsScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.intakeMap,
-        builder: (_, _) => const IntakeMapScreen(),
+        routes: [
+          // Child of statistics for the same reason as the admin sections: a
+          // direct hit on /statistics/map needs a page beneath it.
+          GoRoute(
+            path: AppRoutes.intakeMapSegment,
+            builder: (_, _) => const IntakeMapScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.today,

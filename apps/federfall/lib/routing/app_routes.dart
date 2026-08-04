@@ -58,9 +58,12 @@ abstract final class AppRoutes {
   static String casesBrowse(String query) => '/cases/browse?$query';
 
   // Relative sub-path segments, used when declaring the case/animal detail
-  // routes as children of their navigation-shell branch (so the address bar
-  // and back button track the pushed detail page — go_router does not update
-  // the URL for routes pushed as siblings of a StatefulShellRoute).
+  // routes as children of their navigation-shell branch. Being a child is what
+  // gives the detail a parent page to go back to, and what lets `go` address it
+  // without discarding the surface it belongs to. Note that `go` — NOT `push` —
+  // is what keeps the address bar in step: go_router deliberately does not
+  // surface an imperative push in the URL, so a pushed route leaves the bar
+  // showing whatever was underneath it.
 
   /// `new` — create-case form, child of the cases branch.
   static const newCaseSegment = 'new';
@@ -102,11 +105,44 @@ abstract final class AppRoutes {
   /// Supervisor-only audit log (federfall-qt96).
   static const audit = '/admin/audit';
 
+  // Relative sub-path segments for the management sections, used when declaring
+  // them as children of the [admin] hub route. Being children (not top-level
+  // siblings) is what puts the hub page beneath a section, so opening a section
+  // URL directly still has a back affordance instead of being a dead end.
+
+  /// `team` — team roster, child of the management hub.
+  static const manageTeamSegment = 'team';
+
+  /// `org-settings` — organisation settings, child of the management hub.
+  static const orgSettingsSegment = 'org-settings';
+
+  /// `conditions` — condition code-list, child of the management hub.
+  static const conditionsAdminSegment = 'conditions';
+
+  /// `admission-reasons` — admission-reason code-list, child of the hub.
+  static const admissionReasonsAdminSegment = 'admission-reasons';
+
+  /// `marking-types` — marking-type code-list, child of the management hub.
+  static const markingTypesAdminSegment = 'marking-types';
+
+  /// `medication-routes` — medication-route code-list, child of the hub.
+  static const medicationRoutesAdminSegment = 'medication-routes';
+
+  /// `medications` — medication products, child of the management hub.
+  static const medicationProductsAdminSegment = 'medications';
+
+  /// `audit` — audit log, child of the management hub.
+  static const auditSegment = 'audit';
+
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 
   /// Intake find-location overview map, under statistics (federfall-xr8t).
   static const intakeMap = '/statistics/map';
+
+  /// `map` — intake map, child of the [statistics] route (same reason as the
+  /// management-section segments above: a direct hit needs a page beneath it).
+  static const intakeMapSegment = 'map';
 
   /// Password-reset confirmation, reached from the invite email (FED-3.2).
   /// Public: usable without a session.

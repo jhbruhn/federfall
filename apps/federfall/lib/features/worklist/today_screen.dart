@@ -5,6 +5,7 @@ import 'package:federfall/features/worklist/worklist_labels.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/features/worklist/worklist_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/routing/back_or_home.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,7 +54,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final expanded = context.isExpanded;
 
     final list = Scaffold(
-      appBar: AppBar(title: Text(l10n.todayTitle)),
+      appBar: AppBar(
+        // Pushed over the app, so a cold open has nothing to pop back to.
+        leading: const BackOrHomeButton(),
+        title: Text(l10n.todayTitle),
+      ),
       body: AsyncValueView<List<WorklistItem>>(
         value: items,
         onRetry: () => ref.invalidate(worklistSourceProvider),
@@ -77,29 +82,31 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       ),
     );
 
-    if (!expanded) return list;
+    if (!expanded) return BackOrHomeScope(child: list);
 
     // Wide: worklist on the left, the selected case (its own Scaffold) or the
     // empty-selection placeholder on the right — like the other two-pane
     // surfaces.
     final selectedId = _selectedCaseId;
-    return Row(
-      children: [
-        SizedBox(width: kListPaneWidth, child: list),
-        const VerticalDivider(width: 1),
-        Expanded(
-          child: selectedId == null
-              ? DetailPanePlaceholder(
-                  icon: Icons.medical_information_outlined,
-                  message: l10n.listDetailSelectCase,
-                )
-              : CaseDetailScreen(
-                  // Rebuild the detail when the selection changes.
-                  key: ValueKey(selectedId),
-                  caseId: selectedId,
-                ),
-        ),
-      ],
+    return BackOrHomeScope(
+      child: Row(
+        children: [
+          SizedBox(width: kListPaneWidth, child: list),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: selectedId == null
+                ? DetailPanePlaceholder(
+                    icon: Icons.medical_information_outlined,
+                    message: l10n.listDetailSelectCase,
+                  )
+                : CaseDetailScreen(
+                    // Rebuild the detail when the selection changes.
+                    key: ValueKey(selectedId),
+                    caseId: selectedId,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

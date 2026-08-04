@@ -1,6 +1,7 @@
 import 'package:federfall/features/worklist/today_screen.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
+import 'package:federfall/features/worklist/worklist_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -102,7 +103,14 @@ void main() {
     expect(find.text('Vet appointments'), findsOneWidget);
     expect(find.text('2026-004 · Otto'), findsOneWidget);
     expect(find.textContaining('Dr. Meyer'), findsOneWidget);
-    expect(find.byType(IconButton), findsNothing);
+    // Scoped to the tile: the app bar carries a back button of its own.
+    expect(
+      find.descendant(
+        of: find.byType(WorklistTile),
+        matching: find.byType(IconButton),
+      ),
+      findsNothing,
+    );
     expect(find.byIcon(Icons.chevron_right), findsOneWidget);
   });
 

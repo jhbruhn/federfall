@@ -80,7 +80,11 @@ class AccountMenuButton extends ConsumerWidget {
   ) => MenuAction(
     icon: icon,
     label: label,
-    onTap: () => context.push(route),
+    // `go`, not `push`: go_router never updates the address bar for an
+    // imperative push, so pushing left the URL showing the tab underneath while
+    // the account surface was on screen. These are real, linkable locations.
+    // They have no parent route, so their app bar carries a [BackOrHomeButton].
+    onTap: () => context.go(route),
   );
 }
 
@@ -129,7 +133,8 @@ class AccountRailActions extends ConsumerWidget {
             icon: e.icon,
             label: e.label,
             extended: extended,
-            onTap: () => context.push(e.route),
+            // `go` for the same reason as the popup above.
+            onTap: () => context.go(e.route),
           ),
       ],
     );
