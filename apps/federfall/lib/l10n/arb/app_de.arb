@@ -1176,5 +1176,17 @@
     "auditFieldCapacity": "Plätze",
     "auditFieldAccess": "Zugriff",
     "auditFieldLabel": "Bezeichnung",
-    "auditFieldCertainty": "Sicherheit der Diagnose"
+    "auditFieldCertainty": "Sicherheit der Diagnose",
+    "auditFilterRange": "Zeitraum",
+    "auditFilterToday": "Heute",
+    "auditFilter7Days": "7 Tage",
+    "auditFilter30Days": "30 Tage",
+    "auditFilterCustom": "Zeitraum wählen…",
+    "auditFilterRangeLabel": "{from} – {to}",
+    "@auditFilterRangeLabel": {
+        "placeholders": {
+            "from": { "type": "String" },
+            "to": { "type": "String" }
+        }
+    }
 }

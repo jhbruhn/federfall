@@ -139,6 +139,75 @@ void main() {
     expect(captured.last.severity, AuditSeverity.security);
   });
 
+  group('the date filter', () {
+    testWidgets('a preset narrows the query to that period', (tester) async {
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+
+      await tester.tap(find.widgetWithText(FilterChip, '7 days'));
+      await tester.pumpAndSettle();
+
+      final q = verify(
+        () => repo.search(
+          query: captureAny(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).captured.cast<AuditQuery>().last;
+
+      expect(q.from, isNotNull);
+      expect(q.to, isNotNull);
+      // Seven days INCLUDING today, and half-open at the end — an event at
+      // 23:30 today has to fall inside its own range.
+      expect(q.to!.difference(q.from!).inDays, 7);
+      expect(q.to!.isAfter(DateTime.now()), isTrue);
+    });
+
+    testWidgets('clearing it goes back to the whole log', (tester) async {
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Today'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilterChip, 'Today'));
+      await tester.pumpAndSettle();
+
+      final q = verify(
+        () => repo.search(
+          query: captureAny(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).captured.cast<AuditQuery>().last;
+
+      expect(q.from, isNull);
+      expect(q.to, isNull);
+    });
+
+    testWidgets('a period and a severity narrow together', (tester) async {
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Security'));
+      await tester.pumpAndSettle();
+      // The filter row scrolls horizontally; the later chips are off-screen at
+      // the default test surface.
+      final thirty = find.widgetWithText(FilterChip, '30 days');
+      await tester.ensureVisible(thirty);
+      await tester.pumpAndSettle();
+      await tester.tap(thirty);
+      await tester.pumpAndSettle();
+
+      final q = verify(
+        () => repo.search(
+          query: captureAny(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).captured.cast<AuditQuery>().last;
+
+      expect(q.severity, AuditSeverity.security);
+      expect(q.from, isNotNull);
+    });
+  });
+
   testWidgets('an event with detail shows its facts', (tester) async {
     when(
       () => repo.search(

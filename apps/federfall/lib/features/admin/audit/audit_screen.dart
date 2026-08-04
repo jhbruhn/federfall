@@ -28,6 +28,7 @@ class AuditScreen extends ConsumerStatefulWidget {
 class _AuditScreenState extends ConsumerState<AuditScreen> {
   final _scroll = ScrollController();
   AuditSeverity? _severity;
+  DateTimeRange? _range;
 
   @override
   void initState() {
@@ -41,7 +42,15 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
     super.dispose();
   }
 
-  AuditQuery get _query => AuditQuery(severity: _severity);
+  AuditQuery get _query => AuditQuery(
+    severity: _severity,
+    from: _range?.start,
+    // Half-open: the picker's end is the last DAY, so the bound is the start
+    // of the next one or an event at 23:30 would fall outside its own range.
+    to: _range == null
+        ? null
+        : DateTime(_range!.end.year, _range!.end.month, _range!.end.day + 1),
+  );
 
   void _maybeLoadMore() {
     if (!_scroll.hasClients) return;
@@ -76,9 +85,11 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
         title: Text(l10n.auditTitle),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(52),
-          child: _SeverityFilter(
-            selected: _severity,
-            onChanged: (s) => setState(() => _severity = s),
+          child: _Filters(
+            severity: _severity,
+            range: _range,
+            onSeverity: (s) => setState(() => _severity = s),
+            onRange: (r) => setState(() => _range = r),
           ),
         ),
       ),
@@ -116,18 +127,62 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
   }
 }
 
-/// Severity is the one filter worth putting in front of everyone: it separates
-/// "who can get in and who can see what" from the day's clinical work, without
-/// needing to know a single action name.
-class _SeverityFilter extends StatelessWidget {
-  const _SeverityFilter({required this.selected, required this.onChanged});
+/// The two filters worth putting in front of everyone.
+///
+/// Severity separates who can get in and who can see what from the day's
+/// clinical work, without the reader having to know a single action name. The
+/// period answers the other question a supervisor arrives with — "what
+/// happened while I was away" — and it is what keeps an append-only feed that
+/// only grows from having to be scrolled to reach anything old.
+class _Filters extends StatelessWidget {
+  const _Filters({
+    required this.severity,
+    required this.range,
+    required this.onSeverity,
+    required this.onRange,
+  });
 
-  final AuditSeverity? selected;
-  final ValueChanged<AuditSeverity?> onChanged;
+  final AuditSeverity? severity;
+  final DateTimeRange? range;
+  final ValueChanged<AuditSeverity?> onSeverity;
+  final ValueChanged<DateTimeRange?> onRange;
+
+  /// [days] back from today, inclusive of today.
+  static DateTimeRange _lastDays(int days) {
+    final now = DateTime.now();
+    final end = DateTime(now.year, now.month, now.day);
+    return DateTimeRange(
+      end: end,
+      start: end.subtract(Duration(days: days - 1)),
+    );
+  }
+
+  bool _isPreset(int days) {
+    final preset = _lastDays(days);
+    return range != null &&
+        range!.start == preset.start &&
+        range!.end == preset.end;
+  }
+
+  Future<void> _pick(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 5),
+      // The log cannot contain the future, so offering it would only mislead.
+      lastDate: DateTime(now.year, now.month, now.day),
+      initialDateRange: range,
+    );
+    if (picked != null) onRange(picked);
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final custom =
+        range != null && !_isPreset(1) && !_isPreset(7) && !_isPreset(30);
+    final dates = DateFormat.yMd(l10n.localeName);
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(
@@ -139,15 +194,42 @@ class _SeverityFilter extends StatelessWidget {
         children: [
           FilterChip(
             label: Text(l10n.auditFilterAll),
-            selected: selected == null,
-            onSelected: (_) => onChanged(null),
+            selected: severity == null && range == null,
+            onSelected: (_) {
+              onSeverity(null);
+              onRange(null);
+            },
           ),
           for (final s in AuditSeverity.values)
             FilterChip(
               label: Text(auditSeverityLabel(l10n, s)),
-              selected: selected == s,
-              onSelected: (on) => onChanged(on ? s : null),
+              selected: severity == s,
+              onSelected: (on) => onSeverity(on ? s : null),
             ),
+          const SizedBox(width: AppSpacing.xs),
+          for (final (days, label) in [
+            (1, l10n.auditFilterToday),
+            (7, l10n.auditFilter7Days),
+            (30, l10n.auditFilter30Days),
+          ])
+            FilterChip(
+              label: Text(label),
+              selected: _isPreset(days),
+              onSelected: (on) => onRange(on ? _lastDays(days) : null),
+            ),
+          FilterChip(
+            avatar: const Icon(Icons.date_range, size: 18),
+            label: Text(
+              custom
+                  ? l10n.auditFilterRangeLabel(
+                      dates.format(range!.start),
+                      dates.format(range!.end),
+                    )
+                  : l10n.auditFilterCustom,
+            ),
+            selected: custom,
+            onSelected: (_) => _pick(context),
+          ),
         ],
       ),
     );

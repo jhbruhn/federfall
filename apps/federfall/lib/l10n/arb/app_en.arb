@@ -2232,5 +2232,17 @@
     "auditFieldCapacity": "Capacity",
     "auditFieldAccess": "Access",
     "auditFieldLabel": "Label",
-    "auditFieldCertainty": "Diagnostic certainty"
+    "auditFieldCertainty": "Diagnostic certainty",
+    "auditFilterRange": "Period",
+    "auditFilterToday": "Today",
+    "auditFilter7Days": "7 days",
+    "auditFilter30Days": "30 days",
+    "auditFilterCustom": "Pick a period…",
+    "auditFilterRangeLabel": "{from} – {to}",
+    "@auditFilterRangeLabel": {
+        "placeholders": {
+            "from": { "type": "String" },
+            "to": { "type": "String" }
+        }
+    }
 }
