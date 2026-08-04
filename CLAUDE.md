@@ -199,6 +199,13 @@ it is the one place in `pb_hooks/` that localizes anything. `tests/run.sh` bind-
   quietly: a date won't parse, an enum won't match its label map, a CSV formula guard inspects
   `"` instead of `=`. Ask the collection which fields are `json` (`field.type()`) and decode
   those — do not sniff per value, a city legitimately named `true` parses as JSON too.
+- **Reading a JSON FIELD from a hook** (federfall-jumi) — the same trap outside views:
+  `record.get("settings")` hands JS a `types.JSONRaw`, i.e. a **byte array**, not a decoded
+  object. `settings.someKey` is therefore always `undefined` and the code falls through to
+  its default in silence. Use `JSON.parse(record.getString("settings") || "{}")`. Passing
+  `get()`'s value straight back to Go (`e.json(200, rec.get("response"))`) is fine — JSONRaw
+  marshals correctly; only property access in JS is broken. This silently disabled the
+  org-configurable windows in `finder_retention.pb.js` and `main.pb.js`.
 - **Build-time config** (`AppEnvironment`): `POCKETBASE_URL`, `MAP_TILE_URL`,
   `MAP_ATTRIBUTION` come from `dart_defines/<flavor>.json` as compile-time constants — they
   need a rebuild, not hot reload (a stale build silently falls back to defaults).

@@ -2264,6 +2264,110 @@ def main():
     check("supervisor CAN remove another supervisor (not the last one)",
           s == 204, f"status {s}")
 
+    # ── federfall-qt96.1: audit log (append-only, supervisor-only) ──────────
+    print("\n[audit log]")
+    # Real rows come from hook emitters (federfall-qt96.3+), which bypass rules
+    # the same way the superuser token does here. Standing in for an emitter is
+    # what lets the whole read/append-only surface be tested before the first
+    # emitter exists.
+    arow = mk(T, "audit_events", {
+        "org": ORG, "action": "case.handoff",
+        "actor_id": A, "actor_label": "Carer A", "actor_role": "carer",
+        "actor_kind": "user",
+        "subject_collection": "cases", "subject_id": case,
+        "subject_label": "F-2026-0001", "case_id": case, "severity": "info",
+        "refs": {"animal": animal},
+        "changes": [{"field": "active_carer", "from": A, "to": B}],
+        "detail": {"from": A, "to": B}, "request_id": "req-audit-test",
+    })["id"]
+
+    check("supervisor can list audit events (wall check is non-vacuous)",
+          len(listf(toks["sup"], "audit_events", "id != ''")) > 0, "empty")
+    s, _ = req("GET", f"/api/collections/audit_events/records/{arow}", toks["sup"])
+    check("supervisor can view an audit event", s == 200, f"status {s}")
+    # Everyone below a supervisor is walled off — a list is filtered to nothing
+    # rather than refused, so both shapes are checked.
+    for who in ("a", "coord"):
+        check(f"{who} sees no audit events",
+              len(listf(toks[who], "audit_events", "id != ''")) == 0, "non-empty")
+        s, _ = req("GET", f"/api/collections/audit_events/records/{arow}", toks[who])
+        check(f"{who} CANNOT view an audit event", s != 200, f"status {s}")
+    check("guest sees no audit events",
+          len(listf(gtok, "audit_events", "id != ''")) == 0, "non-empty")
+    s, _ = req("GET", f"/api/collections/audit_events/records/{arow}", None)
+    check("anonymous CANNOT view an audit event", s != 200, f"status {s}")
+
+    # No role may write through the API: the rules are null, so even the
+    # supervisor who can read the log cannot forge, rewrite or erase it.
+    for who, tok in (("carer", toks["a"]), ("coordinator", toks["coord"]),
+                     ("supervisor", toks["sup"]), ("guest", gtok)):
+        s, _ = req("POST", "/api/collections/audit_events/records", tok, {
+            "org": ORG, "action": "case.handoff", "actor_kind": "user",
+        })
+        check(f"{who} CANNOT create an audit event", s != 200, f"status {s}")
+        s, _ = req("PATCH", f"/api/collections/audit_events/records/{arow}", tok,
+                   {"action": "case.forged"})
+        check(f"{who} CANNOT update an audit event", s != 200, f"status {s}")
+        s, _ = req("DELETE", f"/api/collections/audit_events/records/{arow}", tok)
+        check(f"{who} CANNOT delete an audit event", s != 200, f"status {s}")
+
+    # The hook guard, which is the layer the rules cannot provide: the superuser
+    # dashboard bypasses rules, and it is exactly the operator the log records.
+    s, d = req("PATCH", f"/api/collections/audit_events/records/{arow}", T,
+               {"action": "case.forged"})
+    check("superuser CANNOT update an audit event (hook, not rule)",
+          s >= 400, f"status {s} {d}")
+    s, d = req("GET", f"/api/collections/audit_events/records/{arow}", toks["sup"])
+    check("the row is unchanged after the rejected edit",
+          d and d.get("action") == "case.handoff", f"{d}")
+
+    # Cross-org: an audit row belongs to one org and never leaks out of it.
+    rrow = mk(T, "audit_events", {
+        "org": rorg, "action": "user.role_changed", "actor_id": RSUP,
+        "actor_label": "Removal Sup", "actor_role": "supervisor",
+        "actor_kind": "user", "severity": "security",
+    })["id"]
+    check("a foreign-org supervisor does not see it",
+          all(x["id"] != rrow
+              for x in listf(toks["sup"], "audit_events", "id != ''")),
+          "leaked")
+    s, _ = req("GET", f"/api/collections/audit_events/records/{rrow}", toks["sup"])
+    check("a foreign-org supervisor CANNOT view it", s != 200, f"status {s}")
+    check("its own org's supervisor does see it",
+          any(x["id"] == rrow
+              for x in listf(trsup, "audit_events", "id != ''")), "missing")
+
+    # federfall-qt96.1: the actor is `actor_id` TEXT rather than a relation
+    # precisely so this works. PocketBase nullifies a non-cascade relation by
+    # SAVING the referring row, which would hit the append-only guard above and
+    # turn "remove a member" into a 400 for every user who had ever been audited.
+    ghost = mkuser(T, "audited-ghost@f.local", "carer", org=rorg)["id"]
+    mk(T, "audit_events", {
+        "org": rorg, "action": "user.deactivated", "actor_id": RSUP,
+        "actor_kind": "user", "subject_collection": "users",
+        "subject_id": ghost, "subject_label": "Ghost", "severity": "notice",
+    })
+    s, _ = req("DELETE", f"/api/collections/users/records/{ghost}", trsup)
+    check("an audited user can still be deleted", s == 204, f"status {s}")
+
+    # The delete guard reads the row's OWN age against its org's retention
+    # window — that is what lets the retention cron (federfall-qt96.12) purge
+    # without a bypass flag, and it is the only way a row ever leaves.
+    s, _ = req("DELETE", f"/api/collections/audit_events/records/{rrow}", T)
+    check("superuser CANNOT delete a fresh audit event", s >= 400, f"status {s}")
+    req("PATCH", f"/api/collections/organisations/records/{rorg}", T,
+        {"settings": {"audit_retention_days": 0}})
+    s, _ = req("DELETE", f"/api/collections/audit_events/records/{rrow}", T)
+    check("retention 0 means keep forever, not delete now", s >= 400, f"status {s}")
+    # A window small enough that a row written moments ago has already outlived
+    # it (0.000001 d ≈ 86 ms) — the only way to reach the aged-out branch inside
+    # one test run. Nobody would configure this; the cron's window is in years.
+    req("PATCH", f"/api/collections/organisations/records/{rorg}", T,
+        {"settings": {"audit_retention_days": 0.000001}})
+    s, _ = req("DELETE", f"/api/collections/audit_events/records/{rrow}", T)
+    check("a row past its org's retention window CAN be deleted", s == 204,
+          f"status {s}")
+
     # ── federfall-0tf: geocode proxy guards ─────────────────────────────────
     # Runs LAST: the flood exhausts the geocode rate budget for this client IP,
     # so nothing may query the geocode routes after this block. All requests
