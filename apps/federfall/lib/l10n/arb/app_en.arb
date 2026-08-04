@@ -2014,5 +2014,202 @@
     "printerManualPortLabel": "Port",
     "@printerManualPortLabel": { "description": "Field label for the manual network printer's port" },
     "printerManualAddAction": "Add",
-    "@printerManualAddAction": { "description": "Button that saves the manually entered network printer" }
+    "@printerManualAddAction": { "description": "Button that saves the manually entered network printer" },
+
+    "@_audit": {
+        "context": "federfall-qt96 — the supervisor-only audit log. One title per action; the envelope alone must render a usable line."
+    },
+    "auditActionCaseIntake": "Case admitted",
+    "auditActionCaseCreated": "Case created",
+    "auditActionCaseUpdated": "Case updated",
+    "auditActionCaseDeleted": "Case deleted",
+    "auditActionCaseHandoff": "Case handed over",
+    "auditActionCaseShared": "Case shared",
+    "auditActionCaseShareRevoked": "Access revoked",
+    "auditActionAnimalCreated": "Bird added",
+    "auditActionAnimalUpdated": "Bird updated",
+    "auditActionAnimalDeleted": "Bird deleted",
+    "auditActionAnimalMerged": "Birds merged",
+    "auditActionWeightCreated": "Weight recorded",
+    "auditActionWeightUpdated": "Weight updated",
+    "auditActionWeightDeleted": "Weight deleted",
+    "auditActionMarkingCreated": "Marking applied",
+    "auditActionMarkingUpdated": "Marking updated",
+    "auditActionMarkingDeleted": "Marking deleted",
+    "auditActionConditionAdded": "Diagnosis added",
+    "auditActionConditionUpdated": "Diagnosis updated",
+    "auditActionConditionRemoved": "Diagnosis removed",
+    "auditActionMedicationPrescribed": "Medication prescribed",
+    "auditActionMedicationUpdated": "Medication updated",
+    "auditActionMedicationDeleted": "Medication deleted",
+    "auditActionAdministrationLogged": "Dose administered",
+    "auditActionAdministrationUpdated": "Dose updated",
+    "auditActionAdministrationDeleted": "Dose deleted",
+    "auditActionJournalCreated": "Journal entry written",
+    "auditActionJournalUpdated": "Journal entry updated",
+    "auditActionJournalDeleted": "Journal entry deleted",
+    "auditActionPlacementCreated": "Move recorded",
+    "auditActionPlacementUpdated": "Move updated",
+    "auditActionPlacementDeleted": "Move deleted",
+    "auditActionDispositionCreated": "Outcome recorded",
+    "auditActionDispositionUpdated": "Outcome updated",
+    "auditActionDispositionDeleted": "Outcome deleted",
+    "auditActionExamSaved": "Examination saved",
+    "auditActionExamDeleted": "Examination deleted",
+    "auditActionExamFindingCreated": "Finding added",
+    "auditActionExamFindingUpdated": "Finding updated",
+    "auditActionExamFindingDeleted": "Finding deleted",
+    "auditActionEggRecordCreated": "Egg laying recorded",
+    "auditActionEggRecordUpdated": "Egg laying updated",
+    "auditActionEggRecordDeleted": "Egg laying deleted",
+    "auditActionFollowUpCreated": "Follow-up scheduled",
+    "auditActionFollowUpUpdated": "Follow-up updated",
+    "auditActionFollowUpDeleted": "Follow-up deleted",
+    "auditActionVetAppointmentCreated": "Vet appointment booked",
+    "auditActionVetAppointmentUpdated": "Vet appointment updated",
+    "auditActionVetAppointmentDeleted": "Vet appointment deleted",
+    "auditActionQuarantineSet": "Quarantine set",
+    "auditActionQuarantineUpdated": "Quarantine updated",
+    "auditActionQuarantineCleared": "Quarantine lifted",
+    "auditActionAviaryCreated": "Aviary created",
+    "auditActionAviaryUpdated": "Aviary updated",
+    "auditActionAviaryDeleted": "Aviary deleted",
+    "auditActionFinderCreated": "Finder added",
+    "auditActionFinderUpdated": "Finder details updated",
+    "auditActionFinderDeleted": "Finder deleted",
+    "auditActionFinderPiiPurged": "Finder data anonymised",
+    "auditActionFinderOrphanDeleted": "Unreferenced finder deleted",
+    "auditActionUserInvited": "Member invited",
+    "auditActionUserUpdated": "Profile updated",
+    "auditActionUserRoleChanged": "Role changed",
+    "auditActionUserDeactivated": "Member deactivated",
+    "auditActionUserReactivated": "Member reactivated",
+    "auditActionUserDeleted": "Member removed",
+    "auditActionOrgSettingsUpdated": "Settings changed",
+    "auditActionCodeListCreated": "List entry created",
+    "auditActionCodeListUpdated": "List entry updated",
+    "auditActionCodeListDeleted": "List entry deleted",
+    "auditActionAuthLogin": "Signed in",
+    "auditActionAuthOauth2Login": "Signed in via single sign-on",
+    "auditActionAuthLoginFailed": "Failed sign-in",
+    "auditActionAuthPasswordReset": "Password reset",
+    "auditActionAuthPasswordChanged": "Password changed",
+    "auditActionAuthMfaEnabled": "Two-factor enabled",
+    "auditActionAuthMfaDisabled": "Two-factor disabled",
+    "auditActionReportExported": "Report exported",
+    "auditActionCaseReportPrinted": "Case report printed",
+    "auditActionOauth2UserProvisioned": "Account auto-provisioned",
+    "auditActionSupervisorBootstrapped": "First supervisor created",
+    "auditActionAuditPurged": "Log entries purged",
+    "auditActionUnknown": "Unknown action ({action})",
+    "@auditActionUnknown": {
+        "description": "An action string this build does not know",
+        "placeholders": {
+            "action": { "type": "String" }
+        }
+    },
+    "auditActorSystem": "System",
+    "auditActorCron": "Scheduled job",
+    "auditActorSuperuser": "Administrator",
+    "auditActorDeleted": "{name} (removed member)",
+    "@auditActorDeleted": {
+        "description": "Actor whose account no longer exists",
+        "placeholders": {
+            "name": { "type": "String" }
+        }
+    },
+    "auditActorUnknown": "Unknown",
+    "auditSeverityInfo": "Routine",
+    "auditSeverityNotice": "Notable",
+    "auditSeveritySecurity": "Security",
+    "auditChangeSummary": "{count, plural, =1{1 field changed} other{{count} fields changed}}",
+    "@auditChangeSummary": {
+        "placeholders": {
+            "count": { "type": "int" }
+        }
+    },
+    "auditChangeRedacted": "changed (value not logged)",
+    "auditChangeArrow": "{from} → {to}",
+    "@auditChangeArrow": {
+        "description": "One field change, old value to new",
+        "placeholders": {
+            "from": { "type": "String" },
+            "to": { "type": "String" }
+        }
+    },
+    "auditChangeSet": "set to {to}",
+    "@auditChangeSet": {
+        "description": "A field that had no previous value",
+        "placeholders": {
+            "to": { "type": "String" }
+        }
+    },
+    "auditChangeCleared": "cleared (was {from})",
+    "@auditChangeCleared": {
+        "description": "A field whose value was removed",
+        "placeholders": {
+            "from": { "type": "String" }
+        }
+    },
+    "auditValueEmpty": "—",
+    "auditFactCase": "Case",
+    "auditFactSubject": "Subject",
+    "auditFactHandoffTo": "Taken over by",
+    "auditFactHandoffFrom": "Handed over by",
+    "auditFactSharedWith": "Shared with",
+    "auditFactAccess": "Access",
+    "auditFactSpecies": "Species",
+    "auditFactReidentified": "Returning bird",
+    "auditFactFinder": "With finder details",
+    "auditFactRoleFrom": "Previous role",
+    "auditFactRoleTo": "New role",
+    "auditFactMergedInto": "Merged with",
+    "auditFactFindings": "{count, plural, =1{1 finding} other{{count} findings}}",
+    "@auditFactFindings": {
+        "placeholders": {
+            "count": { "type": "int" }
+        }
+    },
+    "auditFactAbnormal": "{count, plural, =1{1 abnormal} other{{count} abnormal}}",
+    "@auditFactAbnormal": {
+        "placeholders": {
+            "count": { "type": "int" }
+        }
+    },
+    "auditFactFormat": "Format",
+    "auditFactPeriod": "Period",
+    "auditFactPeriodAll": "All time",
+    "auditFactRows": "{count, plural, =1{1 case} other{{count} cases}}",
+    "@auditFactRows": {
+        "placeholders": {
+            "count": { "type": "int" }
+        }
+    },
+    "auditFactMethod": "Method",
+    "auditFactProvider": "Provider",
+    "auditFactNewAccount": "New account",
+    "auditFactFailureWindow": "At least one failed attempt within {minutes} minutes",
+    "@auditFactFailureWindow": {
+        "description": "Failed logins are collapsed per time window, not counted",
+        "placeholders": {
+            "minutes": { "type": "int" }
+        }
+    },
+    "auditFactPurgedCount": "{count, plural, =1{1 entry} other{{count} entries}}",
+    "@auditFactPurgedCount": {
+        "placeholders": {
+            "count": { "type": "int" }
+        }
+    },
+    "auditFactRetentionDays": "{days, plural, =1{1 day} other{{days} days}} retention",
+    "@auditFactRetentionDays": {
+        "placeholders": {
+            "days": { "type": "int" }
+        }
+    },
+    "auditFactIp": "IP address",
+    "auditFactRole": "Role",
+    "auditFactFirstUser": "First account in the organisation",
+    "auditFieldActiveCarer": "Assigned to",
+    "auditFieldLifetimeStatus": "Lifetime status"
 }
