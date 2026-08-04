@@ -53,6 +53,43 @@ class PbFilter {
   String toString() => expression;
 }
 
+/// Where a keyset page left off: the sort key of the last row it returned.
+///
+/// `created` alone is not enough — PocketBase stores milliseconds, so two rows
+/// written in the same millisecond would make one of them unreachable (or
+/// repeat forever). The id breaks that tie.
+class PbCursor {
+  const PbCursor({required this.created, required this.id});
+
+  /// The raw PocketBase datetime string, passed back verbatim so no parse and
+  /// re-format can shift it.
+  final String created;
+  final String id;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PbCursor && other.created == created && other.id == id;
+
+  @override
+  int get hashCode => Object.hash(created, id);
+
+  @override
+  String toString() => 'PbCursor($created, $id)';
+}
+
+/// One page of a keyset-paged read, newest first.
+class PbPage<T> {
+  const PbPage({required this.items, this.cursor});
+
+  final List<T> items;
+
+  /// Pass to the next [PbReadOnlyRepository.page] call, or `null` when this
+  /// was the last page.
+  final PbCursor? cursor;
+
+  bool get hasMore => cursor != null;
+}
+
 /// PocketBase-backed [ReadOnlyRepository] base. Wraps a single collection's
 /// reads, maps every [RecordModel] through [fromRecord], and funnels SDK
 /// errors through [RepositoryException]. Mutable collections use the
@@ -129,6 +166,66 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
       if (items.length < _listPageSize) return all;
       page += 1;
     }
+  }
+
+  /// One page of newest-first records, resumed from [after].
+  ///
+  /// KEYSET paging, not offsets, and not because it is faster: an append-only
+  /// feed grows at the end being read from. With `?page=2` every row written
+  /// since the first request shifts the window, so the reader sees some rows
+  /// twice and misses others entirely. Asking for "older than the last row I
+  /// saw" cannot skip or repeat, however much arrives in between.
+  ///
+  /// The sort is therefore fixed to `-created,-id` and is not a parameter: it
+  /// has to be the same key the cursor is built from, or paging silently
+  /// returns nonsense. Callers who want a different order want [list].
+  Future<PbPage<T>> page({
+    PbFilter? filter,
+    PbCursor? after,
+    int perPage = 50,
+    String? expand,
+    String? fields,
+  }) {
+    return guard(() async {
+      var expression = filter?.expression;
+      if (after != null) {
+        final keyset = pb.filter(
+          '(created < {:c} || (created = {:c} && id < {:i}))',
+          {'c': after.created, 'i': after.id},
+        );
+        expression = expression == null ? keyset : '($expression) && $keyset';
+      }
+
+      // A projection that omitted the sort key would leave every page with an
+      // unbuildable cursor, so it is always requested back.
+      final projection = fields == null
+          ? null
+          : {...fields.split(','), 'id', 'created'}.join(',');
+
+      final result = await service.getList(
+        page: 1,
+        perPage: perPage,
+        skipTotal: true,
+        filter: expression,
+        sort: '-created,-id',
+        expand: expand,
+        fields: projection,
+      );
+
+      // A short page means the end. A full one might be the end too; the next
+      // call returning nothing settles it, which costs one request and never
+      // stops early on a boundary.
+      final last = result.items.isEmpty ? null : result.items.last;
+      return PbPage(
+        items: result.items.map(fromRecord).toList(),
+        cursor: last == null || result.items.length < perPage
+            ? null
+            : PbCursor(
+                created: '${last.data['created'] ?? ''}',
+                id: last.id,
+              ),
+      );
+    });
   }
 
   /// Counts the records matching [filter] **server-side** — one request that
