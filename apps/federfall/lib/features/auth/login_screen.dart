@@ -9,6 +9,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/auth/oauth_launcher.dart';
 import 'package:federfall/features/auth/oauth_popup.dart';
 import 'package:federfall/features/auth/oauth_providers.dart';
+import 'package:federfall/features/cases/case_intake_draft_store.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -291,12 +292,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     };
   }
 
-  /// Also purges the protected-file cache: the cached images belong to the
-  /// server (and account) being left behind — same rationale as [signOut].
+  /// Also purges the device-local copies of the data belonging to the server
+  /// (and account) being left behind — same rationale as [signOut]: the cached
+  /// images, and any unfinished intake draft with the finder's contact details
+  /// in it. For the draft this is a correctness fix as much as a privacy one:
+  /// restored against a different server it would carry an `idempotencyKey`
+  /// that server has never seen and offer to re-file a bird from another
+  /// instance's records.
   Future<void> _switchServer() {
     purgeProtectedFileCache(
       ref.read(protectedFileCacheManagerProvider).emptyCache,
     );
+    purgeIntakeDraft(ref.read(caseIntakeDraftStoreProvider).clear);
     return ref.read(serverConfigControllerProvider.notifier).clearServerUrl();
   }
 

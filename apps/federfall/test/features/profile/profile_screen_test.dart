@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/case_intake_draft.dart';
+import 'package:federfall/features/cases/case_intake_draft_store.dart';
 import 'package:federfall/features/printing/printer_service.dart';
 import 'package:federfall/features/profile/profile_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -13,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/helpers.dart';
 import '../printing/fake_printer_service.dart';
 
 class FakeAuthRepository implements AuthRepository {
@@ -104,6 +107,7 @@ Future<void> _pump(
   FakeAuthRepository repo,
   AppUser user, {
   FakePrinterService? printerService,
+  FakeCaseIntakeDraftStore? draftStore,
 }) async {
   // A configured printer is read via printerSettingsProvider, which reads
   // shared_preferences directly (no override seam) — seed it here so
@@ -126,6 +130,8 @@ Future<void> _pump(
         currentUserProvider.overrideWith((ref) async => user),
         if (printerService != null)
           printerServiceProvider.overrideWithValue(printerService),
+        if (draftStore != null)
+          caseIntakeDraftStoreProvider.overrideWithValue(draftStore),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -204,6 +210,71 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(repo.signedOut, isTrue);
+  });
+
+  testWidgets('signing out purges the unfinished intake draft', (tester) async {
+    // The draft carries the FINDER's contact details — third-party PII of a
+    // member of the public. Only new_case_screen used to clear it, so a carer
+    // who backed out mid-wizard and signed out left the next user of a shared
+    // device holding that person's phone number.
+    final drafts = FakeCaseIntakeDraftStore(
+      CaseIntakeDraft(
+        savedAt: DateTime(2026, 8, 4, 9, 15),
+        idempotencyKey: 'key-1',
+        step: 2,
+        species: 'Stadttaube',
+        finderFirstName: 'Anna',
+        finderPhone: '+49 170 0000000',
+      ),
+    );
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+      draftStore: drafts,
+    );
+
+    await tester.scrollUntilVisible(
+      find.widgetWithText(FilledButton, 'Sign out'),
+      100,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Sign out'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(drafts.clears, 1);
+    expect(drafts.draft, isNull);
+  });
+
+  testWidgets('cancelling the sign-out keeps the intake draft', (tester) async {
+    final drafts = FakeCaseIntakeDraftStore(
+      CaseIntakeDraft(
+        savedAt: DateTime(2026, 8, 4, 9, 15),
+        idempotencyKey: 'key-1',
+        step: 2,
+        species: 'Stadttaube',
+      ),
+    );
+    await _pump(
+      tester,
+      FakeAuthRepository(),
+      const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+      draftStore: drafts,
+    );
+
+    await tester.scrollUntilVisible(
+      find.widgetWithText(FilledButton, 'Sign out'),
+      100,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(drafts.clears, 0);
+    expect(drafts.draft, isNotNull);
   });
 
   testWidgets('cancelling the sign-out confirmation keeps the session', (

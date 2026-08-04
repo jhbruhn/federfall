@@ -8,6 +8,8 @@ import 'package:federfall/core/server/server_info.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/auth/login_screen.dart';
+import 'package:federfall/features/cases/case_intake_draft.dart';
+import 'package:federfall/features/cases/case_intake_draft_store.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -133,6 +135,7 @@ Future<ProviderContainer> _pump(
   FakeAuthRepository repo, {
   ServerInfo? info,
   ServerCompatibility compatibility = ServerCompatibility.compatible,
+  FakeCaseIntakeDraftStore? draftStore,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -142,6 +145,8 @@ Future<ProviderContainer> _pump(
       // PackageInfo, which has no platform channel here.
       serverCompatibilityProvider.overrideWith((ref) async => compatibility),
       authTokenStorageProvider.overrideWithValue(FakeAuthTokenStorage()),
+      if (draftStore != null)
+        caseIntakeDraftStoreProvider.overrideWithValue(draftStore),
     ],
   );
   addTearDown(container.dispose);
@@ -551,7 +556,19 @@ void main() {
       'federfall.serverUrl': 'https://pigeons.example',
     });
     final repo = FakeAuthRepository();
-    final container = await _pump(tester, repo);
+    // An intake draft belongs to the server it was started against: restored
+    // elsewhere it would carry an idempotency key that server has never seen,
+    // besides holding the finder's contact details.
+    final drafts = FakeCaseIntakeDraftStore(
+      CaseIntakeDraft(
+        savedAt: DateTime(2026, 8, 4, 9, 15),
+        idempotencyKey: 'key-1',
+        step: 2,
+        species: 'Stadttaube',
+        finderPhone: '+49 170 0000000',
+      ),
+    );
+    final container = await _pump(tester, repo, draftStore: drafts);
 
     // Configured to begin with (native path reads the stored URL).
     expect(
@@ -567,6 +584,8 @@ void main() {
       container.read(serverConfigControllerProvider).requireValue,
       isA<ServerUnconfigured>(),
     );
+    expect(drafts.clears, 1);
+    expect(drafts.draft, isNull);
   });
 
   testWidgets('an outdated app is blocked and told to update itself', (
