@@ -193,6 +193,60 @@ void main() {
       expect(text, isNot(contains('→')));
     });
 
+    // PocketBase rotates `tokenKey` on a password or email change, which signs
+    // every existing session of that account out. It is a consequence, not a
+    // field somebody set, and it is the only place that consequence shows.
+    group('a rotated token key reads as what it did', () {
+      test('as a statement, never as a withheld column value', () {
+        final line = auditLine(
+          de,
+          _event(
+            action: AuditAction.authPasswordChanged,
+            subjectCollection: 'users',
+            subjectLabel: 'Anna Karin',
+            changes: const [
+              AuditFieldChange(field: 'tokenKey', redacted: true),
+              AuditFieldChange(field: 'password', redacted: true),
+            ],
+          ),
+        );
+
+        expect(line.facts, contains(AuditFact(de.auditFactSessionsEnded, '')));
+        // Not under its raw column name, and not as "value not logged" — the
+        // shape this rendered in before.
+        expect(line.facts.map((f) => f.label), isNot(contains('tokenKey')));
+        expect(
+          line.facts.where((f) => f.label == de.auditFactSessionsEnded),
+          hasLength(1),
+        );
+      });
+
+      test('and does not inflate the count of fields that changed', () {
+        // An email change rotates the key too. One field changed, not two.
+        final line = auditLine(
+          de,
+          _event(
+            action: AuditAction.userUpdated,
+            subjectCollection: 'users',
+            changes: const [
+              AuditFieldChange(
+                field: 'email',
+                from: 'a@x.org',
+                to: 'b@x.org',
+              ),
+              AuditFieldChange(field: 'tokenKey', redacted: true),
+            ],
+          ),
+        );
+
+        expect(
+          line.facts.map((f) => f.label),
+          contains(de.auditChangeSummary(1)),
+        );
+        expect(line.facts, contains(AuditFact(de.auditFactSessionsEnded, '')));
+      });
+    });
+
     test('an old and a new value are shown as a transition', () {
       final text = auditChangeText(
         de,

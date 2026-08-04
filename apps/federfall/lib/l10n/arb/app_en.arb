@@ -2208,6 +2208,7 @@
         }
     },
     "auditFactIp": "IP address",
+    "auditFactSessionsEnded": "All existing sessions ended",
     "auditFactRole": "Role",
     "auditFactFirstUser": "First account in the organisation",
     "auditFieldActiveCarer": "Assigned to",

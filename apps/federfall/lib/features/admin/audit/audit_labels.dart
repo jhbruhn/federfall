@@ -761,12 +761,25 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
       break;
   }
 
-  if (e.changes.isNotEmpty) {
+  // `tokenKey` is not a field anybody set. PocketBase rotates it whenever an
+  // account's password or email changes, and rotating it is what signs every
+  // existing session for that account out — so it is a CONSEQUENCE, and the one
+  // place that consequence is visible at all. Rendered as a change it read
+  // "tokenKey: geändert (Wert nicht protokolliert)": a raw column name (it is a
+  // system field, so the schema sweep in test_rules.py does not reach it) whose
+  // value is withheld anyway, sitting next to the password line that already
+  // said what happened. It is worth more as a plain statement of what it did.
+  final sessionsEnded = e.changes.any((c) => c.field == 'tokenKey');
+  final changes = sessionsEnded
+      ? e.changes.where((c) => c.field != 'tokenKey').toList()
+      : e.changes;
+
+  if (changes.isNotEmpty) {
     // A create or a delete carries CONTENT, not a diff: every entry has one
     // side only. Rendering those through the diff wording gives "2 Felder
     // geändert: Ausgang: gesetzt auf Verstorben · …" for something that
     // changed nothing — it recorded an outcome. Show them as what they are.
-    final isDiff = e.changes.any(
+    final isDiff = changes.any(
       (c) =>
           !c.redacted &&
           (c.fromDisplay?.isNotEmpty ?? false) &&
@@ -774,8 +787,8 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
     );
     if (isDiff) {
       add(
-        l10n.auditChangeSummary(e.changes.length),
-        e.changes
+        l10n.auditChangeSummary(changes.length),
+        changes
             .take(3)
             .map(
               (c) =>
@@ -785,7 +798,7 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
             .join(' · '),
       );
     } else {
-      for (final c in e.changes) {
+      for (final c in changes) {
         add(
           auditFieldLabel(l10n, e.subjectCollection, c.field),
           c.redacted
@@ -802,6 +815,9 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
       }
     }
   }
+
+  // After the changes, because it is what they caused.
+  if (sessionsEnded) flag(l10n.auditFactSessionsEnded);
 
   if (e.ip != null && e.ip!.isNotEmpty) add(l10n.auditFactIp, e.ip);
 

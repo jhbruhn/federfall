@@ -1152,6 +1152,10 @@
         }
     },
     "auditFactIp": "IP-Adresse",
+    "auditFactSessionsEnded": "Alle bestehenden Sitzungen beendet",
+    "@auditFactSessionsEnded": {
+        "description": "Shown when a password or email change rotated the account's token key, which signs every existing session of that account out. Stated as the consequence it is, not as a changed field."
+    },
     "auditFactRole": "Rolle",
     "auditFactFirstUser": "Erstes Konto der Organisation",
     "auditFieldActiveCarer": "Zuständig",
