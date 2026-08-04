@@ -2642,6 +2642,91 @@ def main():
     s, _ = req("GET", f"/api/collections/animals/records/{m_gone}", toks["sup"])
     check("the duplicate really is gone", s == 404, f"status {s}")
 
+    # ── federfall-qt96.5: auth, people and access (Tier D) ──────────────────
+    print("\n[audit: auth & access]")
+    au_user = mkuser(T, "audited@f.local", "carer")["id"]
+    rows = audit_for(au_user, "user.invited")
+    check("inviting a member is logged", len(rows) == 1, rows)
+    check("...as a security event",
+          (rows or [{}])[0].get("severity") == "security", rows)
+
+    s, au_tok = login("audited@f.local")
+    check("login succeeds", s == 200, f"status {s}")
+    rows = audit_for(au_user, "auth.login")
+    check("a successful login is logged", len(rows) == 1, rows)
+    check("...attributed to the user who just signed in, not to 'system'",
+          (rows or [{}])[0].get("actor_id") == au_user
+          and (rows or [{}])[0].get("actor_kind") == "user", rows)
+
+    s, _ = login("audited@f.local", "WrongPass1!")
+    check("a wrong password is refused", s != 200, f"status {s}")
+    rows = audit_for(au_user, "auth.login_failed")
+    check("a failed login is logged", len(rows) == 1, rows)
+    check("...saying it stands for a window, not a count",
+          (rows[0].get("detail") or {}).get("window_minutes") == 5
+          if rows else False, rows)
+    # Collapsed: someone hammering the form must not be able to fill a table
+    # with no delete path. One row per user per five-minute bucket.
+    for _ in range(5):
+        login("audited@f.local", "WrongPass1!")
+    check("repeated failures collapse into that one row",
+          len(audit_for(au_user, "auth.login_failed")) == 1,
+          len(audit_for(au_user, "auth.login_failed")))
+    # An unknown identity has no user and therefore no org: an unauthenticated
+    # caller must not be able to write into an org's table by guessing emails.
+    before_n = audit_count()
+    login("nobody-at-all@f.local", "WrongPass1!")
+    check("a failed login for an unknown email writes nothing",
+          audit_count() == before_n, "wrote a row")
+
+    # The updates that matter are filed under what they did, not as a generic
+    # user.updated — that is the whole reason refine() exists.
+    req("PATCH", f"/api/collections/users/records/{au_user}", toks["sup"],
+        {"role": "coordinator"})
+    rows = audit_for(au_user, "user.role_changed")
+    check("a role change is its own action", len(rows) == 1, rows)
+    check("...recording both ends",
+          (rows[0].get("detail") or {}) == {"from": "carer", "to": "coordinator"}
+          if rows else False, rows)
+    req("PATCH", f"/api/collections/users/records/{au_user}", toks["sup"],
+        {"is_active": False})
+    check("a deactivation is its own action",
+          len(audit_for(au_user, "user.deactivated")) == 1, "missing")
+    req("PATCH", f"/api/collections/users/records/{au_user}", toks["sup"],
+        {"is_active": True})
+    check("...and so is a reactivation",
+          len(audit_for(au_user, "user.reactivated")) == 1, "missing")
+    req("PATCH", f"/api/collections/users/records/{au_user}", toks["sup"],
+        {"phone": "0151 12345"})
+    rows = audit_for(au_user, "user.updated")
+    check("an ordinary profile edit stays a plain user.updated",
+          len(rows) == 1, [r["action"] for r in audit_for(au_user)])
+
+    # Credentials never appear, but the fact that they changed does.
+    req("PATCH", f"/api/collections/users/records/{au_user}", T,
+        {"password": "Newpass12345!", "passwordConfirm": "Newpass12345!"})
+    rows = audit_for(au_user, "auth.password_changed")
+    check("a password change is logged", len(rows) == 1, rows)
+    ch = (rows[0].get("changes") if rows else []) or []
+    check("...with the value redacted, not stored",
+          {"field": "password", "redacted": True} in ch
+          and not any("from" in c for c in ch if c["field"] == "password"), ch)
+    check("no credential material reaches the log",
+          "Newpass12345!" not in json.dumps(audit_for(au_user)), "leaked")
+
+    # A share is the closest thing this app has to a permission grant.
+    sh = mk(toks["sup"], "case_shares",
+            {"case": ea_case, "shared_with": D, "shared_by": SUP,
+             "access": "read", "org": ORG})["id"]
+    rows = audit_for(sh, "case.shared")
+    check("sharing a case is logged", len(rows) == 1, rows)
+    check("...naming who with, at what access, on which case",
+          (rows[0].get("detail") or {}) == {"with": D, "access": "read"}
+          and rows[0].get("case_id") == ea_case if rows else False, rows)
+    req("DELETE", f"/api/collections/case_shares/records/{sh}", toks["sup"])
+    check("revoking it is logged too",
+          len(audit_for(sh, "case.share_revoked")) == 1, "missing")
+
     # ── federfall-0tf: geocode proxy guards ─────────────────────────────────
     # Runs LAST: the flood exhausts the geocode rate budget for this client IP,
     # so nothing may query the geocode routes after this block. All requests

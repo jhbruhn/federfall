@@ -154,7 +154,9 @@ const ACTIONS = {
   AUTH_LOGIN: "auth.login",
   AUTH_OAUTH2_LOGIN: "auth.oauth2_login",
   AUTH_LOGIN_FAILED: "auth.login_failed",
-  AUTH_LOGIN_BLOCKED: "auth.login_blocked",
+  // No auth.login_blocked: PocketBase's rate limiter answers 429 from
+  // middleware, before any hook runs, so there is nothing to observe. It would
+  // also arrive unauthenticated and therefore with no org to file it under.
   AUTH_PASSWORD_RESET: "auth.password_reset",
   AUTH_PASSWORD_CHANGED: "auth.password_changed",
   AUTH_MFA_ENABLED: "auth.mfa_enabled",
@@ -175,6 +177,40 @@ const ACTION_LIST = Object.keys(ACTIONS).map((k) => ACTIONS[k]);
 
 const SEVERITY = { INFO: "info", NOTICE: "notice", SECURITY: "security" };
 const ACTOR = { USER: "user", SYSTEM: "system", CRON: "cron", SUPERUSER: "superuser" };
+
+// What a supervisor should be able to filter for without knowing every action
+// by name: "security" is who can get in and who can see what, "notice" is
+// destructive or irreversible, everything else is the day's work. Set here
+// rather than at each call site so the same action cannot arrive at two
+// different severities depending on which emitter fired it.
+const DEFAULT_SEVERITY = {
+  "auth.login": SEVERITY.SECURITY,
+  "auth.oauth2_login": SEVERITY.SECURITY,
+  "auth.login_failed": SEVERITY.SECURITY,
+  "auth.password_reset": SEVERITY.SECURITY,
+  "auth.password_changed": SEVERITY.SECURITY,
+  "auth.mfa_enabled": SEVERITY.SECURITY,
+  "auth.mfa_disabled": SEVERITY.SECURITY,
+  "user.invited": SEVERITY.SECURITY,
+  "user.role_changed": SEVERITY.SECURITY,
+  "user.deactivated": SEVERITY.SECURITY,
+  "user.reactivated": SEVERITY.SECURITY,
+  "user.deleted": SEVERITY.SECURITY,
+  "user.updated": SEVERITY.NOTICE,
+  "case.shared": SEVERITY.SECURITY,
+  "case.share_revoked": SEVERITY.SECURITY,
+  "oauth2.user_provisioned": SEVERITY.SECURITY,
+  "supervisor.bootstrapped": SEVERITY.SECURITY,
+  "org.settings_updated": SEVERITY.NOTICE,
+  "animal.merged": SEVERITY.NOTICE,
+  "animal.deleted": SEVERITY.NOTICE,
+  "case.deleted": SEVERITY.NOTICE,
+  "finder.pii_purged": SEVERITY.NOTICE,
+  "finder.orphan_deleted": SEVERITY.NOTICE,
+  "audit.purged": SEVERITY.NOTICE,
+  "report.exported": SEVERITY.NOTICE,
+  "gdpr.export": SEVERITY.NOTICE,
+};
 
 // ── Redaction ────────────────────────────────────────────────────────────────
 //
@@ -206,7 +242,15 @@ const SENSITIVE = {
 // are deliberately NOT here: "this account's password changed" is exactly the
 // kind of thing a supervisor needs to see. SENSITIVE strips the values; leaving
 // the fields out entirely would strip the signal too.
-const IGNORED_FIELDS = ["updated", "created"];
+// PocketBase's own auth bookkeeping stamps (a reset mail was sent, a login
+// alert went out) are internal side effects, not something a person did.
+const IGNORED_FIELDS = [
+  "updated",
+  "created",
+  "lastResetSentAt",
+  "lastVerificationSentAt",
+  "lastLoginAlertSentAt",
+];
 
 // Long free text (a 2000-char notes field) would bloat a row that can never be
 // deleted, and `changes` has a maxSize. What matters is THAT the text changed.
@@ -376,6 +420,25 @@ const COLLECTION_ACTIONS = {
   // aviary_stays.pb.js from `animals.current_aviary`, so a request hook there
   // would never fire. Moving a bird is audited as the animal.updated it is.
 
+  // ── people and access (federfall-qt96.5) ───────────────────────────────────
+  // `updated` is refined below into role_changed / deactivated / mfa_*: those
+  // are the reasons anyone reads a user's history, and burying them in a
+  // generic user.updated would make the log technically complete and useless.
+  users: {
+    created: ACTIONS.USER_INVITED,
+    updated: ACTIONS.USER_UPDATED,
+    deleted: ACTIONS.USER_DELETED,
+  },
+  // A share is who else can see a case — the closest thing this app has to a
+  // permission grant. The share-on-handoff that main.pb.js creates is NOT
+  // here: it saves through the model layer, so no request hook fires, and it
+  // is already part of the case.handoff that caused it.
+  case_shares: {
+    created: ACTIONS.CASE_SHARED,
+    updated: ACTIONS.CASE_SHARED,
+    deleted: ACTIONS.CASE_SHARE_REVOKED,
+  },
+
   // ── the organisation itself ────────────────────────────────────────────────
   // Create/delete are superuser-only; what a supervisor can do is change the
   // settings — retention windows, quarantine defaults, audit_log_client_info —
@@ -485,7 +548,54 @@ function refsFor(record) {
 // Derived side effects are folded in here rather than emitted as their own
 // events: a handoff's share-on-handoff and carer change are consequences of one
 // human action, not three things that happened.
-function refine(collection, verb, record, changes) {
+function refine(collection, verb, record, changes, hints) {
+  // One update can flip several of these at once; the FIRST match wins, so the
+  // order here is the priority order — the row is still filed under the most
+  // consequential thing that happened, and `changes` carries the rest.
+  if (collection === "users" && verb === "updated") {
+    const by = {};
+    for (const c of changes || []) by[c.field] = c;
+    if (by.role) {
+      return {
+        action: ACTIONS.USER_ROLE_CHANGED,
+        detail: { from: by.role.from, to: by.role.to },
+      };
+    }
+    if (by.is_active) {
+      return {
+        action: by.is_active.to
+          ? ACTIONS.USER_REACTIVATED
+          : ACTIONS.USER_DEACTIVATED,
+        detail: null,
+      };
+    }
+    if (by.mfa_enabled) {
+      return {
+        action: by.mfa_enabled.to
+          ? ACTIONS.AUTH_MFA_ENABLED
+          : ACTIONS.AUTH_MFA_DISABLED,
+        detail: null,
+      };
+    }
+    // A password change is invisible in the record: PocketBase keeps the hash
+    // out of fieldsData(), so all a diff sees is the tokenKey it rotated — and
+    // an email change rotates that too. The request body is the honest signal
+    // of what was asked for, and the save has already succeeded by the time
+    // this runs, so it is also the signal of what happened.
+    if (hints && (hints.bodyKeys || []).indexOf("password") !== -1) {
+      return { action: ACTIONS.AUTH_PASSWORD_CHANGED, detail: null };
+    }
+  }
+  if (collection === "case_shares" && (verb === "created" || verb === "deleted")) {
+    return {
+      action:
+        verb === "created" ? ACTIONS.CASE_SHARED : ACTIONS.CASE_SHARE_REVOKED,
+      detail: {
+        with: String(record.getString("shared_with") || ""),
+        access: String(record.getString("access") || ""),
+      },
+    };
+  }
   if (collection === "placements" && verb === "created") {
     const to = String(record.getString("to_user") || "");
     if (to) {
@@ -513,7 +623,7 @@ function refine(collection, verb, record, changes) {
  * @param before for "updated" only, e.record.original().fieldsData() captured
  *               BEFORE e.next().
  */
-function emitRecordChange(e, verb, before) {
+function emitRecordChange(e, verb, before, hints) {
   try {
     const record = e.record;
     const collection = String(record.collection().name);
@@ -525,12 +635,23 @@ function emitRecordChange(e, verb, before) {
     let changes = null;
     if (verb === "updated") {
       changes = diff(collection, before, record.fieldsData());
+      // A changed password shows up only as the tokenKey PocketBase rotated
+      // with it (the hash is not in fieldsData). Name the field that actually
+      // changed — redacted, like every other credential — so the line reads as
+      // what happened rather than as an internal key rotation.
+      if (
+        hints &&
+        (hints.bodyKeys || []).indexOf("password") !== -1 &&
+        !changes.some((c) => c.field === "password")
+      ) {
+        changes.push({ field: "password", redacted: true });
+      }
       // Nothing actually changed (a no-op PATCH, or only autodates moved).
       if (!changes.length) return;
     }
 
     let detail = null;
-    const refined = refine(collection, verb, record, changes);
+    const refined = refine(collection, verb, record, changes, hints);
     if (refined) {
       action = refined.action;
       detail = refined.detail;
@@ -622,9 +743,12 @@ function emit(e, action, opts) {
     let auth = null;
     if (!actorKind) {
       try {
-        auth = e ? e.auth : null;
+        // opts.actor is for the auth hooks: during a login the caller is not
+        // authenticated yet, so e.auth is empty and the acting user has to be
+        // handed in explicitly.
+        auth = o.actor || (e ? e.auth : null);
       } catch (_) {
-        auth = null;
+        auth = o.actor || null;
       }
     }
     if (auth) {
@@ -718,7 +842,10 @@ function emit(e, action, opts) {
     if (o.refs) row.set("refs", o.refs);
     if (o.changes && o.changes.length) row.set("changes", o.changes);
     if (o.detail) row.set("detail", o.detail);
-    row.set("severity", o.severity || SEVERITY.INFO);
+    row.set(
+      "severity",
+      o.severity || DEFAULT_SEVERITY[String(action)] || SEVERITY.INFO,
+    );
     row.set("request_id", requestId(e));
 
     if (e && wantsClientInfo(app, org)) {
@@ -750,6 +877,65 @@ function emit(e, action, opts) {
   }
 }
 
+/**
+ * A failed password login, collapsed to AT MOST ONE ROW per user per
+ * five-minute wall-clock bucket. Never throws.
+ *
+ * Someone hammering a login form must not be able to fill a table that has no
+ * delete path — but the honest alternative, a counter on one row, would need an
+ * UPDATE, which the append-only guard forbids absolutely, and module state
+ * cannot hold the count either (per-JSVM, divergent under concurrency). So the
+ * row means "at least one failure in this window", which is what a supervisor
+ * acts on anyway; `detail.window_minutes` says so explicitly rather than
+ * letting anyone read it as an exact count.
+ *
+ * The bucket is a floored wall-clock slot, not "the last five minutes", so two
+ * concurrent requests agree on which window they are in without coordinating.
+ *
+ * @param record the user the identity resolved to. An unknown email has no
+ *               user and therefore no org — it goes to the logger only, since
+ *               an unauthenticated caller must never be able to write a row
+ *               into some organisation's table by guessing addresses.
+ */
+function emitLoginFailed(e, record, detail) {
+  try {
+    if (!record) {
+      $app.logger().info("audit: failed login for an unknown identity");
+      return;
+    }
+    const BUCKET_MINUTES = 5;
+    const slotMs = BUCKET_MINUTES * 60 * 1000;
+    const start = new Date(Math.floor(new Date().getTime() / slotMs) * slotMs);
+    // PocketBase compares datetimes as "YYYY-MM-DD HH:MM:SS.sssZ" strings.
+    const since = start.toISOString().replace("T", " ");
+
+    const existing = $app.findRecordsByFilter(
+      "audit_events",
+      'action = "auth.login_failed" && actor_id = {:a} && created >= {:since}',
+      "",
+      1,
+      0,
+      { a: record.id, since: since },
+    );
+    if (existing.length > 0) return; // already one row for this window
+
+    const d = detail || {};
+    d.window_minutes = BUCKET_MINUTES;
+    emit(e, ACTIONS.AUTH_LOGIN_FAILED, {
+      actor: record,
+      org: record.getString("org"),
+      subject: {
+        collection: "users",
+        id: record.id,
+        label: subjectLabel(record),
+      },
+      detail: d,
+    });
+  } catch (err) {
+    $app.logger().warn("audit: failed login not recorded", "err", String(err));
+  }
+}
+
 module.exports = {
   ACTIONS: ACTIONS,
   ACTION_LIST: ACTION_LIST,
@@ -761,5 +947,6 @@ module.exports = {
   diff: diff,
   emit: emit,
   emitRecordChange: emitRecordChange,
+  emitLoginFailed: emitLoginFailed,
   subjectLabel: subjectLabel,
 };

@@ -46,8 +46,19 @@ onRecordCreateRequest((e) => {
 onRecordUpdateRequest((e) => {
   // Captured BEFORE the save: afterwards `original()` is the new state.
   const before = e.record.original().fieldsData();
+  // Which fields the request ASKED to change. Needed because some changes are
+  // invisible in the record — a new password leaves only a rotated tokenKey
+  // behind (see lib_audit.js's refine).
+  let bodyKeys = [];
+  try {
+    bodyKeys = Object.keys(e.requestInfo().body || {});
+  } catch (_) {
+    // Not a shape we can read — the diff alone still describes the change.
+  }
   e.next();
-  require(`${__hooks}/lib_audit.js`).emitRecordChange(e, "updated", before);
+  require(`${__hooks}/lib_audit.js`).emitRecordChange(e, "updated", before, {
+    bodyKeys: bodyKeys,
+  });
 }, ...AUDITED);
 
 onRecordDeleteRequest((e) => {
