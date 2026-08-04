@@ -614,6 +614,39 @@ void main() {
       expect(auditChangeSide(de, 'x', relation, newValue: true), 'Freiflug');
     });
 
+    // federfall-g5ap — `cases.admission_reasons` is a MULTI relation, so its
+    // stored value is a JSON id array. The server joins the labels it
+    // snapshotted for the whole set; the screen must show that and never fall
+    // back to the array, which is the shape this shipped in.
+    test('a multi-relation shows the joined labels, not the id array', () {
+      final line = auditLine(
+        de,
+        _event(
+          changes: const [
+            AuditFieldChange(
+              field: 'admission_reasons',
+              from: '["adr_collision"]',
+              to: '["adr_collision","adr_cat"]',
+              fromLabel: 'Kollision',
+              toLabel: 'Kollision, Katzenangriff',
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        line.facts,
+        contains(
+          AuditFact(
+            de.auditChangeSummary(1),
+            '${de.caseReasonsFieldLabel}: '
+            '${de.auditChangeArrow('Kollision', 'Kollision, Katzenangriff')}',
+          ),
+        ),
+      );
+      expect(line.facts.map((f) => f.value).join(), isNot(contains('adr_')));
+    });
+
     test('an id with no label still renders, as the id', () {
       const bare = AuditFieldChange(field: 'current_aviary', to: 'avy_flight');
 

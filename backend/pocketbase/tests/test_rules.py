@@ -2559,6 +2559,65 @@ def main():
     check("a journal entry never records its text",
           "wound check" not in json.dumps(jrows), "text leaked")
 
+    # federfall-g5ap — and not on an EDIT either, which is where it leaked:
+    # CONTENT_FIELDS kept prose out of a create, but diff() is a denylist, so
+    # editing an entry stored 500 characters of the old AND the new text in a
+    # table nothing can delete from. A carer taking a name back out of a note
+    # must not leave the original behind in the audit trail.
+    req("PATCH", f"/api/collections/journal_entries/records/{ea_journal}",
+        toks["a"], {"text": "wound check — Frau Meier rang about the bird"})
+    jrows = audit_for(ea_journal)
+    check("...not even when it is edited",
+          "Meier" not in json.dumps(jrows)
+          and "wound check" not in json.dumps(jrows), "text leaked")
+    jchanges = [c for r in audit_for(ea_journal, "journal.updated")
+                for c in (r.get("changes") or [])]
+    check("...though the edit itself is still logged, as a withheld value",
+          {"field": "text", "redacted": True} in jchanges, jchanges)
+
+    # federfall-g5ap — `cases.admission_reasons` is this schema's one MULTI
+    # relation (maxSelect 99), and it logged its raw JSON id array: unreadable
+    # then, and unreadable forever after, since a reason is a code list a
+    # supervisor can rename or deactivate. Both ends carry the labels the
+    # reasons had at the time.
+    ea_reasons = listf(T, "admission_reasons", "active = true")[:2]
+    check("there are seeded admission reasons to select (parse guard)",
+          len(ea_reasons) == 2 and all(r.get("label") for r in ea_reasons),
+          ea_reasons)
+
+    def reason_change(action="case.updated"):
+        rows = audit_for(ea_case, action)
+        for c in ((rows or [{}])[-1].get("changes") or []):
+            if c["field"] == "admission_reasons":
+                return c
+        return {}
+
+    req("PATCH", f"/api/collections/cases/records/{ea_case}", toks["sup"],
+        {"admission_reasons": [ea_reasons[0]["id"]]})
+    ch = reason_change()
+    check("selecting an admission reason names it, not its id",
+          ch.get("to_label") == ea_reasons[0]["label"], ch)
+    check("...and an empty list reads as nothing, not as '[]'",
+          ch.get("from") in ("", None) and not ch.get("from_label"), ch)
+
+    req("PATCH", f"/api/collections/cases/records/{ea_case}", toks["sup"],
+        {"admission_reasons": [r["id"] for r in ea_reasons]})
+    ch = reason_change()
+    check("adding a second one names both ends of the change",
+          ch.get("from_label") == ea_reasons[0]["label"]
+          and ch.get("to_label") == f"{ea_reasons[0]['label']}, "
+                                    f"{ea_reasons[1]['label']}", ch)
+    check("...while the ids stay in the row, as they do for every relation",
+          ea_reasons[1]["id"] in str(ch.get("to", "")), ch)
+
+    # A renamed reason must not change what the row says about the past — the
+    # whole reason a label is snapshotted rather than looked up on the way out.
+    req("PATCH", f"/api/collections/admission_reasons/records/"
+                 f"{ea_reasons[0]['id']}", toks["sup"], {"label": "Umbenannt"})
+    check("renaming a reason afterwards does not rewrite the old event",
+          reason_change().get("from_label") == ea_reasons[0]["label"],
+          reason_change())
+
     # federfall-by7w.2 — case_id is an opaque id; without the number beside it
     # no case-scoped line names anything a person recognises.
     s, ea_case_rec = req("GET", f"/api/collections/cases/records/{ea_case}",
@@ -2586,6 +2645,9 @@ def main():
 
     # A handoff is one action, not three: the placement is the record, and the
     # carer move + share-on-handoff it triggers ride along in `detail`.
+    # Counted before/after rather than asserted to be zero: this case has been
+    # edited directly further up, and those edits are events in their own right.
+    case_updates_before = len(audit_for(ea_case, "case.updated"))
     ea_place = mk(toks["a"], "placements",
                   {"case": ea_case, "to_user": B, "org": ORG})["id"]
     rows = audit_for(ea_place, "case.handoff")
@@ -2606,7 +2668,8 @@ def main():
           and (ev.get("detail") or {}).get("from_label") == "Alice",
           ev.get("detail"))
     check("no separate event for the derived carer change",
-          len(audit_for(ea_case, "case.updated")) == 0, "case.updated leaked")
+          len(audit_for(ea_case, "case.updated")) == case_updates_before,
+          "case.updated leaked")
 
     # A supervisor changing org settings is exactly the kind of change that
     # should leave a trace; the superuser dashboard is audited the same way,
@@ -2930,6 +2993,20 @@ def main():
           len(audited) >= 15 and len(registry) >= 40,
           f"{len(audited)} collections, {len(registry)} actions")
 
+    # The app side of the same contract, read out of the renderer itself for the
+    # federfall-g5ap checks further down. auditFieldLabel() falls back to the
+    # raw column name, so "has a label" means "is named in this switch".
+    labels_dart = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "..", "..", "..", "apps", "federfall", "lib",
+                               "features", "admin", "audit", "audit_labels.dart")
+    with open(labels_dart, encoding="utf-8") as fh:
+        labels_src = fh.read()
+    field_label_fn = labels_src[labels_src.index("String auditFieldLabel("):]
+    field_label_fn = field_label_fn[:field_label_fn.index("\n}\n")]
+    dart_field_labels = set(re.findall(r"'([a-zA-Z_0-9]+)'", field_label_fn))
+    check("the app's field-label table is readable (parse guard)",
+          len(dart_field_labels) >= 30, len(dart_field_labels))
+
     s, cols = req("GET", "/api/collections?perPage=200", T)
     base = [c["name"] for c in cols["items"]
             if c["type"] != "view" and not c["name"].startswith("_")]
@@ -2983,6 +3060,121 @@ def main():
           "these say nothing about what they were: " + ", ".join(empty_actions)
           + " — give them a subject label (lib_audit.js LABEL_FIELDS/"
             "LABEL_RELATIONS), content (CONTENT_FIELDS) or a typed detail")
+
+    # federfall-g5ap — the readability contract on the UPDATE path, which
+    # nothing checked. `CONTENT_FIELDS` is an ALLOWLIST and covers creates and
+    # deletes only; `diff()` is a DENYLIST (IGNORED_FIELDS + SENSITIVE +
+    # FREE_TEXT), so an update can surface ANY column of an audited collection.
+    # Two things must then hold for every one of those columns:
+    #
+    #   A. a relation resolves to a snapshotted label — an id in a row nobody
+    #      can interpret is the exact failure this design exists to prevent, and
+    #      `cases.admission_reasons` shipped that way for want of this check;
+    #   B. the field has a translated name in the app, or the line reads as its
+    #      raw SQLite column name.
+    #
+    # The LIVE SCHEMA is the source of truth rather than a list mirrored in this
+    # file, which is why the check lives here and not in audit_labels_test.dart:
+    # adding a column to an audited collection is what has to fail the build,
+    # and only a running PocketBase knows the columns.
+    def js_block(src, decl, end="\n};"):
+        blk = src[src.index(decl):]
+        return blk[:blk.index(end)]
+
+    def js_map_of_lists(src, name):
+        blk = js_block(src, f"const {name} = {{")
+        return {m.group(1): re.findall(r'"([a-z_0-9]+)"', m.group(2))
+                for m in re.finditer(r"(\w+): \[([^\]]*)\]", blk, re.S)}
+
+    relation_targets = dict(re.findall(
+        r'(\w+):\s*"([a-z_0-9]+)"',
+        js_block(lib_src, "const RELATION_TARGETS = {")))
+    relation_fields = {
+        m.group(1): dict(re.findall(r'(\w+):\s*"([a-z_0-9]+)"', m.group(2)))
+        for m in re.finditer(
+            r"(\w+):\s*\{([^}]*)\}",
+            js_block(lib_src, "const RELATION_FIELDS = {"), re.S)
+    }
+    label_fields = js_map_of_lists(lib_src, "LABEL_FIELDS")
+    sensitive = js_map_of_lists(lib_src, "SENSITIVE")
+    # Both keyed by FIELD NAME rather than by collection, so they are flat lists.
+    free_text = re.findall(r'"([a-zA-Z_0-9]+)"',
+                           js_block(lib_src, "const FREE_TEXT = [", "\n];"))
+    ignored = re.findall(r'"([a-zA-Z_]+)"',
+                         js_block(lib_src, "const IGNORED_FIELDS = [", "\n];"))
+    check("the emitter's field tables are readable (parse guard)",
+          len(relation_targets) >= 20 and len(label_fields) >= 10
+          and len(ignored) >= 3 and len(free_text) >= 1,
+          f"{len(relation_targets)} relation targets, "
+          f"{len(label_fields)} label maps, {len(ignored)} ignored, "
+          f"{len(free_text)} free-text maps")
+
+    # A finder is never named in the log, whichever direction the relation is
+    # reached from (lib_audit.js's header) — so this one field is EXPECTED to
+    # carry a bare id, and labelOf() refuses to resolve it even if asked.
+    # …plus an examination, which has no name to snapshot: LABEL_FIELDS could
+    # only offer a date, and a label must be neutral text. A finding is located
+    # by its case and its examiner.
+    RELATION_UNLABELLED_BY_DESIGN = {("cases", "finder"),
+                                     ("exam_findings", "exam")}
+
+    # Prose that IS logged verbatim, on purpose: a code list's `description` is
+    # a supervisor's own definition of a diagnosis or a drug — org configuration,
+    # not a record about a bird or a person, and worth reading back in full.
+    PROSE_LOGGED_ON_PURPOSE = {"description"}
+    # A text column that can hold a paragraph is prose (federfall-g5ap). The
+    # threshold is what separates `notes` (1000+) from a short structured string
+    # like `where_holding` or `city`, which the annual report prints anyway.
+    PROSE_MAX = 1000
+
+    fields_of = {c["name"]: c.get("fields", []) for c in cols["items"]}
+    bare_relations, untranslated, unlabelable, prose = [], [], [], []
+    for coll in sorted(audited):
+        for f in fields_of.get(coll, []):
+            name = f["name"]
+            if name in ignored or f.get("system"):
+                continue
+            if (f["type"] == "text" and (f.get("max") or 0) >= PROSE_MAX
+                    and name not in free_text
+                    and name not in sensitive.get(coll, [])
+                    and name not in PROSE_LOGGED_ON_PURPOSE):
+                prose.append(f"{coll}.{name} (max {f.get('max')})")
+            if f["type"] == "relation":
+                target = (relation_fields.get(coll, {}).get(name)
+                          or relation_targets.get(name))
+                if not target and (coll, name) not in \
+                        RELATION_UNLABELLED_BY_DESIGN:
+                    bare_relations.append(f"{coll}.{name}")
+                # A target with no LABEL_FIELDS entry makes labelOf() return ""
+                # for every row — the table would look wired up and never
+                # produce a single label.
+                elif target and not label_fields.get(target):
+                    unlabelable.append(f"{coll}.{name} → {target}")
+            # Redacted fields still render their NAME ("Notiz: geändert (Wert
+            # nicht protokolliert)"), so they need a translation as much as any
+            # other — only the value is withheld.
+            if name not in dart_field_labels:
+                untranslated.append(f"{coll}.{name}")
+
+    check("no free prose is copied into the log",
+          not prose,
+          "an edit would store the old AND new text of: " + ", ".join(prose)
+          + " — add the field to lib_audit.js's FREE_TEXT, or to this test's "
+            "PROSE_LOGGED_ON_PURPOSE with the reason it is safe to keep")
+    check("every relation an audited collection can log resolves to a label",
+          not bare_relations,
+          "these would log a bare id: " + ", ".join(bare_relations)
+          + " — add the field to lib_audit.js's RELATION_TARGETS (or "
+            "RELATION_FIELDS where the name means different things in "
+            "different collections)")
+    check("every relation target can actually produce a label",
+          not unlabelable,
+          "no LABEL_FIELDS entry for: " + ", ".join(unlabelable))
+    check("every field an audited collection can log has a translated name",
+          not untranslated,
+          "these render as their raw column name: " + ", ".join(untranslated)
+          + " — add them to auditFieldLabel in "
+            "apps/federfall/lib/features/admin/audit/audit_labels.dart")
 
     # The other half of the contract: `action` is TEXT, so nothing at write
     # time stops a typo'd action string from being stored — the app would

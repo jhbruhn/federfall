@@ -240,6 +240,49 @@ const SENSITIVE = {
   ],
 };
 
+// ── Free prose is never copied into the log (federfall-g5ap) ────────────────
+//
+// SENSITIVE covers credentials and finder PII. This covers the other thing that
+// must not land in an append-only table: text a person wrote in their own words
+// and can still correct. CONTENT_FIELDS already excludes it on the create/delete
+// path — `journal_entries` is empty there precisely so "the note stays where it
+// can still be corrected" — but diff() is a DENYLIST, so before this list an
+// EDIT logged 500 characters of the old AND the new prose. A carer editing a
+// name out of a journal entry left the original in a table nothing can delete
+// from, which is the same hole finder_retention.pb.js's scrub exists to close.
+//
+// Keyed by FIELD NAME, like RELATION_TARGETS, because this schema is consistent
+// about it: a field called `notes` is somebody's prose wherever it appears. The
+// row keeps the FACT of the change ({field, redacted: true}) — "someone rewrote
+// this bird's journal entry" is the auditable part, and the structured siblings
+// (dose_rate, disposition type, quarantine dates) carry the clinical meaning.
+//
+// A prose column NOT listed here fails test_rules.py's audit sweep, which asks
+// the live schema for every text field long enough to hold a paragraph. The one
+// deliberate exemption is a code list's `description` — a supervisor's own
+// definition of a diagnosis code, org configuration rather than a record about a
+// bird or a person, and useful to read back verbatim.
+const FREE_TEXT = [
+  "text",
+  "note",
+  "notes",
+  "comments",
+  "condition_at_handoff",
+  "instructions",
+  "intake_notes",
+  "outcome",
+  "reason",
+  // The pre-`exams` per-system findings still on `cases` (1700000004).
+  "exam_cardiopulmonary",
+  "exam_cns",
+  "exam_forelimb",
+  "exam_gi",
+  "exam_head",
+  "exam_hindlimb",
+  "exam_integument",
+  "exam_musculoskeletal",
+];
+
 // Fields that change on every write and say nothing about intent. Credentials
 // are deliberately NOT here: "this account's password changed" is exactly the
 // kind of thing a supervisor needs to see. SENSITIVE strips the values; leaving
@@ -258,9 +301,10 @@ const IGNORED_FIELDS = [
 // deleted, and `changes` has a maxSize. What matters is THAT the text changed.
 const MAX_VALUE_CHARS = 500;
 
-function isSensitive(collection, field) {
+function isWithheld(collection, field) {
   const list = SENSITIVE[collection];
-  return !!list && list.indexOf(field) !== -1;
+  if (list && list.indexOf(field) !== -1) return true;
+  return FREE_TEXT.indexOf(field) !== -1;
 }
 
 function normalize(v) {
@@ -288,6 +332,12 @@ function normalize(v) {
       return json;
     }
   }
+  // An EMPTY list is an empty value, not the two characters "[]". Every multi
+  // field lands here — a multi-relation (`cases.admission_reasons`), a file
+  // field with no upload — and storing "[]" made the renderer read a first
+  // reason being chosen as a change FROM something ("[] → Kollision") instead
+  // of as one being set.
+  if (json === "[]") return "";
   return json;
 }
 
@@ -320,7 +370,7 @@ function diff(collection, before, after, app) {
     const to = normalize(a[field]);
     if (String(from) === String(to)) continue;
 
-    if (isSensitive(collection, field)) {
+    if (isWithheld(collection, field)) {
       out.push({ field: field, redacted: true });
       continue;
     }
@@ -329,11 +379,13 @@ function diff(collection, before, after, app) {
     const entry = { field: field, from: cf.value, to: ct.value };
     if (cf.truncated || ct.truncated) entry.truncated = true;
     // A relation's value is an id. Record what it pointed at on BOTH sides —
-    // "Voliere: Quarantäne 1 → Freiflug" rather than two opaque ids.
+    // "Voliere: Quarantäne 1 → Freiflug" rather than two opaque ids. Resolved
+    // from the UNCLAMPED value: a multi-relation's id array can exceed
+    // MAX_VALUE_CHARS, and half a JSON array parses as nothing at all.
     const target = relationTarget(collection, field);
     if (target && app) {
-      const fromLabel = labelOf(app, target, String(cf.value || ""));
-      const toLabel = labelOf(app, target, String(ct.value || ""));
+      const fromLabel = labelsOf(app, target, from);
+      const toLabel = labelsOf(app, target, to);
       if (fromLabel) entry.from_label = fromLabel;
       if (toLabel) entry.to_label = toLabel;
     }
@@ -603,18 +655,26 @@ const LABEL_QUANTITIES = {
 const RELATION_TARGETS = {
   active_carer: "users",
   administered_by: "users",
+  // The one MULTI relation in the schema (maxSelect 99, 1700000039) — resolved
+  // through labelsOf(), which is why it can sit in the same table as the rest.
+  admission_reasons: "admission_reasons",
   admitted_by: "users",
   animal: "animals",
   applied_by: "users",
   applied_in_case: "cases",
   author: "users",
   aviary: "aviaries",
+  carer: "users",
   case: "cases",
   condition: "conditions",
   created_by: "users",
+  invited_by: "users",
   current_aviary: "aviaries",
   examiner: "users",
   from_user: "users",
+  // NOT `exam`: an examination has no name of its own (LABEL_FIELDS could only
+  // offer a date, and a label must be neutral text) — a finding is located by
+  // the case and the examiner instead. Exempted explicitly in test_rules.py.
   keeper: "users",
   medication: "medications",
   org: "organisations",
@@ -665,6 +725,43 @@ function labelOf(app, collection, id) {
     // Gone or unreadable — the id still identifies it.
   }
   return "";
+}
+
+// How many ids of a multi-relation are named. A case carries a handful of
+// admission reasons; the cap is only there so a pathological row cannot turn one
+// change entry into 99 indexed reads and a label longer than the values it
+// describes. The ids all stay in `from`/`to` regardless.
+const MAX_LABELLED_IDS = 20;
+
+/**
+ * What [value] is called — a single id, or a whole multi-relation.
+ *
+ * `normalize()` renders a multi-relation as its JSON id array, so without this
+ * `cases.admission_reasons` logged '["fx1…","9aq…"] → […]' and nothing else:
+ * unreadable at the time, and unreadable forever after, since the reasons are a
+ * code list a supervisor can rename or deactivate (federfall-g5ap). Each id is
+ * resolved through labelOf(), i.e. snapshotted at emit time like every other
+ * label in this file, and joined in the order the field stores them.
+ */
+function labelsOf(app, collection, value) {
+  const raw = String(value === null || value === undefined ? "" : value);
+  if (!raw) return "";
+  if (raw[0] !== "[") return labelOf(app, collection, raw);
+
+  let ids;
+  try {
+    ids = JSON.parse(raw);
+  } catch (_) {
+    return ""; // clamped mid-array, or not an array after all
+  }
+  if (!Array.isArray(ids)) return "";
+
+  const labels = [];
+  for (const id of ids.slice(0, MAX_LABELLED_IDS)) {
+    const label = labelOf(app, collection, String(id || ""));
+    if (label) labels.push(label);
+  }
+  return labels.join(", ").slice(0, 500);
 }
 
 // What a CREATE wrote, and what a DELETE destroyed (federfall-by7w / 9k2g).
@@ -751,7 +848,7 @@ function contentOf(collection, record, created, app) {
     // truthiness test: "quarantine lifted" and "capacity 0" both matter.
     if (value === "" || value === null || value === undefined) continue;
 
-    if (isSensitive(collection, field)) {
+    if (isWithheld(collection, field)) {
       out.push({ field: field, redacted: true });
       continue;
     }
@@ -762,7 +859,7 @@ function contentOf(collection, record, created, app) {
     if (c.truncated) entry.truncated = true;
     const target = relationTarget(collection, field);
     if (target && app) {
-      const label = labelOf(app, target, String(c.value || ""));
+      const label = labelsOf(app, target, value);
       if (label) entry[created ? "to_label" : "from_label"] = label;
     }
     out.push(entry);
@@ -1295,6 +1392,7 @@ module.exports = {
   SEVERITY: SEVERITY,
   ACTOR: ACTOR,
   SENSITIVE: SENSITIVE,
+  FREE_TEXT: FREE_TEXT,
   COLLECTION_ACTIONS: COLLECTION_ACTIONS,
   AUDITED_COLLECTIONS: Object.keys(COLLECTION_ACTIONS),
   diff: diff,
@@ -1303,5 +1401,6 @@ module.exports = {
   emitLoginFailed: emitLoginFailed,
   subjectLabel: subjectLabel,
   labelOf: labelOf,
+  labelsOf: labelsOf,
   relationTarget: relationTarget,
 };
