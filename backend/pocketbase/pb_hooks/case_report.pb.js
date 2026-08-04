@@ -713,6 +713,7 @@ routerAdd(
           label: caseRec.getString("case_number"),
         },
         caseId: caseRec.id,
+        caseLabel: caseRec.getString("case_number"),
         detail: { format: format },
       });
     };

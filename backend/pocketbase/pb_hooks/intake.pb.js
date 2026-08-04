@@ -247,6 +247,7 @@ routerAdd(
           label: rec.getString("case_number"),
         },
         caseId: rec.id,
+        caseLabel: rec.getString("case_number"),
         refs: finderId ? { animal: aId, finder: finderId } : { animal: aId },
         detail: {
           species: animal.getString("species"),

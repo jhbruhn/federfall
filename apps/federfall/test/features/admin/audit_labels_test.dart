@@ -16,6 +16,7 @@ AuditEvent _event({
   String subjectCollection = 'cases',
   List<AuditFieldChange> changes = const [],
   String? ip,
+  String caseLabel = '',
 }) => AuditEvent(
   id: 'audt1',
   rawAction: rawAction ?? action?.wire ?? 'x.y',
@@ -29,6 +30,7 @@ AuditEvent _event({
   subjectCollection: subjectCollection,
   changes: changes,
   ip: ip,
+  caseLabel: caseLabel,
 );
 
 void main() {
@@ -356,6 +358,34 @@ void main() {
         auditLine(de, _event(ip: '10.0.0.4')).facts.map((f) => f.value),
         contains('10.0.0.4'),
       );
+    });
+  });
+
+  group('the case a row belongs to', () {
+    test('is named by its number', () {
+      final line = auditLine(
+        de,
+        _event(subjectLabel: '', caseLabel: '2026-014'),
+      );
+
+      expect(
+        line.facts,
+        contains(AuditFact(de.auditFactCase, '2026-014')),
+      );
+    });
+
+    test('is not repeated when the case IS the subject', () {
+      final line = auditLine(
+        de,
+        _event(subjectLabel: '2026-099', caseLabel: '2026-099'),
+      );
+
+      expect(line.subtitle, '2026-099');
+      expect(line.facts.map((f) => f.label), isNot(contains(de.auditFactCase)));
+    });
+
+    test('a row belonging to no case says nothing about one', () {
+      expect(auditLine(de, _event()).facts, isEmpty);
     });
   });
 

@@ -2550,6 +2550,21 @@ def main():
     check("a journal entry never records its text",
           "wound check" not in json.dumps(jrows), "text leaked")
 
+    # federfall-by7w.2 — case_id is an opaque id; without the number beside it
+    # no case-scoped line names anything a person recognises.
+    s, ea_case_rec = req("GET", f"/api/collections/cases/records/{ea_case}",
+                         toks["sup"])
+    ea_number = ea_case_rec["case_number"]
+    check("a case-scoped event carries the case NUMBER, not just its id",
+          (audit_for(ea_journal) or [{}])[0].get("case_label") == ea_number,
+          (audit_for(ea_journal) or [{}])[0].get("case_label"))
+    check("the case's own event carries it too",
+          (audit_for(ea_case, "case.created") or [{}])[0].get("case_label")
+          == ea_number, "missing")
+    check("an event that belongs to no case has no case label",
+          (audit_for(ea_animal, "animal.created") or [{}])[0].get("case_label")
+          == "", "spurious")
+
     # Deleting is an event in its own right — and the one that most needs to
     # outlive its subject, since the row it describes is gone.
     s, _ = req("DELETE", f"/api/collections/journal_entries/records/{ea_journal}",
@@ -2657,6 +2672,8 @@ def main():
     ev = ir[0] if ir else {}
     check("...labelled with the case number it just assigned",
           ev.get("subject_label") == ic.get("case_number"), ev)
+    check("...and the intake route supplies the case number for free",
+          ev.get("case_label") == ic.get("case_number"), ev)
     check("...carrying the animal and the finder as ids",
           (ev.get("refs") or {}).get("animal") == ic.get("animal")
           and bool((ev.get("refs") or {}).get("finder")), ev.get("refs"))

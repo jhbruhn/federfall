@@ -157,22 +157,30 @@ class _SeverityFilter extends StatelessWidget {
 /// One entry: what happened, to what, by whom, when — plus whatever context the
 /// event carried.
 class AuditEventTile extends StatelessWidget {
-  const AuditEventTile({required this.event, super.key});
+  const AuditEventTile({required this.event, this.showCase = true, super.key});
 
   final AuditEvent event;
+
+  /// Whether to name the case. False inside the per-case section, where every
+  /// row belongs to the same case and repeating its number on each line is
+  /// noise rather than context.
+  final bool showCase;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final line = auditLine(l10n, event);
+    final facts = showCase
+        ? line.facts
+        : line.facts.where((f) => f.label != l10n.auditFactCase).toList();
     final when = DateFormat.yMd(
       l10n.localeName,
     ).add_Hm().format(event.at.toLocal());
     final who = auditActorName(l10n, event);
 
     return ListTile(
-      isThreeLine: line.facts.isNotEmpty,
+      isThreeLine: facts.isNotEmpty,
       leading: Icon(
         line.icon,
         color: event.severity == AuditSeverity.security
@@ -189,7 +197,7 @@ class AuditEventTile extends StatelessWidget {
                 : '$who · $when · ${line.subtitle}',
             style: theme.textTheme.bodySmall,
           ),
-          for (final fact in line.facts)
+          for (final fact in facts)
             Text(
               fact.value.isEmpty ? fact.label : '${fact.label}: ${fact.value}',
               style: theme.textTheme.bodySmall?.copyWith(
@@ -239,7 +247,7 @@ class CaseActivitySection extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
-            for (final e in events) AuditEventTile(event: e),
+            for (final e in events) AuditEventTile(event: e, showCase: false),
           ],
         );
       },

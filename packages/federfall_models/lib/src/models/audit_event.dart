@@ -280,6 +280,11 @@ abstract class AuditEvent with _$AuditEvent {
     /// The case this belongs to, if any. Indexed server-side: it is what the
     /// per-case activity view filters on.
     @Default('') String caseId,
+
+    /// The case NUMBER as it was, so a line can name its case without a
+    /// lookup that would fail once the case is deleted. Empty on rows that
+    /// belong to no case, and on rows written before the column existed.
+    @Default('') String caseLabel,
     @Default(<String, String>{}) Map<String, String> refs,
     @Default(<AuditFieldChange>[]) List<AuditFieldChange> changes,
 
@@ -310,6 +315,7 @@ abstract class AuditEvent with _$AuditEvent {
       subjectId: pbString(d['subject_id']) ?? '',
       subjectLabel: pbString(d['subject_label']) ?? '',
       caseId: pbString(d['case_id']) ?? '',
+      caseLabel: pbString(d['case_label']) ?? '',
       refs: _refs(d['refs']),
       changes: _changes(d['changes']),
       detail: AuditDetail.parse(action, d['detail']),

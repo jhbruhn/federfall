@@ -1017,6 +1017,22 @@ function emit(e, action, opts) {
       }
     }
 
+    // The case NUMBER, snapshotted like every other label here (federfall-
+    // by7w.2). Free when the subject IS the case; otherwise one indexed read,
+    // and only for rows that belong to a case at all.
+    let caseLabel = String(o.caseLabel || "");
+    if (!caseLabel && caseId) {
+      if (subjectCollection === "cases" && subjectLabel) {
+        caseLabel = subjectLabel;
+      } else {
+        try {
+          caseLabel = app.findRecordById("cases", caseId).getString("case_number");
+        } catch (_) {
+          // Case already gone — the id still correlates the rows.
+        }
+      }
+    }
+
     const row = new Record(app.findCollectionByNameOrId("audit_events"));
     row.set("org", org);
     row.set("action", String(action));
@@ -1028,6 +1044,7 @@ function emit(e, action, opts) {
     row.set("subject_id", subjectId);
     row.set("subject_label", subjectLabel);
     row.set("case_id", caseId);
+    row.set("case_label", caseLabel);
     if (o.refs) row.set("refs", o.refs);
     if (o.changes && o.changes.length) row.set("changes", o.changes);
     if (o.detail) row.set("detail", o.detail);

@@ -444,6 +444,13 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
 
   if (e.ip != null && e.ip!.isNotEmpty) add(l10n.auditFactIp, e.ip);
 
+  // Which case, by its number (federfall-by7w.2). Last, because it is context
+  // rather than content — and skipped when the subject IS the case, where it
+  // would repeat the subtitle verbatim.
+  if (e.caseLabel.isNotEmpty && e.caseLabel != e.subjectLabel) {
+    add(l10n.auditFactCase, e.caseLabel);
+  }
+
   return AuditLine(
     title: auditActionTitle(l10n, e.action, e.rawAction),
     subtitle: e.subjectLabel.isNotEmpty ? e.subjectLabel : null,
