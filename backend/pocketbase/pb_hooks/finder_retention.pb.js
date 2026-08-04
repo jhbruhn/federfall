@@ -165,6 +165,16 @@ cronAdd("finderPiiRetention", "0 3 * * *", () => {
         $app.save(finder);
         scrubbed++;
         scrubbedThisBatch++;
+        // federfall-qt96.6 — erasing personal data is itself a GDPR-relevant
+        // act, and the trace of it must not become a copy of what was erased:
+        // the row is the finder's ID and nothing else (emit() forces a finder
+        // subject's label empty regardless).
+        require(`${__hooks}/lib_audit.js`).emit(null, "finder.pii_purged", {
+          actorKind: "cron",
+          org: finder.getString("org"),
+          subject: { collection: "finders", id: finder.id, label: "" },
+          detail: { fields: PII_FIELDS.length },
+        });
       } catch (e) {
         $app.logger().warn("finder retention: scrub failed", "finder", finder.id, "err", String(e));
       }
@@ -202,6 +212,14 @@ cronAdd("finderPiiRetention", "0 3 * * *", () => {
         const born = toDate(finder.getString("created"));
         if (!born || now.getTime() - born.getTime() < ORPHAN_GRACE_MS) continue;
 
+        // Emitted BEFORE the delete: afterwards there is no org to file it
+        // under, and the id in this row is the only remaining evidence the
+        // record ever existed.
+        require(`${__hooks}/lib_audit.js`).emit(null, "finder.orphan_deleted", {
+          actorKind: "cron",
+          org: finder.getString("org"),
+          subject: { collection: "finders", id: finder.id, label: "" },
+        });
         $app.delete(finder);
         deleted++;
         deletedThisBatch++;

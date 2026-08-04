@@ -2727,6 +2727,44 @@ def main():
     check("revoking it is logged too",
           len(audit_for(sh, "case.share_revoked")) == 1, "missing")
 
+    # ── federfall-qt96.6: exports (data leaving the system) ─────────────────
+    # No bulk-read logging by design, with one exception: an export takes the
+    # data off-system, so it is the read worth recording.
+    print("\n[audit: exports]")
+
+    def audit_by_action(action):
+        s, d = req("GET", "/api/collections/audit_events/records?sort=created"
+                   "&perPage=50&filter=" + urllib.parse.quote(
+                       f'action = "{action}"'), toks["sup"])
+        return d["items"] if s == 200 else []
+
+    n_before = len(audit_by_action("report.exported"))
+    req_bytes("GET", "/api/federfall/reports/annual?year=2019", toks["sup"])
+    req_bytes("GET", "/api/federfall/reports/annual?year=2019&format=csv",
+              toks["sup"])
+    rows = audit_by_action("report.exported")
+    check("both report formats are logged as exports",
+          len(rows) == n_before + 2, len(rows) - n_before)
+    formats = [(r.get("detail") or {}).get("format") for r in rows[-2:]]
+    check("...distinguishing the PDF from the spreadsheet",
+          formats == ["pdf", "csv"], formats)
+    check("...recording which period left the building",
+          (rows[-1].get("detail") or {}).get("year") == 2019, rows[-1])
+
+    n_before = len(audit_by_action("case_report.printed"))
+    req_bytes("GET", f"/api/federfall/cases/{ea_case}/report.pdf", toks["sup"])
+    req_bytes("GET", f"/api/federfall/cases/{ea_case}/report.pdf?widthDots=576",
+              toks["sup"])
+    rows = audit_by_action("case_report.printed")
+    check("printing a case report is logged, in both shapes",
+          len(rows) == n_before + 2, len(rows) - n_before)
+    check("...against the case it carried off",
+          all(r.get("case_id") == ea_case for r in rows[-2:]), rows[-2:])
+    check("...saying which output it was",
+          [(r.get("detail") or {}).get("format") for r in rows[-2:]]
+          == ["pdf", "receipt"],
+          [(r.get("detail") or {}).get("format") for r in rows[-2:]])
+
     # ── federfall-0tf: geocode proxy guards ─────────────────────────────────
     # Runs LAST: the flood exhausts the geocode rate budget for this client IP,
     # so nothing may query the geocode routes after this block. All requests

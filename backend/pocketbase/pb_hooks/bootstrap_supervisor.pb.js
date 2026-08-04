@@ -85,6 +85,21 @@ onBootstrap((e) => {
     e.app
       .logger()
       .info("federfall: bootstrapped first supervisor from env", "email", email);
+
+    // federfall-qt96.6 — a supervisor account created from the environment,
+    // with nobody logged in to have done it. Whoever reads the log later
+    // should not have to guess where the first account came from.
+    require(`${__hooks}/lib_audit.js`).emit(null, "supervisor.bootstrapped", {
+      app: e.app,
+      actorKind: "system",
+      org: org.id,
+      subject: {
+        collection: "users",
+        id: rec.id,
+        label: rec.getString("name") || email,
+      },
+      detail: { source: "env" },
+    });
   } catch (err) {
     // Never brick startup over a bad bootstrap config — log and carry on.
     e.app.logger().warn("federfall: supervisor bootstrap failed", "err", String(err));

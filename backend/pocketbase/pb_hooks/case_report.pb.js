@@ -701,7 +701,24 @@ routerAdd(
     // Receipt PNGs are fed straight to the printer library, not downloaded —
     // no Content-Disposition; Content-Type is what's authoritative here (the
     // route path segment stays ".pdf" for both branches, cosmetically).
+    // federfall-qt96.6 — a case report carries the whole case off-system,
+    // finder details included, so both output shapes are logged. Emitted after
+    // the render, so a failed one is not reported as a print.
+    const auditPrint = (format) => {
+      require(`${__hooks}/lib_audit.js`).emit(e, "case_report.printed", {
+        record: caseRec,
+        subject: {
+          collection: "cases",
+          id: caseRec.id,
+          label: caseRec.getString("case_number"),
+        },
+        caseId: caseRec.id,
+        detail: { format: format },
+      });
+    };
+
     if (widthDots !== null) {
+      auditPrint("receipt");
       return e.blob(200, "image/png", bytes);
     }
 
@@ -709,6 +726,7 @@ routerAdd(
     e.response
       .header()
       .set("Content-Disposition", 'attachment; filename="case-' + caseNumber + '.pdf"');
+    auditPrint("pdf");
     return e.blob(200, "application/pdf", bytes);
   },
   $apis.requireAuth(),

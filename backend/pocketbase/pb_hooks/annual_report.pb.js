@@ -387,6 +387,19 @@ routerAdd(
       e.response
         .header()
         .set("Content-Disposition", 'attachment; filename="' + csvName + '.csv"');
+      // federfall-qt96.6 — an export is data leaving the system, which is the
+      // one kind of READ this log records. Emitted after the bytes exist, so a
+      // failed render is not reported as an export.
+      require(`${__hooks}/lib_audit.js`).emit(e, "report.exported", {
+        subject: { collection: "", id: "", label: "" },
+        detail: {
+          report: "annual",
+          format: "csv",
+          year: year,
+          lang: lang,
+          rows: rows.length,
+        },
+      });
       return e.blob(200, "text/csv; charset=utf-8", new Uint8Array(bytes));
     }
 
@@ -628,6 +641,17 @@ routerAdd(
     e.response
       .header()
       .set("Content-Disposition", 'attachment; filename="' + pdfName + '.pdf"');
+    // federfall-qt96.6 — see the CSV branch above.
+    require(`${__hooks}/lib_audit.js`).emit(e, "report.exported", {
+      subject: { collection: "", id: "", label: "" },
+      detail: {
+        report: "annual",
+        format: "pdf",
+        year: year,
+        lang: lang,
+        rows: rows.length,
+      },
+    });
     return e.blob(200, "application/pdf", bytes);
   },
   $apis.requireAuth(),

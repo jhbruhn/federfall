@@ -199,4 +199,27 @@ onRecordAuthWithOAuth2Request((e) => {
       .logger()
       .warn("federfall: could not mark oauth user verified", "err", String(err));
   }
+
+  // federfall-qt96.6 — an account appeared without anybody inviting it, with a
+  // role this hook chose from the IdP's groups. That is a membership decision
+  // made by configuration rather than by a supervisor, so it is logged as one
+  // (audit_auth.pb.js logs the sign-in itself; this is the provisioning).
+  // Emitted last, so the role it reports is the one that survived the
+  // concurrent-bootstrap resolution above.
+  if (e.record) {
+    require(`${__hooks}/lib_audit.js`).emit(e, "oauth2.user_provisioned", {
+      actorKind: "system",
+      org: e.record.getString("org"),
+      subject: {
+        collection: "users",
+        id: e.record.id,
+        label: e.record.getString("name") || e.record.getString("email"),
+      },
+      detail: {
+        role: e.record.getString("role"),
+        first_user: !!firstUser,
+        email_verified: !!emailVerified,
+      },
+    });
+  }
 });

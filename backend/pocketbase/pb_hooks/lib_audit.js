@@ -165,7 +165,9 @@ const ACTIONS = {
   // ── data leaving the system ────────────────────────────────────────────────
   REPORT_EXPORTED: "report.exported",
   CASE_REPORT_PRINTED: "case_report.printed",
-  GDPR_EXPORT: "gdpr.export",
+  // gdpr.export belongs here too, but the Datenauskunft it would describe does
+  // not exist yet (federfall-qocb). It ships with that feature — an action
+  // nothing can emit is an unused enum value and an untranslatable string.
 
   // ── system paths (no human actor) ──────────────────────────────────────────
   OAUTH2_USER_PROVISIONED: "oauth2.user_provisioned",
@@ -209,7 +211,7 @@ const DEFAULT_SEVERITY = {
   "finder.orphan_deleted": SEVERITY.NOTICE,
   "audit.purged": SEVERITY.NOTICE,
   "report.exported": SEVERITY.NOTICE,
-  "gdpr.export": SEVERITY.NOTICE,
+  "case_report.printed": SEVERITY.NOTICE,
 };
 
 // ── Redaction ────────────────────────────────────────────────────────────────
