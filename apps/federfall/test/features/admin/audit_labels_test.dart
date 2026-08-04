@@ -712,4 +712,36 @@ void main() {
       }
     }
   });
+
+  // federfall-ybua.6 — the topic filter is only usable if every action is
+  // reachable through exactly one of them.
+  group('topics partition the actions', () {
+    test('every action belongs to exactly one topic', () {
+      for (final action in AuditAction.values) {
+        final owners = AuditTopic.values
+            .where((t) => t.actions.contains(action))
+            .toList();
+        expect(
+          owners,
+          hasLength(1),
+          reason: '${action.wire} belongs to $owners',
+        );
+      }
+    });
+
+    test('no topic is empty, and together they cover the registry', () {
+      final covered = AuditTopic.values.expand((t) => t.actions).toSet();
+      expect(covered, hasLength(AuditAction.values.length));
+      for (final t in AuditTopic.values) {
+        expect(t.actions, isNotEmpty, reason: '$t');
+      }
+    });
+
+    test('each topic is named in both languages', () {
+      for (final t in AuditTopic.values) {
+        expect(auditTopicLabel(de, t), isNotEmpty);
+        expect(auditTopicLabel(en, t), isNotEmpty);
+      }
+    });
+  });
 }

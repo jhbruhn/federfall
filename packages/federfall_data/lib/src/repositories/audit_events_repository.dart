@@ -10,6 +10,7 @@ import 'package:pocketbase/pocketbase.dart';
 class AuditQuery {
   const AuditQuery({
     this.actorId,
+    this.actorKind,
     this.actions = const [],
     this.severity,
     this.caseId,
@@ -23,6 +24,11 @@ class AuditQuery {
   /// Who acted. Matches the snapshot id, so it still finds the events of a
   /// member who has since been deleted.
   final String? actorId;
+
+  /// Which KIND of actor. The practical use is finding what the machine did on
+  /// its own — a cron scrub, a provisioning — which no actor id can express,
+  /// since a system row has none.
+  final AuditActorKind? actorKind;
 
   /// Any of these actions. Empty means all of them.
   final List<AuditAction> actions;
@@ -46,6 +52,7 @@ class AuditQuery {
 
   bool get isEmpty =>
       actorId == null &&
+      actorKind == null &&
       actions.isEmpty &&
       severity == null &&
       caseId == null &&
@@ -57,6 +64,7 @@ class AuditQuery {
 
   AuditQuery copyWith({
     String? actorId,
+    AuditActorKind? actorKind,
     List<AuditAction>? actions,
     AuditSeverity? severity,
     String? caseId,
@@ -70,6 +78,7 @@ class AuditQuery {
     bool clearRange = false,
   }) => AuditQuery(
     actorId: clearActor ? null : (actorId ?? this.actorId),
+    actorKind: clearActor ? null : (actorKind ?? this.actorKind),
     actions: actions ?? this.actions,
     severity: clearSeverity ? null : (severity ?? this.severity),
     caseId: caseId ?? this.caseId,
@@ -84,6 +93,7 @@ class AuditQuery {
   bool operator ==(Object other) =>
       other is AuditQuery &&
       other.actorId == actorId &&
+      other.actorKind == actorKind &&
       _sameActions(other.actions) &&
       other.severity == severity &&
       other.caseId == caseId &&
@@ -104,6 +114,7 @@ class AuditQuery {
   @override
   int get hashCode => Object.hash(
     actorId,
+    actorKind,
     Object.hashAll(actions),
     severity,
     caseId,
@@ -182,6 +193,7 @@ class PbAuditEventsRepository extends PbReadOnlyRepository<AuditEvent> {
     }
 
     eq('actor_id', 'actor', query.actorId);
+    eq('actor_kind', 'akind', query.actorKind?.wire);
     eq('case_id', 'case', query.caseId);
     eq('subject_id', 'subject', query.subjectId);
     eq('subject_collection', 'coll', query.subjectCollection);

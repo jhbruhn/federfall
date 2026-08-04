@@ -175,6 +175,130 @@ String auditActorName(AppLocalizations l10n, AuditEvent e) {
   }
 }
 
+/// What a supervisor is looking through the log FOR.
+///
+/// Not the action's own domain: there are 27 of those and „exam_finding" is not
+/// a question anybody arrives with. These are areas of work, each mapping to an
+/// explicit list of actions the existing `AuditQuery.actions` filter already
+/// takes. Every action belongs to exactly one topic, and the label test fails
+/// the build on one that belongs to none or two — otherwise a new action would
+/// silently be unreachable by filter.
+enum AuditTopic {
+  cases,
+  treatment,
+  housing,
+  access,
+  signIn,
+  exports;
+
+  /// The actions this topic covers.
+  List<AuditAction> get actions =>
+      AuditAction.values.where((a) => a.topic == this).toList();
+}
+
+extension AuditActionTopic on AuditAction {
+  /// Which area of work this action belongs to.
+  AuditTopic get topic => switch (this) {
+    AuditAction.caseIntake ||
+    AuditAction.caseCreated ||
+    AuditAction.caseUpdated ||
+    AuditAction.caseDeleted ||
+    AuditAction.animalCreated ||
+    AuditAction.animalUpdated ||
+    AuditAction.animalDeleted ||
+    AuditAction.animalMerged ||
+    AuditAction.finderCreated ||
+    AuditAction.finderUpdated ||
+    AuditAction.finderDeleted ||
+    AuditAction.finderPiiPurged ||
+    AuditAction.finderOrphanDeleted => AuditTopic.cases,
+
+    AuditAction.weightCreated ||
+    AuditAction.weightUpdated ||
+    AuditAction.weightDeleted ||
+    AuditAction.markingCreated ||
+    AuditAction.markingUpdated ||
+    AuditAction.markingDeleted ||
+    AuditAction.conditionAdded ||
+    AuditAction.conditionUpdated ||
+    AuditAction.conditionRemoved ||
+    AuditAction.medicationPrescribed ||
+    AuditAction.medicationUpdated ||
+    AuditAction.medicationDeleted ||
+    AuditAction.administrationLogged ||
+    AuditAction.administrationUpdated ||
+    AuditAction.administrationDeleted ||
+    AuditAction.journalCreated ||
+    AuditAction.journalUpdated ||
+    AuditAction.journalDeleted ||
+    AuditAction.examSaved ||
+    AuditAction.examDeleted ||
+    AuditAction.examFindingCreated ||
+    AuditAction.examFindingUpdated ||
+    AuditAction.examFindingDeleted ||
+    AuditAction.eggRecordCreated ||
+    AuditAction.eggRecordUpdated ||
+    AuditAction.eggRecordDeleted ||
+    AuditAction.followUpCreated ||
+    AuditAction.followUpUpdated ||
+    AuditAction.followUpDeleted ||
+    AuditAction.vetAppointmentCreated ||
+    AuditAction.vetAppointmentUpdated ||
+    AuditAction.vetAppointmentDeleted ||
+    AuditAction.quarantineSet ||
+    AuditAction.quarantineUpdated ||
+    AuditAction.quarantineCleared ||
+    AuditAction.dispositionCreated ||
+    AuditAction.dispositionUpdated ||
+    AuditAction.dispositionDeleted => AuditTopic.treatment,
+
+    AuditAction.caseHandoff ||
+    AuditAction.placementCreated ||
+    AuditAction.placementUpdated ||
+    AuditAction.placementDeleted ||
+    AuditAction.aviaryCreated ||
+    AuditAction.aviaryUpdated ||
+    AuditAction.aviaryDeleted => AuditTopic.housing,
+
+    AuditAction.caseShared ||
+    AuditAction.caseShareRevoked ||
+    AuditAction.userInvited ||
+    AuditAction.userUpdated ||
+    AuditAction.userRoleChanged ||
+    AuditAction.userDeactivated ||
+    AuditAction.userReactivated ||
+    AuditAction.userDeleted ||
+    AuditAction.orgSettingsUpdated ||
+    AuditAction.codeListCreated ||
+    AuditAction.codeListUpdated ||
+    AuditAction.codeListDeleted ||
+    AuditAction.oauth2UserProvisioned ||
+    AuditAction.supervisorBootstrapped ||
+    AuditAction.auditPurged => AuditTopic.access,
+
+    AuditAction.authLogin ||
+    AuditAction.authOauth2Login ||
+    AuditAction.authLoginFailed ||
+    AuditAction.authPasswordReset ||
+    AuditAction.authPasswordChanged ||
+    AuditAction.authMfaEnabled ||
+    AuditAction.authMfaDisabled => AuditTopic.signIn,
+
+    AuditAction.reportExported ||
+    AuditAction.caseReportPrinted => AuditTopic.exports,
+  };
+}
+
+/// The topic name, for the filter chip.
+String auditTopicLabel(AppLocalizations l10n, AuditTopic t) => switch (t) {
+  AuditTopic.cases => l10n.auditTopicCases,
+  AuditTopic.treatment => l10n.auditTopicTreatment,
+  AuditTopic.housing => l10n.auditTopicHousing,
+  AuditTopic.access => l10n.auditTopicAccess,
+  AuditTopic.signIn => l10n.auditTopicSignIn,
+  AuditTopic.exports => l10n.auditTopicExports,
+};
+
 /// The severity name, for the filter chips.
 String auditSeverityLabel(AppLocalizations l10n, AuditSeverity s) =>
     switch (s) {

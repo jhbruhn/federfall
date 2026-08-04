@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/audit/audit_detail_sheet.dart';
 import 'package:federfall/features/admin/audit/audit_labels.dart';
 import 'package:federfall/features/admin/audit/audit_providers.dart';
@@ -30,6 +31,8 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
   final _scroll = ScrollController();
   AuditSeverity? _severity;
   DateTimeRange? _range;
+  AuditTopic? _topic;
+  _Actor? _actor;
 
   @override
   void initState() {
@@ -45,6 +48,10 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
 
   AuditQuery get _query => AuditQuery(
     severity: _severity,
+    actorId: _actor?.id,
+    actorKind: _actor?.kind,
+    // A topic is a list of actions, which is what the query has always taken.
+    actions: _topic?.actions ?? const [],
     from: _range?.start,
     // Half-open: the picker's end is the last DAY, so the bound is the start
     // of the next one or an event at 23:30 would fall outside its own range.
@@ -89,8 +96,12 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
           child: _Filters(
             severity: _severity,
             range: _range,
+            topic: _topic,
+            actor: _actor,
             onSeverity: (s) => setState(() => _severity = s),
             onRange: (r) => setState(() => _range = r),
+            onTopic: (t) => setState(() => _topic = t),
+            onActor: (a) => setState(() => _actor = a),
           ),
         ),
       ),
@@ -128,25 +139,48 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
   }
 }
 
-/// The two filters worth putting in front of everyone.
+/// Who the log filters on: a member, or the machine acting on its own.
+///
+/// A system row has no actor id at all, so "what did the machine do" can only
+/// be asked by kind — which is why this carries both and the query takes both.
+@immutable
+class _Actor {
+  const _Actor({required this.label, this.id, this.kind});
+
+  final String label;
+  final String? id;
+  final AuditActorKind? kind;
+}
+
+/// The four questions a supervisor arrives with.
 ///
 /// Severity separates who can get in and who can see what from the day's
 /// clinical work, without the reader having to know a single action name. The
-/// period answers the other question a supervisor arrives with — "what
-/// happened while I was away" — and it is what keeps an append-only feed that
-/// only grows from having to be scrolled to reach anything old.
-class _Filters extends StatelessWidget {
+/// period answers "what happened while I was away", and it is what keeps an
+/// append-only feed that only grows from having to be scrolled to reach
+/// anything old. The other two — "what did this person do" and "what happened
+/// to the birds" — the query layer could answer from the start; only the screen
+/// could not ask (federfall-ybua.6).
+class _Filters extends ConsumerWidget {
   const _Filters({
     required this.severity,
     required this.range,
+    required this.topic,
+    required this.actor,
     required this.onSeverity,
     required this.onRange,
+    required this.onTopic,
+    required this.onActor,
   });
 
   final AuditSeverity? severity;
   final DateTimeRange? range;
+  final AuditTopic? topic;
+  final _Actor? actor;
   final ValueChanged<AuditSeverity?> onSeverity;
   final ValueChanged<DateTimeRange?> onRange;
+  final ValueChanged<AuditTopic?> onTopic;
+  final ValueChanged<_Actor?> onActor;
 
   /// [days] back from today, inclusive of today.
   static DateTimeRange _lastDays(int days) {
@@ -177,11 +211,89 @@ class _Filters extends StatelessWidget {
     if (picked != null) onRange(picked);
   }
 
+  /// The actor picker: every member of the org, plus the machine actors, since
+  /// „was that me or the retention job" is a question the log has to answer.
+  Future<void> _pickActor(
+    BuildContext context,
+    List<AppUser> members,
+  ) async {
+    final l10n = context.l10n;
+    final choices = <_Actor?>[
+      null,
+      const _Actor(label: '', kind: AuditActorKind.system),
+      const _Actor(label: '', kind: AuditActorKind.cron),
+      for (final m in members)
+        _Actor(label: (m.name?.isEmpty ?? true) ? m.email : m.name!, id: m.id),
+    ];
+
+    String name(_Actor? choice) => switch (choice?.kind) {
+      null when choice == null => l10n.auditFilterAnyActor,
+      AuditActorKind.system => l10n.auditActorSystem,
+      AuditActorKind.cron => l10n.auditActorCron,
+      AuditActorKind.superuser => l10n.auditActorSuperuser,
+      _ => choice!.label,
+    };
+
+    final picked = await showAppSheet<_Actor?>(
+      context,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final choice in choices)
+              ListTile(
+                title: Text(name(choice)),
+                trailing:
+                    (choice?.id ?? choice?.kind?.wire) ==
+                        (actor?.id ?? actor?.kind?.wire)
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, choice),
+              ),
+          ],
+        ),
+      ),
+    );
+    // Distinguishing "picked Alle" from "dismissed the sheet" needs the sheet
+    // to say which it was, and a nullable result cannot. So the choice is
+    // applied only when it actually differs from what is already selected.
+    if (context.mounted && picked != actor) onActor(picked);
+  }
+
+  Future<void> _pickTopic(BuildContext context) async {
+    final l10n = context.l10n;
+    final picked = await showAppSheet<AuditTopic?>(
+      context,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final t in <AuditTopic?>[null, ...AuditTopic.values])
+              ListTile(
+                title: Text(
+                  t == null
+                      ? l10n.auditFilterAnyTopic
+                      : auditTopicLabel(l10n, t),
+                ),
+                trailing: t == topic ? const Icon(Icons.check) : null,
+                onTap: () => Navigator.pop(sheetContext, t),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (context.mounted && picked != topic) onTopic(picked);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final custom =
         range != null && !_isPreset(1) && !_isPreset(7) && !_isPreset(30);
+    // Watched, not read on demand: the picker needs the roster resolved by the
+    // time it opens, and this screen is supervisor-only, where the roster is
+    // already loaded for the rest of the admin area.
+    final members = ref.watch(orgMembersProvider).value ?? const <AppUser>[];
     final dates = DateFormat.yMd(l10n.localeName);
 
     return SingleChildScrollView(
@@ -195,11 +307,43 @@ class _Filters extends StatelessWidget {
         children: [
           FilterChip(
             label: Text(l10n.auditFilterAll),
-            selected: severity == null && range == null,
+            selected:
+                severity == null &&
+                range == null &&
+                topic == null &&
+                actor == null,
             onSelected: (_) {
               onSeverity(null);
               onRange(null);
+              onTopic(null);
+              onActor(null);
             },
+          ),
+          // Who, and what area of work — the two the data layer could always
+          // answer. Pickers rather than chips: one has a roster behind it.
+          FilterChip(
+            avatar: const Icon(Icons.person_outline, size: 18),
+            label: Text(
+              switch (actor?.kind) {
+                null => actor?.label ?? l10n.auditFilterActor,
+                AuditActorKind.cron => l10n.auditActorCron,
+                AuditActorKind.system => l10n.auditActorSystem,
+                AuditActorKind.superuser => l10n.auditActorSuperuser,
+                AuditActorKind.user => actor!.label,
+              },
+            ),
+            selected: actor != null,
+            onSelected: (_) => _pickActor(context, members),
+          ),
+          FilterChip(
+            avatar: const Icon(Icons.topic_outlined, size: 18),
+            label: Text(
+              topic == null
+                  ? l10n.auditFilterTopic
+                  : auditTopicLabel(l10n, topic!),
+            ),
+            selected: topic != null,
+            onSelected: (_) => _pickTopic(context),
           ),
           for (final s in AuditSeverity.values)
             FilterChip(

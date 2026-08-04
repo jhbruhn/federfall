@@ -11,6 +11,8 @@ import 'package:mocktail/mocktail.dart';
 
 class MockAuditRepo extends Mock implements PbAuditEventsRepository {}
 
+class MockUsersRepo extends Mock implements PbUsersRepository {}
+
 class FakeAuditQuery extends Fake implements AuditQuery {}
 
 AuditEvent _event({
@@ -47,8 +49,11 @@ Future<void> _pump(
   WidgetTester tester, {
   required UserRole role,
   required PbAuditEventsRepository repo,
+  List<AppUser> members = const [],
   Widget home = const AuditScreen(),
 }) async {
+  final users = MockUsersRepo();
+  when(users.members).thenAnswer((_) async => members);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -56,6 +61,7 @@ Future<void> _pump(
           (ref) async => AppUser(id: 'u1', email: 'me@x.org', role: role),
         ),
         auditEventsRepositoryProvider.overrideWith((ref) async => repo),
+        usersRepositoryProvider.overrideWith((ref) async => users),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
@@ -65,6 +71,15 @@ Future<void> _pump(
       ),
     ),
   );
+  await tester.pumpAndSettle();
+}
+
+/// Taps a filter chip, bringing it into view first: the filter row scrolls
+/// horizontally and there are now more chips in it than fit a phone.
+Future<void> _tapChip(WidgetTester tester, String label) async {
+  final chip = find.widgetWithText(FilterChip, label);
+  await tester.ensureVisible(chip);
+  await tester.tap(chip);
   await tester.pumpAndSettle();
 }
 
@@ -135,8 +150,7 @@ void main() {
   ) async {
     await _pump(tester, role: UserRole.supervisor, repo: repo);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Security'));
-    await tester.pumpAndSettle();
+    await _tapChip(tester, 'Security');
 
     final captured = verify(
       () => repo.search(
@@ -152,8 +166,7 @@ void main() {
     testWidgets('a preset narrows the query to that period', (tester) async {
       await _pump(tester, role: UserRole.supervisor, repo: repo);
 
-      await tester.tap(find.widgetWithText(FilterChip, '7 days'));
-      await tester.pumpAndSettle();
+      await _tapChip(tester, '7 days');
 
       final q = verify(
         () => repo.search(
@@ -174,10 +187,8 @@ void main() {
     testWidgets('clearing it goes back to the whole log', (tester) async {
       await _pump(tester, role: UserRole.supervisor, repo: repo);
 
-      await tester.tap(find.widgetWithText(FilterChip, 'Today'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilterChip, 'Today'));
-      await tester.pumpAndSettle();
+      await _tapChip(tester, 'Today');
+      await _tapChip(tester, 'Today');
 
       final q = verify(
         () => repo.search(
@@ -194,8 +205,7 @@ void main() {
     testWidgets('a period and a severity narrow together', (tester) async {
       await _pump(tester, role: UserRole.supervisor, repo: repo);
 
-      await tester.tap(find.widgetWithText(FilterChip, 'Security'));
-      await tester.pumpAndSettle();
+      await _tapChip(tester, 'Security');
       // The filter row scrolls horizontally; the later chips are off-screen at
       // the default test surface.
       final thirty = find.widgetWithText(FilterChip, '30 days');
@@ -424,6 +434,94 @@ void main() {
 
       expect(find.text('Case handed over'), findsWidgets);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  // federfall-ybua.6 — the query layer could always answer these; the screen
+  // could not ask.
+  group('the actor and area filters', () {
+    // One verify per call: mocktail marks matched calls VERIFIED, so asking
+    // twice in one test finds nothing the second time.
+    AuditQuery lastQuery() => verify(
+      () => repo.search(
+        query: captureAny(named: 'query'),
+        after: any(named: 'after'),
+        perPage: any(named: 'perPage'),
+      ),
+    ).captured.cast<AuditQuery>().last;
+
+    Future<void> pick(WidgetTester tester, String label) async {
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('picking a person narrows to their id', (tester) async {
+      await _pump(
+        tester,
+        role: UserRole.supervisor,
+        repo: repo,
+        members: const [
+          AppUser(
+            id: 'usr_bernd',
+            email: 'bernd@x.org',
+            role: UserRole.carer,
+            name: 'Bernd Weber',
+          ),
+        ],
+      );
+
+      await _tapChip(tester, 'Person');
+      await pick(tester, 'Bernd Weber');
+
+      expect(lastQuery().actorId, 'usr_bernd');
+      // The chip now says who, so the filter is legible without opening it.
+      expect(find.widgetWithText(FilterChip, 'Bernd Weber'), findsOneWidget);
+    });
+
+    testWidgets('the machine can be asked about by kind, having no id', (
+      tester,
+    ) async {
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+
+      await _tapChip(tester, 'Person');
+      await pick(tester, 'Scheduled job');
+
+      final q = lastQuery();
+      expect(q.actorKind, AuditActorKind.cron);
+      expect(q.actorId, isNull, reason: 'a system row has no actor id at all');
+    });
+
+    testWidgets('an area becomes the list of actions it covers', (
+      tester,
+    ) async {
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+
+      await _tapChip(tester, 'Area');
+      await pick(tester, 'Sign-ins');
+
+      final actions = lastQuery().actions;
+      expect(actions, contains(AuditAction.authLoginFailed));
+      expect(actions, isNot(contains(AuditAction.caseCreated)));
+    });
+
+    testWidgets('the filters compose, and All clears every one', (
+      tester,
+    ) async {
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+
+      await _tapChip(tester, 'Security');
+      await _tapChip(tester, 'Today');
+      await _tapChip(tester, 'Area');
+      await pick(tester, 'Team & access');
+
+      final narrowed = lastQuery();
+      expect(narrowed.severity, AuditSeverity.security);
+      expect(narrowed.from, isNotNull);
+      expect(narrowed.actions, isNotEmpty);
+
+      await _tapChip(tester, 'All');
+
+      expect(lastQuery().isEmpty, isTrue);
     });
   });
 }

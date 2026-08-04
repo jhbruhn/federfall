@@ -141,6 +141,27 @@ name-first header over Overview / History tabs. See
 `federfall-ui-prefers-unified-consistent-views` memory — favor one consistent view over
 fragmented sections.
 
+**The audit log stores snapshots, never relations** (federfall-qt96 / by7w / ybua):
+`audit_events` is append-only (no write rules; a tamper guard in 1700000068 blocks even a
+superuser UPDATE) and supervisor-only, emitted exclusively from `pb_hooks/lib_audit.js` —
+`emit()` never throws, so a failed log cannot break the write it observes. Everything a
+reader sees is TEXT captured at emit time: `actor_label`, `subject_label`, `case_label`, and
+`from_label`/`to_label` on a relation-valued change. That is deliberate and the app must not
+"improve" it by resolving an id — the target may be deleted, and if it was renamed since, a
+live lookup would change what the row says about the past. So **an id in an audit row is a
+bug unless a label sits beside it**: `RELATION_TARGETS`/`RELATION_FIELDS` + `labelOf()` cover
+the relations, and `detail` payloads carry `*_label` next to each id. Values stay WIRE
+strings (`"in_care"`), translated on the way out in
+`features/admin/audit/audit_labels.dart` — the server has no business picking the reader's
+language. Two guards keep it honest: `test_rules.py`'s sweep fails on an event too empty to
+be worth reading and on an action outside the registry, and `audit_labels_test.dart` parses
+`CONTENT_FIELDS` out of `lib_audit.js` and fails on any recorded field that renders as its
+raw column name in either language. Adding an action or a field is additive — an older client
+renders an unknown one from the envelope alone — so it ships as `feat:`, not `feat!:`.
+**Never log finder PII**: `SENSITIVE.finders` must stay in step with
+`finder_retention.pb.js`'s `PII_FIELDS`, or the scrub is defeated by a table nothing can
+delete from.
+
 **Reporting is server-side, and the table is defined once** (federfall-dk0c): the
 `case_report_rows` view (1700000063 + 1700000066 + 1700000067) IS the annual report's
 per-case table. `pb_hooks/annual_report.pb.js` reads it for BOTH outputs of
