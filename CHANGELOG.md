@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.16.0](https://github.com/jhbruhn/federfall/compare/v0.15.0...v0.16.0) (2026-08-04)
+
+
+### Features
+
+* **admin:** group the management hub, and say what each entry governs ([c7521c2](https://github.com/jhbruhn/federfall/commit/c7521c204af2636fae2c7f58c84465788332c0b0))
+* **audit:** add keyset paging and the audit events repository ([5f0f1c1](https://github.com/jhbruhn/federfall/commit/5f0f1c1204cff8de0647c86517cc2872f4daf4c6))
+* **audit:** add lib_audit.js — the emitter and the action registry ([9e7f3ce](https://github.com/jhbruhn/federfall/commit/9e7f3ceb51361859c7dfc460cd75dcb27094e71b))
+* **audit:** add the append-only audit_events collection and tamper guard ([2282431](https://github.com/jhbruhn/federfall/commit/228243180e0bad73858948cb8df6cccb6dbacdf5))
+* **audit:** add the Dart model layer for audit events ([fb6d395](https://github.com/jhbruhn/federfall/commit/fb6d39575ffe3f0826a758bd189ba1c66cbf400b))
+* **audit:** add the supervisor audit screen and per-case activity ([d666cd5](https://github.com/jhbruhn/federfall/commit/d666cd536e2e979d027894cb1328040c7782156d))
+* **audit:** emit domain events for every collection-API write ([7406930](https://github.com/jhbruhn/federfall/commit/74069301cbcbb4c562c2cb3e9d7d16960f001fa6))
+* **audit:** emit one semantic event from each custom route ([7dfee7f](https://github.com/jhbruhn/federfall/commit/7dfee7f44d19945026ca0a13025e2eab38bb08a4))
+* **audit:** filter the log by period ([062ead6](https://github.com/jhbruhn/federfall/commit/062ead6614edd839eb36c79d8df9dd6c0e4aaf31))
+* **audit:** label what each event was actually about ([4c35785](https://github.com/jhbruhn/federfall/commit/4c357851b9e864cbb745e43f93dab0570ba97e70))
+* **audit:** let the screen ask the questions the query could already answer ([effd7cf](https://github.com/jhbruhn/federfall/commit/effd7cf4dbb6d9cc13d429934739e59a566fccd2))
+* **audit:** log exports and the system paths nobody is logged in for ([4aa4d09](https://github.com/jhbruhn/federfall/commit/4aa4d0987e32256c0d3d0a100d8609594ea2bba7))
+* **audit:** log logins, failed logins and access changes ([c68e689](https://github.com/jhbruhn/federfall/commit/c68e689497874f0e32f7007e82ad9f00c33751a6))
+* **audit:** make the whole row reachable, not just its summary ([a4f3048](https://github.com/jhbruhn/federfall/commit/a4f3048d470d2fd6e53942f3de57fb197304eb47))
+* **audit:** name the case a row belongs to ([81328f1](https://github.com/jhbruhn/federfall/commit/81328f1c0638c8e44ae43e50181d4d5474befacf))
+* **audit:** name the people and places a row is about ([4d67c12](https://github.com/jhbruhn/federfall/commit/4d67c12e6e0886047e0df111f74b638c53117752))
+* **audit:** purge audit rows past their retention window ([cae5d47](https://github.com/jhbruhn/federfall/commit/cae5d47b36608c4796b6cfe1274ce17c7708eaed))
+* **audit:** record what a create wrote and a delete destroyed ([ddc7a77](https://github.com/jhbruhn/federfall/commit/ddc7a779450627d9a7711c56ca8b8f951d75afc9))
+* **audit:** record what a disposition did, and stop reading creates as diffs ([f36b821](https://github.com/jhbruhn/federfall/commit/f36b821649730ccd7f780031a8086da263815bf1))
+* **audit:** render audit events as translated, structured lines ([7af8b3d](https://github.com/jhbruhn/federfall/commit/7af8b3dc9853872ee887e3a735160a1aa249d0ac))
+* **audit:** say that a password change ended every session ([8e87be4](https://github.com/jhbruhn/federfall/commit/8e87be4193d03a9f9d277305e8210c0ec6e21adb))
+
+
+### Bug Fixes
+
+* **audit:** file a finding under its case, index the login dedup, surface a failed page ([bd8eafd](https://github.com/jhbruhn/federfall/commit/bd8eafd388ae4957f1d2f3481162864b5cfc0e5a))
+* **audit:** stop the diff path logging prose and bare ids ([daef2cb](https://github.com/jhbruhn/federfall/commit/daef2cbd05a6dacdf04fbc927807700915eac144))
+* **auth:** purge the intake draft on sign-out and server switch ([e5f5d8d](https://github.com/jhbruhn/federfall/commit/e5f5d8de687c496070c481b1cf7c21f3f1d13eb2))
+* **auth:** stop disabling PKCE for env-configured OIDC providers ([fcb7010](https://github.com/jhbruhn/federfall/commit/fcb70109be8d77edaba19ce74874ad5ea4fa3970))
+* **routing:** give every admin surface a URL, and a way back ([8d66520](https://github.com/jhbruhn/federfall/commit/8d6652060b027f0fb0c6483b7b74fe434284cd67))
+
 ## [0.15.0](https://github.com/jhbruhn/federfall/compare/v0.14.1...v0.15.0) (2026-08-03)
 
 
