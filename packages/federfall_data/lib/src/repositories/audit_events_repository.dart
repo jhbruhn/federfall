@@ -15,6 +15,7 @@ class AuditQuery {
     this.caseId,
     this.subjectId,
     this.subjectCollection,
+    this.requestId,
     this.from,
     this.to,
   });
@@ -32,6 +33,11 @@ class AuditQuery {
   final String? subjectId;
   final String? subjectCollection;
 
+  /// The rows one HTTP request produced. A single human action can write
+  /// several — an intake, a handoff and the carer move it derives — and this
+  /// is what puts them back together.
+  final String? requestId;
+
   /// Inclusive lower bound on when it happened.
   final DateTime? from;
 
@@ -45,6 +51,7 @@ class AuditQuery {
       caseId == null &&
       subjectId == null &&
       subjectCollection == null &&
+      requestId == null &&
       from == null &&
       to == null;
 
@@ -55,6 +62,7 @@ class AuditQuery {
     String? caseId,
     String? subjectId,
     String? subjectCollection,
+    String? requestId,
     DateTime? from,
     DateTime? to,
     bool clearActor = false,
@@ -67,6 +75,7 @@ class AuditQuery {
     caseId: caseId ?? this.caseId,
     subjectId: subjectId ?? this.subjectId,
     subjectCollection: subjectCollection ?? this.subjectCollection,
+    requestId: requestId ?? this.requestId,
     from: clearRange ? null : (from ?? this.from),
     to: clearRange ? null : (to ?? this.to),
   );
@@ -80,6 +89,7 @@ class AuditQuery {
       other.caseId == caseId &&
       other.subjectId == subjectId &&
       other.subjectCollection == subjectCollection &&
+      other.requestId == requestId &&
       other.from == from &&
       other.to == to;
 
@@ -99,6 +109,7 @@ class AuditQuery {
     caseId,
     subjectId,
     subjectCollection,
+    requestId,
     from,
     to,
   );
@@ -129,6 +140,18 @@ class PbAuditEventsRepository extends PbReadOnlyRepository<AuditEvent> {
     PbCursor? after,
     int perPage = 50,
   }) => page(filter: filterFor(query), after: after, perPage: perPage);
+
+  /// The rows one request produced, in the order they were written — a single
+  /// action's full footprint, which is what `request_id` is recorded for.
+  ///
+  /// [list] rather than [search]: this is a bounded handful (an intake writes
+  /// four or five), read as a sequence rather than as a feed, so the keyset
+  /// paging and the fixed newest-first sort that [search] needs are both wrong
+  /// here.
+  Future<List<AuditEvent>> forRequest(String requestId) => list(
+    filter: filterFor(AuditQuery(requestId: requestId)),
+    sort: 'created,id',
+  );
 
   /// Everything that happened on one case, newest first — what the case
   /// detail's activity section shows.
@@ -163,6 +186,7 @@ class PbAuditEventsRepository extends PbReadOnlyRepository<AuditEvent> {
     eq('subject_id', 'subject', query.subjectId);
     eq('subject_collection', 'coll', query.subjectCollection);
     eq('severity', 'sev', query.severity?.wire);
+    eq('request_id', 'req', query.requestId);
 
     if (query.actions.isNotEmpty) {
       // An OR group, parenthesised so it cannot swallow the other clauses.

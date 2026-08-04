@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/features/admin/audit/audit_detail_sheet.dart';
 import 'package:federfall/features/admin/audit/audit_labels.dart';
 import 'package:federfall/features/admin/audit/audit_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -263,6 +264,9 @@ class AuditEventTile extends StatelessWidget {
 
     return ListTile(
       isThreeLine: facts.isNotEmpty,
+      // The line is a summary — a diff shows the first few of N changes. The
+      // sheet is where the rest of the row is reachable (federfall-ybua.5).
+      onTap: () => showAuditDetailSheet(context, event),
       leading: Icon(
         line.icon,
         color: event.severity == AuditSeverity.security

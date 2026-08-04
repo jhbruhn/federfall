@@ -2233,6 +2233,17 @@
     "auditFieldAccess": "Access",
     "auditFieldLabel": "Label",
     "auditFieldCertainty": "Diagnostic certainty",
+    "auditDetailActor": "Who",
+    "auditDetailWhen": "When",
+    "auditDetailSubject": "Subject",
+    "auditDetailSeverity": "Severity",
+    "auditDetailChanges": "All changes",
+    "auditDetailTruncated": "Value stored shortened",
+    "auditDetailUserAgent": "Device",
+    "auditDetailSameAction": "{count, plural, =1{1 more entry from the same action} other{{count} more entries from the same action}}",
+    "@auditDetailSameAction": {
+        "placeholders": { "count": { "type": "int" } }
+    },
     "auditFieldRemovedAt": "Removed on",
     "auditFieldWhereHolding": "Housing",
     "auditFieldBodySystem": "Body system",

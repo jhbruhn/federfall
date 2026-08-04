@@ -94,3 +94,19 @@ Future<List<AuditEvent>> caseActivityLog(Ref ref, String caseId) async {
   final page = await repo.forCase(caseId, perPage: 25);
   return page.items;
 }
+
+/// The rest of what one action wrote — the sibling rows sharing a
+/// `request_id`, which the detail sheet shows under the event being read.
+///
+/// One human act can produce several rows (an intake writes the animal, the
+/// case and the first weight), and until this was read back the correlation id
+/// the emitter has always recorded had nowhere to surface.
+@riverpod
+Future<List<AuditEvent>> auditRequestSiblings(
+  Ref ref,
+  String requestId,
+) async {
+  if (requestId.isEmpty) return const [];
+  final repo = await ref.watch(auditEventsRepositoryProvider.future);
+  return repo.forRequest(requestId);
+}

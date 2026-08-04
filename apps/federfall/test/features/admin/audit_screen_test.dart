@@ -18,8 +18,12 @@ AuditEvent _event({
   AuditAction action = AuditAction.caseHandoff,
   AuditSeverity severity = AuditSeverity.info,
   String actorLabel = 'Anna Karin',
+  UserRole? actorRole,
   String subjectLabel = '2026-014',
   AuditDetail detail = const AuditDetail.none(),
+  List<AuditFieldChange> changes = const [],
+  String requestId = '',
+  String? userAgent,
   DateTime? at,
 }) => AuditEvent(
   id: id,
@@ -30,9 +34,13 @@ AuditEvent _event({
   severity: severity,
   detail: detail,
   actorLabel: actorLabel,
+  actorRole: actorRole,
   subjectLabel: subjectLabel,
   subjectCollection: 'cases',
   caseId: 'case1',
+  changes: changes,
+  requestId: requestId,
+  userAgent: userAgent,
 );
 
 Future<void> _pump(
@@ -81,6 +89,7 @@ void main() {
         perPage: any(named: 'perPage'),
       ),
     ).thenAnswer((_) async => PbPage(items: [_event()]));
+    when(() => repo.forRequest(any())).thenAnswer((_) async => const []);
   });
 
   testWidgets('a carer is refused, and never asks the server', (tester) async {
@@ -294,6 +303,126 @@ void main() {
       );
 
       expect(find.text('Who changed what'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  // federfall-ybua.5 — the line is a summary; everything it leaves out used to
+  // be unreachable, because nothing on the row responded to a tap.
+  group('the detail sheet', () {
+    const many = [
+      AuditFieldChange(field: 'status', from: 'in_care', to: 'disposed'),
+      AuditFieldChange(field: 'age_class', from: 'juvenile', to: 'adult'),
+      AuditFieldChange(field: 'species', from: 'Ringeltaube', to: 'Hohltaube'),
+      AuditFieldChange(field: 'name', from: 'Pip', to: 'Pipa'),
+      AuditFieldChange(
+        field: 'notes',
+        from: 'kurz',
+        to: 'lang',
+        truncated: true,
+      ),
+    ];
+
+    Future<void> open(WidgetTester tester) async {
+      await tester.tap(find.byType(ListTile).first);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('reaches the changes the line had to leave out', (
+      tester,
+    ) async {
+      when(
+        () => repo.search(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer((_) async => PbPage(items: [_event(changes: many)]));
+
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+      // The line summarises and shows the first three; the 5th is nowhere.
+      expect(find.textContaining('5 fields changed'), findsOneWidget);
+      expect(find.textContaining('Notes'), findsNothing);
+
+      await open(tester);
+
+      expect(find.text('All changes'), findsOneWidget);
+      // Every one of them, now, including the one the summary cut.
+      expect(find.textContaining('Notes'), findsOneWidget);
+      expect(find.text('Value stored shortened'), findsOneWidget);
+    });
+
+    testWidgets('names the actor with the role it snapshotted', (tester) async {
+      when(
+        () => repo.search(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer(
+        (_) async => PbPage(items: [_event(actorRole: UserRole.carer)]),
+      );
+
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+      await open(tester);
+
+      expect(find.textContaining('Anna Karin (Carer)'), findsOneWidget);
+    });
+
+    testWidgets('shows the device only when one was recorded', (tester) async {
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+      await open(tester);
+      expect(find.text('Device'), findsNothing);
+    });
+
+    testWidgets('puts the rest of the action back together', (tester) async {
+      // What request_id is for: an intake writes several rows, and until now
+      // nothing read them back.
+      when(
+        () => repo.search(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer((_) async => PbPage(items: [_event(requestId: 'req7')]));
+      when(() => repo.forRequest('req7')).thenAnswer(
+        (_) async => [
+          _event(requestId: 'req7'),
+          _event(
+            id: 'audt2',
+            action: AuditAction.animalUpdated,
+            requestId: 'req7',
+          ),
+        ],
+      );
+
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+      await open(tester);
+
+      expect(
+        find.text('1 more entry from the same action'),
+        findsOneWidget,
+        reason: 'the event being read is not one of its own siblings',
+      );
+      expect(find.textContaining('Bird updated'), findsOneWidget);
+    });
+
+    testWidgets('a failed sibling read leaves the sheet standing', (
+      tester,
+    ) async {
+      when(
+        () => repo.search(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer((_) async => PbPage(items: [_event(requestId: 'req7')]));
+      when(() => repo.forRequest(any())).thenThrow(Exception('boom'));
+
+      await _pump(tester, role: UserRole.supervisor, repo: repo);
+      await open(tester);
+
+      expect(find.text('Case handed over'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
   });

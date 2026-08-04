@@ -207,6 +207,23 @@ void main() {
     });
   });
 
+  test('the request id narrows to one action\'s rows', () {
+    final f = repo.filterFor(const AuditQuery(requestId: 'req7'));
+
+    expect(f!.expression, contains("request_id = 'req7'"));
+  });
+
+  test('forRequest reads a whole action in the order it was written', () async {
+    stub((_) => [row('e1', '2026-08-04 10:00:00.000Z')]);
+
+    await repo.forRequest('req7');
+
+    expect(lastCall[#filter] as String, contains("request_id = 'req7'"));
+    // Ascending, unlike the feed: these are read as a sequence. The keyset
+    // cursor the feed needs would be the wrong tool and the wrong order.
+    expect(lastCall[#sort], 'created,id');
+  });
+
   test('forCase narrows to one case', () async {
     stub((_) => [row('e1', '2026-08-04 10:00:00.000Z')]);
 

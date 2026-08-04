@@ -1177,6 +1177,17 @@
     "auditFieldAccess": "Zugriff",
     "auditFieldLabel": "Bezeichnung",
     "auditFieldCertainty": "Sicherheit der Diagnose",
+    "auditDetailActor": "Wer",
+    "auditDetailWhen": "Wann",
+    "auditDetailSubject": "Betroffen",
+    "auditDetailSeverity": "Einstufung",
+    "auditDetailChanges": "Alle Änderungen",
+    "auditDetailTruncated": "Wert gekürzt gespeichert",
+    "auditDetailUserAgent": "Gerät",
+    "auditDetailSameAction": "{count, plural, =1{1 weiterer Eintrag aus derselben Aktion} other{{count} weitere Einträge aus derselben Aktion}}",
+    "@auditDetailSameAction": {
+        "placeholders": { "count": { "type": "int" } }
+    },
     "auditFieldRemovedAt": "Entfernt am",
     "auditFieldWhereHolding": "Unterbringung",
     "auditFieldBodySystem": "Körperbereich",
