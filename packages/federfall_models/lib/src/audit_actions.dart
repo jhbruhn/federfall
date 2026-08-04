@@ -1,0 +1,100 @@
+import 'package:federfall_models/src/converters.dart';
+
+/// Every action the backend can record in `audit_events`.
+///
+/// The wire strings are the contract with `pb_hooks/lib_audit.js` — they are
+/// what is stored, and `audit_action_registry_test.dart` fails if the two
+/// lists ever drift apart. An action MISSING here is not an error: the column
+/// is plain text precisely so a newer server can log something an older client
+/// has never heard of, and [AuditEvent.rawAction] keeps that value so the line
+/// still renders from its envelope.
+enum AuditAction {
+  caseIntake('case.intake'),
+  caseCreated('case.created'),
+  caseUpdated('case.updated'),
+  caseDeleted('case.deleted'),
+  caseHandoff('case.handoff'),
+  caseShared('case.shared'),
+  caseShareRevoked('case.share_revoked'),
+  animalCreated('animal.created'),
+  animalUpdated('animal.updated'),
+  animalDeleted('animal.deleted'),
+  animalMerged('animal.merged'),
+  weightCreated('weight.created'),
+  weightUpdated('weight.updated'),
+  weightDeleted('weight.deleted'),
+  markingCreated('marking.created'),
+  markingUpdated('marking.updated'),
+  markingDeleted('marking.deleted'),
+  conditionAdded('condition.added'),
+  conditionUpdated('condition.updated'),
+  conditionRemoved('condition.removed'),
+  medicationPrescribed('medication.prescribed'),
+  medicationUpdated('medication.updated'),
+  medicationDeleted('medication.deleted'),
+  administrationLogged('administration.logged'),
+  administrationUpdated('administration.updated'),
+  administrationDeleted('administration.deleted'),
+  journalCreated('journal.created'),
+  journalUpdated('journal.updated'),
+  journalDeleted('journal.deleted'),
+  placementCreated('placement.created'),
+  placementUpdated('placement.updated'),
+  placementDeleted('placement.deleted'),
+  dispositionCreated('disposition.created'),
+  dispositionUpdated('disposition.updated'),
+  dispositionDeleted('disposition.deleted'),
+  examSaved('exam.saved'),
+  examDeleted('exam.deleted'),
+  examFindingCreated('exam_finding.created'),
+  examFindingUpdated('exam_finding.updated'),
+  examFindingDeleted('exam_finding.deleted'),
+  eggRecordCreated('egg_record.created'),
+  eggRecordUpdated('egg_record.updated'),
+  eggRecordDeleted('egg_record.deleted'),
+  followUpCreated('follow_up.created'),
+  followUpUpdated('follow_up.updated'),
+  followUpDeleted('follow_up.deleted'),
+  vetAppointmentCreated('vet_appointment.created'),
+  vetAppointmentUpdated('vet_appointment.updated'),
+  vetAppointmentDeleted('vet_appointment.deleted'),
+  quarantineSet('quarantine.set'),
+  quarantineUpdated('quarantine.updated'),
+  quarantineCleared('quarantine.cleared'),
+  aviaryCreated('aviary.created'),
+  aviaryUpdated('aviary.updated'),
+  aviaryDeleted('aviary.deleted'),
+  finderCreated('finder.created'),
+  finderUpdated('finder.updated'),
+  finderDeleted('finder.deleted'),
+  finderPiiPurged('finder.pii_purged'),
+  finderOrphanDeleted('finder.orphan_deleted'),
+  userInvited('user.invited'),
+  userUpdated('user.updated'),
+  userRoleChanged('user.role_changed'),
+  userDeactivated('user.deactivated'),
+  userReactivated('user.reactivated'),
+  userDeleted('user.deleted'),
+  orgSettingsUpdated('org.settings_updated'),
+  codeListCreated('code_list.created'),
+  codeListUpdated('code_list.updated'),
+  codeListDeleted('code_list.deleted'),
+  authLogin('auth.login'),
+  authOauth2Login('auth.oauth2_login'),
+  authLoginFailed('auth.login_failed'),
+  authPasswordReset('auth.password_reset'),
+  authPasswordChanged('auth.password_changed'),
+  authMfaEnabled('auth.mfa_enabled'),
+  authMfaDisabled('auth.mfa_disabled'),
+  reportExported('report.exported'),
+  caseReportPrinted('case_report.printed'),
+  oauth2UserProvisioned('oauth2.user_provisioned'),
+  supervisorBootstrapped('supervisor.bootstrapped'),
+  auditPurged('audit.purged');
+
+  const AuditAction(this.wire);
+
+  final String wire;
+
+  static AuditAction? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
+}
