@@ -559,6 +559,12 @@ const LABEL_RELATIONS = {
   // Only reached when a marking carries no code of its own (an unnumbered
   // marking still says what KIND it was).
   markings: { type: "marking_types" },
+  // A journal entry is dual-parent (case XOR aviary, 1700000053). The
+  // case-scoped one is named by its case number; the AVIARY-scoped one belongs
+  // to no case and would otherwise say nothing whatsoever — caught by the
+  // uninformative-event check in test_rules.py. Naming the aviary is not
+  // naming the text, so nothing about the entry's prose is recorded.
+  journal_entries: { aviary: "aviaries" },
 };
 
 // Values that are a measurement rather than a name. Kept out of LABEL_FIELDS

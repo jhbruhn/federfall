@@ -2919,6 +2919,43 @@ def main():
     check("nothing is classified that no longer exists",
           not stale, "stale: " + ", ".join(sorted(stale)))
 
+    # federfall-by7w.4 — the control that was missing, and the reason four
+    # actions shipped recording nothing at all: the check above asserts every
+    # collection is AUDITED, never that its events SAY anything. An event that
+    # cannot tell you what it was about is not worth the row it occupies.
+    #
+    # Informative = names its subject, or names its case, or records what
+    # changed, or carries a typed payload. Any ONE of those is enough.
+    s, d = req("GET", "/api/collections/audit_events/records?perPage=500",
+               toks["sup"])
+    all_rows = d["items"] if s == 200 else []
+
+    # Deliberately unrecordable: everything about a finder is withheld on
+    # purpose (finder_retention.pb.js scrubs their PII on a schedule, and a
+    # copy of it here would outlive the scrub). Such a row can only ever say
+    # THAT a finder record was touched, by id.
+    UNINFORMATIVE_BY_DESIGN = {
+        "finder.created", "finder.deleted", "finder.orphan_deleted",
+    }
+
+    def informative(r):
+        return bool(r.get("subject_label") or r.get("case_label")
+                    or r.get("changes") or r.get("detail"))
+
+    empty_actions = sorted({
+        r["action"] for r in all_rows
+        if not informative(r) and r["action"] not in UNINFORMATIVE_BY_DESIGN
+    })
+    check("the sweep saw a representative slice of the log (parse guard)",
+          len(all_rows) >= 50 and len({r["action"] for r in all_rows}) >= 20,
+          f"{len(all_rows)} rows, "
+          f"{len({r['action'] for r in all_rows})} distinct actions")
+    check("no event is too empty to be worth reading",
+          not empty_actions,
+          "these say nothing about what they were: " + ", ".join(empty_actions)
+          + " — give them a subject label (lib_audit.js LABEL_FIELDS/"
+            "LABEL_RELATIONS), content (CONTENT_FIELDS) or a typed detail")
+
     # The other half of the contract: `action` is TEXT, so nothing at write
     # time stops a typo'd action string from being stored — the app would
     # render it as an unknown line forever. Everything this whole suite
