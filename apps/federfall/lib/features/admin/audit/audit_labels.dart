@@ -419,6 +419,18 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
     case UserProvisionedDetail(:final role, :final firstUser):
       if (role != null) add(l10n.auditFactRole, userRoleLabel(l10n, role));
       if (firstUser) flag(l10n.auditFactFirstUser);
+    case DispositionDetail(
+      :final caseStatus,
+      :final lifetimeStatus,
+    ):
+      // What the disposition DID, not just that it was recorded. On a delete
+      // this is the whole point: removing the last one reopens the case.
+      if (caseStatus != null) {
+        add(l10n.auditFactCaseNow, caseStatusLabel(l10n, caseStatus));
+      }
+      if (lifetimeStatus != null) {
+        add(l10n.auditFactAnimalNow, lifetimeStatusLabel(l10n, lifetimeStatus));
+      }
     case AuditPurgedDetail(:final count, :final retentionDays):
       flag(l10n.auditFactPurgedCount(count));
       if (retentionDays != null) {
@@ -429,17 +441,43 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
   }
 
   if (e.changes.isNotEmpty) {
-    add(
-      l10n.auditChangeSummary(e.changes.length),
-      e.changes
-          .take(3)
-          .map(
-            (c) =>
-                '${auditFieldLabel(l10n, e.subjectCollection, c.field)}: '
-                '${auditChangeText(l10n, e.subjectCollection, c)}',
-          )
-          .join(' · '),
+    // A create or a delete carries CONTENT, not a diff: every entry has one
+    // side only. Rendering those through the diff wording gives "2 Felder
+    // geändert: Ausgang: gesetzt auf Verstorben · …" for something that
+    // changed nothing — it recorded an outcome. Show them as what they are.
+    final isDiff = e.changes.any(
+      (c) =>
+          !c.redacted &&
+          (c.from?.isNotEmpty ?? false) &&
+          (c.to?.isNotEmpty ?? false),
     );
+    if (isDiff) {
+      add(
+        l10n.auditChangeSummary(e.changes.length),
+        e.changes
+            .take(3)
+            .map(
+              (c) =>
+                  '${auditFieldLabel(l10n, e.subjectCollection, c.field)}: '
+                  '${auditChangeText(l10n, e.subjectCollection, c)}',
+            )
+            .join(' · '),
+      );
+    } else {
+      for (final c in e.changes) {
+        add(
+          auditFieldLabel(l10n, e.subjectCollection, c.field),
+          c.redacted
+              ? l10n.auditChangeRedacted
+              : auditValueLabel(
+                  l10n,
+                  e.subjectCollection,
+                  c.field,
+                  c.to ?? c.from,
+                ),
+        );
+      }
+    }
   }
 
   if (e.ip != null && e.ip!.isNotEmpty) add(l10n.auditFactIp, e.ip);

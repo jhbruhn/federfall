@@ -741,7 +741,7 @@ function refsFor(record) {
 // Derived side effects are folded in here rather than emitted as their own
 // events: a handoff's share-on-handoff and carer change are consequences of one
 // human action, not three things that happened.
-function refine(collection, verb, record, changes, hints) {
+function refine(collection, verb, record, changes, hints, app) {
   // One update can flip several of these at once; the FIRST match wins, so the
   // order here is the priority order — the row is still filed under the most
   // consequential thing that happened, and `changes` carries the rest.
@@ -789,6 +789,33 @@ function refine(collection, verb, record, changes, hints) {
       },
     };
   }
+  // A disposition is the one action whose consequences are bigger than itself:
+  // main.pb.js closes the case and re-derives the bird's lifetime status from
+  // it. Those are consequences of one human act, so they belong in that act's
+  // detail rather than as events of their own (the same rule that makes a
+  // handoff one row) — and until now they were recorded nowhere at all.
+  //
+  // Read AFTER e.next(), so the model hook has already reconciled them. The
+  // delete case is the interesting one: removing the last disposition reopens
+  // the case, and that reversal was invisible.
+  if (collection === "dispositions" && app) {
+    try {
+      const caseRec = app.findRecordById("cases", record.getString("case"));
+      const detail = { case_status: caseRec.getString("status") };
+      const animalId = caseRec.getString("animal");
+      if (animalId) {
+        const animal = app.findRecordById("animals", animalId);
+        detail.lifetime_status = animal.getString("lifetime_status");
+        const aviary = animal.getString("current_aviary");
+        if (aviary) detail.current_aviary = aviary;
+      }
+      return { action: null, detail: detail };
+    } catch (_) {
+      // Case or animal already gone (a cascading delete) — the envelope and
+      // the recorded content still stand on their own.
+    }
+  }
+
   if (collection === "placements" && verb === "created") {
     const to = String(record.getString("to_user") || "");
     if (to) {
@@ -849,9 +876,10 @@ function emitRecordChange(e, verb, before, hints) {
     }
 
     let detail = null;
-    const refined = refine(collection, verb, record, changes, hints);
+    const refined = refine(collection, verb, record, changes, hints, e.app);
     if (refined) {
-      action = refined.action;
+      // A refinement may enrich the detail without renaming the action.
+      if (refined.action) action = refined.action;
       detail = refined.detail;
     }
 

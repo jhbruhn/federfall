@@ -1188,5 +1188,7 @@
             "from": { "type": "String" },
             "to": { "type": "String" }
         }
-    }
+    },
+    "auditFactCaseNow": "Fall jetzt",
+    "auditFactAnimalNow": "Vogel jetzt"
 }

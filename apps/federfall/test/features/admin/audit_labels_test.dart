@@ -223,6 +223,51 @@ void main() {
       expect(text, de.auditChangeCleared('Pip'));
     });
 
+    test('a disposition records what it DID to the case and the bird', () {
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.dispositionCreated,
+          subjectCollection: 'dispositions',
+          subjectLabel: '',
+          detail: const AuditDetail.disposition(
+            caseStatus: CaseStatus.disposed,
+            lifetimeStatus: LifetimeStatus.deceased,
+          ),
+        ),
+      );
+
+      expect(
+        line.facts,
+        containsAll([
+          AuditFact(de.auditFactCaseNow, de.caseStatusDisposed),
+          AuditFact(de.auditFactAnimalNow, de.lifetimeStatusDeceased),
+        ]),
+      );
+    });
+
+    test('deleting the last disposition shows the case reopening', () {
+      // The reversal was invisible before: the case quietly went back to
+      // in_care and nothing said so.
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.dispositionDeleted,
+          subjectCollection: 'dispositions',
+          subjectLabel: '',
+          detail: const AuditDetail.disposition(
+            caseStatus: CaseStatus.inCare,
+            lifetimeStatus: LifetimeStatus.inCare,
+          ),
+        ),
+      );
+
+      expect(
+        line.facts,
+        contains(AuditFact(de.auditFactCaseNow, de.caseStatusInCare)),
+      );
+    });
+
     test('a create reads as values being set, not as a diff from nothing', () {
       // federfall-9k2g: creates carry their content in the same `changes`
       // shape an update uses, so one renderer covers all three verbs.
@@ -237,10 +282,15 @@ void main() {
       );
 
       expect(line.title, de.auditActionDispositionCreated);
+      // Not "1 Feld geändert: Ausgang: gesetzt auf …" — nothing changed, an
+      // outcome was recorded.
+      expect(
+        line.facts.single,
+        AuditFact(de.auditFieldType, de.dispositionReleased),
+      );
       expect(
         line.facts.single.value,
-        contains(de.dispositionReleased),
-        reason: 'the outcome must be visible, it is the point of the row',
+        isNot(contains(de.auditChangeSet(''))),
       );
     });
 
@@ -255,7 +305,22 @@ void main() {
         ),
       );
 
-      expect(line.facts.single.value, contains(de.auditChangeCleared('4')));
+      expect(line.facts.single, AuditFact(de.auditFieldCount, '4'));
+    });
+
+    test('a real update still reads as a transition', () {
+      final line = auditLine(
+        de,
+        _event(
+          changes: const [
+            AuditFieldChange(field: 'status', from: 'in_care', to: 'disposed'),
+          ],
+        ),
+      );
+
+      expect(line.facts.single.label, de.auditChangeSummary(1));
+      expect(line.facts.single.value, contains(de.caseStatusInCare));
+      expect(line.facts.single.value, contains(de.caseStatusDisposed));
     });
 
     test('the line summarises how many fields changed', () {

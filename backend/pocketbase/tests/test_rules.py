@@ -2517,6 +2517,15 @@ def main():
     check("a disposition records WHICH outcome it was",
           disp.get("type") == "released", disp)
     check("...and when", "disposed_at" in disp, disp)
+    # federfall-by7w.3 — a disposition's consequences are bigger than itself:
+    # the hook closes the case and re-derives the bird's lifetime status. Those
+    # belong in the detail of the act that caused them, not in events of their
+    # own — and were recorded nowhere at all.
+    ddet = (audit_for(ea_disp, "disposition.created") or [{}])[0].get("detail") or {}
+    check("a disposition records that it closed the case",
+          ddet.get("case_status") == "disposed", ddet)
+    check("...and what it made of the bird",
+          ddet.get("lifetime_status") == "at_large_released", ddet)
     # record.get() hands JS a Go types.DateTime, not a string; stringifying one
     # naively stores it WITH quotes, which then parses as no date at all.
     check("a recorded date is a plain value, not a quoted one",

@@ -160,6 +160,16 @@ sealed class AuditDetail with _$AuditDetail {
     @Default(false) bool firstUser,
   }) = UserProvisionedDetail;
 
+  /// `disposition.*` — what the disposition DID, beyond being recorded.
+  /// Writing one closes the case and re-derives the bird's lifetime status;
+  /// deleting the last one reopens it. Those are consequences of the same act,
+  /// not events of their own.
+  const factory AuditDetail.disposition({
+    CaseStatus? caseStatus,
+    LifetimeStatus? lifetimeStatus,
+    String? currentAviary,
+  }) = DispositionDetail;
+
   /// `audit.purged`
   const factory AuditDetail.auditPurged({
     required int count,
@@ -231,6 +241,13 @@ sealed class AuditDetail with _$AuditDetail {
       AuditAction.oauth2UserProvisioned => AuditDetail.userProvisioned(
         role: UserRole.fromWire(json['role']),
         firstUser: pbBool(json['first_user']),
+      ),
+      AuditAction.dispositionCreated ||
+      AuditAction.dispositionUpdated ||
+      AuditAction.dispositionDeleted => AuditDetail.disposition(
+        caseStatus: CaseStatus.fromWire(json['case_status']),
+        lifetimeStatus: LifetimeStatus.fromWire(json['lifetime_status']),
+        currentAviary: pbString(json['current_aviary']),
       ),
       AuditAction.auditPurged => AuditDetail.auditPurged(
         count: pbInt(json['count']) ?? 0,
