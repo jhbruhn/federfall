@@ -132,7 +132,9 @@ migrate(
           // [{field, from, to}] — kept OUT of `detail` so one generic renderer
           // handles every `*.updated` action. Sensitive values are redacted to
           // {field, redacted: true} by the emitter, which keeps the FACT of the
-          // change while dropping the value.
+          // change while dropping the value. A relation-valued field carries
+          // `from_label`/`to_label` beside the ids: what the target was CALLED
+          // when the row was written, since it can be renamed or deleted later.
           { name: "changes", type: "json", required: false, maxSize: 20000 },
           // The action-specific typed payload.
           { name: "detail", type: "json", required: false, maxSize: 20000 },

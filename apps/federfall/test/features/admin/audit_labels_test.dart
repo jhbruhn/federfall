@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:federfall/features/admin/audit/audit_labels.dart';
+import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/gen/app_localizations.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +15,7 @@ AuditEvent _event({
   AuditActorKind actorKind = AuditActorKind.user,
   AuditSeverity severity = AuditSeverity.info,
   String actorLabel = 'Anna Karin',
+  String actorId = 'usr_anna',
   String subjectLabel = '2026-014',
   String subjectCollection = 'cases',
   List<AuditFieldChange> changes = const [],
@@ -26,6 +30,7 @@ AuditEvent _event({
   severity: severity,
   detail: detail,
   actorLabel: actorLabel,
+  actorId: actorId,
   subjectLabel: subjectLabel,
   subjectCollection: subjectCollection,
   changes: changes,
@@ -464,5 +469,247 @@ void main() {
     );
 
     expect(line.icon, Icons.shield_outlined);
+  });
+
+  // federfall-ybua.1 — a person is named, never numbered. These two actions
+  // carried a bare user id where the name was already resolved one field away.
+  group('a person in a payload is named', () {
+    test('a handoff names who took the case on', () {
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.caseHandoff,
+          subjectLabel: 'Bernd Weber',
+          subjectCollection: 'placements',
+          detail: const AuditDetail.caseHandoff(
+            to: 'usr_bernd',
+            toLabel: 'Bernd Weber',
+            from: 'usr_anna',
+            fromLabel: 'Anna Karin',
+          ),
+        ),
+      );
+
+      expect(
+        line.facts,
+        contains(AuditFact(de.auditFactHandoffTo, 'Bernd Weber')),
+      );
+      expect(
+        line.facts.map((f) => f.value).join(' '),
+        isNot(contains('usr_')),
+        reason: 'no id may reach the screen when a label was recorded',
+      );
+    });
+
+    test('who handed it over is not repeated when it was the actor', () {
+      // from_user is the acting carer on every handoff made through the app,
+      // and the actor is already on the line above.
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.caseHandoff,
+          subjectCollection: 'placements',
+          detail: const AuditDetail.caseHandoff(
+            to: 'usr_bernd',
+            toLabel: 'Bernd Weber',
+            from: 'usr_anna',
+            fromLabel: 'Anna Karin',
+          ),
+        ),
+      );
+
+      expect(
+        line.facts.map((f) => f.label),
+        isNot(contains(de.auditFactHandoffFrom)),
+      );
+    });
+
+    test('a share names the member it was shared with', () {
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.caseShared,
+          subjectCollection: 'case_shares',
+          subjectLabel: 'Bernd Weber',
+          detail: const AuditDetail.caseShare(
+            withUser: 'usr_bernd',
+            withLabel: 'Bernd Weber',
+            access: ShareAccess.read,
+          ),
+        ),
+      );
+
+      expect(
+        line.facts,
+        contains(AuditFact(de.auditFactSharedWith, 'Bernd Weber')),
+      );
+    });
+
+    test('an unlabelled row still shows the id rather than nothing', () {
+      // Rows written before the server recorded the names. Illegible, but a
+      // blank would be worse — and it is what the fallback exists for.
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.caseShared,
+          subjectCollection: 'case_shares',
+          detail: const AuditDetail.caseShare(withUser: 'usr_bernd'),
+        ),
+      );
+
+      expect(
+        line.facts,
+        contains(AuditFact(de.auditFactSharedWith, 'usr_bernd')),
+      );
+    });
+
+    test('the subject label is dropped when a fact already names it', () {
+      // Otherwise the recipient appears twice: once labelled, once as a bare
+      // name in the subtitle with nothing saying what it is.
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.caseShared,
+          subjectCollection: 'case_shares',
+          subjectLabel: 'Bernd Weber',
+          detail: const AuditDetail.caseShare(
+            withUser: 'usr_bernd',
+            withLabel: 'Bernd Weber',
+          ),
+        ),
+      );
+
+      expect(line.subtitle, isNull);
+    });
+  });
+
+  // federfall-ybua.2 — a relation's stored value is an id; the server snapshots
+  // what it pointed at, and that is what has to reach the screen.
+  group('a relation change reads as a name', () {
+    const move = AuditFieldChange(
+      field: 'current_aviary',
+      from: 'avy_quarantine',
+      to: 'avy_flight',
+      fromLabel: 'Quarantäne 1',
+      toLabel: 'Freiflug',
+    );
+
+    test('both sides of a move show the aviary, not its id', () {
+      expect(
+        auditChangeText(de, 'animals', move),
+        de.auditChangeArrow('Quarantäne 1', 'Freiflug'),
+      );
+    });
+
+    test('a snapshotted label is not run through the enum resolution', () {
+      // The label is already human text. `status` is the trap: a label reaching
+      // CaseStatus.fromWire would fall back to itself today and silently break
+      // the day someone names an aviary after a status.
+      const relation = AuditFieldChange(
+        field: 'status',
+        to: 'anything',
+        toLabel: 'Freiflug',
+      );
+
+      expect(auditChangeSide(de, 'x', relation, newValue: true), 'Freiflug');
+    });
+
+    test('an id with no label still renders, as the id', () {
+      const bare = AuditFieldChange(field: 'current_aviary', to: 'avy_flight');
+
+      expect(
+        auditChangeText(de, 'animals', bare),
+        de.auditChangeSet('avy_flight'),
+      );
+    });
+
+    test('a create shows the label of what it pointed at', () {
+      final line = auditLine(
+        de,
+        _event(
+          action: AuditAction.markingCreated,
+          subjectCollection: 'markings',
+          changes: const [
+            AuditFieldChange(
+              field: 'type',
+              to: 'mtp_ring',
+              toLabel: 'Fußring',
+            ),
+          ],
+        ),
+      );
+
+      expect(line.facts, contains(AuditFact(de.markingFieldType, 'Fußring')));
+    });
+  });
+
+  // federfall-ybua.3 — both label functions take a collection; until now they
+  // ignored it, so a column name shared by two collections was rendered as
+  // whichever one happened to be written first.
+  group('a shared column name is not a shared meaning', () {
+    test('type is the outcome on a disposition and the kind on a marking', () {
+      expect(auditFieldLabel(de, 'dispositions', 'type'), de.auditFieldType);
+      expect(auditFieldLabel(de, 'markings', 'type'), de.markingFieldType);
+      expect(
+        auditFieldLabel(de, 'markings', 'type'),
+        isNot(auditFieldLabel(de, 'dispositions', 'type')),
+      );
+    });
+
+    test('an exam finding status resolves through its own enum', () {
+      expect(
+        auditValueLabel(de, 'exam_findings', 'status', 'abnormal'),
+        findingStatusLabel(de, FindingStatus.abnormal),
+      );
+      expect(
+        auditValueLabel(de, 'exam_findings', 'status', 'abnormal'),
+        isNot('abnormal'),
+        reason: 'it fell back to the raw English wire value',
+      );
+    });
+
+    test('a case status still resolves through CaseStatus', () {
+      expect(
+        auditValueLabel(de, 'cases', 'status', 'in_care'),
+        caseStatusLabel(de, CaseStatus.inCare),
+      );
+    });
+  });
+
+  // federfall-ybua.4 — the fallback to the raw column name is the right safety
+  // net for a field nobody has translated. It is the wrong outcome for the
+  // fields the server's own allowlist picked as "what this event was about".
+  test('every field the server records has a translated label', () {
+    // Read from the emitter itself, so a new CONTENT_FIELDS entry cannot ship
+    // without a label — the same both-halves pinning as
+    // app_theme_fallbacks_test.
+    final source = File(
+      '../../backend/pocketbase/pb_hooks/lib_audit.js',
+    ).readAsStringSync();
+    final block = source
+        .split('const CONTENT_FIELDS = {')[1]
+        .split('\n};')
+        .first;
+    final fields = RegExp(r'(\w+):\s*\[([^\]]*)\]')
+        .allMatches(block)
+        .expand(
+          (m) => RegExp('"([a-z_]+)"')
+              .allMatches(m.group(2)!)
+              .map((f) => (collection: m.group(1)!, field: f.group(1)!)),
+        )
+        .toList();
+
+    expect(fields, isNotEmpty, reason: 'the allowlist could not be read');
+    for (final entry in fields) {
+      for (final l10n in [de, en]) {
+        expect(
+          auditFieldLabel(l10n, entry.collection, entry.field),
+          isNot(entry.field),
+          reason:
+              '${entry.collection}.${entry.field} shows its column name in '
+              '${l10n.localeName}',
+        );
+      }
+    }
   });
 }

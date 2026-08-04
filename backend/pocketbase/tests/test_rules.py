@@ -2598,6 +2598,13 @@ def main():
           (ev.get("detail") or {}).get("from") == A
           and (ev.get("detail") or {}).get("to") == B
           and (ev.get("detail") or {}).get("carer_moved") is True, ev)
+    # federfall-ybua.1: an id names nobody. Both ends carry the name they had
+    # at the time, snapshotted like every other label in the log — the display
+    # name where there is one (A is "Alice"), the address where there is not.
+    check("...and NAMES both ends, not just their ids",
+          (ev.get("detail") or {}).get("to_label") == "b@f.local"
+          and (ev.get("detail") or {}).get("from_label") == "Alice",
+          ev.get("detail"))
     check("no separate event for the derived carer change",
           len(audit_for(ea_case, "case.updated")) == 0, "case.updated leaked")
 
@@ -2656,6 +2663,12 @@ def main():
     check("moving a bird is one animal.updated carrying the aviary",
           any(c["field"] == "current_aviary" and c["to"] == ea_aviary
               for c in moved), moved)
+    # federfall-ybua.2: a relation's value is an id, so the change also carries
+    # what it pointed AT. Without this the most interesting animal.updated in
+    # the log read "Voliere: 8k2m4p7q1w3e5r9".
+    check("...and what that aviary is CALLED",
+          any(c["field"] == "current_aviary" and c.get("to_label")
+              == "Voliere Audit" for c in moved), moved)
     check("the derived residency ledger is not a second event",
           len(listf(toks["sup"], "audit_events",
                     'subject_collection = "aviary_stays"')) == 0, "leaked")
@@ -2832,7 +2845,8 @@ def main():
           (rows or [{}])[0].get("subject_label") == "d@f.local",
           (rows or [{}])[0].get("subject_label"))
     check("...naming who with, at what access, on which case",
-          (rows[0].get("detail") or {}) == {"with": D, "access": "read"}
+          (rows[0].get("detail") or {}) == {"with": D, "with_label": "d@f.local",
+                                            "access": "read"}
           and rows[0].get("case_id") == ea_case if rows else False, rows)
     req("DELETE", f"/api/collections/case_shares/records/{sh}", toks["sup"])
     check("revoking it is logged too",

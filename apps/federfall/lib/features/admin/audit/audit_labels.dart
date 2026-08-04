@@ -187,48 +187,80 @@ String auditSeverityLabel(AppLocalizations l10n, AuditSeverity s) =>
 ///
 /// Falls back to the raw column name rather than hiding the change: „status →
 /// disposed" for a field nobody has translated yet is worse than nothing only
-/// if it is missing entirely.
-String auditFieldLabel(
-  AppLocalizations l10n,
-  String collection,
-  String field,
-) => switch (field) {
-  'status' => l10n.caseStatusFieldLabel,
-  'active_carer' => l10n.auditFieldActiveCarer,
-  'weight_g' => l10n.weightFieldGrams,
-  'notes' => l10n.aviaryFieldNotes,
-  'name' => l10n.aviaryFieldName,
-  'species' => l10n.casesSpeciesLabel,
-  'sex' => l10n.caseFieldSex,
-  'age_class' => l10n.caseFieldAgeClass,
-  'lifetime_status' => l10n.auditFieldLifetimeStatus,
-  'current_aviary' => l10n.aviaryDetailTitle,
-  'role' => l10n.auditFactRole,
-  'is_active' => l10n.memberActiveLabel,
-  'password' => l10n.authPasswordLabel,
-  'type' => l10n.auditFieldType,
-  'count' => l10n.auditFieldCount,
-  'dose' || 'dose_rate' => l10n.auditFieldDose,
-  'frequency_kind' => l10n.auditFieldFrequency,
-  'interval_hours' => l10n.auditFieldIntervalHours,
-  'measured_at' => l10n.auditFieldMeasuredAt,
-  'administered_at' => l10n.auditFieldAdministeredAt,
-  'disposed_at' => l10n.auditFieldDisposedAt,
-  'due_at' => l10n.auditFieldDueAt,
-  'done_at' => l10n.auditFieldDoneAt,
-  'starts_at' => l10n.auditFieldStartsAt,
-  'admitted_at' => l10n.auditFieldAdmittedAt,
-  'quarantine_until' => l10n.auditFieldQuarantineUntil,
-  'capacity' => l10n.auditFieldCapacity,
-  'access' => l10n.auditFieldAccess,
-  'label' => l10n.auditFieldLabel,
-  'certainty' => l10n.auditFieldCertainty,
-  'examined_at' => l10n.examDateLabel,
-  'hydration' => l10n.examHydrationLabel,
-  'mentation' => l10n.examMentationLabel,
-  'dose_unit' => l10n.medUnit,
-  _ => field,
-};
+/// if it is missing entirely. Every field in the server's own CONTENT_FIELDS
+/// allowlist is expected to be named here, and
+/// `audit_labels_test.dart` fails the build on one that is not.
+String auditFieldLabel(AppLocalizations l10n, String collection, String field) {
+  // (collection, field) wins, because the same column name means different
+  // things in different collections and guessing wrong is worse than not
+  // translating at all: `type` is the outcome of a case on a disposition and
+  // the kind of ring on a marking (federfall-ybua.3).
+  final perCollection = switch ((collection, field)) {
+    ('markings', 'type') => l10n.markingFieldType,
+    ('dispositions', 'type') => l10n.auditFieldType,
+    _ => null,
+  };
+  if (perCollection != null) return perCollection;
+
+  return switch (field) {
+    'status' => l10n.caseStatusFieldLabel,
+    'active_carer' => l10n.auditFieldActiveCarer,
+    'weight_g' => l10n.weightFieldGrams,
+    'notes' => l10n.aviaryFieldNotes,
+    'name' => l10n.aviaryFieldName,
+    'species' => l10n.casesSpeciesLabel,
+    'sex' => l10n.caseFieldSex,
+    'age_class' => l10n.caseFieldAgeClass,
+    'lifetime_status' => l10n.auditFieldLifetimeStatus,
+    'current_aviary' => l10n.aviaryDetailTitle,
+    'role' => l10n.auditFactRole,
+    'is_active' => l10n.memberActiveLabel,
+    'password' => l10n.authPasswordLabel,
+    'type' => l10n.auditFieldType,
+    'count' => l10n.auditFieldCount,
+    'dose' || 'dose_rate' => l10n.auditFieldDose,
+    'frequency_kind' => l10n.auditFieldFrequency,
+    'interval_hours' => l10n.auditFieldIntervalHours,
+    'measured_at' => l10n.auditFieldMeasuredAt,
+    'administered_at' => l10n.auditFieldAdministeredAt,
+    'disposed_at' => l10n.auditFieldDisposedAt,
+    'due_at' => l10n.auditFieldDueAt,
+    'done_at' => l10n.auditFieldDoneAt,
+    'starts_at' => l10n.auditFieldStartsAt,
+    'admitted_at' => l10n.auditFieldAdmittedAt,
+    'quarantine_until' => l10n.auditFieldQuarantineUntil,
+    'capacity' => l10n.auditFieldCapacity,
+    'access' => l10n.auditFieldAccess,
+    'label' => l10n.auditFieldLabel,
+    'certainty' => l10n.auditFieldCertainty,
+    'examined_at' => l10n.examDateLabel,
+    'hydration' => l10n.examHydrationLabel,
+    'mentation' => l10n.examMentationLabel,
+    'dose_unit' => l10n.medUnit,
+    // The rest of the server's content allowlist (federfall-ybua.4), each
+    // reusing the key the app already names that field by elsewhere so the log
+    // and the screen that owns the field agree on what it is called.
+    'applied_at' => l10n.markingFieldApplied,
+    'removed_at' => l10n.auditFieldRemovedAt,
+    'onset_date' => l10n.conditionFieldOnset,
+    'resolved_date' => l10n.conditionFieldResolved,
+    'started_at' => l10n.medStarted,
+    'ended_at' => l10n.medEnded,
+    'moved_in_at' => l10n.placementFieldMovedAt,
+    'where_holding' => l10n.auditFieldWhereHolding,
+    'release_type' => l10n.dispositionFieldReleaseType,
+    'transfer_type' => l10n.dispositionFieldTransferType,
+    'body_condition' => l10n.examBodyConditionLabel,
+    'system' => l10n.auditFieldBodySystem,
+    'laid_at' => l10n.eggFieldDate,
+    'fate' => l10n.eggFieldFate,
+    'attended_at' => l10n.auditFieldAttendedAt,
+    'cancelled_at' => l10n.auditFieldCancelledAt,
+    'set_at' => l10n.auditFieldSetAt,
+    'active' => l10n.aviaryFieldActive,
+    _ => field,
+  };
+}
 
 /// A wire value turned back into what the rest of the app calls it.
 ///
@@ -243,9 +275,19 @@ String auditValueLabel(
   String? wire,
 ) {
   if (wire == null || wire.isEmpty) return l10n.auditValueEmpty;
+  // Collection-specific first, for the same reason as auditFieldLabel: a shared
+  // column name is not a shared enum. `status` resolved through CaseStatus
+  // everywhere left an exam finding reading „abnormal", in English, next to a
+  // findingStatusLabel that has said „Auffällig" all along (federfall-ybua.3).
+  if (collection == 'exam_findings' && field == 'status') {
+    final v = FindingStatus.fromWire(wire);
+    return v == null ? wire : findingStatusLabel(l10n, v);
+  }
   // Each arm resolves the wire value through the same enum the rest of the app
   // uses, and falls back to the stored string when it does not resolve — an
-  // enum value this build predates should still be visible, not blank.
+  // enum value this build predates should still be visible, not blank. A
+  // relation's value is an id and resolves through none of them; it is the
+  // server's snapshotted label that renders it, see [auditChangeSide].
   switch (field) {
     case 'status':
       final v = CaseStatus.fromWire(wire);
@@ -311,6 +353,30 @@ String auditValueLabel(
   }
 }
 
+/// One side of [change], ready to show.
+///
+/// A relation's stored value is a record id, which reads as noise; the server
+/// snapshots what the target was CALLED beside it (federfall-ybua.2), and that
+/// label is already human text — running it back through the enum and date
+/// resolution below would be wrong. So the label wins where there is one, and
+/// the stored value is resolved where there is not, which is also what every
+/// row written before the labels existed still gets.
+String auditChangeSide(
+  AppLocalizations l10n,
+  String collection,
+  AuditFieldChange change, {
+  required bool newValue,
+}) {
+  final label = newValue ? change.toLabel : change.fromLabel;
+  if (label != null && label.isNotEmpty) return label;
+  return auditValueLabel(
+    l10n,
+    collection,
+    change.field,
+    newValue ? change.to : change.from,
+  );
+}
+
 /// One line describing a single field change.
 String auditChangeText(
   AppLocalizations l10n,
@@ -318,12 +384,12 @@ String auditChangeText(
   AuditFieldChange change,
 ) {
   if (change.redacted) return l10n.auditChangeRedacted;
-  final from = change.from;
-  final to = change.to;
+  final from = change.fromDisplay;
+  final to = change.toDisplay;
   final hasFrom = from != null && from.isNotEmpty;
   final hasTo = to != null && to.isNotEmpty;
-  final fromLabel = auditValueLabel(l10n, collection, change.field, from);
-  final toLabel = auditValueLabel(l10n, collection, change.field, to);
+  final fromLabel = auditChangeSide(l10n, collection, change, newValue: false);
+  final toLabel = auditChangeSide(l10n, collection, change, newValue: true);
   if (!hasFrom && hasTo) return l10n.auditChangeSet(toLabel);
   if (hasFrom && !hasTo) return l10n.auditChangeCleared(fromLabel);
   return l10n.auditChangeArrow(fromLabel, toLabel);
@@ -360,6 +426,14 @@ IconData auditIcon(AuditEvent e) {
   };
 }
 
+/// The snapshotted [label] if the server recorded one, else the bare [id].
+///
+/// Every id in a detail payload is paired with the name it had at the time. The
+/// fallback exists for rows written before that was true, where an id nobody
+/// can interpret is still better than a blank.
+String? _named(String? label, String? id) =>
+    (label != null && label.isNotEmpty) ? label : id;
+
 /// Everything a screen needs to draw one entry.
 AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
   final facts = <AuditFact>[];
@@ -384,11 +458,22 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
       add(l10n.auditFactSpecies, species);
       if (reidentified) flag(l10n.auditFactReidentified);
       if (hasFinder) flag(l10n.auditFactFinder);
-    case CaseHandoffDetail(:final to, :final from):
-      add(l10n.auditFactHandoffTo, to);
-      add(l10n.auditFactHandoffFrom, from);
-    case CaseShareDetail(:final withUser, :final access):
-      add(l10n.auditFactSharedWith, withUser);
+    case CaseHandoffDetail(
+      :final to,
+      :final from,
+      :final toLabel,
+      :final fromLabel,
+    ):
+      // The name the server snapshotted, falling back to the id only for rows
+      // written before it recorded one (federfall-ybua.1).
+      add(l10n.auditFactHandoffTo, _named(toLabel, to));
+      // Who handed it over is almost always the actor, and repeating the name
+      // from the line above says nothing.
+      if (from != null && from.isNotEmpty && from != e.actorId) {
+        add(l10n.auditFactHandoffFrom, _named(fromLabel, from));
+      }
+    case CaseShareDetail(:final withUser, :final withLabel, :final access):
+      add(l10n.auditFactSharedWith, _named(withLabel, withUser));
       if (access != null) {
         add(l10n.auditFactAccess, shareAccessLabel(l10n, access));
       }
@@ -422,6 +507,7 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
     case DispositionDetail(
       :final caseStatus,
       :final lifetimeStatus,
+      :final currentAviaryLabel,
     ):
       // What the disposition DID, not just that it was recorded. On a delete
       // this is the whole point: removing the last one reopens the case.
@@ -431,6 +517,9 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
       if (lifetimeStatus != null) {
         add(l10n.auditFactAnimalNow, lifetimeStatusLabel(l10n, lifetimeStatus));
       }
+      // Where the bird still is. Only ever the label — an aviary id would say
+      // less than nothing here.
+      add(l10n.aviaryDetailTitle, currentAviaryLabel);
     case AuditPurgedDetail(:final count, :final retentionDays):
       flag(l10n.auditFactPurgedCount(count));
       if (retentionDays != null) {
@@ -448,8 +537,8 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
     final isDiff = e.changes.any(
       (c) =>
           !c.redacted &&
-          (c.from?.isNotEmpty ?? false) &&
-          (c.to?.isNotEmpty ?? false),
+          (c.fromDisplay?.isNotEmpty ?? false) &&
+          (c.toDisplay?.isNotEmpty ?? false),
     );
     if (isDiff) {
       add(
@@ -469,11 +558,13 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
           auditFieldLabel(l10n, e.subjectCollection, c.field),
           c.redacted
               ? l10n.auditChangeRedacted
-              : auditValueLabel(
+              // A create records only `to`, a delete only `from`; whichever
+              // side is there is what this event was about.
+              : auditChangeSide(
                   l10n,
                   e.subjectCollection,
-                  c.field,
-                  c.to ?? c.from,
+                  c,
+                  newValue: c.toDisplay?.isNotEmpty ?? false,
                 ),
         );
       }
@@ -489,9 +580,14 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
     add(l10n.auditFactCase, e.caseLabel);
   }
 
+  // The subtitle is the subject label with nothing to say what it IS, so when a
+  // labelled fact already names the same thing, that fact is the better of the
+  // two: „Übernommen von: Bernd Weber" over a bare „Bernd Weber" repeated.
+  final named = facts.any((f) => f.value == e.subjectLabel);
+
   return AuditLine(
     title: auditActionTitle(l10n, e.action, e.rawAction),
-    subtitle: e.subjectLabel.isNotEmpty ? e.subjectLabel : null,
+    subtitle: e.subjectLabel.isNotEmpty && !named ? e.subjectLabel : null,
     facts: facts,
     icon: auditIcon(e),
   );

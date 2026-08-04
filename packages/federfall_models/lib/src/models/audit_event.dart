@@ -54,15 +54,35 @@ enum AuditSeverity {
 /// When [redacted] is true both values are absent by design: a credential or a
 /// finder's contact detail is recorded as HAVING changed, never as what it
 /// changed to. [truncated] means a long text was clipped for storage.
+///
+/// A relation-valued field additionally carries [fromLabel] / [toLabel]: what
+/// the target record was CALLED when the row was written. The id alone is
+/// unreadable, and resolving it now would be wrong twice over — the target may
+/// be gone, and if it was renamed since, the row would silently change what it
+/// says about the past. Absent on rows written before the server recorded them.
 @freezed
 abstract class AuditFieldChange with _$AuditFieldChange {
+  /// Required by freezed for the [fromDisplay] / [toDisplay] getters below.
+  const AuditFieldChange._();
+
   const factory AuditFieldChange({
     required String field,
     String? from,
     String? to,
+    String? fromLabel,
+    String? toLabel,
     @Default(false) bool redacted,
     @Default(false) bool truncated,
   }) = _AuditFieldChange;
+
+  /// What to show for the old value: the snapshotted label when the server
+  /// recorded one, else the stored value (an enum wire string, a date, or —
+  /// for a relation logged before the labels existed — a bare id).
+  String? get fromDisplay =>
+      (fromLabel?.isNotEmpty ?? false) ? fromLabel : from;
+
+  /// What to show for the new value. See [fromDisplay].
+  String? get toDisplay => (toLabel?.isNotEmpty ?? false) ? toLabel : to;
 
   /// Named `fromPb` like [GeoPoint.fromPb], not `fromJson`: freezed reads a
   /// `fromJson` factory as an opt-in to json_serializable codegen, and this is
@@ -72,6 +92,8 @@ abstract class AuditFieldChange with _$AuditFieldChange {
         field: pbString(json['field']) ?? '',
         from: pbString(json['from']),
         to: pbString(json['to']),
+        fromLabel: pbString(json['from_label']),
+        toLabel: pbString(json['to_label']),
         redacted: pbBool(json['redacted']),
         truncated: pbBool(json['truncated']),
       );
@@ -96,15 +118,21 @@ sealed class AuditDetail with _$AuditDetail {
     @Default(0) int intakePhotos,
   }) = CaseIntakeDetail;
 
-  /// `case.handoff` — [from] and [to] are user ids.
+  /// `case.handoff` — [from] and [to] are user ids, [fromLabel] / [toLabel]
+  /// the names they had at the time. Prefer the label; the id is what
+  /// correlates the row with the rest of the request.
   const factory AuditDetail.caseHandoff({
     required String to,
     String? from,
+    String? toLabel,
+    String? fromLabel,
   }) = CaseHandoffDetail;
 
-  /// `case.shared` / `case.share_revoked`
+  /// `case.shared` / `case.share_revoked` — [withUser] is an id, [withLabel]
+  /// the member's name at the time.
   const factory AuditDetail.caseShare({
     required String withUser,
+    String? withLabel,
     ShareAccess? access,
   }) = CaseShareDetail;
 
@@ -168,6 +196,7 @@ sealed class AuditDetail with _$AuditDetail {
     CaseStatus? caseStatus,
     LifetimeStatus? lifetimeStatus,
     String? currentAviary,
+    String? currentAviaryLabel,
   }) = DispositionDetail;
 
   /// `audit.purged`
@@ -201,10 +230,13 @@ sealed class AuditDetail with _$AuditDetail {
       AuditAction.caseHandoff => AuditDetail.caseHandoff(
         to: pbString(json['to']) ?? '',
         from: pbString(json['from']),
+        toLabel: pbString(json['to_label']),
+        fromLabel: pbString(json['from_label']),
       ),
       AuditAction.caseShared ||
       AuditAction.caseShareRevoked => AuditDetail.caseShare(
         withUser: pbString(json['with']) ?? '',
+        withLabel: pbString(json['with_label']),
         access: ShareAccess.fromWire(json['access']),
       ),
       AuditAction.userRoleChanged => AuditDetail.roleChanged(
@@ -248,6 +280,7 @@ sealed class AuditDetail with _$AuditDetail {
         caseStatus: CaseStatus.fromWire(json['case_status']),
         lifetimeStatus: LifetimeStatus.fromWire(json['lifetime_status']),
         currentAviary: pbString(json['current_aviary']),
+        currentAviaryLabel: pbString(json['current_aviary_label']),
       ),
       AuditAction.auditPurged => AuditDetail.auditPurged(
         count: pbInt(json['count']) ?? 0,

@@ -12,7 +12,7 @@
 //     e.next();                       // throws ⇒ nothing is logged
 //     audit.emit(e, audit.ACTIONS.WEIGHT_UPDATED, {
 //       record: e.record,
-//       changes: audit.diff("weights", before, e.record.fieldsData()),
+//       changes: audit.diff("weights", before, e.record.fieldsData(), e.app),
 //     });
 //   }, "weights");
 //
@@ -301,7 +301,12 @@ function clamp(v) {
 // [{field, from, to}] for a plain-object before/after pair — typically
 // `record.original().fieldsData()` and `record.fieldsData()`. Sensitive fields
 // collapse to {field, redacted: true}.
-function diff(collection, before, after) {
+//
+// @param app optional; resolves relation values to a snapshotted label
+//            (`from_label` / `to_label`) via relationTarget/labelOf below.
+//            Omit it and a relation change carries its ids alone, which is
+//            what every row written before federfall-ybua.2 has.
+function diff(collection, before, after, app) {
   const out = [];
   const b = before || {};
   const a = after || {};
@@ -323,6 +328,15 @@ function diff(collection, before, after) {
     const ct = clamp(to);
     const entry = { field: field, from: cf.value, to: ct.value };
     if (cf.truncated || ct.truncated) entry.truncated = true;
+    // A relation's value is an id. Record what it pointed at on BOTH sides —
+    // "Voliere: Quarantäne 1 → Freiflug" rather than two opaque ids.
+    const target = relationTarget(collection, field);
+    if (target && app) {
+      const fromLabel = labelOf(app, target, String(cf.value || ""));
+      const toLabel = labelOf(app, target, String(ct.value || ""));
+      if (fromLabel) entry.from_label = fromLabel;
+      if (toLabel) entry.to_label = toLabel;
+    }
     out.push(entry);
   }
   return out;
@@ -576,6 +590,83 @@ const LABEL_QUANTITIES = {
   weights: { field: "weight_g", suffix: " g" },
 };
 
+// The collection a relation field points INTO, so a change to one can record
+// what the target is called and not only its id (federfall-ybua.2). Without
+// this, moving a bird between aviaries logs "Voliere: 8k2m4p7q1w3e5r9" — an
+// event nobody can read, on one of the paths this log exists for.
+//
+// Keyed by FIELD NAME, because this schema names a relation the same thing
+// wherever it appears: `animal` is always an animal, `case` always a case, and
+// a field named after a person (`*_by`, `*_user`, `keeper`, `examiner`) always
+// points at a member. `finder` is deliberately absent — nothing may name a
+// member of the public here, whichever direction it is reached from.
+const RELATION_TARGETS = {
+  active_carer: "users",
+  administered_by: "users",
+  admitted_by: "users",
+  animal: "animals",
+  applied_by: "users",
+  applied_in_case: "cases",
+  author: "users",
+  aviary: "aviaries",
+  case: "cases",
+  condition: "conditions",
+  created_by: "users",
+  current_aviary: "aviaries",
+  examiner: "users",
+  from_user: "users",
+  keeper: "users",
+  medication: "medications",
+  org: "organisations",
+  performed_by: "users",
+  route: "medication_routes",
+  set_by: "users",
+  shared_by: "users",
+  shared_with: "users",
+  to_user: "users",
+  transported_by: "users",
+};
+
+// Where a field name means different things in different collections, the
+// per-collection entry wins. `type` is the whole reason this table exists and
+// why RELATION_TARGETS cannot simply be widened: it is a relation into
+// marking_types on `markings` and a plain text outcome on `dispositions`.
+const RELATION_FIELDS = {
+  markings: { type: "marking_types" },
+};
+
+// The collection [field] of [collection] relates to, or "" if it is not a
+// relation whose target can be named.
+function relationTarget(collection, field) {
+  const per = RELATION_FIELDS[collection];
+  if (per && per[field]) return per[field];
+  return RELATION_TARGETS[field] || "";
+}
+
+/**
+ * What the record [id] of [collection] is called.
+ *
+ * Snapshotted at emit time like every other label in this file: the target can
+ * be renamed or deleted afterwards, and a row has to keep saying what it said
+ * when it was written. Returns "" when the target is gone, unreadable, or has
+ * no label of its own — the id stays in the change either way, so a missing
+ * label loses nothing that was there before.
+ */
+function labelOf(app, collection, id) {
+  if (!app || !collection || !id) return "";
+  if (collection === "finders") return ""; // never, see the header
+  try {
+    const target = app.findRecordById(collection, id);
+    for (const f of LABEL_FIELDS[collection] || []) {
+      const v = String(target.get(f) || "").trim();
+      if (v) return v.slice(0, 200);
+    }
+  } catch (_) {
+    // Gone or unreadable — the id still identifies it.
+  }
+  return "";
+}
+
 // What a CREATE wrote, and what a DELETE destroyed (federfall-by7w / 9k2g).
 //
 // An update explains itself — a diff of what moved is inherently bounded. A
@@ -644,8 +735,10 @@ const REF_FIELDS = ["animal", "aviary", "to_user", "from_user", "shared_with"];
  * @param created true for a create (values land in `to`), false for a delete
  *                (they land in `from`, which is what "cleared (was X)" reads
  *                as — the right sentence for something that no longer exists).
+ * @param app     optional, as in diff(): resolves an allowlisted relation to a
+ *                snapshotted label instead of leaving a bare id.
  */
-function contentOf(collection, record, created) {
+function contentOf(collection, record, created, app) {
   const out = [];
   for (const field of CONTENT_FIELDS[collection] || []) {
     let value;
@@ -667,6 +760,11 @@ function contentOf(collection, record, created) {
       ? { field: field, to: c.value }
       : { field: field, from: c.value };
     if (c.truncated) entry.truncated = true;
+    const target = relationTarget(collection, field);
+    if (target && app) {
+      const label = labelOf(app, target, String(c.value || ""));
+      if (label) entry[created ? "to_label" : "from_label"] = label;
+    }
     out.push(entry);
   }
   return out;
@@ -780,11 +878,15 @@ function refine(collection, verb, record, changes, hints, app) {
     }
   }
   if (collection === "case_shares" && (verb === "created" || verb === "deleted")) {
+    const sharedWith = String(record.getString("shared_with") || "");
     return {
       action:
         verb === "created" ? ACTIONS.CASE_SHARED : ACTIONS.CASE_SHARE_REVOKED,
       detail: {
-        with: String(record.getString("shared_with") || ""),
+        with: sharedWith,
+        // Who that is. The id alone told a supervisor nothing — and the name
+        // was already resolved for subject_label, one line away.
+        with_label: labelOf(app, "users", sharedWith),
         access: String(record.getString("access") || ""),
       },
     };
@@ -807,7 +909,10 @@ function refine(collection, verb, record, changes, hints, app) {
         const animal = app.findRecordById("animals", animalId);
         detail.lifetime_status = animal.getString("lifetime_status");
         const aviary = animal.getString("current_aviary");
-        if (aviary) detail.current_aviary = aviary;
+        if (aviary) {
+          detail.current_aviary = aviary;
+          detail.current_aviary_label = labelOf(app, "aviaries", aviary);
+        }
       }
       return { action: null, detail: detail };
     } catch (_) {
@@ -819,11 +924,16 @@ function refine(collection, verb, record, changes, hints, app) {
   if (collection === "placements" && verb === "created") {
     const to = String(record.getString("to_user") || "");
     if (to) {
+      const from = String(record.getString("from_user") || "");
       return {
         action: ACTIONS.CASE_HANDOFF,
         detail: {
-          from: String(record.getString("from_user") || ""),
+          from: from,
+          // The names, snapshotted. A handoff is the event most often read back
+          // and it named both people by id until now.
+          from_label: labelOf(app, "users", from),
           to: to,
+          to_label: labelOf(app, "users", to),
           // main.pb.js moves cases.active_carer and leaves the previous carer a
           // read share, both inside this same request.
           carer_moved: true,
@@ -856,10 +966,10 @@ function emitRecordChange(e, verb, before, hints) {
     if (verb === "created" || verb === "deleted") {
       // Same shape as an update, so one renderer handles all three: a create
       // reads "set to X" and a delete "cleared (was X)" with no new strings.
-      changes = contentOf(collection, record, verb === "created");
+      changes = contentOf(collection, record, verb === "created", e.app);
     }
     if (verb === "updated") {
-      changes = diff(collection, before, record.fieldsData());
+      changes = diff(collection, before, record.fieldsData(), e.app);
       // A changed password shows up only as the tokenKey PocketBase rotated
       // with it (the hash is not in fieldsData). Name the field that actually
       // changed — redacted, like every other credential — so the line reads as
@@ -1192,4 +1302,6 @@ module.exports = {
   emitRecordChange: emitRecordChange,
   emitLoginFailed: emitLoginFailed,
   subjectLabel: subjectLabel,
+  labelOf: labelOf,
+  relationTarget: relationTarget,
 };
