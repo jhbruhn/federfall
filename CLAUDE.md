@@ -131,7 +131,14 @@ they can't run in the Flutter test suite, so verify migrations/hooks against a r
 **`cronAdd` jobs are invisible to that suite** (nothing can trigger them): `finder_retention`
 (PII scrub + deletion of finders no case references), `geocodeCachePurge` and
 `idempotencyKeyPurge`. Verify one by copying `pb_hooks` to a tempdir, rewriting its schedule
-to `* * * * *`, and running a throwaway container against that copy.
+to `* * * * *`, and running a throwaway container against that copy —
+`tests/run_cron.sh` + `test_cron.py` do exactly that for `auditRetention` and are the
+template for the rest (one `sed` line per job). Kept out of `run.sh`/CI because it waits for
+a wall-clock minute boundary. A window measured in days cannot be reached by backdating
+(`created` is a server-owned autodate), so the test makes the window vanishingly small
+(`0.000001` days = 86 ms) instead. Assert per-org windows, not just one: the window is read
+from a JSON field, i.e. through the `getString()`+`JSON.parse` trap
+(federfall-jumi), and a single-org test cannot tell a working settings read from a broken one.
 
 **Case timeline pattern:** every clinical record (weight, condition, medication +
 administration, journal, marking, placement, disposition) is one unified chronology. Each
