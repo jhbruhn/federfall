@@ -6,7 +6,7 @@ import 'package:federfall_models/src/converters.dart';
 /// what is stored, and `audit_action_registry_test.dart` fails if the two
 /// lists ever drift apart. An action MISSING here is not an error: the column
 /// is plain text precisely so a newer server can log something an older client
-/// has never heard of, and [AuditEvent.rawAction] keeps that value so the line
+/// has never heard of, and `AuditEvent.rawAction` keeps that value so the line
 /// still renders from its envelope.
 enum AuditAction {
   caseIntake('case.intake'),

@@ -14,7 +14,7 @@ void main() {
   late PbAuditEventsRepository repo;
 
   /// The captured arguments of the last getList call.
-  Map<Symbol, dynamic> lastCall = {};
+  var lastCall = <Symbol, dynamic>{};
 
   setUp(() {
     pb = _MockPb();
@@ -25,7 +25,9 @@ void main() {
     when(() => pb.filter(any(), any())).thenAnswer((i) {
       var expr = i.positionalArguments.first as String;
       final params = i.positionalArguments[1] as Map<String, dynamic>? ?? {};
-      params.forEach((k, v) => expr = expr.replaceAll('{:$k}', "'$v'"));
+      for (final param in params.entries) {
+        expr = expr.replaceAll('{:${param.key}}', "'${param.value}'");
+      }
       return expr;
     });
     repo = PbAuditEventsRepository(pb);
@@ -92,7 +94,7 @@ void main() {
     test('a short page is the end of the feed', () async {
       stub((_) => [row('e1', '2026-08-04 10:00:02.000Z')]);
 
-      final page = await repo.search(perPage: 50);
+      final page = await repo.search();
 
       expect(page.hasMore, isFalse);
       expect(page.cursor, isNull);
@@ -189,7 +191,7 @@ void main() {
     test('a time range is half-open and in UTC', () {
       final f = repo.filterFor(
         AuditQuery(
-          from: DateTime.utc(2026, 8, 1),
+          from: DateTime.utc(2026, 8),
           to: DateTime.utc(2026, 9),
         ),
       );
@@ -207,7 +209,7 @@ void main() {
     });
   });
 
-  test('the request id narrows to one action\'s rows', () {
+  test("the request id narrows to one action's rows", () {
     final f = repo.filterFor(const AuditQuery(requestId: 'req7'));
 
     expect(f!.expression, contains("request_id = 'req7'"));

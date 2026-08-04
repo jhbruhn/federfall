@@ -2,6 +2,7 @@
 /// `RecordModel` → model mappers that build them.
 library;
 
+export 'src/audit_actions.dart';
 export 'src/converters.dart'
     show
         pbBool,
@@ -14,7 +15,6 @@ export 'src/converters.dart'
         pbString,
         pbStringList;
 export 'src/dosing.dart';
-export 'src/audit_actions.dart';
 export 'src/enums.dart';
 export 'src/models/admission_reason.dart';
 export 'src/models/animal.dart';

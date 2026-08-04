@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:federfall_data/src/repository_exception.dart';
 import 'package:http/http.dart' as http;
+import 'package:meta/meta.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 /// Read-only contract of a collection repository. View-backed repositories
@@ -58,6 +59,7 @@ class PbFilter {
 /// `created` alone is not enough — PocketBase stores milliseconds, so two rows
 /// written in the same millisecond would make one of them unreachable (or
 /// repeat forever). The id breaks that tie.
+@immutable
 class PbCursor {
   const PbCursor({required this.created, required this.id});
 

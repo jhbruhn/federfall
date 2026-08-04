@@ -1,5 +1,6 @@
 import 'package:federfall_data/src/pb_repository.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:meta/meta.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 /// What a supervisor is looking for in the audit log.
@@ -7,6 +8,7 @@ import 'package:pocketbase/pocketbase.dart';
 /// Every field narrows; leaving one out means "any". Turned into a bound
 /// filter by [PbAuditEventsRepository.filterFor], so nothing here is ever
 /// interpolated into a filter string.
+@immutable
 class AuditQuery {
   const AuditQuery({
     this.actorId,

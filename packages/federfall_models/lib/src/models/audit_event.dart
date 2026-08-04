@@ -62,9 +62,6 @@ enum AuditSeverity {
 /// says about the past. Absent on rows written before the server recorded them.
 @freezed
 abstract class AuditFieldChange with _$AuditFieldChange {
-  /// Required by freezed for the [fromDisplay] / [toDisplay] getters below.
-  const AuditFieldChange._();
-
   const factory AuditFieldChange({
     required String field,
     String? from,
@@ -75,16 +72,10 @@ abstract class AuditFieldChange with _$AuditFieldChange {
     @Default(false) bool truncated,
   }) = _AuditFieldChange;
 
-  /// What to show for the old value: the snapshotted label when the server
-  /// recorded one, else the stored value (an enum wire string, a date, or —
-  /// for a relation logged before the labels existed — a bare id).
-  String? get fromDisplay =>
-      (fromLabel?.isNotEmpty ?? false) ? fromLabel : from;
+  /// Required by freezed for the [fromDisplay] / [toDisplay] getters below.
+  const AuditFieldChange._();
 
-  /// What to show for the new value. See [fromDisplay].
-  String? get toDisplay => (toLabel?.isNotEmpty ?? false) ? toLabel : to;
-
-  /// Named `fromPb` like [GeoPoint.fromPb], not `fromJson`: freezed reads a
+  /// Named `fromPb` like `GeoPoint.fromPb`, not `fromJson`: freezed reads a
   /// `fromJson` factory as an opt-in to json_serializable codegen, and this is
   /// a hand-written mapper over a PocketBase json column.
   factory AuditFieldChange.fromPb(Map<String, dynamic> json) =>
@@ -97,6 +88,15 @@ abstract class AuditFieldChange with _$AuditFieldChange {
         redacted: pbBool(json['redacted']),
         truncated: pbBool(json['truncated']),
       );
+
+  /// What to show for the old value: the snapshotted label when the server
+  /// recorded one, else the stored value (an enum wire string, a date, or —
+  /// for a relation logged before the labels existed — a bare id).
+  String? get fromDisplay =>
+      (fromLabel?.isNotEmpty ?? false) ? fromLabel : from;
+
+  /// What to show for the new value. See [fromDisplay].
+  String? get toDisplay => (toLabel?.isNotEmpty ?? false) ? toLabel : to;
 }
 
 /// The action-specific payload of an [AuditEvent].
@@ -213,7 +213,7 @@ sealed class AuditDetail with _$AuditDetail {
   ///
   /// Never throws and never returns null: an unrecognised action or a payload
   /// that does not fit becomes [UnknownDetail], an absent one [NoDetail].
-  static AuditDetail parse(AuditAction? action, Object? raw) {
+  factory AuditDetail.parse(AuditAction? action, Object? raw) {
     if (raw is! Map) return const AuditDetail.none();
     final json = Map<String, dynamic>.from(raw);
     if (json.isEmpty) return const AuditDetail.none();
