@@ -390,6 +390,37 @@ It clears the identifying fields (name, organisation, phone, email and the free-
 The window defaults to two years.
 You can change it per organisation by setting `finder_retention_years` in the organisation's settings.
 
+## The audit log
+
+Every meaningful action is recorded: who did it, to what, and what changed.
+Admissions, handoffs, dispositions, medication, deletions, sign-ins and failed sign-ins, role changes, case shares, and every report exported.
+Supervisors can read it; nobody else can, including coordinators.
+
+It is append-only, and that is enforced rather than promised.
+The API cannot write to it at all — only the server's own hooks can — and a second guard refuses any edit and any deletion of a recent row even from the admin dashboard.
+If you need to know whether someone tampered with it, the answer is that they would have had to reach the database file itself.
+
+Two things it deliberately does not contain.
+No finder ever appears by name: their contact details are scrubbed on a schedule (above), and a log that kept a copy would quietly undo that.
+No passwords or tokens: a credential change is recorded as having happened, without the value.
+Reading data is not logged, with one exception — exporting a report takes data off the system, so exports are recorded.
+
+### Retention
+
+Audit rows are personal data about your staff, so they do not accumulate forever.
+A daily job deletes rows older than the window, which defaults to two years.
+
+Set `audit_retention_days` in the organisation's settings to change it.
+`0` means keep everything indefinitely — appropriate if your own obligations require it, but then it is your responsibility to say so in your privacy notice.
+
+### Recording IP addresses
+
+Off by default.
+The client IP address and browser user agent are additional personal data about your staff, and most organisations running this do not need them to answer "who changed this bird's status".
+
+If you do need them — a shared account you are trying to pin down, or a documented security requirement — set `audit_log_client_info` to `true` in the organisation's settings.
+It applies from that moment on; existing rows are not backfilled, and turning it off again does not remove what was already recorded.
+
 ## Backups
 
 All persistent state — the SQLite database and uploaded photos — lives in the `pb_data` Docker volume.

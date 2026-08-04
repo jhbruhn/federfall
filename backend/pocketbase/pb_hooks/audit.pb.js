@@ -40,6 +40,99 @@
 // The epic sketched this key as `auditRetentionDays`; snake_case wins for
 // consistency with the settings keys already in the collection.
 
+// federfall-qt96.12 — the only way a row ever leaves this table.
+//
+// It needs no privilege the guard below does not already grant: it deletes
+// exactly what an operator would be allowed to delete, which is why the guard
+// can be absolute and stateless at the same time. Anything it tries that is
+// still inside the window is refused by the same check that refuses everyone
+// else, so a bug here degrades to "nothing was purged", never to "history was
+// quietly rewritten".
+cronAdd("auditRetention", "30 3 * * *", () => {
+  const DEFAULT_RETENTION_DAYS = 730;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const PAGE = 500;
+
+  let orgs = [];
+  try {
+    orgs = $app.findRecordsByFilter("organisations", "id != ''", "", 500, 0);
+  } catch (err) {
+    $app.logger().warn("audit retention: cannot list orgs", "err", String(err));
+    return;
+  }
+
+  for (const org of orgs) {
+    let days = DEFAULT_RETENTION_DAYS;
+    try {
+      // Bytes, not an object — see federfall-jumi.
+      const settings = JSON.parse(org.getString("settings") || "{}");
+      if (settings && settings.audit_retention_days !== undefined) {
+        const d = parseFloat(settings.audit_retention_days);
+        if (!isNaN(d) && d >= 0) days = d;
+      }
+    } catch (_) {
+      // Unreadable settings → the default window.
+    }
+    if (days === 0) continue; // 0 means keep forever
+
+    const cutoff = new Date(new Date().getTime() - days * DAY_MS)
+      .toISOString()
+      .replace("T", " ");
+
+    let purged = 0;
+    // Re-query from offset 0 each round: deleting shrinks the result set, so
+    // the next page of still-expired rows slides to the front.
+    for (;;) {
+      let batch;
+      try {
+        batch = $app.findRecordsByFilter(
+          "audit_events",
+          "org = {:org} && created < {:cutoff}",
+          "created",
+          PAGE,
+          0,
+          { org: org.id, cutoff: cutoff },
+        );
+      } catch (err) {
+        $app
+          .logger()
+          .warn("audit retention: query failed", "org", org.id, "err", String(err));
+        break;
+      }
+      if (!batch || batch.length === 0) break;
+
+      let deletedThisBatch = 0;
+      for (const row of batch) {
+        try {
+          $app.delete(row);
+          purged++;
+          deletedThisBatch++;
+        } catch (_) {
+          // The guard refused it (a row right on the boundary, or the org's
+          // window changed under us). Next run reconsiders it.
+        }
+      }
+      // Nothing went: everything left is refused, so stop rather than spin.
+      if (deletedThisBatch === 0) break;
+      if (batch.length < PAGE) break;
+    }
+
+    if (purged > 0) {
+      $app
+        .logger()
+        .info("audit retention: purged", "org", org.id, "count", purged);
+      // The purge is itself an audited act — and the only record that these
+      // rows ever existed. It ages out under the same window.
+      require(`${__hooks}/lib_audit.js`).emit(null, "audit.purged", {
+        actorKind: "cron",
+        org: org.id,
+        subject: { collection: "audit_events", id: "", label: "" },
+        detail: { count: purged, retention_days: days },
+      });
+    }
+  }
+});
+
 // Append-only: no update, from anywhere, for any reason.
 onRecordUpdate((e) => {
   throw new BadRequestError("audit_events is append-only.");
