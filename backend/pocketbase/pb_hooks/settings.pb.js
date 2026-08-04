@@ -41,7 +41,11 @@
 //                                   FEDERFALL_OAUTH2_<NAME>_CLIENT_SECRET  (req)
 //                                 Generic OIDC (oidc/oidc2/oidc3) also takes:
 //                                   _DISPLAY_NAME / _AUTH_URL / _TOKEN_URL /
-//                                   _USERINFO_URL / _PKCE ("true"/"false").
+//                                   _USERINFO_URL / _PKCE ("true"/"false";
+//                                   omit to keep PocketBase's own default,
+//                                   which is ON for OIDC — see below, do not
+//                                   turn it off for a provider that supports
+//                                   it).
 //
 // (The static brand name `appName` is set separately, by migration.)
 
@@ -129,7 +133,28 @@ onBootstrap((e) => {
       p.userInfoURL = env("FEDERFALL_OAUTH2_" + up + "_USERINFO_URL");
       const displayName = env("FEDERFALL_OAUTH2_" + up + "_DISPLAY_NAME");
       if (displayName) p.displayName = displayName;
-      p.pkce = env("FEDERFALL_OAUTH2_" + up + "_PKCE").toLowerCase() === "true";
+      // Only set `pkce` when the operator actually stated a preference.
+      // `ProviderConfig.PKCE` is a *bool: left unset, PocketBase keeps the
+      // provider's own default, which for generic OIDC is TRUE. Assigning
+      // `=== "true"` unconditionally wrote an explicit FALSE for every
+      // env-configured OIDC provider whose _PKCE var was merely absent —
+      // silently downgrading the framework default.
+      //
+      // That mattered because mobile sign-in redirects to the CUSTOM SCHEME
+      // federfall://oauth-callback (oauth_launcher.dart), which is not
+      // ownership-verified the way an App Link is: flutter_web_auth_2's
+      // exported CallbackActivity takes the redirect through ordinary system
+      // intent resolution on its non-AuthTab fallback path. Without PKCE
+      // nothing binds the authorization code to the app that started the
+      // flow, so another app on the device that claims the scheme can capture
+      // `code` and POST it to auth-with-oauth2 itself — PocketBase completes
+      // the exchange with the server-side client secret and hands back a
+      // session token for the victim's account (account takeover, not just
+      // code disclosure).
+      const pkceEnv = env("FEDERFALL_OAUTH2_" + up + "_PKCE").toLowerCase();
+      if (pkceEnv === "true" || pkceEnv === "false") {
+        p.pkce = pkceEnv === "true";
+      }
     }
     providers.push(p);
   }

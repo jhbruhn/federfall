@@ -277,7 +277,7 @@ FEDERFALL_OAUTH2_OIDC_DISPLAY_NAME: "Single sign-on"           # the button labe
 FEDERFALL_OAUTH2_OIDC_AUTH_URL: "https://id.yourdomain.tld/application/o/authorize/"
 FEDERFALL_OAUTH2_OIDC_TOKEN_URL: "https://id.yourdomain.tld/application/o/token/"
 FEDERFALL_OAUTH2_OIDC_USERINFO_URL: "https://id.yourdomain.tld/application/o/userinfo/"
-FEDERFALL_OAUTH2_OIDC_PKCE: "true"                             # most OIDC providers want this
+FEDERFALL_OAUTH2_OIDC_PKCE: "true"                             # the default; leave it on
 ```
 
 The full set of per-provider variables:
@@ -290,7 +290,7 @@ The full set of per-provider variables:
 | `FEDERFALL_OAUTH2_<NAME>_AUTH_URL` | OIDC | Authorization endpoint; setting it marks the provider as a custom OIDC |
 | `FEDERFALL_OAUTH2_<NAME>_TOKEN_URL` | OIDC | Token endpoint |
 | `FEDERFALL_OAUTH2_<NAME>_USERINFO_URL` | OIDC | Userinfo endpoint |
-| `FEDERFALL_OAUTH2_<NAME>_PKCE` | OIDC | `"true"` or `"false"` |
+| `FEDERFALL_OAUTH2_<NAME>_PKCE` | OIDC | `"true"` or `"false"`. Omit it to keep PocketBase's default, which is **on** for OIDC. Only set `"false"` for a provider that genuinely cannot do PKCE: the mobile apps sign in through the `federfall://oauth-callback` custom scheme below, and PKCE is what stops another app on the device from claiming that scheme and redeeming the intercepted authorization code as the user. |
 
 Register **two** redirect/callback URIs with your provider — both, so the flow works from every client:
 
