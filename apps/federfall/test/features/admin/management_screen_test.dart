@@ -113,6 +113,53 @@ void main() {
     expect(find.text('Statistics'), findsNothing);
   });
 
+  group('the hub is grouped, and every entry says what it governs', () {
+    test('the grouped walk covers every section exactly once', () {
+      // The hub renders group by group, so a section whose group forgot it
+      // would silently vanish from the menu while its route kept working.
+      expect(
+        AdminSectionGroup.values.expand((g) => g.sections),
+        AdminSection.values,
+      );
+    });
+
+    testWidgets('each group heads its own entries, each with a subtitle', (
+      tester,
+    ) async {
+      // Tall enough that the whole menu is laid out at once, and narrow enough
+      // (< 840) that the hub owns the full width rather than a 360 pane.
+      tester.view.physicalSize = const Size(700, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _pump(tester, role: UserRole.supervisor);
+
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(ManagementScreen)),
+      );
+      for (final group in AdminSectionGroup.values) {
+        expect(
+          find.text(group.title(l10n)),
+          findsOneWidget,
+          reason: 'group heading ${group.name}',
+        );
+        for (final section in group.sections) {
+          expect(
+            find.text(section.title(l10n)),
+            findsOneWidget,
+            reason: 'title of ${section.name}',
+          );
+          expect(
+            find.text(section.subtitle(l10n)),
+            findsOneWidget,
+            reason: 'subtitle of ${section.name}',
+          );
+        }
+      }
+    });
+  });
+
   testWidgets('wide screens show the hub beside a selection placeholder', (
     tester,
   ) async {

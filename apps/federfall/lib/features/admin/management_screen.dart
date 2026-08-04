@@ -14,44 +14,90 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+/// The groups the hub sorts its sections into. A flat list of eight entries
+/// reads as one undifferentiated pile; grouping says *what kind* of setting
+/// each one is before the user has to read every label.
+enum AdminSectionGroup {
+  /// Who the organisation is and who may act for it.
+  organisation,
+
+  /// The pick-lists the rest of the app offers — what a team may choose from.
+  codelists,
+
+  /// What the system recorded about itself.
+  oversight;
+
+  String title(AppLocalizations l10n) => switch (this) {
+    AdminSectionGroup.organisation => l10n.adminGroupOrganisation,
+    AdminSectionGroup.codelists => l10n.adminGroupCodelists,
+    AdminSectionGroup.oversight => l10n.adminGroupOversight,
+  };
+
+  /// The sections in this group, in declaration order.
+  Iterable<AdminSection> get sections =>
+      AdminSection.values.where((s) => s.group == this);
+}
+
 /// One admin section reachable from the hub. Carries everything the hub tile
 /// and the router need, so the two cannot drift: the router declares one child
 /// route per value rather than repeating the list.
+///
+/// Declared grouped, so [AdminSectionGroup.sections] is an in-order filter and
+/// the hub's reading order is this file's.
 enum AdminSection {
-  team(Icons.group_outlined, AppRoutes.manageTeam, AppRoutes.manageTeamSegment),
+  team(
+    AdminSectionGroup.organisation,
+    Icons.group_outlined,
+    AppRoutes.manageTeam,
+    AppRoutes.manageTeamSegment,
+  ),
   orgSettings(
+    AdminSectionGroup.organisation,
     Icons.business_outlined,
     AppRoutes.orgSettings,
     AppRoutes.orgSettingsSegment,
   ),
   conditions(
+    AdminSectionGroup.codelists,
     Icons.checklist_outlined,
     AppRoutes.conditionsAdmin,
     AppRoutes.conditionsAdminSegment,
   ),
   admissionReasons(
+    AdminSectionGroup.codelists,
     Icons.flight_land_outlined,
     AppRoutes.admissionReasonsAdmin,
     AppRoutes.admissionReasonsAdminSegment,
   ),
   markingTypes(
+    AdminSectionGroup.codelists,
     Icons.sell_outlined,
     AppRoutes.markingTypesAdmin,
     AppRoutes.markingTypesAdminSegment,
   ),
   medicationRoutes(
+    AdminSectionGroup.codelists,
     Icons.medication_outlined,
     AppRoutes.medicationRoutesAdmin,
     AppRoutes.medicationRoutesAdminSegment,
   ),
   medicationProducts(
+    AdminSectionGroup.codelists,
     Icons.inventory_2_outlined,
     AppRoutes.medicationProductsAdmin,
     AppRoutes.medicationProductsAdminSegment,
   ),
-  audit(Icons.history_toggle_off, AppRoutes.audit, AppRoutes.auditSegment);
+  audit(
+    AdminSectionGroup.oversight,
+    Icons.history_toggle_off,
+    AppRoutes.audit,
+    AppRoutes.auditSegment,
+  );
 
-  const AdminSection(this.icon, this.route, this.segment);
+  const AdminSection(this.group, this.icon, this.route, this.segment);
+
+  /// The hub group this section is listed under.
+  final AdminSectionGroup group;
 
   final IconData icon;
 
@@ -70,6 +116,20 @@ enum AdminSection {
     AdminSection.medicationRoutes => l10n.medicationRoutesAdminTitle,
     AdminSection.medicationProducts => l10n.medProductsAdminTitle,
     AdminSection.audit => l10n.auditTitle,
+  };
+
+  /// One line on what this section governs. The titles are short nouns
+  /// ("Marking types"), which say what a screen is called but not what
+  /// choosing it changes elsewhere in the app.
+  String subtitle(AppLocalizations l10n) => switch (this) {
+    AdminSection.team => l10n.manageTeamSubtitle,
+    AdminSection.orgSettings => l10n.orgSettingsSubtitle,
+    AdminSection.conditions => l10n.conditionsAdminSubtitle,
+    AdminSection.admissionReasons => l10n.admissionReasonsAdminSubtitle,
+    AdminSection.markingTypes => l10n.markingTypesAdminSubtitle,
+    AdminSection.medicationRoutes => l10n.medicationRoutesAdminSubtitle,
+    AdminSection.medicationProducts => l10n.medProductsAdminSubtitle,
+    AdminSection.audit => l10n.auditSubtitle,
   };
 
   Widget screen() => switch (this) {
@@ -160,14 +220,19 @@ class ManagementScreen extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          for (final s in AdminSection.values)
-            _HubTile(
-              icon: s.icon,
-              title: s.title(l10n),
-              // Only the wide layout keeps a persistent selection to highlight.
-              selected: expanded && s == section,
-              onTap: () => _open(context, s),
-            ),
+          for (final group in AdminSectionGroup.values) ...[
+            _GroupHeader(title: group.title(l10n)),
+            for (final s in group.sections)
+              _HubTile(
+                icon: s.icon,
+                title: s.title(l10n),
+                subtitle: s.subtitle(l10n),
+                // Only the wide layout keeps a persistent selection to
+                // highlight.
+                selected: expanded && s == section,
+                onTap: () => _open(context, s),
+              ),
+          ],
         ],
       ),
     );
@@ -196,18 +261,47 @@ class ManagementScreen extends ConsumerWidget {
   }
 }
 
-/// One hub row: a labelled icon that opens its section (in the side pane on
-/// wide screens, or full-screen on narrow ones), highlighted while active.
+/// Heading over one group of hub rows.
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.md,
+        right: AppSpacing.md,
+        top: AppSpacing.lg,
+        bottom: AppSpacing.sm,
+      ),
+      child: Text(
+        title,
+        style: theme.textTheme.titleSmall?.copyWith(
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+/// One hub row: a labelled icon over a line of explanation, opening its section
+/// (in the side pane on wide screens, or full-screen on narrow ones),
+/// highlighted while active.
 class _HubTile extends StatelessWidget {
   const _HubTile({
     required this.icon,
     required this.title,
+    required this.subtitle,
     required this.onTap,
     this.selected = false,
   });
 
   final IconData icon;
   final String title;
+  final String subtitle;
   final VoidCallback onTap;
   final bool selected;
 
@@ -215,6 +309,7 @@ class _HubTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     leading: Icon(icon),
     title: Text(title),
+    subtitle: Text(subtitle),
     trailing: const Icon(Icons.chevron_right),
     selected: selected,
     onTap: onTap,
