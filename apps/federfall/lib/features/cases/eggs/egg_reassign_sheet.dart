@@ -1,9 +1,9 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
+import 'package:federfall/features/animals/animal_search_picker.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
-import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -181,9 +181,10 @@ class _EggReassignSheetState extends ConsumerState<EggReassignSheet>
               onPick: _pick,
             ),
             const SizedBox(height: AppSpacing.md),
-            _TargetSearch(
+            AnimalSearchPicker(
               controller: _searchController,
               query: _query,
+              label: l10n.eggReassignSearchLabel,
               excludeAnimalId: widget.egg.animal,
               enabled: !isBusy,
               onSearch: (q) => setState(() => _query = q),
@@ -327,98 +328,6 @@ class _CoResidents extends ConsumerWidget {
                   ),
                 ),
         ),
-      ],
-    );
-  }
-}
-
-/// Re-identification search for any other animal, for when the layer was not an
-/// enclosure mate (same shape as the merge flow's candidate search).
-class _TargetSearch extends ConsumerWidget {
-  const _TargetSearch({
-    required this.controller,
-    required this.query,
-    required this.excludeAnimalId,
-    required this.enabled,
-    required this.onSearch,
-    required this.onPick,
-  });
-
-  final TextEditingController controller;
-  final String query;
-  final String excludeAnimalId;
-  final bool enabled;
-  final ValueChanged<String> onSearch;
-  final ValueChanged<Animal> onPick;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: AppTextField(
-                controller: controller,
-                label: l10n.eggReassignSearchLabel,
-                prefixIcon: Icons.search,
-                enabled: enabled,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (v) => onSearch(v.trim()),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            IconButton.filledTonal(
-              icon: const Icon(Icons.search),
-              tooltip: l10n.eggReassignSearchLabel,
-              onPressed: enabled
-                  ? () => onSearch(controller.text.trim())
-                  : null,
-            ),
-          ],
-        ),
-        if (query.isNotEmpty)
-          ref
-              .watch(reidSearchProvider(query))
-              .when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                error: (_, _) => const SizedBox.shrink(),
-                data: (matches) {
-                  final results = matches
-                      .where((m) => m.animal.id != excludeAnimalId)
-                      .toList();
-                  if (results.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.sm),
-                      child: Text(
-                        l10n.reidNoMatches,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    );
-                  }
-                  return Card(
-                    margin: const EdgeInsets.only(top: AppSpacing.sm),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final m in results)
-                          ListTile(
-                            leading: const Icon(Icons.pets_outlined),
-                            title: Text(animalTitle(m.animal)),
-                            onTap: enabled ? () => onPick(m.animal) : null,
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
       ],
     );
   }

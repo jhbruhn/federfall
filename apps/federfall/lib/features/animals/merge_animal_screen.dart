@@ -1,6 +1,7 @@
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
+import 'package:federfall/features/animals/animal_search_picker.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -160,9 +161,11 @@ class _MergeAnimalScreenState extends ConsumerState<MergeAnimalScreen> {
             children: [
               _CurrentAnimalCard(current),
               const SizedBox(height: AppSpacing.md),
-              _CandidateSearch(
+              AnimalSearchPicker(
                 controller: _searchController,
                 query: _query,
+                label: l10n.animalMergeSearchLabel,
+                hintText: l10n.animalMergeSearchHint,
                 excludeAnimalId: current.id,
                 enabled: !_busy,
                 onSearch: (q) => setState(() => _query = q),
@@ -239,101 +242,6 @@ class _CurrentAnimalCard extends StatelessWidget {
         title: Text(title),
         subtitle: Text(l10n.animalMergeCurrentSubtitle),
       ),
-    );
-  }
-}
-
-/// Re-identification-style search (reuses [reidSearchProvider]) scoped to
-/// finding the OTHER record of a duplicate pair — the animal the flow was
-/// opened from is excluded from its own results.
-class _CandidateSearch extends ConsumerWidget {
-  const _CandidateSearch({
-    required this.controller,
-    required this.query,
-    required this.excludeAnimalId,
-    required this.enabled,
-    required this.onSearch,
-    required this.onPick,
-  });
-
-  final TextEditingController controller;
-  final String query;
-  final String excludeAnimalId;
-  final bool enabled;
-  final ValueChanged<String> onSearch;
-  final ValueChanged<Animal> onPick;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: AppTextField(
-                controller: controller,
-                label: l10n.animalMergeSearchLabel,
-                hintText: l10n.animalMergeSearchHint,
-                prefixIcon: Icons.search,
-                enabled: enabled,
-                textInputAction: TextInputAction.search,
-                onChanged: (_) {},
-                onSubmitted: (v) => onSearch(v.trim()),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            IconButton.filledTonal(
-              icon: const Icon(Icons.search),
-              tooltip: l10n.animalMergeSearchLabel,
-              onPressed: enabled
-                  ? () => onSearch(controller.text.trim())
-                  : null,
-            ),
-          ],
-        ),
-        if (query.isNotEmpty)
-          ref
-              .watch(reidSearchProvider(query))
-              .when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                error: (_, _) => const SizedBox.shrink(),
-                data: (matches) {
-                  final results = matches
-                      .where((m) => m.animal.id != excludeAnimalId)
-                      .toList();
-                  if (results.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.sm),
-                      child: Text(
-                        l10n.reidNoMatches,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    );
-                  }
-                  return Card(
-                    margin: const EdgeInsets.only(top: AppSpacing.sm),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final m in results)
-                          ListTile(
-                            leading: const Icon(Icons.pets_outlined),
-                            title: Text(animalTitle(m.animal)),
-                            onTap: enabled ? () => onPick(m.animal) : null,
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-      ],
     );
   }
 }
