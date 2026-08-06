@@ -63,20 +63,17 @@ cronAdd("finderPiiRetention", "0 3 * * *", () => {
     return isNaN(d.getTime()) ? null : d;
   };
 
-  const retentionMsForOrg = (orgId) => {
-    let years = DEFAULT_RETENTION_YEARS;
-    try {
-      const org = $app.findRecordById("organisations", orgId);
-      const settings = org.get("settings");
-      if (settings && settings.finder_retention_years) {
-        const y = parseFloat(settings.finder_retention_years);
-        if (!isNaN(y) && y > 0) years = y;
-      }
-    } catch (_) {
-      // no org / no settings → default window
-    }
-    return years * YEAR_MS;
-  };
+  // federfall-jumi: read through lib_org.js. This used to call
+  // `org.get("settings")`, which hands JS a byte array rather than an object —
+  // so `finder_retention_years` was ALWAYS undefined and every org silently
+  // got the default window, however it had configured itself.
+  const orgs = require(`${__hooks}/lib_org.js`);
+  const retentionMsForOrg = (orgId) =>
+    orgs.positiveNumber(
+      orgs.settingsOf($app, orgId),
+      "finder_retention_years",
+      DEFAULT_RETENTION_YEARS,
+    ) * YEAR_MS;
 
   // Latest "case ended" date for a finder, or null if any case is still active.
   // Reads dispositions directly — a case is "ended" once its status is disposed,

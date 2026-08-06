@@ -246,10 +246,15 @@ query.
 - **Reading a JSON FIELD from a hook** (federfall-jumi) — the same trap outside views:
   `record.get("settings")` hands JS a `types.JSONRaw`, i.e. a **byte array**, not a decoded
   object. `settings.someKey` is therefore always `undefined` and the code falls through to
-  its default in silence. Use `JSON.parse(record.getString("settings") || "{}")`. Passing
-  `get()`'s value straight back to Go (`e.json(200, rec.get("response"))`) is fine — JSONRaw
-  marshals correctly; only property access in JS is broken. This silently disabled the
-  org-configurable windows in `finder_retention.pb.js` and `main.pb.js`.
+  its default in silence. Passing `get()`'s value straight back to Go
+  (`e.json(200, rec.get("response"))`) is fine — JSONRaw marshals correctly; only property
+  access in JS is broken. It had silently disabled the org-configurable windows in
+  `finder_retention.pb.js` and `main.pb.js`, so **`organisations.settings` now has exactly
+  one reader**: `pb_hooks/lib_org.js` (`settingsOf` / `positiveNumber` / `flag`) — go through
+  it rather than writing a fifth `getString()`+`JSON.parse`. Both windows it once broke are
+  covered now: the quarantine default in `test_rules.py`, the finder scrub in `test_cron.py`
+  (a cron, so `run_cron.sh` makes it due every minute — it now rewrites BOTH retention
+  schedules).
 - **Build-time config** (`AppEnvironment`): `POCKETBASE_URL`, `MAP_TILE_URL`,
   `MAP_ATTRIBUTION` come from `dart_defines/<flavor>.json` as compile-time constants — they
   need a rebuild, not hot reload (a stale build silently falls back to defaults).

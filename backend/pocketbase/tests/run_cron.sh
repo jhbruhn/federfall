@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# federfall-qt96.12 — the audit retention cron, against a throwaway PocketBase.
+# federfall-qt96.12 — the cron jobs, against a throwaway PocketBase.
 #
 # Separate from run.sh because `cronAdd` jobs are INVISIBLE to that suite:
 # nothing in the API can trigger one, so the assertion suite can only ever test
@@ -38,13 +38,21 @@ echo "==> Ensuring image $IMAGE exists"
 docker image inspect "$IMAGE" >/dev/null 2>&1 || \
   docker build --target backend -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"
 
-echo "==> Copying hooks and making auditRetention due every minute"
+echo "==> Copying hooks and making the retention jobs due every minute"
 cp -r "$PB_DIR/pb_hooks/." "$HOOKS/"
-# Only this one job. The other crons (finder_retention, geocodeCachePurge,
-# idempotencyKeyPurge) keep their real schedules so they cannot interfere.
+# The two RETENTION jobs, which are the ones that read an org-configurable
+# window out of a JSON field (federfall-jumi) and so cannot be trusted to a
+# code review. The remaining crons (geocodeCachePurge, idempotencyKeyPurge)
+# keep their real schedules so they cannot interfere — see federfall-ecpr.
+# They work on disjoint collections, so both being due together is fine.
 sed -i 's|cronAdd("auditRetention", "30 3 \* \* \*"|cronAdd("auditRetention", "* * * * *"|' \
   "$HOOKS/audit.pb.js"
 grep -q 'cronAdd("auditRetention", "\* \* \* \* \*"' "$HOOKS/audit.pb.js" || {
+  echo "the schedule rewrite did not apply — has the cron been renamed?"; exit 1; }
+sed -i 's|cronAdd("finderPiiRetention", "0 3 \* \* \*"|cronAdd("finderPiiRetention", "* * * * *"|' \
+  "$HOOKS/finder_retention.pb.js"
+grep -q 'cronAdd("finderPiiRetention", "\* \* \* \* \*"' \
+  "$HOOKS/finder_retention.pb.js" || {
   echo "the schedule rewrite did not apply — has the cron been renamed?"; exit 1; }
 
 echo "==> Applying migrations to throwaway data dir"
@@ -86,7 +94,8 @@ set -e
 
 # The purge logs what it did; on a failure that is the first thing to look at.
 if [ "$STATUS" -ne 0 ]; then
-  echo "==> Container log (audit retention lines)"
-  docker logs "$NAME" 2>&1 | grep -i "audit retention" || echo "  (none)"
+  echo "==> Container log (retention lines)"
+  docker logs "$NAME" 2>&1 | grep -iE "audit retention|finder retention" \
+    || echo "  (none)"
 fi
 exit "$STATUS"

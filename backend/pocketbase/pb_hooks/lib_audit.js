@@ -1141,15 +1141,8 @@ function requestId(e) {
 // about staff, so it is off unless asked for. Re-read per emit: caching it
 // would be module state, which is per-VM and therefore a lie (see the header).
 function wantsClientInfo(app, orgId) {
-  try {
-    const org = app.findRecordById("organisations", orgId);
-    // get() on a json field returns BYTES in the JSVM, not an object — the
-    // property read would silently be undefined. See federfall-jumi.
-    const settings = JSON.parse(org.getString("settings") || "{}");
-    return settings.audit_log_client_info === true;
-  } catch (_) {
-    return false;
-  }
+  const orgs = require(`${__hooks}/lib_org.js`);
+  return orgs.flag(orgs.settingsOf(app, orgId), "audit_log_client_info");
 }
 
 /**

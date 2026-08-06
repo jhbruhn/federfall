@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""federfall-qt96.12 — the audit retention cron, observed actually running.
+"""federfall-qt96.12 — the retention crons, observed actually running.
 
 Driven by run_cron.sh, which provisions a throwaway instance whose
-`auditRetention` job is due every minute. Standalone otherwise, against an
+`auditRetention` and `finderPiiRetention` jobs are due every minute. Standalone otherwise, against an
 instance you have patched the same way:
 
     FED_TEST_URL=http://localhost:8098 python3 test_cron.py
@@ -89,6 +89,33 @@ def exists(token, row_id):
     return s == 200
 
 
+def finder_of_closed_case(token, org):
+    """A finder whose only case has just ENDED, in [org] — i.e. one whose
+    retention window is running from this moment.
+
+    `cases.finder` is locked against client writes (1700000044) and written
+    only by the intake route; rules do not apply to a superuser, so this can
+    set it directly rather than driving intake for a fixture.
+    """
+    animal = mk(token, "animals", {"species": "Stadttaube", "org": org})["id"]
+    finder = mk(token, "finders", {
+        "first_name": "Anna", "last_name": "Finderin",
+        "phone": "0151 000000", "email": "anna@example.org",
+        "notes": "am Bahnhof aufgesammelt",
+        "city": "Oldenburg", "region": "Niedersachsen", "org": org,
+    })["id"]
+    case = mk(token, "cases", {"animal": animal, "org": org, "finder": finder})["id"]
+    # The disposition hook closes the case; its `created` is the window's start
+    # (never `disposed_at`, which a client could backdate).
+    mk(token, "dispositions", {"case": case, "type": "released", "org": org})
+    return finder
+
+
+def finder_row(token, finder_id):
+    s, d = req("GET", f"/api/collections/finders/records/{finder_id}", token)
+    return d if s == 200 else {}
+
+
 def main():
     s, d = req("POST", "/api/collections/_superusers/auth-with-password",
                body={"identity": ADMIN_EMAIL, "password": ADMIN_PASS})
@@ -162,6 +189,61 @@ def main():
               and (p.get("detail") or {}).get("retention_days") == 0.000001
               for p in purges),
           [p.get("detail") for p in purges])
+
+    # ── finder PII retention ────────────────────────────────────────────
+    # federfall-jumi: this window was read with record.get() on a json field,
+    # which hands the JSVM a byte array — so `finder_retention_years` was
+    # ALWAYS undefined and every org silently got the 2-year default. Nothing
+    # in test_rules.py can reach a cron, so this is the only place that can
+    # tell a working settings read from a broken one. Two orgs for exactly
+    # that reason: with one, the default and a working read agree.
+    print("\n[finder PII retention cron]")
+
+    scrub_org = mk(T, "organisations", {
+        "name": "Scrub Now", "settings": {"finder_retention_years": 0.000001},
+    })["id"]
+    keep_org = mk(T, "organisations", {
+        "name": "Keep Long", "settings": {"finder_retention_years": 100},
+    })["id"]
+
+    doomed_finder = finder_of_closed_case(T, scrub_org)
+    kept_finder = finder_of_closed_case(T, keep_org)
+    check("the probe finders hold PII to begin with (parse guard)",
+          finder_row(T, doomed_finder).get("first_name") == "Anna"
+          and finder_row(T, kept_finder).get("first_name") == "Anna",
+          "a fixture finder was not created with its PII")
+
+    print("  … waiting for the finder cron to fire (up to 100 s)")
+    deadline = time.time() + 100
+    while time.time() < deadline:
+        if finder_row(T, doomed_finder).get("pii_purged"):
+            break
+        time.sleep(2)
+
+    scrubbed = finder_row(T, doomed_finder)
+    check("the cron anonymised the finder past its org's window",
+          scrubbed.get("pii_purged") is True,
+          "still holding PII — the job never fired, or the window was ignored")
+    check("...clearing identity, contact and the freeform notes",
+          all(not scrubbed.get(f) for f in
+              ("first_name", "last_name", "phone", "email", "notes")),
+          {f: scrubbed.get(f) for f in
+           ("first_name", "last_name", "phone", "email", "notes")})
+    # The location is deliberately kept: non-identifying, and it is what feeds
+    # "where do birds come from".
+    check("...but keeping the non-identifying location",
+          scrubbed.get("city") == "Oldenburg"
+          and scrubbed.get("region") == "Niedersachsen", scrubbed)
+
+    # The whole point of the two orgs: a 100-year window must still be honoured
+    # a minute later. If the settings read is broken this row gets the 2-year
+    # default — which also keeps it — so the assertion above is what catches a
+    # broken read, and this one catches a window that is ignored in the other
+    # direction (scrubbing everything).
+    survivor = finder_row(T, kept_finder)
+    check("an organisation with a long window keeps its finder's PII",
+          survivor.get("pii_purged") is False
+          and survivor.get("first_name") == "Anna", survivor)
 
     print(f"\n{'=' * 50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)

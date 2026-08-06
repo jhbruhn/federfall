@@ -240,6 +240,31 @@ def main():
     check("default quarantine row = admitted + 14d",
           len(qrows) == 1 and qrows[0]["quarantine_until"][:10] == "2026-03-24",
           qrows)
+
+    # ...and that 14 is only the FALLBACK: the duration is org-configurable
+    # (organisations.settings.quarantineDefaultDays). federfall-jumi: this was
+    # read with record.get() on a json field, which hands the JSVM a byte array
+    # rather than an object, so the key was always undefined and every org
+    # silently got 14 days however it had configured itself. The setting is
+    # restored immediately after, so the rest of the suite keeps the default.
+    req("PATCH", f"/api/collections/organisations/records/{ORG}", T,
+        {"settings": {"quarantineDefaultDays": 5}})
+    cq = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG,
+                         "admitted_at": "2026-03-10 09:00:00.000Z"})
+    cqrows = listf(T, "quarantine_records", f'case="{cq["id"]}"')
+    check("the org's configured quarantine default is applied (admitted + 5d)",
+          len(cqrows) == 1
+          and cqrows[0]["quarantine_until"][:10] == "2026-03-15",
+          cqrows)
+    req("PATCH", f"/api/collections/organisations/records/{ORG}", T,
+        {"settings": {}})
+    cq2 = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG,
+                          "admitted_at": "2026-03-10 09:00:00.000Z"})
+    cq2rows = listf(T, "quarantine_records", f'case="{cq2["id"]}"')
+    check("clearing the setting falls back to 14 days again",
+          len(cq2rows) == 1
+          and cq2rows[0]["quarantine_until"][:10] == "2026-03-24",
+          cq2rows)
     # federfall-4k4: the max must be derived numerically ("2024-1000" >
     # "2024-999" only as numbers) and the prefix match anchored (a manual
     # "ALT-2024-7" CONTAINS "2024-" but must not pollute the sequence).

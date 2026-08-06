@@ -91,19 +91,16 @@ onRecordAfterCreateSuccess((e) => {
     // fall back to 14 days when unset or invalid. The app overrides this per
     // case by updating this record after intake, so this also covers cases
     // created outside the app (Admin UI / import).
-    let days = 14;
-    const orgId = caseRec.get("org");
-    if (orgId) {
-      try {
-        const org = e.app.findRecordById("organisations", orgId);
-        const settings = org.get("settings");
-        const v = settings && settings.quarantineDefaultDays;
-        const n = parseInt(v, 10);
-        if (!isNaN(n) && n > 0) days = n;
-      } catch (_) {
-        // No org / no settings — keep the 14-day fallback.
-      }
-    }
+    // federfall-jumi: read through lib_org.js. This used to call
+    // `org.get("settings")`, which hands JS a byte array rather than an object
+    // — so `quarantineDefaultDays` was ALWAYS undefined and every org silently
+    // got 14 days, however it had configured itself.
+    const orgs = require(`${__hooks}/lib_org.js`);
+    const days = orgs.positiveNumber(
+      orgs.settingsOf(e.app, caseRec.get("org")),
+      "quarantineDefaultDays",
+      14,
+    );
     const until = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
 
     const rec = new Record(e.app.findCollectionByNameOrId("quarantine_records"));

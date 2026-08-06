@@ -61,18 +61,16 @@ cronAdd("auditRetention", "30 3 * * *", () => {
     return;
   }
 
+  const orgSettings = require(`${__hooks}/lib_org.js`);
   for (const org of orgs) {
-    let days = DEFAULT_RETENTION_DAYS;
-    try {
-      // Bytes, not an object — see federfall-jumi.
-      const settings = JSON.parse(org.getString("settings") || "{}");
-      if (settings && settings.audit_retention_days !== undefined) {
-        const d = parseFloat(settings.audit_retention_days);
-        if (!isNaN(d) && d >= 0) days = d;
-      }
-    } catch (_) {
-      // Unreadable settings → the default window.
-    }
+    // `allowZero`: unlike a retention WINDOW elsewhere, 0 is a legitimate
+    // instruction here — it disables the sweep for that org.
+    const days = orgSettings.positiveNumber(
+      orgSettings.settingsOf($app, org.id),
+      "audit_retention_days",
+      DEFAULT_RETENTION_DAYS,
+      { allowZero: true },
+    );
     if (days === 0) continue; // 0 means keep forever
 
     const cutoff = new Date(new Date().getTime() - days * DAY_MS)
@@ -152,24 +150,17 @@ onRecordDelete((e) => {
     throw new BadRequestError("audit_events is append-only.");
   }
 
-  let days = DEFAULT_RETENTION_DAYS;
-  try {
-    const org = e.app.findRecordById("organisations", rec.getString("org"));
-    // record.get() on a json field hands JS a types.JSONRaw — a BYTE ARRAY, not
-    // a decoded object, so `settings.audit_retention_days` reads as undefined
-    // and every org would silently keep the default window. getString() returns
-    // the raw JSON text, which parses. (Passing get()'s value straight back to
-    // Go is fine — JSONRaw marshals correctly; only property access in JS is
-    // broken.) Verified on 0.39.8; see federfall-jumi for the same bug in
-    // finder_retention.pb.js and main.pb.js.
-    const settings = JSON.parse(org.getString("settings") || "{}");
-    if (settings && settings.audit_retention_days !== undefined) {
-      const d = parseFloat(settings.audit_retention_days);
-      if (!isNaN(d) && d >= 0) days = d;
-    }
-  } catch (_) {
-    // No org / no settings / unparseable → the default window.
-  }
+  // The same window the retention cron applies, read the same way — see
+  // lib_org.js for why a json field must never be reached through `get()`.
+  // `allowZero` because 0 disables retention for that org, which this guard
+  // then treats as "nothing may ever be deleted".
+  const orgSettings = require(`${__hooks}/lib_org.js`);
+  const days = orgSettings.positiveNumber(
+    orgSettings.settingsOf(e.app, rec.getString("org")),
+    "audit_retention_days",
+    DEFAULT_RETENTION_DAYS,
+    { allowZero: true },
+  );
 
   if (days === 0) {
     throw new BadRequestError(
