@@ -123,6 +123,39 @@ void main() {
     expect(_ids(result), ['in']);
   });
 
+  test("the admission day is the DEVICE's, not UTC's", () {
+    // federfall-s0wk: `admittedAt` arrives UTC (pbDate normalises with
+    // `.toUtc()`) while the range comes from a date picker, i.e. local days.
+    // Bucketing by the UTC day compared the two across zones — and the
+    // dashboard's "intakes this year" tile resolves its boundary locally, so
+    // the count and the list it opens disagreed on New Year's Eve.
+    final offset = DateTime.now().timeZoneOffset;
+    // Local New Year's midnight, as the server would have stored it.
+    final admittedUtc = DateTime(2026).toUtc();
+
+    final result = run(
+      [_c('newyear', admittedAt: admittedUtc)],
+      CaseQuery(
+        admittedRange: DateTimeRange(
+          start: DateTime(2026),
+          end: DateTime(2026, 12, 31),
+        ),
+      ),
+    );
+
+    expect(_ids(result), ['newyear']);
+    // East of Greenwich that instant is 2025 in UTC, which is the reading this
+    // asserts against. A device on UTC cannot express the case at all —
+    // flagged so a green run there is not mistaken for coverage.
+    expect(
+      offset == Duration.zero || admittedUtc.year == 2025,
+      isTrue,
+      reason: offset == Duration.zero
+          ? 'device is on UTC: this test cannot distinguish the two readings'
+          : 'expected the stored instant to fall in the previous UTC year',
+    );
+  });
+
   test('status filter keeps only the matching lifecycle status', () {
     final result = run([
       _c('care'),

@@ -175,6 +175,13 @@ void main() {
 
     ProviderContainer makeContainer() {
       final container = ProviderContainer(
+        // Riverpod 3 retries a failed provider on its own, with backoff. Good
+        // in the app — the dashboard recovers from a blip without the user
+        // pulling to refresh — but it means a provider that keeps throwing
+        // stays in the LOADING state forever, so `.future` never settles and
+        // an error assertion just times out. Off for these tests: what is
+        // under test is the first failure, not the recovery policy.
+        retry: (_, _) => null,
         overrides: [
           casesRepositoryProvider.overrideWith((ref) async => cases),
           animalsRepositoryProvider.overrideWith((ref) async => animals),
@@ -271,6 +278,59 @@ void main() {
 
       expect(s.openByCarer, isEmpty);
       expect(s.activeCount, 6);
+    });
+
+    test('an unreadable workload view costs the card, not the dashboard', () {
+      // An app talking to an OLDER server inside the same major — permitted,
+      // only the major is the wire contract — finds no `case_carer_load`
+      // collection and gets a 404. The card is supplementary and already
+      // canViewReports-gated, so that must not blank out the KPI grid too.
+      // `thenAnswer` with a failed future, not `thenThrow`: a real repository
+      // raises from inside `guard()`, i.e. always asynchronously.
+      when(carerLoad.all).thenAnswer(
+        (_) => Future.error(
+          const RepositoryException(
+            'Missing collection',
+            kind: RepositoryErrorKind.notFound,
+          ),
+        ),
+      );
+
+      return expectLater(
+        makeContainer().read(dashboardSummaryProvider.future),
+        completion(
+          isA<DashboardSummary>()
+              .having((s) => s.openByCarer, 'openByCarer', isEmpty)
+              .having((s) => s.activeCount, 'activeCount', 6)
+              .having((s) => s.intakesThisYear, 'intakesThisYear', 7),
+        ),
+      );
+    });
+
+    test('a failed count surfaces as itself, not wrapped', () {
+      // `(a, b, …).wait` reports a failure as ParallelWaitError, and the app's
+      // error mapping only understands RepositoryException: wrapped, a dropped
+      // connection renders as a generic error AND loses the figures already on
+      // screen, which AsyncValueView deliberately keeps through a network blip.
+      when(() => cases.countWithStatus(CaseStatus.inCare)).thenAnswer(
+        (_) => Future.error(
+          const RepositoryException(
+            'Could not reach the server',
+            kind: RepositoryErrorKind.network,
+          ),
+        ),
+      );
+
+      return expectLater(
+        makeContainer().read(dashboardSummaryProvider.future),
+        throwsA(
+          isA<RepositoryException>().having(
+            (e) => e.kind,
+            'kind',
+            RepositoryErrorKind.network,
+          ),
+        ),
+      );
     });
   });
 

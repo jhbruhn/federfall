@@ -300,7 +300,14 @@ List<Case> filterCases(
     }
 
     if (from != null) {
-      final admitted = c.admittedAt;
+      // `.toLocal()` is load-bearing (federfall-s0wk): `admittedAt` is UTC —
+      // `pbDate` normalises every timestamp with `.toUtc()` — while [from] and
+      // [to] come from a date picker, i.e. local days. Bucketing the admission
+      // by its UTC day compared those across zones, so a bird admitted at
+      // 00:30 on New Year's Day in UTC+1 fell out of a range starting that
+      // day — and out of the list the dashboard's "intakes this year" tile
+      // opens, whose count resolves the same boundary locally.
+      final admitted = c.admittedAt?.toLocal();
       if (admitted == null) return false;
       final day = DateUtils.dateOnly(admitted);
       if (day.isBefore(from) || day.isAfter(to!)) return false;

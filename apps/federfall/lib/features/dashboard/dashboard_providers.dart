@@ -1,5 +1,7 @@
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -110,38 +112,82 @@ DashboardSummary buildDashboardSummary({
 /// half fixed. Local midnights, converted to UTC on the way out.
 @riverpod
 Future<DashboardSummary> dashboardSummary(Ref ref) async {
-  final (casesRepo, animalsRepo, carerLoadRepo) = await (
-    ref.watch(casesRepositoryProvider.future),
-    ref.watch(animalsRepositoryProvider.future),
-    ref.watch(carerLoadRepositoryProvider.future),
-  ).wait;
+  // Watched synchronously (before any await) so the dependencies register,
+  // then awaited one by one rather than through `(a, b, c).wait` — see the
+  // note on [_counted] for why the record form is avoided here. All three
+  // resolve the same cached client, so this costs no extra round trip.
+  final casesFuture = ref.watch(casesRepositoryProvider.future);
+  final animalsFuture = ref.watch(animalsRepositoryProvider.future);
+  final carerLoadFuture = ref.watch(carerLoadRepositoryProvider.future);
+  final casesRepo = await casesFuture;
+  final animalsRepo = await animalsFuture;
+  final carerLoadRepo = await carerLoadFuture;
 
   final now = DateTime.now();
   final yearStart = DateTime(now.year);
   final nextYearStart = DateTime(now.year + 1);
 
-  final (total, disposed, activeCounts, intakes, inAviary, carerLoad) = await (
+  // The workload view is read alongside the counts, but its failure is not
+  // fatal — see [_carerLoadOrNone].
+  final carerLoad = _carerLoadOrNone(carerLoadRepo);
+  final counts = await _counted([
     casesRepo.count(),
     casesRepo.countWithStatus(CaseStatus.disposed),
-    // Driven off [_activeStatuses] rather than named one by one, so the tiles
-    // and this fetch cannot drift apart when a status is added.
-    Future.wait(_activeStatuses.map(casesRepo.countWithStatus)),
     casesRepo.countAdmittedBetween(yearStart, nextYearStart),
     animalsRepo.countWithLifetimeStatus(LifetimeStatus.inAviary),
-    carerLoadRepo.all(),
-  ).wait;
+    // Driven off [_activeStatuses] rather than named one by one, so the tiles
+    // and this fetch cannot drift apart when a status is added.
+    for (final s in _activeStatuses) casesRepo.countWithStatus(s),
+  ]);
+  final [total, disposed, intakes, inAviary, ...byStatus] = counts;
 
   return buildDashboardSummary(
     totalCases: total,
     disposedCases: disposed,
     activeByStatus: {
       for (var i = 0; i < _activeStatuses.length; i++)
-        _activeStatuses[i]: activeCounts[i],
+        _activeStatuses[i]: byStatus[i],
     },
     intakesThisYear: intakes,
     inAviaryCount: inAviary,
-    carerLoad: carerLoad,
+    carerLoad: await carerLoad,
   );
+}
+
+/// Awaits [counts] concurrently, propagating the FIRST underlying error.
+///
+/// `(a, b, …).wait` — the record form used elsewhere in the app — reports a
+/// failure as a [ParallelWaitError] instead, which the app's error mapping
+/// cannot read: `isNetworkError` and `loadErrorMessage` both test for a
+/// [RepositoryException]. Wrapped, a dropped connection renders as a generic
+/// failure AND takes the figures already on screen with it, where
+/// `AsyncValueView` would otherwise keep them until the connection returns.
+/// `Future.wait` over a homogeneous list has no such wrapper (federfall-s5mm
+/// tracks the app's remaining record-`.wait` sites).
+Future<List<int>> _counted(List<Future<int>> counts) => Future.wait(counts);
+
+/// The org-wide carer load, or nothing when it cannot be read.
+///
+/// Two ways that happens, and neither should cost the user their dashboard.
+/// A carer's list rule matches no rows, which is simply an empty list. And an
+/// app talking to an older server **within the same major** — permitted, since
+/// only the major is the wire contract — finds no `case_carer_load` collection
+/// at all and gets a 404. The card this feeds is supplementary and already
+/// `canViewReports`-gated, while the counts beside it are awaited unguarded, so
+/// a genuine outage still surfaces there rather than being swallowed here.
+Future<List<CarerCaseLoad>> _carerLoadOrNone(
+  PbCarerLoadRepository repo,
+) async {
+  try {
+    return await repo.all();
+  } on RepositoryException catch (error, stackTrace) {
+    reportCaughtError(
+      error,
+      stackTrace,
+      context: 'Dashboard carer workload unavailable; showing no counts',
+    );
+    return const [];
+  }
 }
 
 /// One row of the carer workload card: a team member and their open caseload.
