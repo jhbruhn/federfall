@@ -1,9 +1,7 @@
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,13 +19,10 @@ class ConfirmResetScreen extends ConsumerStatefulWidget {
   ConsumerState<ConfirmResetScreen> createState() => _ConfirmResetScreenState();
 }
 
-class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen> {
-  final _formKey = GlobalKey<FormState>();
+class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen>
+    with FormSheetState {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-
-  bool _busy = false;
-  String? _error;
 
   @override
   void dispose() {
@@ -41,36 +36,19 @@ class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final token = widget.token;
     if (token == null || token.isEmpty) {
-      setState(() => _error = l10n.resetMissingToken);
+      setSaveError(l10n.resetMissingToken);
       return;
     }
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(formKey.currentState?.validate() ?? false)) return;
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    try {
+    // Busy is left set on success: the screen navigates to login next.
+    await runSave(() async {
       final repo = await ref.read(authRepositoryProvider.future);
       await repo.confirmPasswordReset(token, _passwordController.text);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(l10n.resetSuccess)));
       context.go(AppRoutes.login);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
   }
 
   @override
@@ -87,7 +65,7 @@ class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Form(
-                key: _formKey,
+                key: formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -101,7 +79,7 @@ class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen> {
                       obscureText: true,
                       textInputAction: TextInputAction.next,
                       autofocus: true,
-                      enabled: !_busy,
+                      enabled: !isBusy,
                       // PocketBase rejects passwords under 8 characters;
                       // catch that client-side with a specific message.
                       validator: Validators.compose([
@@ -116,15 +94,15 @@ class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen> {
                       prefixIcon: Icons.lock_outline,
                       obscureText: true,
                       textInputAction: TextInputAction.go,
-                      enabled: !_busy,
+                      enabled: !isBusy,
                       validator: (v) => v != _passwordController.text
                           ? l10n.resetMismatch
                           : null,
                     ),
-                    if (_error != null) ...[
+                    if (saveError != null) ...[
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        _error!,
+                        saveError!,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.error,
                         ),
@@ -134,7 +112,7 @@ class _ConfirmResetScreenState extends ConsumerState<ConfirmResetScreen> {
                     PrimaryButton(
                       label: l10n.actionSave,
                       icon: Icons.check,
-                      isLoading: _busy,
+                      isLoading: isBusy,
                       onPressed: _submit,
                     ),
                   ],

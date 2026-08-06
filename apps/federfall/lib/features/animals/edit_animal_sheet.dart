@@ -1,11 +1,9 @@
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,13 +28,10 @@ class EditAnimalSheet extends ConsumerStatefulWidget {
 }
 
 class _EditAnimalSheetState extends ConsumerState<EditAnimalSheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _name;
   late final TextEditingController _species;
   late Sex? _sex;
-  bool _busy = false;
-  String? _error;
 
   @override
   void initState() {
@@ -54,16 +49,13 @@ class _EditAnimalSheetState extends ConsumerState<EditAnimalSheet>
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
+    if (!(formKey.currentState?.validate() ?? false)) return;
     final navigator = Navigator.of(context);
-    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
+    final ok = await runSave(() async {
       final repo = await ref.read(animalsRepositoryProvider.future);
+      // Empty strings, not omissions: this is an edit, so clearing a name or a
+      // sex has to reach the server as a clear.
       await repo.update(widget.animal.id, {
         'species': _species.text.trim(),
         'name': _name.text.trim(),
@@ -73,99 +65,53 @@ class _EditAnimalSheetState extends ConsumerState<EditAnimalSheet>
         ..invalidate(animalByIdProvider(widget.animal.id))
         ..invalidate(animalLifetimeProvider(widget.animal.id))
         ..invalidate(animalsRegistryProvider);
-      if (!mounted) return;
-      navigator.pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) navigator.pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
 
     return guardUnsavedChanges(
-      child: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-            top: AppSpacing.sm,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+      child: SheetScaffold(
+        title: l10n.animalEditTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          AppTextField(
+            controller: _name,
+            label: l10n.caseFieldName,
+            prefixIcon: Icons.badge_outlined,
+            textInputAction: TextInputAction.next,
+            enabled: !isBusy,
           ),
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(l10n.animalEditTitle, style: theme.textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _name,
-                  label: l10n.caseFieldName,
-                  prefixIcon: Icons.badge_outlined,
-                  textInputAction: TextInputAction.next,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _species,
-                  label: l10n.caseFieldSpecies,
-                  prefixIcon: Icons.pets_outlined,
-                  textInputAction: TextInputAction.next,
-                  enabled: !_busy,
-                  validator: Validators.required(l10n),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<Sex>(
-                  initialValue: _sex,
-                  decoration: InputDecoration(
-                    labelText: l10n.caseFieldSex,
-                    prefixIcon: const Icon(Icons.transgender_outlined),
-                  ),
-                  items: [
-                    for (final s in Sex.values)
-                      DropdownMenuItem(
-                        value: s,
-                        child: Text(sexLabel(l10n, s)),
-                      ),
-                  ],
-                  onChanged: _busy ? null : (s) => setState(() => _sex = s),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                PrimaryButton(
-                  label: l10n.actionSave,
-                  icon: Icons.check,
-                  isLoading: _busy,
-                  onPressed: _save,
-                ),
-              ],
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _species,
+            label: l10n.caseFieldSpecies,
+            prefixIcon: Icons.pets_outlined,
+            textInputAction: TextInputAction.next,
+            enabled: !isBusy,
+            validator: Validators.required(l10n),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<Sex>(
+            initialValue: _sex,
+            decoration: InputDecoration(
+              labelText: l10n.caseFieldSex,
+              prefixIcon: const Icon(Icons.transgender_outlined),
             ),
+            items: [
+              for (final s in Sex.values)
+                DropdownMenuItem(value: s, child: Text(sexLabel(l10n, s))),
+            ],
+            onChanged: isBusy ? null : (s) => setState(() => _sex = s),
           ),
-        ),
+        ],
       ),
     );
   }

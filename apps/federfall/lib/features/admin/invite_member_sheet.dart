@@ -28,14 +28,11 @@ class InviteMemberSheet extends ConsumerStatefulWidget {
 }
 
 class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   final _emailController = TextEditingController();
   final _nameController = TextEditingController();
 
   UserRole _role = UserRole.carer;
-  bool _busy = false;
-  String? _error;
 
   @override
   void dispose() {
@@ -45,18 +42,16 @@ class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet>
   }
 
   Future<void> _invite() async {
+    if (!(formKey.currentState?.validate() ?? false)) return;
     final l10n = context.l10n;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
     final email = _emailController.text.trim();
-    try {
+
+    // Both outcomes below close the sheet themselves, so nothing pops after
+    // `runSave` returns — the InviteEmailFailed path is a SUCCESS with a
+    // caveat, not a failure to report in the error slot.
+    await runSave(() async {
       final repo = await ref.read(authRepositoryProvider.future);
       try {
         await repo.inviteUser(
@@ -87,20 +82,7 @@ class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet>
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(l10n.inviteSent(email))));
       navigator.pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
   }
 
   /// Resends the invite's password-reset email from the failure snackbar.
@@ -125,87 +107,54 @@ class _InviteMemberSheetState extends ConsumerState<InviteMemberSheet>
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
 
     return guardUnsavedChanges(
-      child: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-            top: AppSpacing.sm,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+      child: SheetScaffold(
+        title: l10n.inviteSectionTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _invite,
+        saveLabel: l10n.inviteAction,
+        saveIcon: Icons.send,
+        children: [
+          AppTextField(
+            controller: _emailController,
+            label: l10n.authEmailLabel,
+            prefixIcon: Icons.alternate_email,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            enabled: !isBusy,
+            validator: Validators.compose([
+              Validators.required(l10n),
+              Validators.email(l10n),
+            ]),
           ),
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  l10n.inviteSectionTitle,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _emailController,
-                  label: l10n.authEmailLabel,
-                  prefixIcon: Icons.alternate_email,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  enabled: !_busy,
-                  validator: Validators.compose([
-                    Validators.required(l10n),
-                    Validators.email(l10n),
-                  ]),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  controller: _nameController,
-                  label: l10n.inviteNameLabel,
-                  prefixIcon: Icons.badge_outlined,
-                  textInputAction: TextInputAction.done,
-                  enabled: !_busy,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<UserRole>(
-                  initialValue: _role,
-                  decoration: InputDecoration(
-                    labelText: l10n.profileRoleLabel,
-                    prefixIcon: const Icon(Icons.security_outlined),
-                  ),
-                  items: [
-                    for (final r in UserRole.values)
-                      DropdownMenuItem(
-                        value: r,
-                        child: Text(userRoleLabel(l10n, r)),
-                      ),
-                  ],
-                  onChanged: _busy
-                      ? null
-                      : (r) => setState(() => _role = r ?? _role),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                PrimaryButton(
-                  label: l10n.inviteAction,
-                  icon: Icons.send,
-                  isLoading: _busy,
-                  onPressed: _invite,
-                ),
-              ],
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _nameController,
+            label: l10n.inviteNameLabel,
+            prefixIcon: Icons.badge_outlined,
+            textInputAction: TextInputAction.done,
+            enabled: !isBusy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<UserRole>(
+            initialValue: _role,
+            decoration: InputDecoration(
+              labelText: l10n.profileRoleLabel,
+              prefixIcon: const Icon(Icons.security_outlined),
             ),
+            items: [
+              for (final r in UserRole.values)
+                DropdownMenuItem(value: r, child: Text(userRoleLabel(l10n, r))),
+            ],
+            onChanged: isBusy
+                ? null
+                : (r) => setState(() => _role = r ?? _role),
           ),
-        ),
+        ],
       ),
     );
   }

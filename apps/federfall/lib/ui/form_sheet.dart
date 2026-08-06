@@ -44,7 +44,15 @@ mixin FormSheetState<T extends ConsumerStatefulWidget> on ConsumerState<T> {
   /// its message is shown; any other error is reported via
   /// [reportCaughtError] and shown as a generic message. Either failure clears
   /// [isBusy]. Returns whether [action] completed without error.
-  Future<bool> runSave(Future<void> Function() action) async {
+  ///
+  /// Pass [clearBusyOnSuccess] where the surface STAYS after a successful save
+  /// — a settings screen that reports with a snackbar rather than closing.
+  /// Leaving the button spinning forever is only correct when the thing it
+  /// sits on is about to go away.
+  Future<bool> runSave(
+    Future<void> Function() action, {
+    bool clearBusyOnSuccess = false,
+  }) async {
     final l10n = context.l10n;
     setState(() {
       _busy = true;
@@ -52,6 +60,7 @@ mixin FormSheetState<T extends ConsumerStatefulWidget> on ConsumerState<T> {
     });
     try {
       await action();
+      if (clearBusyOnSuccess && mounted) setState(() => _busy = false);
       return true;
     } on RepositoryException catch (e) {
       if (mounted) {
@@ -93,6 +102,7 @@ class SheetScaffold extends StatelessWidget {
     required this.error,
     required this.onSave,
     this.saveLabel,
+    this.saveIcon = Icons.check,
     this.trailing = const [],
     super.key,
   });
@@ -107,6 +117,11 @@ class SheetScaffold extends StatelessWidget {
 
   /// Defaults to the generic "Save" label.
   final String? saveLabel;
+
+  /// Defaults to the check every save button carries. Override where the
+  /// action is not a save in the usual sense — inviting a member SENDS
+  /// something, and its button has always said so.
+  final IconData saveIcon;
 
   /// Extra widgets rendered after the save button.
   final List<Widget> trailing;
@@ -147,7 +162,7 @@ class SheetScaffold extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               PrimaryButton(
                 label: saveLabel ?? l10n.actionSave,
-                icon: Icons.check,
+                icon: saveIcon,
                 isLoading: isBusy,
                 onPressed: onSave,
               ),

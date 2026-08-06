@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/features/admin/codelist_delete.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -223,15 +222,12 @@ class CodelistSheet<T> extends ConsumerStatefulWidget {
 }
 
 class _CodelistSheetState<T> extends ConsumerState<CodelistSheet<T>>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _label;
   TextEditingController? _description;
   late bool _notifiable;
   late bool _contagious;
   late bool _active;
-  bool _busy = false;
-  String? _error;
 
   CodelistSpec<T> get _spec => widget.spec;
 
@@ -260,15 +256,10 @@ class _CodelistSheetState<T> extends ConsumerState<CodelistSheet<T>>
   }
 
   Future<void> _save() async {
-    final l10n = context.l10n;
+    if (!(formKey.currentState?.validate() ?? false)) return;
     final navigator = Navigator.of(context);
-    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
+    final ok = await runSave(() async {
       final repo = await _spec.repository(ref);
       final body = <String, dynamic>{
         'label': _label.text.trim(),
@@ -285,133 +276,81 @@ class _CodelistSheetState<T> extends ConsumerState<CodelistSheet<T>>
         await repo.update(_spec.id(existing), body);
       }
       _spec.refresh(ref);
-      if (!mounted) return;
-      navigator.pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) navigator.pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
 
     return guardUnsavedChanges(
-      child: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-            top: AppSpacing.sm,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+      child: SheetScaffold(
+        title: _isEditing ? _spec.editTitle(l10n) : _spec.newTitle(l10n),
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          AppTextField(
+            controller: _label,
+            label: l10n.conditionLabelLabel,
+            prefixIcon: Icons.label_outline,
+            enabled: !isBusy,
+            validator: Validators.required(l10n),
           ),
-          // Conditions now stack three switches on top of label/description —
-          // scrollable like every other `SheetScaffold`-based sheet, so a
-          // short screen scrolls instead of overflowing (federfall-d5co
-          // follow-up).
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              onChanged: markDirty,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    _isEditing ? _spec.editTitle(l10n) : _spec.newTitle(l10n),
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _label,
-                    label: l10n.conditionLabelLabel,
-                    prefixIcon: Icons.label_outline,
-                    enabled: !_busy,
-                    validator: Validators.required(l10n),
-                  ),
-                  if (_description case final description?) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    AppTextField(
-                      controller: description,
-                      label: l10n.conditionDescriptionLabel,
-                      enabled: !_busy,
-                      minLines: 2,
-                      maxLines: 5,
-                      textCapitalization: TextCapitalization.sentences,
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.sm),
-                  if (_spec.notifiable != null)
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l10n.conditionNotifiableLabel),
-                      subtitle: Text(l10n.conditionNotifiableHelp),
-                      value: _notifiable,
-                      onChanged: _busy
-                          ? null
-                          : (v) {
-                              setState(() => _notifiable = v);
-                              markDirty();
-                            },
-                    ),
-                  if (_spec.contagious != null)
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l10n.conditionContagiousLabel),
-                      subtitle: Text(l10n.conditionContagiousHelp),
-                      value: _contagious,
-                      onChanged: _busy
-                          ? null
-                          : (v) {
-                              setState(() => _contagious = v);
-                              markDirty();
-                            },
-                    ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.conditionActiveLabel),
-                    subtitle: Text(_spec.activeHelp(l10n)),
-                    value: _active,
-                    onChanged: _busy
-                        ? null
-                        : (v) {
-                            setState(() => _active = v);
-                            markDirty();
-                          },
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  PrimaryButton(
-                    label: l10n.actionSave,
-                    icon: Icons.check,
-                    isLoading: _busy,
-                    onPressed: _save,
-                  ),
-                ],
-              ),
+          if (_description case final description?) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: description,
+              label: l10n.conditionDescriptionLabel,
+              enabled: !isBusy,
+              minLines: 2,
+              maxLines: 5,
+              textCapitalization: TextCapitalization.sentences,
             ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          if (_spec.notifiable != null)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.conditionNotifiableLabel),
+              subtitle: Text(l10n.conditionNotifiableHelp),
+              value: _notifiable,
+              onChanged: isBusy
+                  ? null
+                  : (v) {
+                      setState(() => _notifiable = v);
+                      markDirty();
+                    },
+            ),
+          if (_spec.contagious != null)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.conditionContagiousLabel),
+              subtitle: Text(l10n.conditionContagiousHelp),
+              value: _contagious,
+              onChanged: isBusy
+                  ? null
+                  : (v) {
+                      setState(() => _contagious = v);
+                      markDirty();
+                    },
+            ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.conditionActiveLabel),
+            subtitle: Text(_spec.activeHelp(l10n)),
+            value: _active,
+            onChanged: isBusy
+                ? null
+                : (v) {
+                    setState(() => _active = v);
+                    markDirty();
+                  },
           ),
-        ),
+        ],
       ),
     );
   }

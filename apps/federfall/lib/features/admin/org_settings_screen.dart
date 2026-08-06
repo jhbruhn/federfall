@@ -1,11 +1,9 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/org_settings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,15 +56,12 @@ class _OrgForm extends ConsumerStatefulWidget {
   ConsumerState<_OrgForm> createState() => _OrgFormState();
 }
 
-class _OrgFormState extends ConsumerState<_OrgForm> {
-  final _formKey = GlobalKey<FormState>();
+class _OrgFormState extends ConsumerState<_OrgForm> with FormSheetState {
   late final TextEditingController _name;
   late final TextEditingController _email;
   late final TextEditingController _phone;
   late final TextEditingController _retention;
   late final TextEditingController _quarantineDays;
-  bool _busy = false;
-  String? _error;
 
   @override
   void initState() {
@@ -99,18 +94,14 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
   Future<void> _save() async {
     final l10n = context.l10n;
     final messenger = ScaffoldMessenger.of(context);
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    if (!(formKey.currentState?.validate() ?? false)) return;
 
     // Both fields are validated as required integers >= 1 above, so parsing
     // cannot fall back to a default behind the supervisor's back.
     final months = int.parse(_retention.text.trim());
     final quarantineDays = int.parse(_quarantineDays.text.trim());
-    try {
+    // The screen stays open on success, so the button must stop spinning.
+    await runSave(clearBusyOnSuccess: true, () async {
       final repo = await ref.read(organisationsRepositoryProvider.future);
       await repo.update(widget.org.id, {
         'name': _name.text.trim(),
@@ -125,21 +116,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
       ref.invalidate(currentOrganisationProvider);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(l10n.orgSettingsSaved)));
-      setState(() => _busy = false);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
   }
 
   @override
@@ -154,7 +131,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: Form(
-              key: _formKey,
+              key: formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -162,7 +139,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                     controller: _name,
                     label: l10n.orgNameLabel,
                     prefixIcon: Icons.apartment_outlined,
-                    enabled: !_busy,
+                    enabled: !isBusy,
                     validator: Validators.required(l10n),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -171,7 +148,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                     label: l10n.orgContactEmailLabel,
                     prefixIcon: Icons.alternate_email,
                     keyboardType: TextInputType.emailAddress,
-                    enabled: !_busy,
+                    enabled: !isBusy,
                     validator: Validators.email(l10n),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -180,7 +157,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                     label: l10n.orgContactPhoneLabel,
                     prefixIcon: Icons.phone_outlined,
                     keyboardType: TextInputType.phone,
-                    enabled: !_busy,
+                    enabled: !isBusy,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   Text(
@@ -196,7 +173,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                     ],
-                    enabled: !_busy,
+                    enabled: !isBusy,
                     validator: Validators.compose([
                       Validators.required(l10n),
                       Validators.intMin(l10n, 1),
@@ -225,7 +202,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                     ],
-                    enabled: !_busy,
+                    enabled: !isBusy,
                     validator: Validators.compose([
                       Validators.required(l10n),
                       Validators.intMin(l10n, 1),
@@ -240,10 +217,10 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                       ),
                     ),
                   ),
-                  if (_error != null) ...[
+                  if (saveError != null) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      _error!,
+                      saveError!,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.error,
                       ),
@@ -253,7 +230,7 @@ class _OrgFormState extends ConsumerState<_OrgForm> {
                   PrimaryButton(
                     label: l10n.actionSave,
                     icon: Icons.check,
-                    isLoading: _busy,
+                    isLoading: isBusy,
                     onPressed: _save,
                   ),
                 ],

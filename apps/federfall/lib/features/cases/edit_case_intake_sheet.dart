@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
@@ -8,7 +7,6 @@ import 'package:federfall/features/cases/location/location_picker_screen.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,8 +41,7 @@ class EditCaseIntakeSheet extends ConsumerStatefulWidget {
 }
 
 class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
-    with DiscardGuard {
-  final _formKey = GlobalKey<FormState>();
+    with DiscardGuard, FormSheetState {
   late final TextEditingController _findLocation;
   late final TextEditingController _notes;
   late final Set<String> _reasons;
@@ -54,8 +51,6 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
   GeoPoint? _findGeo;
   String? _findCity;
   String? _findRegion;
-  bool _busy = false;
-  String? _error;
   bool _reasonsError = false;
   String? _dateError;
 
@@ -118,7 +113,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
   Future<void> _save() async {
     final l10n = context.l10n;
     final navigator = Navigator.of(context);
-    final validForm = _formKey.currentState?.validate() ?? false;
+    final validForm = formKey.currentState?.validate() ?? false;
     setState(() {
       _reasonsError = _reasons.isEmpty;
       _dateError = _foundAfterAdmitted(_foundAt, _admittedAt)
@@ -127,11 +122,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
     });
     if (!validForm || _reasonsError || _dateError != null) return;
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
+    final ok = await runSave(() async {
       final repo = await ref.read(casesRepositoryProvider.future);
       await repo.update(widget.medicalCase.id, {
         'admission_reasons': _reasons.toList(),
@@ -150,22 +141,8 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
         ..invalidate(caseBundleProvider(widget.medicalCase.id))
         ..invalidate(casesBrowserDataProvider)
         ..invalidate(dashboardSummaryProvider);
-      if (!mounted) return;
-      navigator.pop(true);
-    } on RepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = errorMessage(l10n, e);
-      });
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = l10n.errorGenericTitle;
-      });
-    }
+    });
+    if (ok && mounted) navigator.pop(true);
   }
 
   @override
@@ -175,203 +152,166 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
     final materialL10n = MaterialLocalizations.of(context);
 
     return guardUnsavedChanges(
-      child: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-            top: AppSpacing.sm,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+      child: SheetScaffold(
+        title: l10n.caseEditIntakeTitle,
+        formKey: formKey,
+        onFormChanged: markDirty,
+        isBusy: isBusy,
+        error: saveError,
+        onSave: _save,
+        children: [
+          Text(
+            l10n.caseReasonsFieldLabel,
+            style: theme.textTheme.bodyMedium,
           ),
-          child: Form(
-            key: _formKey,
-            onChanged: markDirty,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    l10n.caseEditIntakeTitle,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    l10n.caseReasonsFieldLabel,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  switch (ref.watch(admissionReasonsProvider)) {
-                    AsyncData(:final value) => Wrap(
-                      spacing: AppSpacing.sm,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        // Active entries, plus any deactivated one still set on
-                        // this case (so the carer can see/remove it).
-                        for (final r in value.where(
-                          (r) => r.active || _reasons.contains(r.id),
-                        ))
-                          FilterChip(
-                            label: Text(r.label),
-                            selected: _reasons.contains(r.id),
-                            onSelected: _busy
-                                ? null
-                                : (sel) {
-                                    setState(() {
-                                      sel
-                                          ? _reasons.add(r.id)
-                                          : _reasons.remove(r.id);
-                                      _reasonsError = false;
-                                    });
-                                    markDirty();
-                                  },
-                          ),
-                      ],
-                    ),
-                    AsyncError() => Text(l10n.errorGenericTitle),
-                    _ => const Padding(
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                      child: LinearProgressIndicator(),
-                    ),
-                  },
-                  if (_reasonsError)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.xs),
-                      child: Text(
-                        l10n.fieldRequired,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: AppSpacing.md),
-                  DropdownButtonFormField<AgeClass>(
-                    initialValue: _ageClass,
-                    decoration: InputDecoration(
-                      labelText: l10n.caseFieldAgeClass,
-                      prefixIcon: const Icon(Icons.cake_outlined),
-                    ),
-                    items: [
-                      for (final a in AgeClass.values)
-                        DropdownMenuItem(
-                          value: a,
-                          child: Text(ageClassLabel(l10n, a)),
-                        ),
-                    ],
-                    onChanged: _busy
+          const SizedBox(height: AppSpacing.sm),
+          switch (ref.watch(admissionReasonsProvider)) {
+            AsyncData(:final value) => Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                // Active entries, plus any deactivated one still set on
+                // this case (so the carer can see/remove it).
+                for (final r in value.where(
+                  (r) => r.active || _reasons.contains(r.id),
+                ))
+                  FilterChip(
+                    label: Text(r.label),
+                    selected: _reasons.contains(r.id),
+                    onSelected: isBusy
                         ? null
-                        : (a) => setState(() => _ageClass = a),
+                        : (sel) {
+                            setState(() {
+                              sel ? _reasons.add(r.id) : _reasons.remove(r.id);
+                              _reasonsError = false;
+                            });
+                            markDirty();
+                          },
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _DateRow(
-                    label: l10n.caseFieldFoundAt,
-                    value: _foundAt,
-                    formatted: _foundAt == null
-                        ? null
-                        : materialL10n.formatMediumDate(_foundAt!),
-                    enabled: !_busy,
-                    onPick: () => _pickDate(
-                      current: _foundAt,
-                      onPicked: (d) {
-                        setState(() {
-                          _foundAt = d;
-                          _dateError = null;
-                        });
-                        markDirty();
-                      },
-                    ),
-                    onClear: () {
-                      setState(() {
-                        _foundAt = null;
-                        _dateError = null;
-                      });
-                      markDirty();
-                    },
-                  ),
-                  _DateRow(
-                    label: l10n.caseFieldAdmittedAt,
-                    value: _admittedAt,
-                    formatted: _admittedAt == null
-                        ? null
-                        : materialL10n.formatMediumDate(_admittedAt!),
-                    enabled: !_busy,
-                    onPick: () => _pickDate(
-                      current: _admittedAt,
-                      onPicked: (d) {
-                        setState(() {
-                          _admittedAt = d;
-                          _dateError = null;
-                        });
-                        markDirty();
-                      },
-                    ),
-                    onClear: () {
-                      setState(() {
-                        _admittedAt = null;
-                        _dateError = null;
-                      });
-                      markDirty();
-                    },
-                  ),
-                  if (_dateError != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.xs),
-                      child: Text(
-                        _dateError!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: _findLocation,
-                          label: l10n.caseFieldFindLocation,
-                          prefixIcon: Icons.place_outlined,
-                          enabled: !_busy,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.map_outlined),
-                        tooltip: l10n.caseFieldFindLocation,
-                        onPressed: _busy ? null : _pickLocation,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _notes,
-                    label: l10n.caseFieldIntakeNotes,
-                    enabled: !_busy,
-                    minLines: 3,
-                    maxLines: 6,
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  PrimaryButton(
-                    label: l10n.actionSave,
-                    icon: Icons.check,
-                    isLoading: _busy,
-                    onPressed: _save,
-                  ),
-                ],
+              ],
+            ),
+            AsyncError() => Text(l10n.errorGenericTitle),
+            _ => const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: LinearProgressIndicator(),
+            ),
+          },
+          if (_reasonsError)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(
+                l10n.fieldRequired,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
               ),
             ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<AgeClass>(
+            initialValue: _ageClass,
+            decoration: InputDecoration(
+              labelText: l10n.caseFieldAgeClass,
+              prefixIcon: const Icon(Icons.cake_outlined),
+            ),
+            items: [
+              for (final a in AgeClass.values)
+                DropdownMenuItem(
+                  value: a,
+                  child: Text(ageClassLabel(l10n, a)),
+                ),
+            ],
+            onChanged: isBusy ? null : (a) => setState(() => _ageClass = a),
           ),
-        ),
+          const SizedBox(height: AppSpacing.sm),
+          _DateRow(
+            label: l10n.caseFieldFoundAt,
+            value: _foundAt,
+            formatted: _foundAt == null
+                ? null
+                : materialL10n.formatMediumDate(_foundAt!),
+            enabled: !isBusy,
+            onPick: () => _pickDate(
+              current: _foundAt,
+              onPicked: (d) {
+                setState(() {
+                  _foundAt = d;
+                  _dateError = null;
+                });
+                markDirty();
+              },
+            ),
+            onClear: () {
+              setState(() {
+                _foundAt = null;
+                _dateError = null;
+              });
+              markDirty();
+            },
+          ),
+          _DateRow(
+            label: l10n.caseFieldAdmittedAt,
+            value: _admittedAt,
+            formatted: _admittedAt == null
+                ? null
+                : materialL10n.formatMediumDate(_admittedAt!),
+            enabled: !isBusy,
+            onPick: () => _pickDate(
+              current: _admittedAt,
+              onPicked: (d) {
+                setState(() {
+                  _admittedAt = d;
+                  _dateError = null;
+                });
+                markDirty();
+              },
+            ),
+            onClear: () {
+              setState(() {
+                _admittedAt = null;
+                _dateError = null;
+              });
+              markDirty();
+            },
+          ),
+          if (_dateError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(
+                _dateError!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: AppTextField(
+                  controller: _findLocation,
+                  label: l10n.caseFieldFindLocation,
+                  prefixIcon: Icons.place_outlined,
+                  enabled: !isBusy,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.map_outlined),
+                tooltip: l10n.caseFieldFindLocation,
+                onPressed: isBusy ? null : _pickLocation,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _notes,
+            label: l10n.caseFieldIntakeNotes,
+            enabled: !isBusy,
+            minLines: 3,
+            maxLines: 6,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ],
       ),
     );
   }
