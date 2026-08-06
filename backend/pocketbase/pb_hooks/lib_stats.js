@@ -20,7 +20,7 @@
 //   const org = require(`${__hooks}/lib_auth.js`).requireReporting(e);
 //   const stats = require(`${__hooks}/lib_stats.js`);
 //   const t = stats.timeContext(e.request.url.query());
-//   const year = stats.parseYear(e.request.url.query());
+//   const period = stats.parsePeriod(e.request.url.query());
 //   const rows = stats.loadCaseRows(e.app, org, bounds.fromMs, bounds.toMs, t);
 //
 // This file is NOT named *.pb.js, so PocketBase does not load it as a hook —
@@ -105,34 +105,68 @@ function timeContext(query) {
 }
 
 /**
- * `?year=` → a four-digit calendar year, or null for "everything on record".
+ * `?year=` + `?month=` → the reporting period: a calendar year, one month of
+ * one, or `{year: null, month: null}` for everything on record.
+ *
  * Throws BadRequestError on anything else: a garbled param is not a reporting
- * period, and would otherwise produce a confidently empty report.
+ * period, and would otherwise produce a confidently empty report. A month
+ * without a year is refused for the same reason — "March" alone names no
+ * period, and silently reading it as "March this year" would put a figure on
+ * screen that the caller never asked for.
  */
-function parseYear(query) {
-  const raw = query.get("year");
-  if (!raw) return null;
-  const parsed = parseInt(raw, 10);
-  // Deliberately wide but finite.
-  if (isNaN(parsed) || parsed < 1900 || parsed > 2200) {
-    throw new BadRequestError("year must be a four-digit calendar year.");
+function parsePeriod(query) {
+  const rawYear = query.get("year");
+  let year = null;
+  if (rawYear) {
+    const parsed = parseInt(rawYear, 10);
+    // Deliberately wide but finite.
+    if (isNaN(parsed) || parsed < 1900 || parsed > 2200) {
+      throw new BadRequestError("year must be a four-digit calendar year.");
+    }
+    year = parsed;
   }
-  return parsed;
+
+  const rawMonth = query.get("month");
+  let month = null;
+  if (rawMonth) {
+    const parsed = parseInt(rawMonth, 10);
+    if (isNaN(parsed) || parsed < 1 || parsed > 12) {
+      throw new BadRequestError("month must be 1-12.");
+    }
+    if (year === null) {
+      throw new BadRequestError("month requires a year.");
+    }
+    month = parsed;
+  }
+
+  return { year: year, month: month };
 }
 
 /**
- * The half-open instant range of a calendar year in the caller's zone.
+ * The half-open instant range of a period in the caller's zone, or null for
+ * an all-time one.
  *
- * The offset is resolved from the boundary instant itself, so a January
- * boundary uses winter time and the period's own year does not shift.
+ * The offset is resolved from each boundary instant itself, so a January
+ * boundary uses winter time and the period's own year does not shift — and a
+ * summer month is not dragged an hour wide by the winter offset.
  */
-function yearBounds(year, t) {
-  const naiveFrom = Date.UTC(year, 0, 1);
-  const naiveTo = Date.UTC(year + 1, 0, 1);
+function periodBounds(period, t) {
+  if (period.year === null) return null;
+  const month = period.month === null ? 0 : period.month - 1;
+  const naiveFrom = Date.UTC(period.year, month, 1);
+  const naiveTo =
+    period.month === null
+      ? Date.UTC(period.year + 1, 0, 1)
+      : Date.UTC(period.year, month + 1, 1);
   return {
     fromMs: naiveFrom - t.offsetFor(naiveFrom) * 60000,
     toMs: naiveTo - t.offsetFor(naiveTo) * 60000,
   };
+}
+
+/** How many days a period's month has (1-12 → 28..31). */
+function daysInMonth(year, month) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
 /**
@@ -257,10 +291,11 @@ function ranked(counts) {
 /**
  * Every figure the report and the statistics screen show, over `rows`.
  *
- * `opts.year` is the selected calendar year (null = all time) and decides the
- * intake buckets: months within a year, calendar years over all time. Every
- * month of a year is emitted even at zero, so the chart reads as a year rather
- * than as a list of the months that happened to have intakes.
+ * `opts.period` is `{year, month}` and decides the intake buckets: DAYS within
+ * a month, months within a year, calendar years over all time. Every bucket of
+ * the period is emitted even at zero, so the chart reads as a period rather
+ * than as a list of the buckets that happened to have intakes — a Tuesday with
+ * no admissions is a fact about the week.
  *
  * Rates, and why they are computed here rather than in the client: the
  * denominator is ENDED cases, not intakes. A rehab's release rate is the share
@@ -272,7 +307,9 @@ function ranked(counts) {
  */
 function aggregate(rows, opts) {
   const t = opts.t;
-  const year = opts.year;
+  const period = opts.period;
+  const year = period.year;
+  const month = period.month;
 
   const bump = (map, key) => {
     if (!key) return;
@@ -317,14 +354,19 @@ function aggregate(rows, opts) {
     }
     if (r.admittedMs !== null) {
       const p = t.partsOf(r.admittedAt);
-      const key = year !== null ? p.mo : p.y;
+      const key = month !== null ? p.d : year !== null ? p.mo : p.y;
       bucketCounts[key] = (bucketCounts[key] || 0) + 1;
     }
   }
   const openCount = rows.length - closed;
 
   const buckets = [];
-  if (year !== null) {
+  if (month !== null) {
+    const days = daysInMonth(year, month);
+    for (let d = 1; d <= days; d++) {
+      buckets.push({ key: d, count: bucketCounts[d] || 0 });
+    }
+  } else if (year !== null) {
     for (let m = 1; m <= 12; m++) {
       buckets.push({ key: m, count: bucketCounts[m] || 0 });
     }
@@ -357,7 +399,7 @@ function aggregate(rows, opts) {
     species: ranked(speciesCounts),
     reasons: ranked(reasonCounts),
     cities: ranked(cityCounts),
-    bucketKind: year !== null ? "month" : "year",
+    bucketKind: month !== null ? "day" : year !== null ? "month" : "year",
     intakesByBucket: buckets,
   };
 }
@@ -402,8 +444,9 @@ function conditionCounts(app, org, rows) {
 
 module.exports = {
   timeContext: timeContext,
-  parseYear: parseYear,
-  yearBounds: yearBounds,
+  parsePeriod: parsePeriod,
+  periodBounds: periodBounds,
+  daysInMonth: daysInMonth,
   loadCaseRows: loadCaseRows,
   ranked: ranked,
   aggregate: aggregate,

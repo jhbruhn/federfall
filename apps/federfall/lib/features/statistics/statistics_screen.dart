@@ -45,24 +45,30 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
   /// browser's "my active cases" default — otherwise the list would come up
   /// short of the number that was just tapped. It also carries the selected
   /// period: a list that ignored it would not match the figure either.
-  void _showCases(CaseQuery query, int? year) => showCasesFiltered(
-    context,
-    ref,
-    query.copyWith(
-      allScope: true,
-      activity: CaseActivity.all,
-      admittedRange: year == null
-          ? null
-          : DateTimeRange(
-              start: DateTime(year),
-              // Inclusive to the last instant of the year, not to its midnight
-              // — the browser's range test is inclusive on both ends, and a
-              // bird admitted on the afternoon of 31 December belongs to the
-              // year it was admitted in.
-              end: DateTime(year, 12, 31, 23, 59, 59, 999),
-            ),
-    ),
-  );
+  void _showCases(CaseQuery query, StatsPeriod period) {
+    final year = period.year;
+    final month = period.month;
+    return showCasesFiltered(
+      context,
+      ref,
+      query.copyWith(
+        allScope: true,
+        activity: CaseActivity.all,
+        admittedRange: year == null
+            ? null
+            : DateTimeRange(
+                start: DateTime(year, month ?? 1),
+                // Inclusive to the last instant of the period, not to its
+                // midnight — the browser's range test is inclusive on both
+                // ends, and a bird admitted on the afternoon of the 31st
+                // belongs to the month it was admitted in.
+                end: month == null
+                    ? DateTime(year, 12, 31, 23, 59, 59, 999)
+                    : DateTime(year, month + 1, 0, 23, 59, 59, 999),
+              ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,14 +85,16 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       );
     }
 
-    final year = ref.watch(statisticsPeriodProvider);
+    final period = ref.watch(statisticsPeriodProvider);
     // 'case_conditions' matters because the diagnosis breakdown is part of the
     // same server-side aggregate: a diagnosis recorded anywhere in the org
     // changes a figure on this screen.
     ref.liveRefresh(const ['cases', 'dispositions', 'case_conditions'], () {
       ref.invalidate(statisticsProvider);
     });
-    final stats = ref.watch(statisticsProvider(year: year));
+    final stats = ref.watch(
+      statisticsProvider(year: period.year, month: period.month),
+    );
 
     final scaffold = Scaffold(
       appBar: AppBar(
@@ -110,7 +118,9 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         onRetry: () => ref.invalidate(statisticsProvider),
         loading: const LinearProgressIndicator(),
         data: (s) => RefreshIndicator(
-          onRefresh: () => ref.refresh(statisticsProvider(year: year).future),
+          onRefresh: () => ref.refresh(
+            statisticsProvider(year: period.year, month: period.month).future,
+          ),
           child: ContentBounds(
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -119,7 +129,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                 // it — the same control, and the same meaning of "2026", the
                 // export sheet offers.
                 PeriodSelector(
-                  selected: year,
+                  selected: period,
                   intakeYears: s.intakeYears,
                   now: _now,
                   onChanged: (picked) => ref
@@ -132,7 +142,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                     icon: Icons.folder_copy_outlined,
                     label: l10n.statsIntakes,
                     value: '${s.intakes}',
-                    onTap: () => _showCases(const CaseQuery(), year),
+                    onTap: () => _showCases(const CaseQuery(), period),
                   ),
                   KpiCard(
                     icon: Icons.medical_information_outlined,
@@ -196,6 +206,13 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                 BreakdownCard(
                   title: l10n.statsSectionOutcomes,
                   emptyMessage: l10n.statsEmpty,
+                  chart: BreakdownPie(
+                    otherLabel: l10n.statsChartOther,
+                    entries: [
+                      for (final o in s.outcomes)
+                        PieEntry(dispositionTypeLabel(l10n, o.type), o.count),
+                    ],
+                  ),
                   rows: [
                     for (final o in s.outcomes)
                       BreakdownRow(
@@ -205,8 +222,10 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                         // know can be counted but not named in a filter.
                         onTap: o.type == null
                             ? null
-                            : () =>
-                                  _showCases(CaseQuery(outcome: o.type), year),
+                            : () => _showCases(
+                                CaseQuery(outcome: o.type),
+                                period,
+                              ),
                       ),
                   ],
                 ),
@@ -214,13 +233,19 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                 BreakdownCard(
                   title: l10n.statsSectionSpecies,
                   emptyMessage: l10n.statsEmpty,
+                  chart: BreakdownPie(
+                    otherLabel: l10n.statsChartOther,
+                    entries: [
+                      for (final c in s.bySpecies) PieEntry(c.label, c.count),
+                    ],
+                  ),
                   rows: [
                     for (final c in s.bySpecies)
                       BreakdownRow(
                         c.label,
                         c.count,
                         onTap: () =>
-                            _showCases(CaseQuery(species: c.label), year),
+                            _showCases(CaseQuery(species: c.label), period),
                       ),
                   ],
                 ),
@@ -228,13 +253,23 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                 BreakdownCard(
                   title: l10n.statsSectionConditions,
                   emptyMessage: l10n.statsEmpty,
+                  // The denominator is the period's INTAKES, not the sum of
+                  // the diagnoses: a case can carry several, so the shares
+                  // would otherwise add up past what happened.
+                  chart: BreakdownPie(
+                    otherLabel: l10n.statsChartOther,
+                    total: s.intakes,
+                    entries: [
+                      for (final c in s.byCondition) PieEntry(c.label, c.count),
+                    ],
+                  ),
                   rows: [
                     for (final c in s.byCondition)
                       BreakdownRow(
                         c.label,
                         c.count,
                         onTap: () =>
-                            _showCases(CaseQuery(condition: c.label), year),
+                            _showCases(CaseQuery(condition: c.label), period),
                       ),
                   ],
                 ),

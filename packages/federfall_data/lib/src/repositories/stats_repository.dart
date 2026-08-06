@@ -25,9 +25,11 @@ class OutcomeStat {
   final int count;
 }
 
-/// What one point of an [IntakeSeries] counts: a month of the selected year,
-/// or a whole calendar year when the period is "all time".
+/// What one point of an [IntakeSeries] counts, following the selected period:
+/// a day of the selected month, a month of the selected year, or a whole
+/// calendar year when the period is "all time".
 enum SeriesBucket {
+  day('day'),
   month('month'),
   year('year');
 
@@ -38,8 +40,8 @@ enum SeriesBucket {
   static SeriesBucket? fromWire(Object? v) => pbEnum(values, (e) => e.wire, v);
 }
 
-/// One bar: [key] is the month (1–12) or the calendar year, per
-/// [IntakeSeries.kind].
+/// One bar: [key] is the day of the month (1–31), the month (1–12) or the
+/// calendar year, per [IntakeSeries.kind].
 @immutable
 class IntakePoint {
   const IntakePoint(this.key, this.count);
@@ -59,6 +61,7 @@ class IntakeSeries {
     required this.kind,
     this.points = const [],
     this.previousYear,
+    this.previousMonth,
     this.previousPoints = const [],
   });
 
@@ -66,9 +69,15 @@ class IntakeSeries {
   final List<IntakePoint> points;
 
   /// The comparison year, or null when there is nothing to compare against —
-  /// an all-time period, or a previous year with no intakes at all (an
+  /// an all-time period, or a previous period with no intakes at all (an
   /// all-zero series is noise, not a comparison).
   final int? previousYear;
+
+  /// The comparison month when a month is selected: always the SAME month a
+  /// year earlier, never the month before. Seasonality is the question ("are
+  /// we busier than last spring?"); the previous month answers a different one
+  /// and answers it badly, since half the difference is the season turning.
+  final int? previousMonth;
 
   /// The comparison year's buckets, aligned with [points] by key.
   final List<IntakePoint> previousPoints;
@@ -86,6 +95,7 @@ class IntakeSeries {
 class OrgStatistics {
   const OrgStatistics({
     this.year,
+    this.month,
     this.intakes = 0,
     this.closed = 0,
     this.inCare = 0,
@@ -116,6 +126,7 @@ class OrgStatistics {
 
     return OrgStatistics(
       year: period is Map ? _intOrNull(period['year']) : null,
+      month: period is Map ? _intOrNull(period['month']) : null,
       intakes: _int(t['intakes']),
       closed: _int(t['closed']),
       inCare: _int(t['inCare']),
@@ -153,6 +164,7 @@ class OrgStatistics {
       kind: SeriesBucket.fromWire(raw['kind']) ?? SeriesBucket.year,
       points: _points(raw['points']),
       previousYear: previous is Map ? _intOrNull(previous['year']) : null,
+      previousMonth: previous is Map ? _intOrNull(previous['month']) : null,
       previousPoints: previous is Map ? _points(previous['points']) : const [],
     );
   }
@@ -170,6 +182,9 @@ class OrgStatistics {
 
   /// The selected calendar year, or null for every case on record.
   final int? year;
+
+  /// The selected month within [year] (1–12), or null for the whole year.
+  final int? month;
 
   /// Cases ADMITTED in the period — the intake cohort the annual report uses,
   /// so two consecutive periods can be added up without double-counting.
@@ -247,12 +262,19 @@ class PbStatsRepository {
   /// its offset rather than guessing a zone. It decides which side of New Year
   /// a late-evening admission falls on, and passing it is what makes this
   /// screen and the annual report agree on what a year is.
-  Future<OrgStatistics> fetch({int? year, int? tzOffsetMinutes}) async {
+  Future<OrgStatistics> fetch({
+    int? year,
+    int? month,
+    int? tzOffsetMinutes,
+  }) async {
     return _guard(() async {
       final res = await pb.send<Map<String, dynamic>>(
         '/api/federfall/stats',
         query: {
           if (year != null) 'year': '$year',
+          // A month without a year names no period; the route refuses that, so
+          // it is never sent on its own.
+          if (year != null && month != null) 'month': '$month',
           if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',
         },
       );

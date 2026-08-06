@@ -12,10 +12,13 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    expect(container.read(statisticsPeriodProvider), DateTime.now().year);
+    expect(container.read(statisticsPeriodProvider).year, DateTime.now().year);
+    expect(container.read(statisticsPeriodProvider).month, isNull);
 
-    container.read(statisticsPeriodProvider.notifier).select(null);
-    expect(container.read(statisticsPeriodProvider), isNull);
+    container
+        .read(statisticsPeriodProvider.notifier)
+        .select(StatsPeriod.allTime);
+    expect(container.read(statisticsPeriodProvider).isAllTime, isTrue);
   });
 
   test('the provider asks the server for the selected period', () async {
@@ -28,6 +31,7 @@ void main() {
     when(
       () => repo.fetch(
         year: any(named: 'year'),
+        month: any(named: 'month'),
         tzOffsetMinutes: any(named: 'tzOffsetMinutes'),
       ),
     ).thenAnswer((_) async => stats);
@@ -55,6 +59,7 @@ void main() {
     when(
       () => repo.fetch(
         year: any(named: 'year'),
+        month: any(named: 'month'),
         tzOffsetMinutes: any(named: 'tzOffsetMinutes'),
       ),
     ).thenAnswer((_) async => const OrgStatistics());
@@ -68,6 +73,32 @@ void main() {
 
     verify(
       () => repo.fetch(tzOffsetMinutes: any(named: 'tzOffsetMinutes')),
+    ).called(1);
+  });
+
+  test('a month period is sent alongside its year', () async {
+    final repo = MockStatsRepo();
+    when(
+      () => repo.fetch(
+        year: any(named: 'year'),
+        month: any(named: 'month'),
+        tzOffsetMinutes: any(named: 'tzOffsetMinutes'),
+      ),
+    ).thenAnswer((_) async => const OrgStatistics(year: 2026, month: 3));
+
+    final container = ProviderContainer(
+      overrides: [statsRepositoryProvider.overrideWith((ref) async => repo)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(statisticsProvider(year: 2026, month: 3).future);
+
+    verify(
+      () => repo.fetch(
+        year: 2026,
+        month: 3,
+        tzOffsetMinutes: any(named: 'tzOffsetMinutes'),
+      ),
     ).called(1);
   });
 }

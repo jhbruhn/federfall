@@ -157,6 +157,48 @@ void main() {
     expect(stats.intakeYears, isEmpty);
   });
 
+  test('a month period parses its day series and comparison month', () {
+    final stats = OrgStatistics.fromJson({
+      ..._body(),
+      'period': {'year': 2026, 'month': 3},
+      'series': {
+        'kind': 'day',
+        'points': [
+          {'key': 1, 'count': 2},
+        ],
+        'previous': {
+          'year': 2025,
+          'month': 3,
+          'points': [
+            {'key': 1, 'count': 4},
+          ],
+        },
+      },
+    });
+
+    expect(stats.month, 3);
+    expect(stats.series.kind, SeriesBucket.day);
+    expect(stats.series.previousYear, 2025);
+    // The comparison is the SAME month a year earlier, and says so.
+    expect(stats.series.previousMonth, 3);
+  });
+
+  test('a month is only sent alongside its year', () async {
+    stub(_body());
+
+    await repo.fetch(month: 3, tzOffsetMinutes: 0);
+
+    final query =
+        verify(
+              () => pb.send<Map<String, dynamic>>(
+                any(),
+                query: captureAny(named: 'query'),
+              ),
+            ).captured.single
+            as Map<String, dynamic>;
+    expect(query.containsKey('month'), isFalse);
+  });
+
   test('an unknown bucket kind falls back to a year series', () {
     final stats = OrgStatistics.fromJson(
       _body(

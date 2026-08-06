@@ -1712,6 +1712,58 @@ def main():
           and annual_rows("?year=2016&format=csv&tzOffsetMinutes=-120") == 3,
           "report and stats disagree about the period")
 
+    # ── A month is a period too (federfall-nmwi follow-up) ─────────────────
+    # Same machinery, one rung finer: ?month= narrows to a calendar month,
+    # buckets become DAYS, and the comparison is the same month a year earlier
+    # rather than the month before — seasonality is the question being asked.
+    s, st_mar = stats(toks["sup"], "?year=2016&month=3&tzOffsetMinutes=0")
+    check("a month is a valid period", s == 200, f"status {s}")
+    check("the month's cohort is only its own intakes",
+          st_mar.get("totals", {}).get("intakes") == 2,
+          st_mar.get("totals"))
+    mar_series = st_mar.get("series", {})
+    check("a month's series is one bucket per DAY, all 31 of them",
+          mar_series.get("kind") == "day"
+          and len(mar_series.get("points", [])) == 31, mar_series.get("kind"))
+    mar_points = {p["key"]: p["count"] for p in mar_series.get("points", [])}
+    check("the days with intakes carry them, the rest are zeros",
+          mar_points.get(5) == 1 and mar_points.get(20) == 1
+          and sum(mar_points.values()) == 2, mar_points)
+    check("February 2016 is a different period",
+          stats(toks["sup"], "?year=2016&month=2&tzOffsetMinutes=0")[1]
+          .get("totals", {}).get("intakes") == 0)
+    # 2015 has its one intake in JULY, so March 2016 has no March 2015 to
+    # compare against — an all-zero comparison is omitted rather than drawn.
+    check("a comparison month with no intakes is omitted",
+          mar_series.get("previous") is None, mar_series.get("previous"))
+    _, st_jul = stats(toks["sup"], "?year=2016&month=7&tzOffsetMinutes=0")
+    prev_jul = st_jul.get("series", {}).get("previous") or {}
+    prev_jul_points = {p["key"]: p["count"] for p in prev_jul.get("points", [])}
+    check("the comparison is the SAME month a year earlier",
+          prev_jul.get("year") == 2015 and prev_jul.get("month") == 7
+          and prev_jul_points.get(4) == 1, prev_jul)
+    # A day-level period still has to agree with the report route.
+    check("the annual report accepts the same month",
+          annual_rows("?year=2016&month=3&format=csv&tzOffsetMinutes=0") == 2,
+          "report and stats disagree about the month")
+    # A month report is not a Jahresbericht, on the page or in the filename.
+    s, body, hdrs = req_bytes(
+        "GET",
+        "/api/federfall/reports/annual?year=2016&month=3&tzOffsetMinutes=0",
+        toks["sup"])
+    check("a month renders its own PDF, named for the month",
+          s == 200 and bool(body) and body[:5] == b"%PDF-"
+          and 'filename="federfall-monatsbericht-2016-03.pdf"'
+          in hdrs.get("Content-Disposition", ""),
+          f'status {s} {hdrs.get("Content-Disposition")}')
+    for bad in ["?month=3", "?year=2016&month=0", "?year=2016&month=13",
+                "?year=2016&month=abc"]:
+        s, _ = stats(toks["sup"], bad)
+        check(f"stats rejects {bad}", s == 400, f"status {s}")
+        s, _, _ = req_bytes(
+            "GET", "/api/federfall/reports/annual" + bad, toks["sup"])
+        check(f"the annual report rejects {bad} too", s == 400, f"status {s}")
+
     # ── federfall-zod: atomic intake route + cases.finder lock ──────────────
     print("\n[atomic intake route]")
     s, _ = req("POST", "/api/federfall/intake", None, {"species": "Stadttaube"})

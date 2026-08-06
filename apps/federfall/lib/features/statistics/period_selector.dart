@@ -1,6 +1,8 @@
+import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 /// The years offered behind the period control's "earlier years" picker: every
 /// year with a recorded intake, newest first, minus the two the segmented
@@ -30,6 +32,10 @@ List<int> earlierReportYears(List<int> intakeYears, DateTime now) {
 /// [selected] is the single source of truth for the visible state: a year that
 /// is neither of the two recent ones joins the control as its own button
 /// rather than living in a competing dropdown.
+///
+/// The month sits UNDER the year rather than beside it, because it narrows the
+/// year rather than competing with it — and it disappears entirely for "all
+/// time", where a month would name no period at all.
 class PeriodSelector extends StatelessWidget {
   const PeriodSelector({
     required this.selected,
@@ -40,14 +46,14 @@ class PeriodSelector extends StatelessWidget {
     super.key,
   });
 
-  /// The selected calendar year, or null for "all time".
-  final int? selected;
+  /// The selected period.
+  final StatsPeriod selected;
 
   /// Every year with a recorded intake, newest first — off the statistics
   /// payload, which is org-wide regardless of the period being shown.
   final List<int> intakeYears;
 
-  final ValueChanged<int?> onChanged;
+  final ValueChanged<StatsPeriod> onChanged;
 
   /// Frozen by the caller so the labels and the year actually sent do not
   /// shift if the screen happens to be open across midnight on New Year's Eve.
@@ -61,10 +67,15 @@ class PeriodSelector extends StatelessWidget {
     final theme = Theme.of(context);
     final today = now ?? DateTime.now();
     final earlier = earlierReportYears(intakeYears, today);
-    final picked =
-        selected != null && selected != today.year && selected != today.year - 1
-        ? selected
+    final year = selected.year;
+    final picked = year != null && year != today.year && year != today.year - 1
+        ? year
         : null;
+    // MaterialLocalizations has no bare month-name format, and slicing one out
+    // of a full date would depend on the locale's field order.
+    final monthName = DateFormat.MMMM(
+      Localizations.localeOf(context).toString(),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,10 +97,38 @@ class PeriodSelector extends StatelessWidget {
                 ButtonSegment(value: picked, label: Text('$picked')),
               ButtonSegment(value: null, label: Text(l10n.statsExportAllTime)),
             ],
-            selected: {selected},
-            onSelectionChanged: enabled ? (s) => onChanged(s.single) : null,
+            selected: {year},
+            onSelectionChanged: enabled
+                ? (s) => onChanged(selected.withYear(s.single))
+                : null,
           ),
         ),
+        if (!selected.isAllTime) ...[
+          const SizedBox(height: AppSpacing.sm),
+          // A dropdown rather than twelve more segments: the month is a
+          // refinement of the year above it, and twelve buttons would outweigh
+          // the period they narrow.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int?>(
+                value: selected.month,
+                isDense: true,
+                onChanged: enabled
+                    ? (month) => onChanged(selected.withMonth(month))
+                    : null,
+                items: [
+                  DropdownMenuItem(child: Text(l10n.statsPeriodWholeYear)),
+                  for (var m = 1; m <= 12; m++)
+                    DropdownMenuItem(
+                      value: m,
+                      child: Text(monthName.format(DateTime(2000, m))),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
         if (earlier.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.xs),
           Align(
@@ -100,7 +139,7 @@ class PeriodSelector extends StatelessWidget {
               // menu to choose a year and then having to press the resulting
               // button as well would be a second step for a decision already
               // made.
-              onSelected: onChanged,
+              onSelected: (year) => onChanged(selected.withYear(year)),
               itemBuilder: (context) => [
                 for (final year in earlier)
                   PopupMenuItem(value: year, child: Text('$year')),

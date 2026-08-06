@@ -49,16 +49,27 @@ Future<void> _pump(
 }
 
 /// Gives the screen a surface tall enough for the KPI grid, the intake-map
-/// preview card AND all three breakdowns — otherwise the breakdowns sit below
-/// the default viewport and the lazy `ListView` never builds them.
+/// preview card AND all three breakdowns — each of which now carries a donut
+/// above its rows — otherwise the lower cards sit below the viewport and the
+/// lazy `ListView` never builds them.
 void _useTallSurface(WidgetTester tester) {
-  tester.view.physicalSize = const Size(800, 1400);
+  tester.view.physicalSize = const Size(800, 2600);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
 const OrgStatistics _emptyStats = OrgStatistics();
+
+/// Pins the period so a test can assert what the screen does with one.
+class _FixedPeriod extends StatisticsPeriod {
+  _FixedPeriod(this._period);
+
+  final StatsPeriod _period;
+
+  @override
+  StatsPeriod build() => _period;
+}
 
 void main() {
   testWidgets('renders KPIs and outcome/species/condition breakdowns', (
@@ -299,6 +310,79 @@ void main() {
     // One chevron for 'Released', none for the unknown bucket. (The intakes
     // KPI and the intake-map card carry the other two.)
     expect(find.byIcon(Icons.chevron_right), findsNWidgets(3));
+  });
+
+  testWidgets('a month period narrows the tap-through to that month', (
+    tester,
+  ) async {
+    _useTallSurface(tester);
+
+    final container = ProviderContainer(
+      overrides: [
+        statisticsPeriodProvider.overrideWith(
+          () => _FixedPeriod(const StatsPeriod(year: 2026, month: 3)),
+        ),
+        statisticsProvider.overrideWith(
+          (ref, args) async => const OrgStatistics(
+            year: 2026,
+            month: 3,
+            intakes: 4,
+            bySpecies: [StatCount('Stadttaube', 4)],
+          ),
+        ),
+        intakeLocationsProvider.overrideWith(
+          (ref, admittedRange) async => const <IntakeLocation>[],
+        ),
+        currentUserProvider.overrideWith(
+          (ref) async => const AppUser(
+            id: 'u1',
+            email: 'me@x.org',
+            role: UserRole.coordinator,
+            org: 'org1',
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final router = GoRouter(
+      initialLocation: '/statistics',
+      routes: [
+        GoRoute(
+          path: '/statistics',
+          builder: (_, _) => const StatisticsScreen(),
+        ),
+        GoRoute(
+          path: '/cases',
+          builder: (_, _) => const Scaffold(body: Text('CASES')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    container.listen(pendingCaseQueryProvider, (_, _) {});
+
+    await tester.tap(find.text('Stadttaube').first);
+    await tester.pumpAndSettle();
+
+    final range = container.read(pendingCaseQueryProvider)?.admittedRange;
+    // The whole of March 2026 and nothing either side of it: a list that
+    // spilled into April would not match the figure that was tapped.
+    expect(range?.start, DateTime(2026, 3));
+    expect(range?.end.month, 3);
+    expect(range?.end.day, 31);
   });
 
   testWidgets('the export action opens the annual-report sheet', (

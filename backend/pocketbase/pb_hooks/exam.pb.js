@@ -30,6 +30,9 @@ routerAdd(
     // The boundary this route bypasses, stated once for every route that
     // bypasses one — see lib_auth.js.
     const org = require(`${__hooks}/lib_auth.js`).requireMember(e);
+    // The gate above checks the caller; the per-case access check and the
+    // examiner/author fields below still need their identity.
+    const auth = e.auth;
 
     const body = e.requestInfo().body || {};
     const str = (v) => (v === undefined || v === null ? "" : String(v).trim());

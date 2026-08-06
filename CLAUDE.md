@@ -202,8 +202,16 @@ export sheet drive one `PeriodSelector` off `statisticsPeriodProvider`); outcome
 are shares of ENDED cases, never of intakes, and are null — not 0 % — while nothing has
 ended; the diagnosis breakdown is period-scoped there, unlike the org-wide
 `condition_labels` view the case browser's facet still reads. `stats.pb.js` loads the org's
-rows once and partitions in JS so the comparison year, the period and `intakeYears` cost one
-query.
+rows once and partitions in JS so the comparison period, the selected one and `intakeYears`
+cost one query. The period is `?year=` plus an optional `?month=` (a month without a year is
+refused — it names no period): buckets follow it (days / months / years), and the comparison
+is always the SAME period a year earlier, never the one before, because seasonality is the
+question a rehab asks. The report route takes `?month=` too and titles itself
+*Monatsbericht* rather than *Jahresbericht* for one. **Pie/donut colours are capped at three
+hues + a neutral "Other"** (`ui/widgets/breakdown_pie.dart`): a pie is an all-pairs form, and
+three hues is what clears CVD/normal-vision/contrast against BOTH surfaces — light and dark
+are separately validated steps, not a flip. Do not add a fourth hue; the card's rows below
+the chart carry every category and its exact count.
 
 ## Conventions & Patterns
 

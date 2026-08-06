@@ -17,23 +17,26 @@
 //
 // ── Response ────────────────────────────────────────────────────────────────
 // {
-//   "period":  { "year": 2026 | null },
+//   "period":  { "year": 2026 | null, "month": 3 | null },
 //   "totals":  { "intakes", "closed", "inCare",
 //                "avgDaysInCare"|null, "releaseRate"|null, "mortalityRate"|null },
-//   "series":  { "kind": "month" | "year",
-//                "points":   [{ "key": 1..12 | <year>, "count": n }],
-//                "previous": { "year": 2025, "points": [...] } | null },
+//   "series":  { "kind": "day" | "month" | "year",
+//                "points":   [{ "key": 1..31 | 1..12 | <year>, "count": n }],
+//                "previous": { "year": 2025, "month": 3|null, "points": [...] }
+//                            | null },
 //   "outcomes":   [{ "type": "released" | "", "count": n }],
 //   "species":    [{ "label": "Stadttaube", "count": n }],
 //   "conditions": [{ "label": "Trichomoniasis", "count": n }],
 //   "intakeYears": [2026, 2025, 2024]
 // }
 //
-// `series.kind` is "month" for a selected year (keys 1–12, every month emitted
-// even at zero) and "year" over all time (keys are calendar years, the range
-// filled in so a gap year is a zero and not a missing column). `previous` is
-// the year before the selected one and is omitted when that year had no
-// intakes at all — an all-zero comparison series is noise, not a comparison.
+// `series.kind` follows the period: "day" for a selected month (keys 1..28-31),
+// "month" for a selected year (keys 1–12), "year" over all time (keys are
+// calendar years, the range filled in so a gap year is a zero and not a missing
+// column). Every bucket of the period is emitted even at zero. `previous` is
+// the SAME period one year earlier — last March for March, not February — and
+// is omitted when that period had no intakes at all, since an all-zero
+// comparison series is noise rather than a comparison.
 //
 // `outcomes` counts ENDED cases only; `""` is a disposition type the reader's
 // build cannot name. Still-open cases are reported as `totals.inCare`, not as
@@ -52,7 +55,9 @@ routerAdd(
     const org = require(`${__hooks}/lib_auth.js`).requireReporting(e);
 
     const query = e.request.url.query();
-    const year = stats.parseYear(query);
+    const period = stats.parsePeriod(query);
+    const year = period.year;
+    const month = period.month;
     const t = stats.timeContext(query);
 
     // Every case on record, once, then partitioned in JS — the previous year's
@@ -67,18 +72,32 @@ routerAdd(
       const p = t.partsOf(r.admittedAt);
       return p === null ? null : p.y;
     };
+    const monthOf = (r) => {
+      const p = t.partsOf(r.admittedAt);
+      return p === null ? null : p.mo;
+    };
+    const rowsIn = (y, mo) =>
+      rows.filter(
+        (r) => yearOf(r) === y && (mo === null || monthOf(r) === mo),
+      );
 
-    const periodRows =
-      year === null ? rows : rows.filter((r) => yearOf(r) === year);
-    const agg = stats.aggregate(periodRows, { t: t, year: year });
+    const periodRows = year === null ? rows : rowsIn(year, month);
+    const agg = stats.aggregate(periodRows, { t: t, period: period });
 
+    // The comparison is always the SAME period a year earlier — March against
+    // last March, not against February. Seasonality is what a rehab is asking
+    // about ("are we busier than last spring?"); the month before answers a
+    // different question and answers it badly, since half the difference is
+    // just the season turning.
     let previous = null;
     if (year !== null) {
-      const prevRows = rows.filter((r) => yearOf(r) === year - 1);
+      const prevPeriod = { year: year - 1, month: month };
+      const prevRows = rowsIn(prevPeriod.year, month);
       if (prevRows.length > 0) {
         previous = {
-          year: year - 1,
-          points: stats.aggregate(prevRows, { t: t, year: year - 1 })
+          year: prevPeriod.year,
+          month: month,
+          points: stats.aggregate(prevRows, { t: t, period: prevPeriod })
             .intakesByBucket,
         };
       }
@@ -95,7 +114,7 @@ routerAdd(
     intakeYears.sort((a, b) => b - a);
 
     return e.json(200, {
-      period: { year: year },
+      period: { year: year, month: month },
       totals: agg.totals,
       series: {
         kind: agg.bucketKind,

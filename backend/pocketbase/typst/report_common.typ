@@ -148,6 +148,7 @@
     // because the CSV of that same table prints the same headers.
     annual: (
       title: "Jahresbericht",
+      titleMonthly: "Monatsbericht",
       titleAllTime: "Fallbericht — Gesamtzeitraum",
       periodLabel: "Berichtszeitraum",
       periodIntakes: (from, to) => "Aufnahmen " + from + " – " + to,
@@ -160,6 +161,7 @@
       daysUnit: "d",
       sectionMonthly: "Aufnahmen pro Monat",
       sectionYearly: "Aufnahmen pro Jahr",
+      sectionDaily: "Aufnahmen pro Tag",
       sectionOutcomes: "Ausgänge",
       sectionSpecies: "Arten",
       sectionReasons: "Aufnahmegründe",
@@ -171,6 +173,10 @@
       decimalSep: ",",
       countCases: (n) => if n == 1 { "1 Fall" } else { str(n) + " Fälle" },
       months: ("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"),
+      monthsLong: (
+        "Januar", "Februar", "März", "April", "Mai", "Juni",
+        "Juli", "August", "September", "Oktober", "November", "Dezember",
+      ),
       empty: "Keine Aufnahmen im Berichtszeitraum.",
       emptySection: "Keine Angaben.",
       // The report counts the cases ADMITTED in the period (see
@@ -307,6 +313,7 @@
     // because the CSV of that same table prints the same headers.
     annual: (
       title: "Annual Report",
+      titleMonthly: "Monthly Report",
       titleAllTime: "Case Report — All Time",
       periodLabel: "Reporting period",
       periodIntakes: (from, to) => "Intakes " + from + " – " + to,
@@ -319,6 +326,7 @@
       daysUnit: "d",
       sectionMonthly: "Intakes per month",
       sectionYearly: "Intakes per year",
+      sectionDaily: "Intakes per day",
       sectionOutcomes: "Outcomes",
       sectionSpecies: "Species",
       sectionReasons: "Reasons for admission",
@@ -330,6 +338,10 @@
       decimalSep: ".",
       countCases: (n) => if n == 1 { "1 case" } else { str(n) + " cases" },
       months: ("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"),
+      monthsLong: (
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+      ),
       empty: "No intakes in the reporting period.",
       emptySection: "No data.",
       // The report counts the cases ADMITTED in the period (see

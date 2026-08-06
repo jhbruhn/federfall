@@ -86,8 +86,10 @@ class PbCaseReportRepository {
   /// `pb_hooks/annual_report.pb.js` — a Typst PDF, or the same table as a CSV
   /// when [csv] is set.
   ///
-  /// The report covers the cases *admitted* in [year]; a null [year] reports
-  /// every case on record. The period's boundaries are the CALLER'S midnight,
+  /// The report covers the cases *admitted* in the period: [year], optionally
+  /// narrowed to one [month] of it; a null [year] reports every case on record.
+  /// A month is refused server-side without a year, so it is only sent with
+  /// one. The period's boundaries are the CALLER'S midnight,
   /// so [tzOffsetMinutes] decides which side of New Year a late-evening
   /// admission falls on — pass it (see [fetchPdf] for why the server cannot
   /// work it out itself).
@@ -102,6 +104,7 @@ class PbCaseReportRepository {
   /// whole year of them (a landscape table page per ~20 cases).
   Future<Uint8List> fetchAnnualReport({
     int? year,
+    int? month,
     bool csv = false,
     String lang = 'de',
     int? tzOffsetMinutes,
@@ -109,6 +112,7 @@ class PbCaseReportRepository {
   }) => _guard(() async {
     final uri = pb.buildURL('/api/federfall/reports/annual', {
       if (year != null) 'year': '$year',
+      if (year != null && month != null) 'month': '$month',
       if (csv) 'format': 'csv',
       'lang': lang,
       if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',

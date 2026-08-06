@@ -15,6 +15,7 @@ export 'validators.dart';
 export 'widgets/app_text_field.dart';
 export 'widgets/async_value_view.dart';
 export 'widgets/breakdown_card.dart';
+export 'widgets/breakdown_pie.dart';
 export 'widgets/cached_file_image.dart';
 export 'widgets/date_field.dart';
 export 'widgets/destructive_action_button.dart';

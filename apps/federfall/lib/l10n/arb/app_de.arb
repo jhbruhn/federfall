@@ -85,6 +85,8 @@
     "@statsDaysValue": {
         "placeholders": { "days": { "type": "String" } }
     },
+    "statsPeriodWholeYear": "Ganzes Jahr",
+    "statsChartOther": "Sonstige",
     "statsSectionIntakesOverTime": "Aufnahmen im Zeitverlauf",
     "statsSectionOutcomes": "Ausgänge",
     "statsSectionSpecies": "Nach Art",

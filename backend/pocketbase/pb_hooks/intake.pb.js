@@ -42,6 +42,9 @@ routerAdd(
     // org, and not a guest (guests are walled off from all data). One
     // implementation for every route — see lib_auth.js.
     const org = require(`${__hooks}/lib_auth.js`).requireMember(e);
+    // The gate above checks the caller; the writes below still need their
+    // identity (active_carer, author, set_by, the idempotency key's owner).
+    const auth = e.auth;
 
     const body = e.requestInfo().body || {};
     const str = (v) => (v === undefined || v === null ? "" : String(v).trim());

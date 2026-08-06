@@ -5,9 +5,10 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// Intakes over time (federfall-nmwi): one bar per month of the selected year,
-/// or one per calendar year over all time, with the previous year beside each
-/// bar where there is one to compare against.
+/// Intakes over time (federfall-nmwi): one bar per day of the selected month,
+/// per month of the selected year, or per calendar year over all time — with
+/// the same period a year earlier beside each bar where there is one to
+/// compare against.
 ///
 /// A BAR chart, like `EggMonthChart` and for the same reason: admissions are
 /// seasonal, and this is the first question an annual report asks ("is this
@@ -58,21 +59,27 @@ class IntakeSeriesChart extends StatelessWidget {
     final step = (tallest / 4).ceil().clamp(1, 1 << 30);
 
     final label = _bucketLabel(context);
+    final monthFormat = DateFormat.MMM(
+      Localizations.localeOf(context).toString(),
+    );
+    String monthName(int m) => monthFormat.format(DateTime(2000, m));
     // Twelve months, or a long run of years, will not fit as labels side by
     // side; every nth keeps them readable and the bars in place.
-    final labelEvery = series.kind == SeriesBucket.month
-        ? 3
-        : (points.length / 6).ceil().clamp(1, 1 << 30);
+    final labelEvery = switch (series.kind) {
+      SeriesBucket.month => 3,
+      // A month has 28–31 columns; a label every fifth day reads as a calendar
+      // without crowding.
+      SeriesBucket.day => 5,
+      SeriesBucket.year => (points.length / 6).ceil().clamp(1, 1 << 30),
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (hasPrevious) ...[
           _Legend(
-            currentLabel: series.points.isEmpty
-                ? ''
-                : _currentLabel(l10n, series),
-            previousLabel: '${series.previousYear}',
+            currentLabel: _currentLabel(l10n, series, monthName),
+            previousLabel: _previousLabel(series, monthName),
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
@@ -94,8 +101,8 @@ class IntakeSeriesChart extends StatelessWidget {
                     final period = !hasPrevious
                         ? ''
                         : rodIndex == 0
-                        ? ' ${series.previousYear}'
-                        : ' ${_currentLabel(l10n, series)}';
+                        ? ' ${_previousLabel(series, monthName)}'
+                        : ' ${_currentLabel(l10n, series, monthName)}';
                     return BarTooltipItem(
                       '${label(points[groupIndex].key)}$period'
                       ': ${rod.toY.toInt()}',
@@ -161,12 +168,32 @@ class IntakeSeriesChart extends StatelessWidget {
     );
   }
 
-  /// The selected period's own name: the year, or "all time" when the series
-  /// is itself a run of years.
-  static String _currentLabel(AppLocalizations l10n, IntakeSeries series) =>
-      series.previousYear == null
-      ? l10n.statsExportAllTime
-      : '${series.previousYear! + 1}';
+  /// The selected period's own name for the legend: the year, or the month
+  /// and year when a month is selected — the comparison is the SAME month a
+  /// year earlier, so the month alone would name both series.
+  static String _currentLabel(
+    AppLocalizations l10n,
+    IntakeSeries series,
+    String Function(int) monthName,
+  ) {
+    final previous = series.previousYear;
+    if (previous == null) return l10n.statsExportAllTime;
+    final month = series.previousMonth;
+    return month == null
+        ? '${previous + 1}'
+        : '${monthName(month)} ${previous + 1}';
+  }
+
+  /// The comparison period's name, on the same pattern.
+  static String _previousLabel(
+    IntakeSeries series,
+    String Function(int) monthName,
+  ) {
+    final month = series.previousMonth;
+    return month == null
+        ? '${series.previousYear}'
+        : '${monthName(month)} ${series.previousYear}';
+  }
 
   /// Bucket key → axis label: a short month name, or the year itself.
   String Function(int) _bucketLabel(BuildContext context) {

@@ -39,7 +39,7 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
   /// "export" is asking for the 2025 report. It stays sheet-local from there:
   /// exporting a different year should not quietly re-scope the screen under
   /// the sheet.
-  late int? _year = ref.read(statisticsPeriodProvider);
+  late StatsPeriod _period = ref.read(statisticsPeriodProvider);
 
   /// Which format is currently being fetched, so only the tapped button shows
   /// a spinner (and neither can be tapped twice into two share sheets).
@@ -56,7 +56,8 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
     // to the closing year or the opening one.
     final lang = Localizations.localeOf(context).languageCode;
     final tzOffsetMinutes = _now.timeZoneOffset.inMinutes;
-    final year = _year;
+    final year = _period.year;
+    final month = _period.month;
     final filename =
         '${l10n.statsExportFileName('${year ?? l10n.statsExportFileAllTime}')}'
         '.${csv ? 'csv' : 'pdf'}';
@@ -66,6 +67,7 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
       final repo = await ref.read(caseReportRepositoryProvider.future);
       final bytes = await repo.fetchAnnualReport(
         year: year,
+        month: month,
         csv: csv,
         lang: lang,
         tzOffsetMinutes: tzOffsetMinutes,
@@ -105,10 +107,14 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
     // report itself runs in, and org-wide regardless of the period shown, so
     // there is nothing extra to fetch. Until it lands (or if it fails) the two
     // recent years and "all time" still work; only the picker waits.
+    final screenPeriod = ref.watch(statisticsPeriodProvider);
     final intakeYears =
         ref
             .watch(
-              statisticsProvider(year: ref.watch(statisticsPeriodProvider)),
+              statisticsProvider(
+                year: screenPeriod.year,
+                month: screenPeriod.month,
+              ),
             )
             .value
             ?.intakeYears ??
@@ -137,11 +143,11 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
           // The same control the statistics screen uses, so "2026" cannot mean
           // one thing on screen and another in the exported file.
           PeriodSelector(
-            selected: _year,
+            selected: _period,
             intakeYears: intakeYears,
             now: _now,
             enabled: !busy,
-            onChanged: (picked) => setState(() => _year = picked),
+            onChanged: (picked) => setState(() => _period = picked),
           ),
           const SizedBox(height: AppSpacing.md),
           PrimaryButton(

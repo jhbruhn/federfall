@@ -30,11 +30,17 @@ class BreakdownCard extends StatelessWidget {
     required this.title,
     required this.rows,
     required this.emptyMessage,
+    this.chart,
     super.key,
   });
 
   final String title;
   final List<BreakdownRow> rows;
+
+  /// Optional plot of the same numbers, drawn under the title and above the
+  /// rows. The rows stay either way: a chart shows the shape, the rows answer
+  /// "how many exactly" and "which ones" — see [BreakdownPie].
+  final Widget? chart;
 
   /// Shown in place of the rows when [rows] is empty.
   final String emptyMessage;
@@ -57,6 +63,16 @@ class BreakdownCard extends StatelessWidget {
             ),
             child: Text(title, style: theme.textTheme.titleMedium),
           ),
+          if (chart case final chart? when rows.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.sm,
+              ),
+              child: chart,
+            ),
           if (rows.isEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(

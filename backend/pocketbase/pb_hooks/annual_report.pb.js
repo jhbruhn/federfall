@@ -62,13 +62,34 @@ routerAdd(
     }
     const wantCsv = formatParam === "csv";
 
-    const year = stats.parseYear(query);
+    const period = stats.parsePeriod(query);
+    const year = period.year;
     const t = stats.timeContext(query);
     const partsOf = t.partsOf;
     const pbStamp = t.pbStamp;
     // Half-open, resolved through the caller's own UTC offset; null for an
     // all-time report.
-    const bounds = year !== null ? stats.yearBounds(year, t) : null;
+    const bounds = stats.periodBounds(period, t);
+
+    // Sortable and unambiguous in a downloads folder: 2026, or 2026-03. A
+    // month report is named for what it is — calling it a Jahresbericht would
+    // be wrong in the filename for the same reason it is wrong on the page.
+    const reportBase =
+      period.month !== null
+        ? lang === "en"
+          ? "federfall-monthly-report-"
+          : "federfall-monatsbericht-"
+        : lang === "en"
+          ? "federfall-annual-report-"
+          : "federfall-jahresbericht-";
+    const periodSlug =
+      year === null
+        ? lang === "en"
+          ? "all-time"
+          : "gesamt"
+        : period.month === null
+          ? String(year)
+          : year + "-" + (period.month < 10 ? "0" : "") + period.month;
 
     // ── The table: one pre-joined row per case off `case_report_rows`. Its
     // columns ARE the report table (and the CSV) — nothing here adds or
@@ -215,9 +236,7 @@ routerAdd(
         }
       }
 
-      const csvName =
-        (lang === "en" ? "federfall-annual-report-" : "federfall-jahresbericht-") +
-        (year !== null ? String(year) : lang === "en" ? "all-time" : "gesamt");
+      const csvName = reportBase + periodSlug;
       e.response
         .header()
         .set("Content-Disposition", 'attachment; filename="' + csvName + '.csv"');
@@ -230,6 +249,7 @@ routerAdd(
           report: "annual",
           format: "csv",
           year: year,
+          month: period.month,
           lang: lang,
           rows: caseRows.length,
         },
@@ -242,7 +262,7 @@ routerAdd(
     // so the printed report and the on-screen figures agree for the same scope
     // — including the mean stay being a FRACTIONAL day count (hours/24), not
     // the whole days the per-case column shows.
-    const agg = stats.aggregate(caseRows, { t: t, year: year });
+    const agg = stats.aggregate(caseRows, { t: t, period: period });
 
     // Outcomes: named types first (by count), then the unnamed-type bucket,
     // then "still open" last — it is not an outcome, it is the absence of one,
@@ -272,6 +292,9 @@ routerAdd(
       },
       period: {
         year: year,
+        // Null for a whole year; the template titles and labels the report
+        // differently when a single month was asked for.
+        month: period.month,
         from: bounds === null ? null : partsOf(pbStamp(bounds.fromMs)),
         // The inclusive last day of the period, because that is what a
         // reader expects to see printed ("01.01. – 31.12."), while the filter
@@ -309,7 +332,7 @@ routerAdd(
     const outPath =
       $os.tempDir() +
       "/federfall-annual-" +
-      (year !== null ? year : "all") +
+      periodSlug +
       "-" +
       Date.now() +
       "-" +
@@ -352,9 +375,7 @@ routerAdd(
       }
     }
 
-    const pdfName =
-      (lang === "en" ? "federfall-annual-report-" : "federfall-jahresbericht-") +
-      (year !== null ? String(year) : lang === "en" ? "all-time" : "gesamt");
+    const pdfName = reportBase + periodSlug;
     e.response
       .header()
       .set("Content-Disposition", 'attachment; filename="' + pdfName + '.pdf"');
@@ -365,6 +386,7 @@ routerAdd(
         report: "annual",
         format: "pdf",
         year: year,
+        month: period.month,
         lang: lang,
         rows: caseRows.length,
       },

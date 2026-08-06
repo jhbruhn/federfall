@@ -32,6 +32,9 @@ routerAdd(
     // Membership only; which CASES this caller may print is checked below
     // against the case itself — see lib_auth.js.
     const org = require(`${__hooks}/lib_auth.js`).requireMember(e);
+    // The gate above checks the caller; which CASES they may print is decided
+    // below against their role and id.
+    const auth = e.auth;
 
     const langParam = e.request.url.query().get("lang");
     const lang = langParam === "en" ? "en" : "de";

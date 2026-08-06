@@ -27,10 +27,21 @@
 
 // ── Document ─────────────────────────────────────────────────────────────────
 #let periodYear = data.period.at("year", default: none)
-#let docTitle = if periodYear != none {
+#let periodMonth = data.period.at("month", default: none)
+// A month report is still the annual report's table over a shorter period, so
+// it keeps the same title and simply names the month it covers.
+#let docTitle = if periodYear == none {
+  A.titleAllTime
+} else if periodMonth == none {
   A.title + " " + str(periodYear)
 } else {
-  A.titleAllTime
+  // One complete expression per line: a trailing `+` at a line break ends the
+  // enclosing `#let` and Typst then reads the continuation as markup (the
+  // same trap `orgContact` below is parenthesised against).
+  let monthName = A.monthsLong.at(periodMonth - 1, default: str(periodMonth))
+  // Not "Jahresbericht März": the document is the same table over a shorter
+  // period, and calling a month an annual report is simply wrong.
+  A.titleMonthly + " " + monthName + " " + str(periodYear)
 }
 
 #set document(title: data.org.name + " — " + docTitle)
@@ -150,15 +161,25 @@
   let buckets = data.at("intakesByBucket", default: ())
   let bucketKind = data.at("bucketKind", default: "month")
   v(12pt)
-  sectionTitle(if bucketKind == "year" { A.sectionYearly } else { A.sectionMonthly })
+  sectionTitle(
+    if bucketKind == "year" {
+      A.sectionYearly
+    } else if bucketKind == "day" {
+      A.sectionDaily
+    } else {
+      A.sectionMonthly
+    },
+  )
   let counts = buckets.map(b => b.count)
   let peak = if counts.len() == 0 { 0 } else { calc.max(..counts) }
   // The hook sends bucket KEYS (a month number, or a calendar year) so the
   // month names stay in this file with the rest of the localization.
-  let bucketLabel(key) = if bucketKind == "year" {
-    str(key)
-  } else {
+  // A day bucket is the day of the month, a month bucket its initial, a year
+  // bucket the year itself.
+  let bucketLabel(key) = if bucketKind == "month" {
     A.months.at(key - 1, default: str(key))
+  } else {
+    str(key)
   }
   if peak == 0 [
     #muted[#A.emptySection]

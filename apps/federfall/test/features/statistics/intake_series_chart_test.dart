@@ -95,6 +95,28 @@ void main() {
     expect(find.text('All time'), findsNothing);
   });
 
+  testWidgets('a month series is one bar per day, named with its month', (
+    tester,
+  ) async {
+    final data = await _pump(
+      tester,
+      const IntakeSeries(
+        kind: SeriesBucket.day,
+        points: [IntakePoint(1, 2), IntakePoint(2, 0), IntakePoint(3, 5)],
+        previousYear: 2025,
+        previousMonth: 3,
+        previousPoints: [IntakePoint(1, 1), IntakePoint(3, 4)],
+      ),
+    );
+
+    expect([for (final g in data!.barGroups) g.barRods.first.toY], [1, 0, 4]);
+    expect([for (final g in data.barGroups) g.barRods.last.toY], [2, 0, 5]);
+    // The comparison is the same month a year earlier, so the legend has to
+    // name the month on both sides — "2026" alone would not say which March.
+    expect(find.text('Mar 2026'), findsOneWidget);
+    expect(find.text('Mar 2025'), findsOneWidget);
+  });
+
   testWidgets('an empty series says so instead of drawing an empty axis', (
     tester,
   ) async {
