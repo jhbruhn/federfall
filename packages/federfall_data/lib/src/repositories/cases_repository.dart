@@ -39,6 +39,22 @@ abstract interface class CasesRepository implements Repository<Case> {
   /// entry, for the confirmation shown before deleting that entry.
   Future<int> countForAdmissionReason(String reasonId);
 
+  /// How many of the cases the caller may read carry [status], counted
+  /// server-side. The list rule does the scoping — org-wide for a coordinator
+  /// or supervisor, own + shared for a carer — so this is the same population
+  /// the case browser's "all" scope lists, without pulling it to the device.
+  Future<int> countWithStatus(CaseStatus status);
+
+  /// How many of the cases the caller may read were admitted in
+  /// `[from, to)` — half-open, so a year range is `DateTime(y)` to
+  /// `DateTime(y + 1)` with no end-of-year rounding to get wrong.
+  ///
+  /// The caller supplies the instants because the boundary is theirs: a bird
+  /// admitted at 00:30 on New Year's Day in UTC+1 belongs to the new year for
+  /// the person reading, and to the old one for the database (federfall-s0wk).
+  /// Build the range from local midnights and hand it over in UTC.
+  Future<int> countAdmittedBetween(DateTime from, DateTime to);
+
   /// The case detail's whole data set in ONE request (federfall-kh0u): the
   /// case plus its animal, finder and all twelve timeline collections via
   /// relation expand ([caseBundleExpand]). Expanded rows honor each
@@ -136,6 +152,18 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   @override
   Future<int> countForAdmissionReason(String reasonId) =>
       count(filter: filterExpr('admission_reasons ~ {:r}', {'r': reasonId}));
+
+  @override
+  Future<int> countWithStatus(CaseStatus status) =>
+      count(filter: filterExpr('status = {:s}', {'s': status.wire}));
+
+  @override
+  Future<int> countAdmittedBetween(DateTime from, DateTime to) => count(
+    filter: filterExpr('admitted_at >= {:from} && admitted_at < {:to}', {
+      'from': from.toUtc(),
+      'to': to.toUtc(),
+    }),
+  );
 
   @override
   Future<CaseBundle> bundle(String id) => guard(

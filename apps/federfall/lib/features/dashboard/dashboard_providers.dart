@@ -6,9 +6,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'dashboard_providers.g.dart';
 
-/// Aggregated figures shown on the dashboard (FED-7.1), derived from the set of
-/// cases the signed-in user may read — so the scope follows the access rules
-/// (carer: own + shared; coordinator/supervisor: org-wide).
+/// Aggregated figures shown on the dashboard (FED-7.1), counted server-side
+/// over the cases the signed-in user may read — so the scope follows the access
+/// rules (carer: own + shared; coordinator/supervisor: org-wide).
 @immutable
 class DashboardSummary {
   const DashboardSummary({
@@ -32,14 +32,19 @@ class DashboardSummary {
   final Map<CaseStatus, int> byStatus;
 
   /// Open (non-disposed) case count per active-carer user id, for the carer
-  /// workload card (federfall-9mit). Same definition of "open caseload" the
-  /// server uses to guard deleting a member (`active_carer = {:id} && status
-  /// != 'disposed'`, `main.pb.js`), so the two never disagree.
+  /// workload card (federfall-9mit). Read from the `case_carer_load` view,
+  /// which counts open cases exactly as the server's guard on deleting a
+  /// member does (`active_carer = {:id} && status != 'disposed'`,
+  /// `main.pb.js`), so the two never disagree.
   ///
-  /// Only meaningful for coordinators/supervisors, who read org-wide: a
-  /// carer's own case list holds other people's cases only where they were
-  /// shared, so their per-carer figures would be a fragment. The card that
-  /// shows this gates on `canViewReports` for that reason.
+  /// **Empty for a carer, legitimately.** That view is org-wide by
+  /// construction and its list rule admits coordinators and supervisors only;
+  /// a list request applies the rule as a filter, so a carer receives no rows
+  /// rather than an error. Nothing is lost: their own case list holds other
+  /// people's cases only where they were shared, so per-carer figures would be
+  /// a fragment anyway — which is why the only consumer
+  /// ([carerWorkloadProvider], via the workload card) already gates on
+  /// `canViewReports`.
   final Map<String, int> openByCarer;
 }
 
@@ -49,73 +54,93 @@ const List<CaseStatus> _activeStatuses = [
   CaseStatus.readyForRelease,
 ];
 
-/// Pure aggregation of [cases] into a [DashboardSummary] as of [now]. Kept
+/// Pure assembly of the server-side counts into a [DashboardSummary]. Kept
 /// separate from the provider so it can be unit-tested without PocketBase.
-DashboardSummary buildDashboardSummary(
-  List<Case> cases,
-  DateTime now, {
+///
+/// [DashboardSummary.activeCount] comes from [totalCases] MINUS
+/// [disposedCases], never from a `status != 'disposed'` count. That is not
+/// stylistic — a filter written that way answered 25 where the arithmetic said
+/// 24 on three runs and agreed on the next (federfall-jt5u, which is also why
+/// the `case_carer_load` view is pinned to the subtraction). It also keeps a
+/// case with no status at all counted as active, which is what "has not yet
+/// been disposed" means.
+DashboardSummary buildDashboardSummary({
+  required int totalCases,
+  required int disposedCases,
+  required Map<CaseStatus, int> activeByStatus,
+  required int intakesThisYear,
   int inAviaryCount = 0,
+  List<CarerCaseLoad> carerLoad = const [],
 }) {
-  final byStatus = {for (final s in _activeStatuses) s: 0};
-  final openByCarer = <String, int>{};
-  var active = 0;
-  var intakes = 0;
-
-  for (final c in cases) {
-    final isActive = c.status != CaseStatus.disposed;
-    if (isActive) {
-      active++;
-      final status = c.status;
-      if (status != null && byStatus.containsKey(status)) {
-        byStatus[status] = byStatus[status]! + 1;
-      }
-      // `active_carer` is optional server-side, so an unassigned open case is
-      // possible (rare — the create rule pins it to the caller). It belongs to
-      // nobody's workload, so it is left out rather than bucketed under ''.
-      final carer = c.activeCarer;
-      if (carer != null && carer.isNotEmpty) {
-        openByCarer[carer] = (openByCarer[carer] ?? 0) + 1;
-      }
-    }
-    // `.toLocal()` is load-bearing (federfall-s0wk): `admittedAt` is UTC —
-    // `pbDate` normalises every timestamp with `.toUtc()` — while [now] is the
-    // device's local time, so comparing the two years directly put a bird
-    // admitted at 00:30 on New Year's Day in UTC+1 into LAST year here and
-    // into this one on the statistics screen, which resolves the boundary
-    // through the caller's own offset server-side. Same case, same org, two
-    // answers.
-    final admitted = c.admittedAt?.toLocal();
-    if (admitted != null && admitted.year == now.year) intakes++;
-  }
-
+  final active = totalCases - disposedCases;
   return DashboardSummary(
-    activeCount: active,
-    intakesThisYear: intakes,
-    byStatus: byStatus,
+    // The two counts are separate requests, so a case disposed between them
+    // can make the difference negative. A KPI tile reading "-1" would look
+    // broken; a momentarily low 0 just resolves on the next refresh.
+    activeCount: active < 0 ? 0 : active,
+    intakesThisYear: intakesThisYear,
+    byStatus: {for (final s in _activeStatuses) s: activeByStatus[s] ?? 0},
     inAviaryCount: inAviaryCount,
-    openByCarer: openByCarer,
+    openByCarer: {
+      for (final row in carerLoad)
+        // `active_carer` is optional server-side, and the view only emits rows
+        // for cases that have one — but a defensive skip keeps an empty id from
+        // rendering as a nameless workload row if that ever changes.
+        if (row.carer.isNotEmpty) row.carer: row.openCases,
+    },
   );
 }
 
-/// Dashboard figures for the signed-in user. Reads every case the access rules
-/// expose, then aggregates client-side.
+/// Dashboard figures for the signed-in user, every one of them counted
+/// **server-side** (federfall-s0wk).
+///
+/// This used to fetch the whole `cases` and `animals` collections and tally
+/// them on the device — the load pattern federfall-80tc removed from the CSV
+/// export and federfall-nmwi from the statistics screen. Each figure is now a
+/// request that transfers one row, and the scope still follows the access
+/// rules because the list rule is applied to a count exactly as it is to a
+/// list: org-wide for a coordinator or supervisor, own + shared for a carer.
+/// That matters for more than cost — it is what keeps every KPI tile equal to
+/// the case list it taps through to.
+///
+/// The year boundary is deliberately built here rather than server-side: it
+/// belongs to the caller. A view or a SQL expression would resolve it in UTC
+/// and put a bird admitted at 00:30 on New Year's Day in UTC+1 in the wrong
+/// year — the same disagreement with the statistics screen this issue's first
+/// half fixed. Local midnights, converted to UTC on the way out.
 @riverpod
 Future<DashboardSummary> dashboardSummary(Ref ref) async {
-  final (casesRepo, animalsRepo) = await (
+  final (casesRepo, animalsRepo, carerLoadRepo) = await (
     ref.watch(casesRepositoryProvider.future),
     ref.watch(animalsRepositoryProvider.future),
+    ref.watch(carerLoadRepositoryProvider.future),
   ).wait;
-  final (cases, animals) = await (
-    casesRepo.list(sort: '-created'),
-    animalsRepo.list(),
+
+  final now = DateTime.now();
+  final yearStart = DateTime(now.year);
+  final nextYearStart = DateTime(now.year + 1);
+
+  final (total, disposed, activeCounts, intakes, inAviary, carerLoad) = await (
+    casesRepo.count(),
+    casesRepo.countWithStatus(CaseStatus.disposed),
+    // Driven off [_activeStatuses] rather than named one by one, so the tiles
+    // and this fetch cannot drift apart when a status is added.
+    Future.wait(_activeStatuses.map(casesRepo.countWithStatus)),
+    casesRepo.countAdmittedBetween(yearStart, nextYearStart),
+    animalsRepo.countWithLifetimeStatus(LifetimeStatus.inAviary),
+    carerLoadRepo.all(),
   ).wait;
-  final inAviary = animals
-      .where((a) => a.lifetimeStatus == LifetimeStatus.inAviary)
-      .length;
+
   return buildDashboardSummary(
-    cases,
-    DateTime.now(),
+    totalCases: total,
+    disposedCases: disposed,
+    activeByStatus: {
+      for (var i = 0; i < _activeStatuses.length; i++)
+        _activeStatuses[i]: activeCounts[i],
+    },
+    intakesThisYear: intakes,
     inAviaryCount: inAviary,
+    carerLoad: carerLoad,
   );
 }
 
@@ -165,9 +190,10 @@ List<CarerWorkload> buildCarerWorkload(
 /// still surface — see [buildCarerWorkload].
 ///
 /// Coordinators/supervisors only; the card gates on `canViewReports`. The
-/// counts ride on [dashboardSummaryProvider]'s case list, which is scoped to
-/// what the caller may read — org-wide for those two roles, a fragment for a
-/// carer (see [DashboardSummary.openByCarer]).
+/// counts come from [DashboardSummary.openByCarer], i.e. the org-wide
+/// `case_carer_load` view — which those two roles read and a carer does not,
+/// so for a carer this resolves to a roster with no counts and the card is
+/// hidden anyway.
 @riverpod
 Future<List<CarerWorkload>> carerWorkload(Ref ref) async {
   final summaryFuture = ref.watch(dashboardSummaryProvider.future);

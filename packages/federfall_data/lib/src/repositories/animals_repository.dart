@@ -29,6 +29,12 @@ class PbAnimalsRepository extends PbRepository<Animal> {
   Future<List<Animal>> housed() =>
       list(filter: filterExpr('current_aviary != ""'));
 
+  /// How many animals the caller may read carry [status], counted server-side
+  /// — one row over the wire, not the whole collection to be filtered on the
+  /// device (federfall-s0wk).
+  Future<int> countWithLifetimeStatus(LifetimeStatus status) =>
+      count(filter: filterExpr('lifetime_status = {:s}', {'s': status.wire}));
+
   /// Each `id = {:x}` clause adds ~30 chars to the GET query string; 100 ids
   /// per request stays a few kB — far below common 8 kB URL/proxy limits.
   static const int _byIdsChunkSize = 100;

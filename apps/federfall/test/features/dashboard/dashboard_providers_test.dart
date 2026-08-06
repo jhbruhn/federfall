@@ -1,19 +1,18 @@
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
-import 'package:federfall_models/federfall_models.dart';
+import 'package:federfall_data/federfall_data.dart';
+// `Finder` here is flutter_test's, so hide the models' unrelated PII record of
+// the same name (see CLAUDE.md).
+import 'package:federfall_models/federfall_models.dart' hide Finder;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
-Case _case({
-  required String id,
-  CaseStatus? status,
-  DateTime? admittedAt,
-  String? carer,
-}) => Case(
-  id: id,
-  animal: 'a-$id',
-  status: status,
-  admittedAt: admittedAt,
-  activeCarer: carer,
-);
+class MockCasesRepo extends Mock implements PbCasesRepository {}
+
+class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
+
+class MockCarerLoadRepo extends Mock implements PbCarerLoadRepository {}
 
 AppUser _user(
   String id, {
@@ -28,101 +27,251 @@ AppUser _user(
   isActive: active,
 );
 
+CarerCaseLoad _load(String carer, int open) =>
+    CarerCaseLoad(id: 'org1:$carer', carer: carer, openCases: open);
+
 void main() {
-  final now = DateTime(2026, 6, 23);
+  // `countAdmittedBetween` takes non-nullable DateTimes, so `any()` needs a
+  // dummy to build its matcher from.
+  setUpAll(() => registerFallbackValue(DateTime(0)));
 
-  test('counts active cases and excludes disposed', () {
-    final s = buildDashboardSummary([
-      _case(id: '1', status: CaseStatus.inCare),
-      _case(id: '2', status: CaseStatus.readyForRelease),
-      _case(id: '3', status: CaseStatus.disposed),
-    ], now);
+  group('buildDashboardSummary', () {
+    test('derives active cases by subtracting disposed from the total', () {
+      // NOT a `status != "disposed"` count (federfall-jt5u): that filter
+      // answered 25 where the arithmetic said 24 on three runs and agreed on
+      // the next. Subtraction is unambiguous either way — and it keeps a case
+      // with no status at all counted as active, which is what "has not yet
+      // been disposed" means.
+      final s = buildDashboardSummary(
+        totalCases: 10,
+        disposedCases: 4,
+        activeByStatus: const {},
+        intakesThisYear: 0,
+      );
 
-    expect(s.activeCount, 2);
+      expect(s.activeCount, 6);
+    });
+
+    test('never reports a negative active count', () {
+      // The total and the disposed count are separate requests; a case
+      // disposed between them can invert them. A KPI tile reading "-1" looks
+      // broken, a momentary 0 just resolves on the next refresh.
+      final s = buildDashboardSummary(
+        totalCases: 3,
+        disposedCases: 4,
+        activeByStatus: const {},
+        intakesThisYear: 0,
+      );
+
+      expect(s.activeCount, 0);
+    });
+
+    test('breaks active cases down by status in enum order', () {
+      final s = buildDashboardSummary(
+        totalCases: 4,
+        disposedCases: 1,
+        activeByStatus: const {
+          CaseStatus.readyForRelease: 1,
+          CaseStatus.inCare: 2,
+        },
+        intakesThisYear: 0,
+      );
+
+      expect(s.byStatus[CaseStatus.inCare], 2);
+      expect(s.byStatus[CaseStatus.readyForRelease], 1);
+      // Disposed is not an active status and must not appear as a tile.
+      expect(s.byStatus.containsKey(CaseStatus.disposed), isFalse);
+      expect(s.byStatus.keys.toList(), const [
+        CaseStatus.inCare,
+        CaseStatus.readyForRelease,
+      ]);
+    });
+
+    test('fills a status the server reported nothing for with 0', () {
+      final s = buildDashboardSummary(
+        totalCases: 0,
+        disposedCases: 0,
+        activeByStatus: const {},
+        intakesThisYear: 0,
+      );
+
+      expect(s.byStatus, const {
+        CaseStatus.inCare: 0,
+        CaseStatus.readyForRelease: 0,
+      });
+    });
+
+    test('keys the workload by carer, straight off the view rows', () {
+      final s = buildDashboardSummary(
+        totalCases: 5,
+        disposedCases: 0,
+        activeByStatus: const {},
+        intakesThisYear: 0,
+        carerLoad: [_load('anna', 2), _load('bert', 1)],
+      );
+
+      expect(s.openByCarer, {'anna': 2, 'bert': 1});
+    });
+
+    test('a row with no carer belongs to nobody', () {
+      // The view only emits rows for cases that have an active carer, but an
+      // empty id must never render as a nameless workload row.
+      final s = buildDashboardSummary(
+        totalCases: 1,
+        disposedCases: 0,
+        activeByStatus: const {},
+        intakesThisYear: 0,
+        carerLoad: [_load('', 3), _load('anna', 1)],
+      );
+
+      expect(s.openByCarer, {'anna': 1});
+    });
+
+    test('an unreadable workload view is an empty map, not an error', () {
+      // A carer cannot read `case_carer_load`; a list request applies the rule
+      // as a filter, so they get no rows. The card is canViewReports-gated, so
+      // nothing is lost.
+      final s = buildDashboardSummary(
+        totalCases: 2,
+        disposedCases: 0,
+        activeByStatus: const {},
+        intakesThisYear: 0,
+      );
+
+      expect(s.openByCarer, isEmpty);
+    });
   });
 
-  test('counts intakes in the current calendar year only', () {
-    final s = buildDashboardSummary([
-      _case(id: '1', admittedAt: DateTime(2026, 3, 15)),
-      _case(id: '2', admittedAt: DateTime(2026, 12, 31)),
-      _case(id: '3', admittedAt: DateTime(2025, 12, 31)),
-      _case(id: '4'),
-    ], now);
+  group('dashboardSummaryProvider', () {
+    late MockCasesRepo cases;
+    late MockAnimalsRepo animals;
+    late MockCarerLoadRepo carerLoad;
 
-    expect(s.intakesThisYear, 2);
-  });
+    setUp(() {
+      cases = MockCasesRepo();
+      animals = MockAnimalsRepo();
+      carerLoad = MockCarerLoadRepo();
 
-  test("the year boundary is the DEVICE's, not UTC's", () {
-    // federfall-s0wk: `admittedAt` arrives UTC (pbDate normalises every
-    // timestamp with `.toUtc()`) while `now` is local, so an instant either
-    // side of local midnight used to be counted under the UTC year here and
-    // under the local one on the statistics screen — which resolves the
-    // boundary through the caller's own offset server-side. Same case, two
-    // answers, on two screens a coordinator reads side by side.
-    final offset = DateTime.now().timeZoneOffset;
-    // Local New Year's midnight, as the server would have stored it.
-    final admittedUtc = DateTime(2026).toUtc();
+      when(
+        () => cases.count(filter: any(named: 'filter')),
+      ).thenAnswer((_) async => 10);
+      when(
+        () => cases.countWithStatus(CaseStatus.disposed),
+      ).thenAnswer((_) async => 4);
+      when(
+        () => cases.countWithStatus(CaseStatus.inCare),
+      ).thenAnswer((_) async => 5);
+      when(
+        () => cases.countWithStatus(CaseStatus.readyForRelease),
+      ).thenAnswer((_) async => 1);
+      when(
+        () => cases.countAdmittedBetween(any(), any()),
+      ).thenAnswer((_) async => 7);
+      when(
+        () => animals.countWithLifetimeStatus(LifetimeStatus.inAviary),
+      ).thenAnswer((_) async => 3);
+      when(carerLoad.all).thenAnswer((_) async => [_load('anna', 2)]);
+    });
 
-    final s = buildDashboardSummary(
-      [_case(id: '1', admittedAt: admittedUtc)],
-      now,
-    );
+    ProviderContainer makeContainer() {
+      final container = ProviderContainer(
+        overrides: [
+          casesRepositoryProvider.overrideWith((ref) async => cases),
+          animalsRepositoryProvider.overrideWith((ref) async => animals),
+          carerLoadRepositoryProvider.overrideWith((ref) async => carerLoad),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
 
-    expect(s.intakesThisYear, 1);
-    // On a device EAST of Greenwich that instant is 2025 in UTC, so this
-    // assertion is what fails if the count ever goes back to reading the raw
-    // UTC year. A device on UTC cannot express the case at all — flagged so a
-    // green run there is not mistaken for coverage.
-    expect(
-      offset == Duration.zero || admittedUtc.year == 2025,
-      isTrue,
-      reason: offset == Duration.zero
-          ? 'device is on UTC: this test cannot distinguish the two readings'
-          : 'expected the stored instant to fall in the previous UTC year',
-    );
-  });
+    test('assembles every figure from server-side counts', () async {
+      final s = await makeContainer().read(dashboardSummaryProvider.future);
 
-  test('breaks active cases down by status in enum order', () {
-    final s = buildDashboardSummary([
-      _case(id: '1', status: CaseStatus.inCare),
-      _case(id: '2', status: CaseStatus.inCare),
-      _case(id: '3', status: CaseStatus.readyForRelease),
-      _case(id: '4', status: CaseStatus.disposed),
-    ], now);
+      expect(s.activeCount, 6);
+      expect(s.byStatus[CaseStatus.inCare], 5);
+      expect(s.byStatus[CaseStatus.readyForRelease], 1);
+      expect(s.intakesThisYear, 7);
+      expect(s.inAviaryCount, 3);
+      expect(s.openByCarer, {'anna': 2});
+    });
 
-    expect(s.byStatus[CaseStatus.inCare], 2);
-    expect(s.byStatus[CaseStatus.readyForRelease], 1);
-    expect(s.byStatus.containsKey(CaseStatus.disposed), isFalse);
-    expect(s.byStatus.keys.toList(), const [
-      CaseStatus.inCare,
-      CaseStatus.readyForRelease,
-    ]);
-  });
+    test('pulls no collection to the device', () async {
+      // federfall-s0wk: this used to fetch all of `cases` and all of `animals`
+      // on every dashboard open, then tally them here. Each figure is now one
+      // request that transfers a single row.
+      await makeContainer().read(dashboardSummaryProvider.future);
 
-  test('counts OPEN cases per active carer, ignoring disposed ones', () {
-    // Matches the server's definition of an open caseload
-    // (`active_carer = {:id} && status != 'disposed'`, main.pb.js), so the card
-    // never disagrees with the delete guard that quotes the same figure.
-    final s = buildDashboardSummary([
-      _case(id: '1', status: CaseStatus.inCare, carer: 'anna'),
-      _case(id: '2', status: CaseStatus.readyForRelease, carer: 'anna'),
-      _case(id: '3', status: CaseStatus.disposed, carer: 'anna'),
-      _case(id: '4', status: CaseStatus.inCare, carer: 'bert'),
-    ], now);
+      verifyNever(
+        () => cases.list(
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      );
+      verifyNever(
+        () => animals.list(
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      );
+    });
 
-    expect(s.openByCarer, {'anna': 2, 'bert': 1});
-  });
+    test("the intake year boundary is the DEVICE's, not UTC's", () async {
+      // The counterpart to the fix in this issue's first half. Building the
+      // range server-side would resolve it in SQL, i.e. in UTC, and put a bird
+      // admitted at 00:30 on New Year's Day in UTC+1 in last year here while
+      // the statistics screen — which resolves it through the caller's own
+      // offset — puts it in this one. Same case, same org, two answers.
+      await makeContainer().read(dashboardSummaryProvider.future);
 
-  test('an open case with no active carer belongs to nobody', () {
-    // `active_carer` is optional server-side; such a case must not be bucketed
-    // under an empty-string carer, which would render as a nameless row.
-    final s = buildDashboardSummary([
-      _case(id: '1', status: CaseStatus.inCare),
-      _case(id: '2', status: CaseStatus.inCare, carer: ''),
-      _case(id: '3', status: CaseStatus.inCare, carer: 'anna'),
-    ], now);
+      final range = verify(
+        () => cases.countAdmittedBetween(captureAny(), captureAny()),
+      ).captured;
+      final from = range[0] as DateTime;
+      final to = range[1] as DateTime;
+      final year = DateTime.now().year;
 
-    expect(s.openByCarer, {'anna': 1});
+      expect(from, DateTime(year), reason: 'local New Year, not UTC midnight');
+      // Half-open and a full year wide: the next New Year, so 31 Dec 23:59:59
+      // is inside and nothing has to be rounded.
+      expect(to, DateTime(year + 1));
+
+      final offset = DateTime.now().timeZoneOffset;
+      // East or west of Greenwich, that instant is NOT midnight UTC — which is
+      // what fails if the boundary is ever rebuilt from UTC parts. A device on
+      // UTC cannot express the difference; flagged so a green run there is not
+      // mistaken for coverage.
+      expect(
+        offset == Duration.zero || from.toUtc() != DateTime.utc(year),
+        isTrue,
+        reason: offset == Duration.zero
+            ? 'device is on UTC: this test cannot distinguish the two readings'
+            : 'expected the local boundary to differ from midnight UTC',
+      );
+    });
+
+    test('asks for a count per active status, by wire value', () async {
+      await makeContainer().read(dashboardSummaryProvider.future);
+
+      // Driven off the same list the KPI tiles read, so the two cannot drift.
+      verify(() => cases.countWithStatus(CaseStatus.inCare)).called(1);
+      verify(() => cases.countWithStatus(CaseStatus.readyForRelease)).called(1);
+      // Disposed is counted only to subtract it from the total.
+      verify(() => cases.countWithStatus(CaseStatus.disposed)).called(1);
+    });
+
+    test('a carer reading no workload rows still gets a summary', () async {
+      when(carerLoad.all).thenAnswer((_) async => const []);
+
+      final s = await makeContainer().read(dashboardSummaryProvider.future);
+
+      expect(s.openByCarer, isEmpty);
+      expect(s.activeCount, 6);
+    });
   });
 
   group('buildCarerWorkload', () {

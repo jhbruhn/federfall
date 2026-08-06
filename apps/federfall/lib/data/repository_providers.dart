@@ -44,6 +44,12 @@ Future<PbAnimalSpeciesRepository> animalSpeciesRepository(Ref ref) async =>
 Future<PbConditionLabelsRepository> conditionLabelsRepository(Ref ref) async =>
     PbConditionLabelsRepository(await _client(ref));
 
+/// Open caseload per team member, org-wide. Read-only by type (a view), and
+/// coordinator/supervisor-scoped by its list rule — a carer reads no rows.
+@Riverpod(keepAlive: true)
+Future<PbCarerLoadRepository> carerLoadRepository(Ref ref) async =>
+    PbCarerLoadRepository(await _client(ref));
+
 @Riverpod(keepAlive: true)
 Future<PbFindersRepository> findersRepository(Ref ref) async =>
     PbFindersRepository(await _client(ref));

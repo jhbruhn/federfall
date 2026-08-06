@@ -21,6 +21,7 @@ export 'src/models/animal.dart';
 export 'src/models/app_user.dart';
 export 'src/models/audit_event.dart';
 export 'src/models/aviary.dart';
+export 'src/models/carer_case_load.dart';
 export 'src/models/case_activity.dart';
 export 'src/models/case_bundle.dart';
 export 'src/models/case_share.dart';

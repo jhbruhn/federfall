@@ -1,4 +1,5 @@
 import 'package:federfall_data/federfall_data.dart';
+import 'package:federfall_models/federfall_models.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:test/test.dart';
@@ -54,6 +55,30 @@ void main() {
       await PbAnimalsRepository(pb).searchByName('lot');
       verify(() => pb.filter('name ~ {:q}', {'q': 'lot'})).called(1);
       expect(capturedQuery()[1], 'name');
+    });
+
+    test('countWithLifetimeStatus counts server-side, by wire value', () async {
+      // federfall-s0wk: the dashboard's "in aviary" tile. A count, so the
+      // stub is the count-shaped getList (`fields: id`, `skipTotal: false`) —
+      // the whole collection must not come over the wire to be filtered here.
+      when(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          fields: any(named: 'fields'),
+        ),
+      ).thenAnswer((_) async => ResultList<RecordModel>(totalItems: 5));
+
+      final count = await PbAnimalsRepository(
+        pb,
+      ).countWithLifetimeStatus(LifetimeStatus.inAviary);
+
+      expect(count, 5);
+      verify(
+        () => pb.filter('lifetime_status = {:s}', {'s': 'in_aviary'}),
+      ).called(1);
     });
 
     test('residentsOf filters by current_aviary', () async {

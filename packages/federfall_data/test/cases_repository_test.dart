@@ -1,4 +1,5 @@
 import 'package:federfall_data/federfall_data.dart';
+import 'package:federfall_models/federfall_models.dart';
 import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -151,6 +152,81 @@ void main() {
       verify(() => pb.filter('active_carer = {:c}', {'c': 'user1'})).called(1);
     },
   );
+
+  group('server-side counts (federfall-s0wk)', () {
+    /// Stubs the count-shaped `getList` (no sort, no expand, `fields: id`) and
+    /// answers with [totalItems].
+    void stubCount(int totalItems) {
+      when(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          fields: any(named: 'fields'),
+        ),
+      ).thenAnswer(
+        (_) async => ResultList<RecordModel>(totalItems: totalItems),
+      );
+    }
+
+    test('countWithStatus binds the WIRE value, not the Dart name', () async {
+      stubCount(9);
+
+      expect(await repo.countWithStatus(CaseStatus.readyForRelease), 9);
+      // `readyForRelease` must reach PocketBase as `ready_for_release` — the
+      // whole point of the enum carrying a `wire` value.
+      verify(
+        () => pb.filter('status = {:s}', {'s': 'ready_for_release'}),
+      ).called(1);
+    });
+
+    test('countAdmittedBetween builds a half-open range in UTC', () async {
+      stubCount(3);
+      // Local midnights, as the dashboard builds them.
+      final from = DateTime(2026);
+      final to = DateTime(2027);
+
+      expect(await repo.countAdmittedBetween(from, to), 3);
+
+      final bound =
+          verify(
+                () => pb.filter(
+                  'admitted_at >= {:from} && admitted_at < {:to}',
+                  captureAny(),
+                ),
+              ).captured.single
+              as Map<String, dynamic>;
+      // Half-open: `>= from` and `< to`, so 31 Dec 23:59:59.999 is inside the
+      // year and 1 Jan of the next is not, with nothing to round.
+      final boundFrom = bound['from'] as DateTime;
+      final boundTo = bound['to'] as DateTime;
+      expect(boundFrom.isUtc, isTrue, reason: 'sent as an absolute instant');
+      expect(boundTo.isUtc, isTrue);
+      // Converted, not reinterpreted: the instant is still the caller's local
+      // New Year, which off UTC is NOT midnight UTC.
+      expect(boundFrom, from.toUtc());
+      expect(boundTo, to.toUtc());
+    });
+
+    test('a count transfers no records', () async {
+      stubCount(42);
+
+      await repo.countWithStatus(CaseStatus.disposed);
+
+      final call = verify(
+        () => service.getList(
+          page: 1,
+          perPage: captureAny(named: 'perPage'),
+          skipTotal: captureAny(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          fields: captureAny(named: 'fields'),
+        ),
+      ).captured;
+      // One row, ids only, and skipTotal false or totalItems comes back 0.
+      expect(call, [1, false, 'id']);
+    });
+  });
 
   group('intake()', () {
     void stubSend(Map<String, dynamic> response) {
