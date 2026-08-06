@@ -38,20 +38,10 @@ routerAdd(
   "POST",
   "/api/federfall/intake",
   (e) => {
-    const auth = e.auth;
-    // Mirror the collection rules this route bypasses: active member of an
-    // org, and not a guest (guests are walled off from all data).
-    if (
-      !auth ||
-      !auth.getBool("is_active") ||
-      auth.getString("role") === "guest"
-    ) {
-      throw new ForbiddenError("Not allowed.");
-    }
-    const org = auth.getString("org");
-    if (!org) {
-      throw new ForbiddenError("No organisation.");
-    }
+    // Mirrors the collection rules this route bypasses: active member of an
+    // org, and not a guest (guests are walled off from all data). One
+    // implementation for every route — see lib_auth.js.
+    const org = require(`${__hooks}/lib_auth.js`).requireMember(e);
 
     const body = e.requestInfo().body || {};
     const str = (v) => (v === undefined || v === null ? "" : String(v).trim());

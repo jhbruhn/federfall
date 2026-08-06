@@ -17,6 +17,7 @@
 // the `${__hooks}` absolute form (a relative path fails with "Invalid module"),
 // exactly as lib_audit.js documents:
 //
+//   const org = require(`${__hooks}/lib_auth.js`).requireReporting(e);
 //   const stats = require(`${__hooks}/lib_stats.js`);
 //   const t = stats.timeContext(e.request.url.query());
 //   const year = stats.parseYear(e.request.url.query());
@@ -399,35 +400,6 @@ function conditionCounts(app, org, rows) {
   return ranked(counts);
 }
 
-/**
- * Rejects anyone who may not read org-wide figures, and returns the caller's
- * org id.
- *
- * Mirrors the `case_report_rows` view rule (1700000063): everything computed
- * from those rows is org-wide by construction — every case, regardless of
- * carer or share — which is exactly why the view, the report route and the
- * app's statistics screen are all coordinator/supervisor-only. A carer must
- * not get an org-wide roster through a route the collection rules would have
- * denied.
- */
-function requireReportingAuth(e) {
-  const auth = e.auth;
-  if (
-    !auth ||
-    !auth.getBool("is_active") ||
-    auth.getString("role") === "guest"
-  ) {
-    throw new ForbiddenError("Not allowed.");
-  }
-  const role = auth.getString("role");
-  if (role !== "coordinator" && role !== "supervisor") {
-    throw new ForbiddenError("Not allowed.");
-  }
-  const org = auth.getString("org");
-  if (!org) throw new ForbiddenError("No organisation.");
-  return org;
-}
-
 module.exports = {
   timeContext: timeContext,
   parseYear: parseYear,
@@ -436,5 +408,4 @@ module.exports = {
   ranked: ranked,
   aggregate: aggregate,
   conditionCounts: conditionCounts,
-  requireReportingAuth: requireReportingAuth,
 };

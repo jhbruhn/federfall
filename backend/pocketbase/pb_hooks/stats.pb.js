@@ -49,7 +49,7 @@ routerAdd(
   "/api/federfall/stats",
   (e) => {
     const stats = require(`${__hooks}/lib_stats.js`);
-    const org = stats.requireReportingAuth(e);
+    const org = require(`${__hooks}/lib_auth.js`).requireReporting(e);
 
     const query = e.request.url.query();
     const year = stats.parseYear(query);

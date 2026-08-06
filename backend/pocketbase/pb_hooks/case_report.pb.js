@@ -29,16 +29,9 @@ routerAdd(
   "GET",
   "/api/federfall/cases/{id}/report.pdf",
   (e) => {
-    const auth = e.auth;
-    if (
-      !auth ||
-      !auth.getBool("is_active") ||
-      auth.getString("role") === "guest"
-    ) {
-      throw new ForbiddenError("Not allowed.");
-    }
-    const org = auth.getString("org");
-    if (!org) throw new ForbiddenError("No organisation.");
+    // Membership only; which CASES this caller may print is checked below
+    // against the case itself — see lib_auth.js.
+    const org = require(`${__hooks}/lib_auth.js`).requireMember(e);
 
     const langParam = e.request.url.query().get("lang");
     const lang = langParam === "en" ? "en" : "de";

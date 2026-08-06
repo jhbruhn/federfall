@@ -36,18 +36,9 @@ routerAdd(
   "POST",
   "/api/federfall/merge-animals",
   (e) => {
-    const auth = e.auth;
-    if (
-      !auth ||
-      !auth.getBool("is_active") ||
-      auth.getString("role") !== "supervisor"
-    ) {
-      throw new ForbiddenError("Not allowed.");
-    }
-    const org = auth.getString("org");
-    if (!org) {
-      throw new ForbiddenError("No organisation.");
-    }
+    // Supervisor-only, like the deletes this effectively performs
+    // (1700000010) — see lib_auth.js.
+    const org = require(`${__hooks}/lib_auth.js`).requireSupervisor(e);
 
     const body = e.requestInfo().body || {};
     const str = (v) => (v === undefined || v === null ? "" : String(v).trim());

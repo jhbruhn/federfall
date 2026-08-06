@@ -27,18 +27,9 @@ routerAdd(
   "POST",
   "/api/federfall/exam",
   (e) => {
-    const auth = e.auth;
-    if (
-      !auth ||
-      !auth.getBool("is_active") ||
-      auth.getString("role") === "guest"
-    ) {
-      throw new ForbiddenError("Not allowed.");
-    }
-    const org = auth.getString("org");
-    if (!org) {
-      throw new ForbiddenError("No organisation.");
-    }
+    // The boundary this route bypasses, stated once for every route that
+    // bypasses one — see lib_auth.js.
+    const org = require(`${__hooks}/lib_auth.js`).requireMember(e);
 
     const body = e.requestInfo().body || {};
     const str = (v) => (v === undefined || v === null ? "" : String(v).trim());

@@ -48,7 +48,7 @@ routerAdd(
     // rate is computed. Auth included: it mirrors the `case_report_rows` view
     // rule (1700000063), because these figures are org-wide by construction.
     const stats = require(`${__hooks}/lib_stats.js`);
-    const org = stats.requireReportingAuth(e);
+    const org = require(`${__hooks}/lib_auth.js`).requireReporting(e);
 
     const query = e.request.url.query();
     const langParam = query.get("lang");

@@ -1544,6 +1544,42 @@ def main():
           len(listf(toks["sup"], "case_report_rows", "id != ''")) > 0, "empty")
     check("guest sees no case_report_rows",
           len(listf(gtok, "case_report_rows", "id != ''")) == 0, "non-empty")
+    # federfall-75sy: the same wall, on the ROUTES. Every hook route bypasses
+    # the collection rules it writes through and therefore re-states the
+    # boundary itself (lib_auth.js). The sweep above walks collections, so a
+    # route that forgot the guest clause would sail through it — this reads the
+    # route table out of pb_hooks/ so a route added later is swept whether or
+    # not anyone remembers to add it here.
+    hooks_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "..", "pb_hooks")
+    declared = set()
+    for name in sorted(os.listdir(hooks_dir)):
+        if not name.endswith(".pb.js"):
+            continue
+        src = open(os.path.join(hooks_dir, name), encoding="utf-8").read()
+        for m in re.finditer(
+                r'routerAdd\(\s*"(GET|POST|PUT|PATCH|DELETE)"\s*,\s*"([^"]+)"',
+                src):
+            declared.add((m.group(1), m.group(2)))
+    # `/api/federfall/info` is deliberately public — it is what an unconfigured
+    # client probes BEFORE it can have a token (federfall-7nf.1). It is the one
+    # exemption, and naming it here is what makes it a decision rather than an
+    # omission.
+    PUBLIC = {("GET", "/api/federfall/info")}
+    check("the route sweep found the hook routes to walk",
+          len(declared - PUBLIC) >= 6, sorted(declared))
+    for method, path in sorted(declared - PUBLIC):
+        # A placeholder is filled with a real id where one is to hand: the gate
+        # must come before the lookup, so a guest is refused either way — but a
+        # real id makes a 404-before-403 mistake visible instead of plausible.
+        concrete = path.replace("{id}", tc_case)
+        s_guest, _ = req(method, concrete, gtok, {} if method != "GET" else None)
+        check(f"guest is refused {method} {path}", s_guest == 403,
+              f"status {s_guest}")
+        s_anon, _ = req(method, concrete, None, {} if method != "GET" else None)
+        check(f"...and so is an anonymous caller ({method} {path})",
+              s_anon == 401, f"status {s_anon}")
+
     # The OAuth2 createRule (@request.context = "oauth2") must NOT let an
     # anonymous API client create users directly (that path is context default).
     s, _ = req("POST", "/api/collections/users/records", None, {
