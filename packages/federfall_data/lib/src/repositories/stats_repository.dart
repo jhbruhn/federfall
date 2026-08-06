@@ -116,7 +116,7 @@ class OrgStatistics {
   factory OrgStatistics.fromJson(Map<String, dynamic> json) {
     final period = json['period'];
     final totals = json['totals'];
-    final t = totals is Map ? totals : const {};
+    final t = totals is Map ? totals : const <String, dynamic>{};
 
     List<StatCount> counts(Object? raw) => [
       for (final e in raw is List ? raw : const [])
@@ -149,8 +149,8 @@ class OrgStatistics {
         for (final e
             in json['intakeYears'] is List
                 ? json['intakeYears'] as List
-                : const [])
-          if (_intOrNull(e) case final y?) y,
+                : const <Object?>[])
+          ?_intOrNull(e),
       ],
     );
   }

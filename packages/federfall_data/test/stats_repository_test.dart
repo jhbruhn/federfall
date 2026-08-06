@@ -160,8 +160,8 @@ void main() {
   test('a month period parses its day series and comparison month', () {
     final stats = OrgStatistics.fromJson({
       ..._body(),
-      'period': {'year': 2026, 'month': 3},
-      'series': {
+      'period': const {'year': 2026, 'month': 3},
+      'series': const {
         'kind': 'day',
         'points': [
           {'key': 1, 'count': 2},
