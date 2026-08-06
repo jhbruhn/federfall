@@ -56,17 +56,22 @@ bd close <id>         # Complete work
 Pub workspace: app in `apps/federfall`, packages in `packages/federfall_{models,data}`.
 
 ```bash
+# From the REPO ROOT — this is a pub workspace, so the root run covers the app
+# AND both packages. Running `flutter analyze` inside apps/federfall analyses
+# the app only, which is how 9 issues once shipped in federfall_data.
+flutter analyze            # MUST be clean — CI uses very_good_analysis (strict)
+dart format --output=none --set-exit-if-changed .
+
 # From apps/federfall:
 flutter run --flavor development --target lib/main_development.dart \
   --dart-define-from-file=dart_defines/development.json
-flutter analyze            # MUST be clean — CI uses very_good_analysis (strict)
 flutter test               # widget/unit tests
 flutter gen-l10n           # regenerate l10n after editing lib/l10n/arb/*.arb
 dart run build_runner build  # regenerate riverpod (.g.dart) + freezed (.freezed.dart)
-dart format .              # from repo root — CI fails the build if this changes anything
 
-# Packages (pure Dart):
-cd packages/federfall_data && dart test && dart analyze
+# Packages (pure Dart) — `dart analyze` here hangs/crashes the analysis server;
+# the root `flutter analyze` above is their lint gate:
+cd packages/federfall_data && dart test
 cd packages/federfall_models && dart run build_runner build && dart test
 ```
 
@@ -76,9 +81,12 @@ cd packages/federfall_models && dart run build_runner build && dart test
   (note: the `--delete-conflicting-outputs` flag was removed; just `build`).
 Generated `*.g.dart` / `*.freezed.dart` / `lib/l10n/gen/*` are gitignored and rebuilt.
 
-**Quality gates before committing:** `dart format --output=none --set-exit-if-changed .`
-(from repo root) clean, `flutter analyze` clean + `flutter test` green for the app, and
-`dart analyze`/`dart test` for any touched package. `flutter test --coverage` on the app
+**Quality gates before committing, all from the repo root:**
+`dart format --output=none --set-exit-if-changed .` clean, `flutter analyze` clean (it
+covers the packages — a subdirectory run does not), and `flutter test` green from
+`apps/federfall` plus `dart test` for any touched package. Run a suite so its OWN exit
+code survives — piping it through `grep` reports the filter's status and has hidden real
+failures here. `flutter test --coverage` on the app
 must stay above 75% (CI's `min_coverage` gate in `.github/workflows/ci.yml`, hand-written
 code only — generated files are excluded); check before committing if you touched
 `apps/federfall/lib/`.
