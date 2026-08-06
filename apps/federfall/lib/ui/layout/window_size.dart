@@ -42,6 +42,20 @@ const double kContentMaxWidth = 840;
 /// fills the screen as before. See `showAppSheet`.
 const double kSheetMaxWidth = 640;
 
+/// Width at/above which the statistics screen lays its cards out in two
+/// columns instead of one.
+///
+/// Higher than [kCaseDetailTwoColumnMin] on purpose: that split moves two lists
+/// side by side, while these columns hold charts — a donut with its legend, and
+/// a series with up to 31 bars — which stop being readable well before a list
+/// does. Below this the screen stays the single column a phone gets.
+const double kStatsTwoColumnMin = 960;
+
+/// Width cap for the statistics screen once it is two columns. Wider than
+/// [kContentMaxWidth] because two columns of chart need the room; without a cap
+/// a 4K window would stretch a breakdown row across half a metre.
+const double kStatsMaxWidth = 1280;
+
 /// Width of the *detail pane* at/above which the case detail lays Overview and
 /// History out side-by-side instead of behind tabs. Keyed on the pane (not the
 /// window) so a 840-wide window — whose detail pane is only ~480 — keeps tabs,

@@ -121,160 +121,73 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
           onRefresh: () => ref.refresh(
             statisticsProvider(year: period.year, month: period.month).future,
           ),
-          child: ContentBounds(
-            child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [
-                // The period comes first because it qualifies everything under
-                // it — the same control, and the same meaning of "2026", the
-                // export sheet offers.
-                PeriodSelector(
-                  selected: period,
-                  intakeYears: s.intakeYears,
-                  now: _now,
-                  onChanged: (picked) => ref
-                      .read(statisticsPeriodProvider.notifier)
-                      .select(picked),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                KpiGrid([
-                  KpiCard(
-                    icon: Icons.folder_copy_outlined,
-                    label: l10n.statsIntakes,
-                    value: '${s.intakes}',
-                    onTap: () => _showCases(const CaseQuery(), period),
-                  ),
-                  KpiCard(
-                    icon: Icons.medical_information_outlined,
-                    label: l10n.statsInCare,
-                    value: '${s.inCare}',
-                  ),
-                  KpiCard(
-                    icon: Icons.timelapse_outlined,
-                    label: l10n.statsAvgTimeInCare,
-                    value: s.avgTimeInCareDays == null
-                        ? '–'
-                        : l10n.statsDaysValue(
-                            formatNumber(
-                              l10n,
-                              s.avgTimeInCareDays!,
-                              maxFractionDigits: 1,
-                            ),
-                          ),
-                  ),
-                  KpiCard(
-                    icon: Icons.flight_takeoff_outlined,
-                    label: l10n.statsReleaseRate,
-                    value: _rate(l10n, s.releaseRate),
-                  ),
-                  KpiCard(
-                    icon: Icons.trending_down_outlined,
-                    label: l10n.statsMortalityRate,
-                    value: _rate(l10n, s.mortalityRate),
-                  ),
-                ]),
-                const SizedBox(height: AppSpacing.sm),
-                // The two rates are shares of the cases that ENDED, not of the
-                // intakes above them — without the denominator on the screen
-                // they would read as either.
-                Text(
-                  l10n.statsRatesBasis(s.closed),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.statsSectionIntakesOverTime,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        IntakeSeriesChart(series: s.series),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Keyed on the width actually available, not on the window
+              // class: this screen is pushed full-width today, but the same
+              // decision has to hold if it ever lands in a pane.
+              final twoColumn = constraints.maxWidth >= kStatsTwoColumnMin;
+              final chart = _chartCard(l10n, s);
+              // The period and the figures it qualifies stay full width; the
+              // series does too, because 31 day-bars in half a window is a
+              // comb. What splits is the reading BELOW them — four cards that
+              // are each a self-contained answer, so a desktop reads two at a
+              // time instead of scrolling past one.
+              final left = <Widget>[
                 const _IntakeMapCard(),
-                const SizedBox(height: AppSpacing.md),
-                BreakdownCard(
-                  title: l10n.statsSectionOutcomes,
-                  emptyMessage: l10n.statsEmpty,
-                  chart: BreakdownPie(
-                    otherLabel: l10n.statsChartOther,
-                    entries: [
-                      for (final o in s.outcomes)
-                        PieEntry(dispositionTypeLabel(l10n, o.type), o.count),
-                    ],
-                  ),
-                  rows: [
-                    for (final o in s.outcomes)
-                      BreakdownRow(
-                        dispositionTypeLabel(l10n, o.type),
-                        o.count,
-                        // A disposition whose wire value this build doesn't
-                        // know can be counted but not named in a filter.
-                        onTap: o.type == null
-                            ? null
-                            : () => _showCases(
-                                CaseQuery(outcome: o.type),
-                                period,
-                              ),
+                _species(l10n, s, period),
+              ];
+              final right = <Widget>[
+                _outcomes(l10n, s, period),
+                _conditions(l10n, s, period),
+              ];
+
+              return ContentBounds(
+                maxWidth: twoColumn ? kStatsMaxWidth : kContentMaxWidth,
+                child: ListView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  children: [
+                    // The period comes first because it qualifies everything
+                    // under it — the same control, and the same meaning of
+                    // "2026", the export sheet offers.
+                    PeriodSelector(
+                      selected: period,
+                      intakeYears: s.intakeYears,
+                      now: _now,
+                      onChanged: (picked) => ref
+                          .read(statisticsPeriodProvider.notifier)
+                          .select(picked),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _kpis(l10n, s, period),
+                    const SizedBox(height: AppSpacing.sm),
+                    // The two rates are shares of the cases that ENDED, not of
+                    // the intakes above them — without the denominator on the
+                    // screen they would read as either.
+                    Text(
+                      l10n.statsRatesBasis(s.closed),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    chart,
+                    const SizedBox(height: AppSpacing.md),
+                    if (twoColumn)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _stack(left)),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(child: _stack(right)),
+                        ],
+                      )
+                    else
+                      _stack([...left.take(1), ...right, ...left.skip(1)]),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.md),
-                BreakdownCard(
-                  title: l10n.statsSectionSpecies,
-                  emptyMessage: l10n.statsEmpty,
-                  chart: BreakdownPie(
-                    otherLabel: l10n.statsChartOther,
-                    entries: [
-                      for (final c in s.bySpecies) PieEntry(c.label, c.count),
-                    ],
-                  ),
-                  rows: [
-                    for (final c in s.bySpecies)
-                      BreakdownRow(
-                        c.label,
-                        c.count,
-                        onTap: () =>
-                            _showCases(CaseQuery(species: c.label), period),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                BreakdownCard(
-                  title: l10n.statsSectionConditions,
-                  emptyMessage: l10n.statsEmpty,
-                  // The denominator is the period's INTAKES, not the sum of
-                  // the diagnoses: a case can carry several, so the shares
-                  // would otherwise add up past what happened.
-                  chart: BreakdownPie(
-                    otherLabel: l10n.statsChartOther,
-                    total: s.intakes,
-                    entries: [
-                      for (final c in s.byCondition) PieEntry(c.label, c.count),
-                    ],
-                  ),
-                  rows: [
-                    for (final c in s.byCondition)
-                      BreakdownRow(
-                        c.label,
-                        c.count,
-                        onTap: () =>
-                            _showCases(CaseQuery(condition: c.label), period),
-                      ),
-                  ],
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -282,6 +195,145 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
 
     return BackOrHomeScope(child: scaffold);
   }
+
+  /// Cards in one column, spaced like the page.
+  Widget _stack(List<Widget> cards) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < cards.length; i++) ...[
+        if (i > 0) const SizedBox(height: AppSpacing.md),
+        cards[i],
+      ],
+    ],
+  );
+
+  Widget _kpis(AppLocalizations l10n, OrgStatistics s, StatsPeriod period) =>
+      KpiGrid([
+        KpiCard(
+          icon: Icons.folder_copy_outlined,
+          label: l10n.statsIntakes,
+          value: '${s.intakes}',
+          onTap: () => _showCases(const CaseQuery(), period),
+        ),
+        KpiCard(
+          icon: Icons.medical_information_outlined,
+          label: l10n.statsInCare,
+          value: '${s.inCare}',
+        ),
+        KpiCard(
+          icon: Icons.timelapse_outlined,
+          label: l10n.statsAvgTimeInCare,
+          value: s.avgTimeInCareDays == null
+              ? '–'
+              : l10n.statsDaysValue(
+                  formatNumber(
+                    l10n,
+                    s.avgTimeInCareDays!,
+                    maxFractionDigits: 1,
+                  ),
+                ),
+        ),
+        KpiCard(
+          icon: Icons.flight_takeoff_outlined,
+          label: l10n.statsReleaseRate,
+          value: _rate(l10n, s.releaseRate),
+        ),
+        KpiCard(
+          icon: Icons.trending_down_outlined,
+          label: l10n.statsMortalityRate,
+          value: _rate(l10n, s.mortalityRate),
+        ),
+      ]);
+
+  Widget _chartCard(AppLocalizations l10n, OrgStatistics s) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Builder(
+        builder: (context) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.statsSectionIntakesOverTime,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            IntakeSeriesChart(series: s.series),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _outcomes(
+    AppLocalizations l10n,
+    OrgStatistics s,
+    StatsPeriod period,
+  ) => BreakdownCard(
+    title: l10n.statsSectionOutcomes,
+    emptyMessage: l10n.statsEmpty,
+    chart: BreakdownPie(
+      otherLabel: l10n.statsChartOther,
+      entries: [
+        for (final o in s.outcomes)
+          PieEntry(dispositionTypeLabel(l10n, o.type), o.count),
+      ],
+    ),
+    rows: [
+      for (final o in s.outcomes)
+        BreakdownRow(
+          dispositionTypeLabel(l10n, o.type),
+          o.count,
+          // A disposition whose wire value this build doesn't know can be
+          // counted but not named in a filter.
+          onTap: o.type == null
+              ? null
+              : () => _showCases(CaseQuery(outcome: o.type), period),
+        ),
+    ],
+  );
+
+  Widget _species(AppLocalizations l10n, OrgStatistics s, StatsPeriod period) =>
+      BreakdownCard(
+        title: l10n.statsSectionSpecies,
+        emptyMessage: l10n.statsEmpty,
+        chart: BreakdownPie(
+          otherLabel: l10n.statsChartOther,
+          entries: [for (final c in s.bySpecies) PieEntry(c.label, c.count)],
+        ),
+        rows: [
+          for (final c in s.bySpecies)
+            BreakdownRow(
+              c.label,
+              c.count,
+              onTap: () => _showCases(CaseQuery(species: c.label), period),
+            ),
+        ],
+      );
+
+  Widget _conditions(
+    AppLocalizations l10n,
+    OrgStatistics s,
+    StatsPeriod period,
+  ) => BreakdownCard(
+    title: l10n.statsSectionConditions,
+    emptyMessage: l10n.statsEmpty,
+    // The denominator is the period's INTAKES, not the sum of the diagnoses:
+    // a case can carry several, so the shares would otherwise add up past
+    // what happened.
+    chart: BreakdownPie(
+      otherLabel: l10n.statsChartOther,
+      total: s.intakes,
+      entries: [for (final c in s.byCondition) PieEntry(c.label, c.count)],
+    ),
+    rows: [
+      for (final c in s.byCondition)
+        BreakdownRow(
+          c.label,
+          c.count,
+          onTap: () => _showCases(CaseQuery(condition: c.label), period),
+        ),
+    ],
+  );
 
   /// A 0–1 share as a whole-percent figure, or an em dash while the rate is
   /// undefined — nothing has ended yet, which is not the same as 0 %.

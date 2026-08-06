@@ -83,21 +83,34 @@ class KpiCard extends StatelessWidget {
   }
 }
 
-/// Lays [tiles] out as a two-column grid of equal-width [KpiCard]s.
+/// Lays [tiles] out as a grid of equal-width [KpiCard]s: two columns on a
+/// phone, more as the window earns them.
 ///
 /// The width comes from the incoming constraints rather than a fixed number, so
 /// tiles grow with the pane and a long label at a large text scale gets room to
-/// wrap instead of overflowing.
+/// wrap instead of overflowing. The column count follows from a minimum
+/// readable tile rather than the window class: five tiles in two columns is
+/// three rows of scrolling on a desktop, and a tile stretched to 600px is a
+/// number lost in a field of white.
 class KpiGrid extends StatelessWidget {
   const KpiGrid(this.tiles, {super.key});
 
   final List<KpiCard> tiles;
 
+  /// Narrowest a tile may be before the grid drops a column.
+  static const double _minTileWidth = 240;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = (constraints.maxWidth - AppSpacing.md) / 2;
+        final fits = (constraints.maxWidth / _minTileWidth).floor();
+        // Never fewer than two (a single column of tiles is a list, not a
+        // grid) and never more than four (past that the eye stops reading a
+        // row and starts scanning a table).
+        final columns = fits.clamp(2, 4);
+        final width =
+            (constraints.maxWidth - AppSpacing.md * (columns - 1)) / columns;
         return Wrap(
           spacing: AppSpacing.md,
           runSpacing: AppSpacing.md,

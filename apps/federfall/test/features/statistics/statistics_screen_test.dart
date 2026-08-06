@@ -385,6 +385,54 @@ void main() {
     expect(range?.end.day, 31);
   });
 
+  testWidgets('a wide window reads two cards at a time, a narrow one stacks', (
+    tester,
+  ) async {
+    // Desktop and web get the width; the phone layout is unchanged. Keyed on
+    // the available width rather than on the platform, so a resized window
+    // reflows without anything else knowing about it.
+    const stats = OrgStatistics(
+      intakes: 4,
+      closed: 2,
+      series: IntakeSeries(
+        kind: SeriesBucket.month,
+        points: [IntakePoint(1, 3), IntakePoint(2, 1)],
+      ),
+      outcomes: [OutcomeStat(DispositionType.released, 2)],
+      bySpecies: [StatCount('Stadttaube', 4)],
+      byCondition: [StatCount('Trichomoniasis', 1)],
+    );
+
+    tester.view.physicalSize = const Size(1400, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(tester, stats);
+
+    final outcomes = find.ancestor(
+      of: find.text('Outcomes'),
+      matching: find.byType(BreakdownCard),
+    );
+    final map = find
+        .ancestor(
+          of: find.text('Intake map'),
+          matching: find.byType(Card),
+        )
+        .first;
+    // The head of each column sits beside the other: different x, same y.
+    expect(tester.getTopLeft(map).dx, lessThan(tester.getTopLeft(outcomes).dx));
+    expect(tester.getTopLeft(map).dy, tester.getTopLeft(outcomes).dy);
+
+    // The series keeps the full width either way — 31 day-bars in half a
+    // window is a comb.
+    final chartWidth = tester.getSize(find.byType(IntakeSeriesChart)).width;
+    expect(chartWidth, greaterThan(tester.getSize(outcomes).width));
+
+    tester.view.physicalSize = const Size(700, 2600);
+    await _pump(tester, stats);
+    expect(tester.getTopLeft(map).dx, tester.getTopLeft(outcomes).dx);
+  });
+
   testWidgets('the export action opens the annual-report sheet', (
     tester,
   ) async {
