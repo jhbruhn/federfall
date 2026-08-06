@@ -34,7 +34,7 @@ class IntakeLocation {
 /// cases with a resolved find-location, optionally restricted to
 /// [admittedRange] (cases with no `admittedAt` are dropped once a range is
 /// set, since they can't be placed in it). Kept separate from the provider so
-/// it can be unit-tested without PocketBase, mirroring `computeStatistics`.
+/// it can be unit-tested without PocketBase, mirroring `buildCaseFacets`.
 List<IntakeLocation> filterIntakeLocations({
   required List<Case> cases,
   required Map<String, String> speciesByAnimal,

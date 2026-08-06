@@ -1,0 +1,136 @@
+import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
+import 'package:flutter/material.dart';
+
+/// The years offered behind the period control's "earlier years" picker: every
+/// year with a recorded intake, newest first, minus the two the segmented
+/// control already shows as buttons.
+///
+/// Only years that actually have intakes (`OrgStatistics.intakeYears`) — a
+/// fixed "last ten years" range would invite reporting on a year the org did
+/// not exist. A gap year with no admissions is likewise not offered: there is
+/// nothing in it to report.
+List<int> earlierReportYears(List<int> intakeYears, DateTime now) {
+  final shown = {now.year, now.year - 1};
+  return [
+    for (final year in intakeYears)
+      if (!shown.contains(year)) year,
+  ];
+}
+
+/// The reporting period: the two most recent years, any earlier year with
+/// intakes, or all time.
+///
+/// One control, shared by the statistics screen and the annual-report export
+/// sheet (federfall-nmwi). The two must agree on what "2026" means — they read
+/// the same server route with the same `?year=`, and a user who has just read
+/// a year's figures and taps "export" is asking for that year's report — so
+/// they should not be two controls that merely look alike.
+///
+/// [selected] is the single source of truth for the visible state: a year that
+/// is neither of the two recent ones joins the control as its own button
+/// rather than living in a competing dropdown.
+class PeriodSelector extends StatelessWidget {
+  const PeriodSelector({
+    required this.selected,
+    required this.intakeYears,
+    required this.onChanged,
+    this.now,
+    this.enabled = true,
+    super.key,
+  });
+
+  /// The selected calendar year, or null for "all time".
+  final int? selected;
+
+  /// Every year with a recorded intake, newest first — off the statistics
+  /// payload, which is org-wide regardless of the period being shown.
+  final List<int> intakeYears;
+
+  final ValueChanged<int?> onChanged;
+
+  /// Frozen by the caller so the labels and the year actually sent do not
+  /// shift if the screen happens to be open across midnight on New Year's Eve.
+  final DateTime? now;
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final today = now ?? DateTime.now();
+    final earlier = earlierReportYears(intakeYears, today);
+    final picked =
+        selected != null && selected != today.year && selected != today.year - 1
+        ? selected
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Labelled with the years themselves rather than "this"/"last": in
+        // January the difference matters, and a concrete number leaves nothing
+        // to work out.
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<int?>(
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(value: today.year, label: Text('${today.year}')),
+              ButtonSegment(
+                value: today.year - 1,
+                label: Text('${today.year - 1}'),
+              ),
+              if (picked != null)
+                ButtonSegment(value: picked, label: Text('$picked')),
+              ButtonSegment(value: null, label: Text(l10n.statsExportAllTime)),
+            ],
+            selected: {selected},
+            onSelectionChanged: enabled ? (s) => onChanged(s.single) : null,
+          ),
+        ),
+        if (earlier.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: PopupMenuButton<int>(
+              enabled: enabled,
+              // Selecting from the picker also selects the period: opening the
+              // menu to choose a year and then having to press the resulting
+              // button as well would be a second step for a decision already
+              // made.
+              onSelected: onChanged,
+              itemBuilder: (context) => [
+                for (final year in earlier)
+                  PopupMenuItem(value: year, child: Text('$year')),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.statsExportEarlierYears,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_drop_down,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}

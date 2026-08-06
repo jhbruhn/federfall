@@ -20,6 +20,7 @@ import 'package:federfall/features/statistics/statistics_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/router.dart';
+import 'package:federfall_data/federfall_data.dart';
 // Hide the domain Finder model so flutter_test's Finder (used below) wins.
 import 'package:federfall_models/federfall_models.dart' hide Finder;
 import 'package:flutter/material.dart';
@@ -578,14 +579,7 @@ class _RestorableAppState extends State<_RestorableApp> {
       // Resolve so the statistics overlay doesn't spin forever (its loading
       // indicator would never let pumpAndSettle settle).
       statisticsProvider.overrideWith(
-        (ref) async => const Statistics(
-          totalCases: 0,
-          openCases: 0,
-          outcomes: [],
-          bySpecies: [],
-          byCondition: [],
-          avgTimeInCareDays: null,
-        ),
+        (ref, year) async => const OrgStatistics(),
       ),
     ],
   );

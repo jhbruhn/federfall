@@ -246,10 +246,24 @@
     "@pendingCheckAgainAction": { "description": "Button to re-check whether access has been granted" },
     "statsTitle": "Statistics",
     "@statsTitle": { "description": "Title of the statistics/reporting screen" },
-    "statsTotalCases": "Total cases",
-    "@statsTotalCases": { "description": "KPI: total cases in scope" },
-    "statsOpenCases": "Open cases",
-    "@statsOpenCases": { "description": "KPI: cases without a terminal disposition" },
+    "statsIntakes": "Intakes",
+    "@statsIntakes": { "description": "KPI: cases admitted in the selected period" },
+    "statsInCare": "In care",
+    "@statsInCare": { "description": "KPI: cases of the period without a terminal disposition" },
+    "statsReleaseRate": "Release rate",
+    "@statsReleaseRate": { "description": "KPI: share of ended cases that were released" },
+    "statsMortalityRate": "Mortality",
+    "@statsMortalityRate": { "description": "KPI: share of ended cases that died or were euthanized" },
+    "statsPercentValue": "{value} %",
+    "@statsPercentValue": {
+        "description": "A percentage figure",
+        "placeholders": { "value": { "type": "String" } }
+    },
+    "statsRatesBasis": "{count, plural, =0{No case has ended in this period yet} =1{Rates over 1 ended case} other{Rates over {count} ended cases}}",
+    "@statsRatesBasis": {
+        "description": "Names the denominator of the release/mortality rates (federfall-nmwi)",
+        "placeholders": { "count": { "type": "int" } }
+    },
     "statsAvgTimeInCare": "Avg. time in care",
     "@statsAvgTimeInCare": { "description": "KPI: mean days from admission to disposition" },
     "statsDaysValue": "{days} d",
@@ -257,6 +271,8 @@
         "description": "A duration in days",
         "placeholders": { "days": { "type": "String" } }
     },
+    "statsSectionIntakesOverTime": "Intakes over time",
+    "@statsSectionIntakesOverTime": { "description": "Heading: intake time series with the previous year for comparison" },
     "statsSectionOutcomes": "Outcomes",
     "@statsSectionOutcomes": { "description": "Heading: terminal disposition breakdown" },
     "statsSectionSpecies": "By species",

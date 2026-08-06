@@ -189,6 +189,22 @@ to translate in, `typst/shared_strings.json` holds the column titles + the `case
 it is the one place in `pb_hooks/` that localizes anything. `tests/run.sh` bind-mounts
 `typst/` (the image is cached by tag, so a template edit would otherwise go untested).
 
+**The statistics screen and the annual report are one implementation** (federfall-nmwi):
+`pb_hooks/lib_stats.js` owns the period (`?year=` + `?tzOffsetMinutes=` → caller-local
+boundaries), the `case_report_rows` read, and every aggregate. `annual_report.pb.js` and
+`stats.pb.js` (`GET /api/federfall/stats`, coordinator/supervisor, the whole statistics
+screen in one payload) both `require()` it — a required module is the ONE thing isolated
+hook handlers can share, so this is how "2026" is made to mean the same instant range in
+the PDF and on screen (`test_rules.py` asserts a New Year's Eve admission lands in the same
+year for both). Consequences worth keeping: the app aggregates **nothing** client-side any
+more (no `computeStatistics`; `statisticsProvider` is a fetch, and both the screen and the
+export sheet drive one `PeriodSelector` off `statisticsPeriodProvider`); outcome **rates**
+are shares of ENDED cases, never of intakes, and are null — not 0 % — while nothing has
+ended; the diagnosis breakdown is period-scoped there, unlike the org-wide
+`condition_labels` view the case browser's facet still reads. `stats.pb.js` loads the org's
+rows once and partitions in JS so the comparison year, the period and `intakeYears` cost one
+query.
+
 ## Conventions & Patterns
 
 - **Git:** commit directly on `main` (no feature branches); push only when asked — do NOT

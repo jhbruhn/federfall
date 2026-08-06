@@ -2,28 +2,13 @@ import 'dart:async';
 
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/statistics/period_selector.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
-
-/// The years offered behind the export sheet's "earlier years" picker: every
-/// year with a recorded intake, newest first, minus the two the segmented
-/// control already shows as buttons.
-///
-/// Only years that actually have intakes ([intakeYears], off `Statistics`) —
-/// a fixed "last ten years" range would invite printing a report for a year
-/// the org did not exist. A gap year with no admissions is likewise not
-/// offered: there is nothing in it to report.
-List<int> earlierReportYears(List<int> intakeYears, DateTime now) {
-  final shown = {now.year, now.year - 1};
-  return [
-    for (final year in intakeYears)
-      if (!shown.contains(year)) year,
-  ];
-}
 
 /// Opens the annual-report export sheet (federfall-dk0c): pick a period, then
 /// take the report as a PDF or its case table as a CSV.
@@ -42,20 +27,19 @@ class AnnualReportSheet extends ConsumerStatefulWidget {
 }
 
 class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
-  /// Resolved once, in `initState`: the sheet's own labels and its default
-  /// selection must not shift if it happens to be open across midnight on New
-  /// Year's Eve, and the year sent to the server has to be the one the button
-  /// said.
+  /// Resolved once: the sheet's own labels and its default selection must not
+  /// shift if it happens to be open across midnight on New Year's Eve, and the
+  /// year sent to the server has to be the one the button said.
   late final DateTime _now = DateTime.now();
 
   /// The selected period: a calendar year, or null for every case on record.
-  /// Defaults to the year in progress.
-  late int? _year = _now.year;
-
-  /// A year chosen from the picker, which then joins the segmented control as
-  /// its own button — so the selection stays a single value with a single
-  /// visible state instead of a segment plus a competing dropdown.
-  int? _pickedYear;
+  ///
+  /// Seeded from the period the statistics screen behind this sheet is showing
+  /// (federfall-nmwi) — someone who has just read the 2025 figures and taps
+  /// "export" is asking for the 2025 report. It stays sheet-local from there:
+  /// exporting a different year should not quietly re-scope the screen under
+  /// the sheet.
+  late int? _year = ref.read(statisticsPeriodProvider);
 
   /// Which format is currently being fetched, so only the tapped button shows
   /// a spinner (and neither can be tapped twice into two share sheets).
@@ -118,13 +102,17 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
 
     // The years on record come off the statistics the screen behind this sheet
     // has already loaded — the same org-wide, coordinator/supervisor scope the
-    // report itself runs in, so there is nothing extra to fetch. Until it
-    // lands (or if it fails) the two recent years and "all time" still work;
-    // only the picker waits.
-    final earlierYears = earlierReportYears(
-      ref.watch(statisticsProvider).value?.intakeYears ?? const [],
-      _now,
-    );
+    // report itself runs in, and org-wide regardless of the period shown, so
+    // there is nothing extra to fetch. Until it lands (or if it fails) the two
+    // recent years and "all time" still work; only the picker waits.
+    final intakeYears =
+        ref
+            .watch(
+              statisticsProvider(year: ref.watch(statisticsPeriodProvider)),
+            )
+            .value
+            ?.intakeYears ??
+        const <int>[];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -146,76 +134,15 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          // Labelled with the years themselves rather than "this"/"last": in
-          // January the difference matters, and a concrete number leaves
-          // nothing to work out. A year taken from the picker becomes a fourth
-          // button here.
-          SegmentedButton<int?>(
-            showSelectedIcon: false,
-            segments: [
-              ButtonSegment(value: _now.year, label: Text('${_now.year}')),
-              ButtonSegment(
-                value: _now.year - 1,
-                label: Text('${_now.year - 1}'),
-              ),
-              if (_pickedYear != null)
-                ButtonSegment(
-                  value: _pickedYear,
-                  label: Text('$_pickedYear'),
-                ),
-              ButtonSegment(
-                value: null,
-                label: Text(l10n.statsExportAllTime),
-              ),
-            ],
-            selected: {_year},
-            onSelectionChanged: busy
-                ? null
-                : (s) => setState(() => _year = s.single),
+          // The same control the statistics screen uses, so "2026" cannot mean
+          // one thing on screen and another in the exported file.
+          PeriodSelector(
+            selected: _year,
+            intakeYears: intakeYears,
+            now: _now,
+            enabled: !busy,
+            onChanged: (picked) => setState(() => _year = picked),
           ),
-          if (earlierYears.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: PopupMenuButton<int>(
-                enabled: !busy,
-                // Selecting from the picker also selects the period: opening
-                // the menu to choose a year and then having to press the
-                // resulting button as well would be a second step for a
-                // decision already made.
-                onSelected: (year) => setState(() {
-                  _pickedYear = year;
-                  _year = year;
-                }),
-                itemBuilder: (context) => [
-                  for (final year in earlierYears)
-                    PopupMenuItem(value: year, child: Text('$year')),
-                ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        l10n.statsExportEarlierYears,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_drop_down,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
           const SizedBox(height: AppSpacing.md),
           PrimaryButton(
             label: l10n.statsExportPdf,

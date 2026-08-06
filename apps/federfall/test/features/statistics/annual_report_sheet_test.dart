@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/statistics/annual_report_sheet.dart';
+import 'package:federfall/features/statistics/period_selector.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -13,15 +14,8 @@ import 'package:mocktail/mocktail.dart';
 
 class MockCaseReportRepo extends Mock implements PbCaseReportRepository {}
 
-Statistics _statsWithYears(List<int> years) => Statistics(
-  totalCases: 0,
-  openCases: 0,
-  outcomes: const [],
-  bySpecies: const [],
-  byCondition: const [],
-  avgTimeInCareDays: null,
-  intakeYears: years,
-);
+OrgStatistics _statsWithYears(List<int> years) =>
+    OrgStatistics(intakeYears: years);
 
 /// Pumps the sheet against [repo]. The sheet is pumped directly rather than
 /// through `showAnnualReportSheet` — a modal route would only add a frame of
@@ -36,7 +30,7 @@ Future<void> _pump(
       overrides: [
         caseReportRepositoryProvider.overrideWith((ref) async => repo),
         statisticsProvider.overrideWith(
-          (ref) async => _statsWithYears(intakeYears),
+          (ref, year) async => _statsWithYears(intakeYears),
         ),
       ],
       child: const MaterialApp(

@@ -68,13 +68,24 @@
     "pendingDescription": "Dein Konto wurde erstellt und wartet darauf, von einer Administratorin freigeschaltet zu werden. Sobald das erledigt ist, kannst du dich vollständig anmelden.",
     "pendingCheckAgainAction": "Erneut prüfen",
     "statsTitle": "Statistik",
-    "statsTotalCases": "Fälle gesamt",
-    "statsOpenCases": "Offene Fälle",
+    "statsIntakes": "Aufnahmen",
+    "statsInCare": "In Pflege",
+    "statsReleaseRate": "Auswilderungsquote",
+    "statsMortalityRate": "Mortalität",
+    "statsPercentValue": "{value} %",
+    "@statsPercentValue": {
+        "placeholders": { "value": { "type": "String" } }
+    },
+    "statsRatesBasis": "{count, plural, =0{In diesem Zeitraum ist noch kein Fall abgeschlossen} =1{Quoten bezogen auf 1 abgeschlossenen Fall} other{Quoten bezogen auf {count} abgeschlossene Fälle}}",
+    "@statsRatesBasis": {
+        "placeholders": { "count": { "type": "int" } }
+    },
     "statsAvgTimeInCare": "Ø Verweildauer",
     "statsDaysValue": "{days} T",
     "@statsDaysValue": {
         "placeholders": { "days": { "type": "String" } }
     },
+    "statsSectionIntakesOverTime": "Aufnahmen im Zeitverlauf",
     "statsSectionOutcomes": "Ausgänge",
     "statsSectionSpecies": "Nach Art",
     "statsSectionConditions": "Diagnosen",

@@ -10,8 +10,9 @@ DateTime _dispoDate(Disposition d) =>
     d.disposedAt ?? d.created ?? DateTime.fromMillisecondsSinceEpoch(0);
 
 /// The latest (terminal) disposition per case id. Handles re-dispositions by
-/// keeping the most recent. Shared by the case browser's outcome facet, the
-/// statistics and the CSV report.
+/// keeping the most recent — the same rule the `case_report_rows` view applies
+/// in SQL for the statistics route and the annual report (1700000063), so the
+/// browser's outcome facet agrees with the figures.
 Map<String, Disposition> terminalDispositionByCase(
   List<Disposition> dispositions,
 ) {
@@ -66,7 +67,8 @@ class CaseFacets {
 }
 
 /// Pure projection of the raw rows into [CaseFacets]. Kept out of the provider
-/// so it can be unit-tested without PocketBase, mirroring `computeStatistics`.
+/// so it can be unit-tested without PocketBase, mirroring
+/// `filterIntakeLocations`.
 CaseFacets buildCaseFacets({
   required List<Disposition> dispositions,
   required List<CaseCondition> caseConditions,

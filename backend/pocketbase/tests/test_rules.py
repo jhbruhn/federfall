@@ -1527,6 +1527,130 @@ def main():
     })
     check("anonymous direct user creation is denied", s != 200, f"status {s}")
 
+    # ── federfall-nmwi: statistics route + the report it must agree with ────
+    # GET /api/federfall/stats is the app's statistics screen, computed over
+    # the same `case_report_rows` view the annual report prints — one module
+    # (pb_hooks/lib_stats.js) serves both, so what is asserted here is that
+    # the two really do resolve a period the same way.
+    #
+    # A cohort of its own (2015/2016) so the figures cannot be perturbed by
+    # the fixtures around it: every assertion below is scoped by ?year=.
+    print("\n[statistics route]")
+
+    st_animal = mk(T, "animals", {
+        "species": "nmwi Ringeltaube", "name": "nmwi Flo", "org": ORG,
+    })["id"]
+
+    def st_case(admitted, animal_id=None):
+        return mk(T, "cases", {
+            "animal": animal_id or st_animal, "active_carer": A, "org": ORG,
+            "admitted_at": admitted,
+        })["id"]
+
+    st_released = st_case("2016-03-05 09:00:00.000Z")
+    st_dead = st_case("2016-03-20 09:00:00.000Z")
+    mk(T, "dispositions", {"case": st_released, "type": "released",
+                           "disposed_at": "2016-03-15 09:00:00.000Z",
+                           "org": ORG})
+    mk(T, "dispositions", {"case": st_dead, "type": "euthanized",
+                           "disposed_at": "2016-03-30 09:00:00.000Z",
+                           "org": ORG})
+    mk(T, "case_conditions", {"case": st_released, "free_text": "nmwi Fraktur",
+                              "org": ORG})
+    # The comparison year, in a different month so the alignment is visible.
+    st_case("2015-07-04 09:00:00.000Z")
+    # 00:30 UTC on New Year's Day: whose year this is depends entirely on the
+    # caller's offset, which is the point of ?tzOffsetMinutes=.
+    st_case("2017-01-01 00:30:00.000Z")
+
+    def stats(tok, query=""):
+        s, d = req("GET", "/api/federfall/stats" + query, tok)
+        return s, (d if isinstance(d, dict) else {})
+
+    s, _ = stats(None)
+    check("stats route requires auth", s == 401, f"status {s}")
+    s, _ = stats(gtok)
+    check("guest CANNOT read the statistics", s == 403, f"status {s}")
+    s, _ = stats(toks["a"])
+    check("a carer CANNOT read the org-wide statistics", s == 403,
+          f"status {s}")
+    s, _ = stats(toks["sup"], "?year=not-a-year")
+    check("a garbled ?year= is rejected, not silently reported on",
+          s == 400, f"status {s}")
+
+    s, st = stats(toks["coord"], "?year=2016&tzOffsetMinutes=0")
+    totals = st.get("totals", {})
+    check("coordinator reads the statistics", s == 200, f"status {s}")
+    check("intakes count the cohort ADMITTED in the period",
+          totals.get("intakes") == 2, totals)
+    check("closed/inCare split the cohort by whether it ended",
+          totals.get("closed") == 2 and totals.get("inCare") == 0, totals)
+    # Both rates are over the cases that ENDED, never over intakes.
+    check("release rate is the share of ended cases released",
+          totals.get("releaseRate") == 0.5, totals)
+    check("mortality counts died AND euthanized",
+          totals.get("mortalityRate") == 0.5, totals)
+    check("mean stay is fractional days, not whole ones",
+          abs((totals.get("avgDaysInCare") or 0) - 10.0) < 0.001, totals)
+
+    series = st.get("series", {})
+    points = {p["key"]: p["count"] for p in series.get("points", [])}
+    check("a year's series is twelve months, zeros included",
+          series.get("kind") == "month" and len(series.get("points", [])) == 12,
+          series)
+    check("the month with the intakes carries them", points.get(3) == 2, points)
+    prev = series.get("previous") or {}
+    prev_points = {p["key"]: p["count"] for p in prev.get("points", [])}
+    check("the previous year comes back for comparison",
+          prev.get("year") == 2015 and prev_points.get(7) == 1, prev)
+
+    outcomes = {o["type"]: o["count"] for o in st.get("outcomes", [])}
+    check("outcomes break the ended cases down by type",
+          outcomes.get("released") == 1 and outcomes.get("euthanized") == 1,
+          outcomes)
+    species = {sp["label"]: sp["count"] for sp in st.get("species", [])}
+    check("species counts the period's intakes",
+          species.get("nmwi Ringeltaube") == 2, species)
+    conditions = {c["label"]: c["count"] for c in st.get("conditions", [])}
+    check("diagnoses are narrowed to the period's cases",
+          conditions.get("nmwi Fraktur") == 1, conditions)
+    check("intakeYears lists the years with intakes, newest first",
+          st.get("intakeYears") == sorted(st.get("intakeYears", []),
+                                          reverse=True)
+          and 2016 in st.get("intakeYears", [])
+          and 2015 in st.get("intakeYears", []),
+          st.get("intakeYears"))
+
+    s, st_all = stats(toks["sup"], "?tzOffsetMinutes=0")
+    check("no ?year= reports every case, bucketed by calendar year",
+          s == 200 and st_all.get("series", {}).get("kind") == "year"
+          and (st_all.get("series", {}).get("previous") is None),
+          st_all.get("series"))
+
+    # ── The boundary, and the agreement with the annual report ─────────────
+    # 2017-01-01 00:30 UTC is 2016-12-31 22:30 for a caller at UTC-2, so it
+    # belongs to that caller's 2016. The report route must place it in exactly
+    # the same year — that is the whole reason both read lib_stats.js.
+    _, st_utc = stats(toks["sup"], "?year=2016&tzOffsetMinutes=0")
+    _, st_west = stats(toks["sup"], "?year=2016&tzOffsetMinutes=-120")
+    check("a New Year's Eve admission follows the CALLER's midnight",
+          st_utc.get("totals", {}).get("intakes") == 2
+          and st_west.get("totals", {}).get("intakes") == 3,
+          f'{st_utc.get("totals")} vs {st_west.get("totals")}')
+
+    def annual_rows(query):
+        s, body, _ = req_bytes(
+            "GET", "/api/federfall/reports/annual" + query, toks["sup"])
+        if s != 200 or not body:
+            return None
+        text = body.decode("utf-8-sig").strip()
+        return len(text.split("\r\n")) - 1  # minus the header row
+
+    check("the annual report puts it in the same year the screen does",
+          annual_rows("?year=2016&format=csv&tzOffsetMinutes=0") == 2
+          and annual_rows("?year=2016&format=csv&tzOffsetMinutes=-120") == 3,
+          "report and stats disagree about the period")
+
     # ── federfall-zod: atomic intake route + cases.finder lock ──────────────
     print("\n[atomic intake route]")
     s, _ = req("POST", "/api/federfall/intake", None, {"species": "Stadttaube"})

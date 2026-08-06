@@ -6,13 +6,15 @@
 // ../typst/.
 //
 // ONE route serves BOTH output formats — `?format=pdf` (default) and
-// `?format=csv` — for the same reason case_report.pb.js serves its thermal
-// receipt off its PDF route: every routerAdd handler is its own isolated JSVM
-// context, so two routes could not share the ~200 lines of gathering and
-// aggregation below, and the whole point of this change is that the PDF's
-// per-case table and the CSV are the SAME table. Both read the
-// `case_report_rows` view (1700000063 + 1700000066 + 1700000067), which is the
-// single definition of that table's columns; neither selects columns of its own.
+// `?format=csv` — because the PDF's per-case table and the CSV are the SAME
+// table, printed twice: they share this handler's row set and its localization,
+// and every routerAdd handler is its own isolated JSVM context, so two routes
+// would each have to build that again. (The period, the rows and the aggregates
+// they sit on are shared further still, with the statistics route — see
+// lib_stats.js, required below; a required module is the one thing handlers
+// CAN share.) Both formats read the `case_report_rows` view (1700000063 +
+// 1700000066 + 1700000067), which is the single definition of that table's
+// columns; neither selects columns of its own.
 // That includes the `markings` column: the view evaluates it at each case's own
 // end, so the row says what the bird carried at release (and what it had already
 // arrived with, if that ring stayed on) rather than what is on the animal today
@@ -39,26 +41,14 @@ routerAdd(
   "GET",
   "/api/federfall/reports/annual",
   (e) => {
-    // ── Auth: mirrors the `case_report_rows` view rule (1700000063) — the
-    // figures here are org-wide by construction (every case, regardless of
-    // carer or share), which is exactly why that view and the app's
-    // statistics screen are both coordinator/supervisor-only. A carer must
-    // not get an org-wide roster through a report route the collection rules
-    // would have denied.
-    const auth = e.auth;
-    if (
-      !auth ||
-      !auth.getBool("is_active") ||
-      auth.getString("role") === "guest"
-    ) {
-      throw new ForbiddenError("Not allowed.");
-    }
-    const role = auth.getString("role");
-    if (role !== "coordinator" && role !== "supervisor") {
-      throw new ForbiddenError("Not allowed.");
-    }
-    const org = auth.getString("org");
-    if (!org) throw new ForbiddenError("No organisation.");
+    // Period resolution, the pre-joined rows and every aggregate come from
+    // lib_stats.js — the same module GET /api/federfall/stats reads
+    // (federfall-nmwi), so the printed report and the app's statistics screen
+    // cannot disagree about what a year is, which cases fall in it, or how a
+    // rate is computed. Auth included: it mirrors the `case_report_rows` view
+    // rule (1700000063), because these figures are org-wide by construction.
+    const stats = require(`${__hooks}/lib_stats.js`);
+    const org = stats.requireReportingAuth(e);
 
     const query = e.request.url.query();
     const langParam = query.get("lang");
@@ -72,180 +62,24 @@ routerAdd(
     }
     const wantCsv = formatParam === "csv";
 
-    const yearParam = query.get("year");
-    let year = null;
-    if (yearParam) {
-      const parsed = parseInt(yearParam, 10);
-      // A deliberately wide but finite window: anything outside it is a
-      // garbled param, not a reporting period, and would otherwise produce a
-      // confidently empty report.
-      if (isNaN(parsed) || parsed < 1900 || parsed > 2200) {
-        throw new BadRequestError("year must be a four-digit calendar year.");
-      }
-      year = parsed;
-    }
-
-    // ── Caller-local time (duplicated from case_report.pb.js — handlers are
-    // isolated JSVM contexts, so file-level helpers are NOT in scope inside
-    // one). Falls back to the EU's own Europe/Berlin DST rule when the param
-    // is absent or out of range.
-    const lastSundayUTC = (y, monthIndex) => {
-      const lastDay = new Date(Date.UTC(y, monthIndex + 1, 0));
-      return lastDay.getUTCDate() - lastDay.getUTCDay();
-    };
-    const berlinOffsetMinutes = (utcMs) => {
-      const y = new Date(utcMs).getUTCFullYear();
-      const dstStart = Date.UTC(y, 2, lastSundayUTC(y, 2), 1, 0, 0);
-      const dstEnd = Date.UTC(y, 9, lastSundayUTC(y, 9), 1, 0, 0);
-      return (utcMs >= dstStart && utcMs < dstEnd ? 2 : 1) * 60;
-    };
-    const tzParam = parseInt(query.get("tzOffsetMinutes"), 10);
-    const explicitOffsetMinutes =
-      !isNaN(tzParam) && tzParam >= -720 && tzParam <= 840 ? tzParam : null;
-    const offsetFor = (utcMs) =>
-      explicitOffsetMinutes !== null
-        ? explicitOffsetMinutes
-        : berlinOffsetMinutes(utcMs);
-
-    const parseMs = (value) => {
-      if (!value) return null;
-      const d = new Date(String(value).replace(" ", "T"));
-      return isNaN(d.getTime()) ? null : d.getTime();
-    };
-    // Wall-clock parts in the caller's zone. The templates build a Typst
-    // `datetime` from these and format it themselves; the CSV renders them as
-    // ISO yyyy-mm-dd. Note this is the caller's LOCAL calendar date — the
-    // superseded client-side CSV formatted PocketBase's UTC instant instead
-    // (federfall_models' `pbDate` returns UTC), which printed 2025-12-31 for a
-    // case admitted at 00:30 on New Year's Day in UTC+2 and disagreed with the
-    // very year filter that selected it.
-    const partsOf = (value) => {
-      const ms = parseMs(value);
-      if (ms === null) return null;
-      const local = new Date(ms + offsetFor(ms) * 60000);
-      return {
-        y: local.getUTCFullYear(),
-        mo: local.getUTCMonth() + 1,
-        d: local.getUTCDate(),
-        h: local.getUTCHours(),
-        mi: local.getUTCMinutes(),
-      };
-    };
-
-    // ── Period bounds, as the stored PocketBase date format so they can be
-    // compared directly by the collection filter below.
-    const pbStamp = (ms) => new Date(ms).toISOString().replace("T", " ");
-    let fromMs = null;
-    let toMs = null; // exclusive
-    if (year !== null) {
-      // The offset is resolved from the boundary instant itself, so a January
-      // boundary uses winter time and the report's own year does not shift.
-      const naiveFrom = Date.UTC(year, 0, 1);
-      const naiveTo = Date.UTC(year + 1, 0, 1);
-      fromMs = naiveFrom - offsetFor(naiveFrom) * 60000;
-      toMs = naiveTo - offsetFor(naiveTo) * 60000;
-    }
+    const year = stats.parseYear(query);
+    const t = stats.timeContext(query);
+    const partsOf = t.partsOf;
+    const pbStamp = t.pbStamp;
+    // Half-open, resolved through the caller's own UTC offset; null for an
+    // all-time report.
+    const bounds = year !== null ? stats.yearBounds(year, t) : null;
 
     // ── The table: one pre-joined row per case off `case_report_rows`. Its
     // columns ARE the report table (and the CSV) — nothing here adds or
     // renames one.
-    const rowFilter =
-      year !== null
-        ? "org = {:org} && admitted_at >= {:from} && admitted_at < {:to}"
-        : "org = {:org}";
-    const rowParams =
-      year !== null
-        ? { org: org, from: pbStamp(fromMs), to: pbStamp(toMs) }
-        : { org: org };
-    const rows = e.app.findRecordsByFilter(
-      "case_report_rows",
-      rowFilter,
-      "",
-      0,
-      0,
-      rowParams,
+    const caseRows = stats.loadCaseRows(
+      e.app,
+      org,
+      bounds === null ? null : bounds.fromMs,
+      bounds === null ? null : bounds.toMs,
+      t,
     );
-
-    // ── Reading a view row: PocketBase can only infer a view column's type
-    // when the column traces back to a real collection field. `case_number`,
-    // `status`, `admitted_at`, `found_at`, `city` and `region` do (they are
-    // plain `c.<field>` references, typed date/text as expected), but every
-    // COMPUTED column — species, name, outcome, ended_at, markings, reasons —
-    // falls back to type `json`, and `getString()` on a json field returns the
-    // raw JSON, i.e. `"Hohltaube"` WITH the quotes. The REST API decodes that
-    // on the way out, which is why the superseded Dart client never saw it and
-    // why this only bites a server-side reader.
-    //
-    // Left un-decoded it is not merely cosmetic: `ended_at` would fail to
-    // parse (so every case would read as still open), an outcome would never
-    // match its label map, and the CSV's formula guard would inspect a leading
-    // `"` instead of the `=` it exists to catch. So the json-typed columns are
-    // asked for by type and decoded, rather than guessed at per value — a city
-    // legitimately named `true` or `123` would parse as JSON just fine.
-    const jsonFields = {};
-    for (const field of e.app.findCollectionByNameOrId("case_report_rows")
-      .fields) {
-      if (field.type() === "json") jsonFields[field.getName()] = true;
-    }
-    const str = (r, name) => {
-      const raw = r.getString(name);
-      if (!jsonFields[name]) return raw;
-      try {
-        const parsed = JSON.parse(raw);
-        return parsed === null ? "" : String(parsed);
-      } catch (_) {
-        // Not valid JSON after all — take it as written rather than dropping
-        // a cell the report is supposed to print.
-        return raw;
-      }
-    };
-
-    // A case with no admission date cannot belong to a period, so the filter
-    // above already excludes it from a yearly report (PocketBase stores an
-    // unset date as "", which fails both comparisons); in an all-time report
-    // it is included and sorted last rather than first, which is what a plain
-    // ascending sort on the empty string would have done.
-    const caseRows = rows.map((r) => {
-      const admittedAt = str(r, "admitted_at");
-      const endedAt = str(r, "ended_at");
-      const admittedMs = parseMs(admittedAt);
-      const endedMs = parseMs(endedAt);
-      // Same definition the app's own figures use: whole days from admission
-      // to the terminal disposition, and never negative (statistics
-      // providers and the superseded CaseReportRow.daysInCare both refuse a
-      // backwards span rather than reporting a negative stay).
-      const spanMs =
-        admittedMs !== null && endedMs !== null && endedMs >= admittedMs
-          ? endedMs - admittedMs
-          : null;
-      return {
-        id: r.id,
-        caseNumber: str(r, "case_number"),
-        species: str(r, "species"),
-        name: str(r, "name"),
-        markings: str(r, "markings"),
-        foundAt: str(r, "found_at"),
-        admittedAt: admittedAt,
-        endedAt: endedAt,
-        status: str(r, "status"),
-        outcome: str(r, "outcome"),
-        city: str(r, "city"),
-        region: str(r, "region"),
-        reasons: str(r, "reasons"),
-        admittedMs: admittedMs,
-        spanMs: spanMs,
-        days: spanMs === null ? null : Math.floor(spanMs / 86400000),
-      };
-    });
-    caseRows.sort((a, b) => {
-      if (a.admittedMs === null && b.admittedMs === null) {
-        return a.caseNumber < b.caseNumber ? -1 : 1;
-      }
-      if (a.admittedMs === null) return 1;
-      if (b.admittedMs === null) return -1;
-      if (a.admittedMs !== b.admittedMs) return a.admittedMs - b.admittedMs;
-      return a.caseNumber < b.caseNumber ? -1 : 1;
-    });
 
     // ── CSV ─────────────────────────────────────────────────────────────────
     if (wantCsv) {
@@ -397,139 +231,28 @@ routerAdd(
           format: "csv",
           year: year,
           lang: lang,
-          rows: rows.length,
+          rows: caseRows.length,
         },
       });
       return e.blob(200, "text/csv; charset=utf-8", new Uint8Array(bytes));
     }
 
     // ── Aggregates (PDF only) ───────────────────────────────────────────────
-    // Every definition here matches the app's statistics screen
-    // (statistics_providers.dart's computeStatistics) so the printed report
-    // and the on-screen figures agree for the same scope — including the mean
-    // stay being a FRACTIONAL day count (hours/24), not the whole days the
-    // per-case column shows.
-    const ranked = (counts) => {
-      const list = Object.keys(counts).map((k) => ({
-        label: k,
-        count: counts[k],
-      }));
-      list.sort((a, b) =>
-        b.count !== a.count
-          ? b.count - a.count
-          : a.label < b.label
-            ? -1
-            : a.label > b.label
-              ? 1
-              : 0,
-      );
-      return list;
-    };
-    const bump = (map, key) => {
-      if (!key) return;
-      map[key] = (map[key] || 0) + 1;
-    };
-
-    const speciesCounts = {};
-    const reasonCounts = {};
-    const cityCounts = {};
-    const outcomeCounts = {};
-    const bucketCounts = {};
-    let closed = 0;
-    let releasedCount = 0;
-    let spanTotalDays = 0;
-    let spanCount = 0;
-    for (const r of caseRows) {
-      bump(speciesCounts, r.species);
-      bump(cityCounts, r.city);
-      // The view joined the admission reasons with "; " into one cell (a
-      // multi-relation cannot be a column otherwise), so the breakdown splits
-      // that back apart — a code-list label containing "; " itself would be
-      // miscounted here, which is why the code list is authored as short
-      // labels.
-      if (r.reasons) {
-        for (const part of r.reasons.split("; ")) {
-          bump(reasonCounts, part.trim());
-        }
-      }
-      // Three distinct states, not two: no disposition at all (still open),
-      // a disposition whose type this build cannot name, and a named
-      // outcome. Bucketing the middle one as "open" would understate the
-      // closed count, and dropping it would stop the column adding up.
-      if (r.endedAt) {
-        closed++;
-        outcomeCounts[r.outcome || ""] = (outcomeCounts[r.outcome || ""] || 0) + 1;
-        if (r.outcome === "released") releasedCount++;
-      }
-      if (r.spanMs !== null) {
-        spanTotalDays += r.spanMs / 3600000 / 24;
-        spanCount++;
-      }
-      if (r.admittedMs !== null) {
-        const p = partsOf(r.admittedAt);
-        const key = year !== null ? p.mo : p.y;
-        bucketCounts[key] = (bucketCounts[key] || 0) + 1;
-      }
-    }
-    const openCount = caseRows.length - closed;
+    // One implementation, shared with the statistics route (federfall-nmwi),
+    // so the printed report and the on-screen figures agree for the same scope
+    // — including the mean stay being a FRACTIONAL day count (hours/24), not
+    // the whole days the per-case column shows.
+    const agg = stats.aggregate(caseRows, { t: t, year: year });
 
     // Outcomes: named types first (by count), then the unnamed-type bucket,
-    // then "still open" last — it is not an outcome, it is the absence of one.
-    const outcomes = ranked(outcomeCounts).map((o) => ({
-      type: o.label === "" ? "" : o.label,
+    // then "still open" last — it is not an outcome, it is the absence of one,
+    // which is why the module leaves appending it to its caller.
+    const outcomes = agg.outcomes.map((o) => ({
+      type: o.label,
       count: o.count,
     }));
-    if (openCount > 0) outcomes.push({ type: null, count: openCount });
-
-    // Intake buckets: months within a year, calendar years over all time.
-    // Every month is emitted even at zero so the chart reads as a year rather
-    // than as a list of the months that happened to have intakes.
-    const buckets = [];
-    if (year !== null) {
-      for (let m = 1; m <= 12; m++) {
-        buckets.push({ key: m, count: bucketCounts[m] || 0 });
-      }
-    } else {
-      const years = Object.keys(bucketCounts)
-        .map((k) => parseInt(k, 10))
-        .sort((a, b) => a - b);
-      if (years.length > 0) {
-        for (let y = years[0]; y <= years[years.length - 1]; y++) {
-          buckets.push({ key: y, count: bucketCounts[y] || 0 });
-        }
-      }
-    }
-
-    // ── Diagnoses: counted per DISTINCT case, exactly as the
-    // `condition_labels` view (1700000062) does for the statistics screen —
-    // but narrowed to this period's cases, which an org-wide view column
-    // cannot be. Resolved the same way too: the code-list label, else the
-    // row's free text.
-    const caseIds = {};
-    for (const r of caseRows) caseIds[r.id] = true;
-    const conditionLabels = {};
-    for (const c of e.app.findRecordsByFilter("conditions", "id != ''", "", 0, 0)) {
-      conditionLabels[c.id] = c.getString("label");
-    }
-    const seenPerLabel = {};
-    const conditionCounts = {};
-    for (const cc of e.app.findRecordsByFilter(
-      "case_conditions",
-      "org = {:org}",
-      "",
-      0,
-      0,
-      { org: org },
-    )) {
-      const caseId = cc.getString("case");
-      if (!caseIds[caseId]) continue;
-      const label =
-        conditionLabels[cc.getString("condition")] || cc.getString("free_text");
-      if (!label) continue;
-      const key = label + " " + caseId;
-      if (seenPerLabel[key]) continue;
-      seenPerLabel[key] = true;
-      bump(conditionCounts, label);
+    if (agg.totals.inCare > 0) {
+      outcomes.push({ type: null, count: agg.totals.inCare });
     }
 
     let orgRec = null;
@@ -549,26 +272,20 @@ routerAdd(
       },
       period: {
         year: year,
-        from: year !== null ? partsOf(pbStamp(fromMs)) : null,
+        from: bounds === null ? null : partsOf(pbStamp(bounds.fromMs)),
         // The inclusive last day of the period, because that is what a
         // reader expects to see printed ("01.01. – 31.12."), while the filter
         // above is a half-open range.
-        to: year !== null ? partsOf(pbStamp(toMs - 1)) : null,
+        to: bounds === null ? null : partsOf(pbStamp(bounds.toMs - 1)),
       },
-      totals: {
-        intakes: caseRows.length,
-        closed: closed,
-        inCare: openCount,
-        avgDaysInCare: spanCount === 0 ? null : spanTotalDays / spanCount,
-        releaseRate: closed === 0 ? null : releasedCount / closed,
-      },
-      bucketKind: year !== null ? "month" : "year",
-      intakesByBucket: buckets,
+      totals: agg.totals,
+      bucketKind: agg.bucketKind,
+      intakesByBucket: agg.intakesByBucket,
       outcomes: outcomes,
-      species: ranked(speciesCounts),
-      reasons: ranked(reasonCounts),
-      conditions: ranked(conditionCounts),
-      cities: ranked(cityCounts),
+      species: agg.species,
+      reasons: agg.reasons,
+      conditions: stats.conditionCounts(e.app, org, caseRows),
+      cities: agg.cities,
       cases: caseRows.map((r) => ({
         caseNumber: r.caseNumber,
         species: r.species,
@@ -649,7 +366,7 @@ routerAdd(
         format: "pdf",
         year: year,
         lang: lang,
-        rows: rows.length,
+        rows: caseRows.length,
       },
     });
     return e.blob(200, "application/pdf", bytes);

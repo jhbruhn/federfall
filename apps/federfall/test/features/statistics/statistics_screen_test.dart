@@ -3,10 +3,12 @@ import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/statistics/annual_report_sheet.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
+import 'package:federfall/features/statistics/intake_series_chart.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/features/statistics/statistics_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,14 +18,14 @@ import 'package:latlong2/latlong.dart';
 
 Future<void> _pump(
   WidgetTester tester,
-  Statistics stats, {
+  OrgStatistics stats, {
   UserRole role = UserRole.coordinator,
   List<IntakeLocation> locations = const [],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        statisticsProvider.overrideWith((ref) async => stats),
+        statisticsProvider.overrideWith((ref, year) async => stats),
         // The statistics screen's intake-map preview card loads through the
         // real repositories otherwise, which need network — stub it out so
         // this test stays focused on the KPI/breakdown figures.
@@ -56,14 +58,7 @@ void _useTallSurface(WidgetTester tester) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
-const Statistics _emptyStats = Statistics(
-  totalCases: 0,
-  openCases: 0,
-  outcomes: [],
-  bySpecies: [],
-  byCondition: [],
-  avgTimeInCareDays: null,
-);
+const OrgStatistics _emptyStats = OrgStatistics();
 
 void main() {
   testWidgets('renders KPIs and outcome/species/condition breakdowns', (
@@ -73,9 +68,10 @@ void main() {
 
     await _pump(
       tester,
-      const Statistics(
-        totalCases: 12,
-        openCases: 4,
+      const OrgStatistics(
+        intakes: 12,
+        closed: 8,
+        inCare: 4,
         outcomes: [
           OutcomeStat(DispositionType.released, 5),
           OutcomeStat(DispositionType.died, 3),
@@ -83,14 +79,81 @@ void main() {
         bySpecies: [StatCount('Columba livia', 9)],
         byCondition: [StatCount('Trichomoniasis', 6)],
         avgTimeInCareDays: 15.4,
+        releaseRate: 0.625,
+        mortalityRate: 0.375,
       ),
     );
 
-    expect(find.text('12'), findsOneWidget); // total cases
+    expect(find.text('12'), findsOneWidget); // intakes
     expect(find.text('15.4 d'), findsOneWidget); // avg time in care
     expect(find.text('Released'), findsOneWidget);
     expect(find.text('Columba livia'), findsOneWidget);
     expect(find.text('Trichomoniasis'), findsOneWidget);
+  });
+
+  testWidgets('rates are shares of the cases that ended, and say so', (
+    tester,
+  ) async {
+    // federfall-nmwi: the number a rehab is actually asked for is the share
+    // released of the cases that REACHED an outcome — over intakes it would
+    // sag every time admissions rise. The denominator is on screen for the
+    // same reason.
+    _useTallSurface(tester);
+
+    await _pump(
+      tester,
+      const OrgStatistics(
+        intakes: 12,
+        closed: 8,
+        inCare: 4,
+        releaseRate: 0.625,
+        mortalityRate: 0.375,
+      ),
+    );
+
+    expect(find.text('63 %'), findsOneWidget);
+    expect(find.text('38 %'), findsOneWidget);
+    expect(find.text('Rates over 8 ended cases'), findsOneWidget);
+  });
+
+  testWidgets('an undefined rate is an em dash, not 0 %', (tester) async {
+    _useTallSurface(tester);
+
+    await _pump(tester, const OrgStatistics(intakes: 3, inCare: 3));
+
+    // Avg time in care and both rates: nothing has ended, so none of the three
+    // is defined. Claiming a 0 % release rate would be a different statement.
+    expect(find.text('–'), findsNWidgets(3));
+    expect(
+      find.text('No case has ended in this period yet'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('intakes over time draws a bar per bucket with the prior year', (
+    tester,
+  ) async {
+    _useTallSurface(tester);
+
+    await _pump(
+      tester,
+      const OrgStatistics(
+        year: 2026,
+        intakes: 3,
+        series: IntakeSeries(
+          kind: SeriesBucket.month,
+          points: [IntakePoint(1, 2), IntakePoint(2, 1)],
+          previousYear: 2025,
+          previousPoints: [IntakePoint(1, 5), IntakePoint(2, 0)],
+        ),
+      ),
+    );
+
+    expect(find.text('Intakes over time'), findsOneWidget);
+    expect(find.byType(IntakeSeriesChart), findsOneWidget);
+    // The legend names both years, so a bar's colour is readable as a period.
+    expect(find.text('2026'), findsWidgets);
+    expect(find.text('2025'), findsWidgets);
   });
 
   testWidgets('shows an empty hint for breakdowns with no data', (
@@ -101,17 +164,18 @@ void main() {
     await _pump(tester, _emptyStats);
 
     expect(find.text('Not enough data yet'), findsWidgets);
-    expect(find.text('–'), findsOneWidget); // avg with no data
   });
 
   testWidgets('the intake-map card is a tappable summary with a chevron', (
     tester,
   ) async {
+    _useTallSurface(tester);
     await _pump(tester, _emptyStats);
 
     expect(find.text('Intake map'), findsOneWidget);
     expect(find.text('No mapped intakes'), findsOneWidget);
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    // Two ways in: the intakes KPI and this card.
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
   });
 
   testWidgets('the intake-map preview thumbnail carries tile attribution', (
@@ -120,6 +184,7 @@ void main() {
     // federfall-fq3c: the tile provider's usage policy wants attribution on
     // every rendered map, thumbnails included — linking through to the
     // attributed intake map screen is not a substitute.
+    _useTallSurface(tester);
     await _pump(
       tester,
       _emptyStats,
@@ -141,13 +206,13 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         statisticsProvider.overrideWith(
-          (ref) async => const Statistics(
-            totalCases: 3,
-            openCases: 1,
+          (ref, year) async => const OrgStatistics(
+            year: 2026,
+            intakes: 3,
+            closed: 2,
+            inCare: 1,
             outcomes: [OutcomeStat(DispositionType.euthanized, 2)],
-            bySpecies: [],
             byCondition: [StatCount('Katzenbiss', 3)],
-            avgTimeInCareDays: null,
           ),
         ),
         intakeLocationsProvider.overrideWith(
@@ -217,26 +282,23 @@ void main() {
 
     await _pump(
       tester,
-      const Statistics(
-        totalCases: 2,
-        openCases: 0,
+      const OrgStatistics(
+        intakes: 2,
+        closed: 2,
         // A disposition carrying a wire value this build does not know: it can
         // be counted, but no filter value names it.
         outcomes: [
           OutcomeStat(DispositionType.released, 1),
           OutcomeStat(null, 1),
         ],
-        bySpecies: [],
-        byCondition: [],
-        avgTimeInCareDays: null,
       ),
     );
 
     expect(find.text('Released'), findsOneWidget);
     expect(find.text('Unknown outcome'), findsOneWidget);
-    // One chevron for 'Released', none for the unknown bucket. (The intake-map
-    // card carries the other.)
-    expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
+    // One chevron for 'Released', none for the unknown bucket. (The intakes
+    // KPI and the intake-map card carry the other two.)
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(3));
   });
 
   testWidgets('the export action opens the annual-report sheet', (

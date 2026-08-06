@@ -3,25 +3,31 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
-import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/statistics/annual_report_sheet.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
+import 'package:federfall/features/statistics/intake_series_chart.dart';
+import 'package:federfall/features/statistics/period_selector.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/back_or_home.dart';
 import 'package:federfall/ui/ui.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Reporting statistics (FED-7.2): outcome breakdown, intakes by species,
-/// conditions recorded and average time in care. Reached from the dashboard by
-/// coordinators/supervisors; figures are org-wide for them. Re-checks the role
-/// so a typed-in URL degrades gracefully — the server rules remain the real
-/// boundary.
+/// Reporting statistics (FED-7.2 / federfall-nmwi): intakes over time against
+/// the previous year, outcome and mortality rates, and the outcome / species /
+/// diagnosis breakdowns behind them — all for one selected period.
+///
+/// Every figure is computed server-side (`GET /api/federfall/stats`) off the
+/// same rows the annual report prints, so the screen and the PDF agree. Reached
+/// from the dashboard by coordinators/supervisors; figures are org-wide for
+/// them. Re-checks the role so a typed-in URL degrades gracefully — the server
+/// rules remain the real boundary.
 class StatisticsScreen extends ConsumerStatefulWidget {
   const StatisticsScreen({super.key});
 
@@ -30,14 +36,32 @@ class StatisticsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
+  /// Resolved once: the period buttons must not relabel themselves if the
+  /// screen happens to be open across midnight on New Year's Eve.
+  late final DateTime _now = DateTime.now();
+
   /// Lists the cases behind a breakdown row. Every figure on this screen is
   /// org-wide and counts closed cases too, so the query has to widen past the
   /// browser's "my active cases" default — otherwise the list would come up
-  /// short of the number that was just tapped.
-  void _showCases(CaseQuery query) => showCasesFiltered(
+  /// short of the number that was just tapped. It also carries the selected
+  /// period: a list that ignored it would not match the figure either.
+  void _showCases(CaseQuery query, int? year) => showCasesFiltered(
     context,
     ref,
-    query.copyWith(allScope: true, activity: CaseActivity.all),
+    query.copyWith(
+      allScope: true,
+      activity: CaseActivity.all,
+      admittedRange: year == null
+          ? null
+          : DateTimeRange(
+              start: DateTime(year),
+              // Inclusive to the last instant of the year, not to its midnight
+              // — the browser's range test is inclusive on both ends, and a
+              // bird admitted on the afternoon of 31 December belongs to the
+              // year it was admitted in.
+              end: DateTime(year, 12, 31, 23, 59, 59, 999),
+            ),
+    ),
   );
 
   @override
@@ -55,16 +79,14 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       );
     }
 
-    // 'case_conditions' matters because the diagnosis breakdown is counted by
-    // the `condition_labels` view, which statistics reads through its own
-    // provider — invalidating only `statisticsProvider` would re-run the
-    // aggregation over the same cached counts.
+    final year = ref.watch(statisticsPeriodProvider);
+    // 'case_conditions' matters because the diagnosis breakdown is part of the
+    // same server-side aggregate: a diagnosis recorded anywhere in the org
+    // changes a figure on this screen.
     ref.liveRefresh(const ['cases', 'dispositions', 'case_conditions'], () {
-      ref
-        ..invalidate(recordedConditionsProvider)
-        ..invalidate(statisticsProvider);
+      ref.invalidate(statisticsProvider);
     });
-    final stats = ref.watch(statisticsProvider);
+    final stats = ref.watch(statisticsProvider(year: year));
 
     final scaffold = Scaffold(
       appBar: AppBar(
@@ -83,31 +105,39 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
           ),
         ],
       ),
-      body: AsyncValueView<Statistics>(
+      body: AsyncValueView<OrgStatistics>(
         value: stats,
-        onRetry: () => ref
-          ..invalidate(recordedConditionsProvider)
-          ..invalidate(statisticsProvider),
+        onRetry: () => ref.invalidate(statisticsProvider),
         loading: const LinearProgressIndicator(),
         data: (s) => RefreshIndicator(
-          onRefresh: () {
-            ref.invalidate(recordedConditionsProvider);
-            return ref.refresh(statisticsProvider.future);
-          },
+          onRefresh: () => ref.refresh(statisticsProvider(year: year).future),
           child: ContentBounds(
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.md),
               children: [
+                // The period comes first because it qualifies everything under
+                // it — the same control, and the same meaning of "2026", the
+                // export sheet offers.
+                PeriodSelector(
+                  selected: year,
+                  intakeYears: s.intakeYears,
+                  now: _now,
+                  onChanged: (picked) => ref
+                      .read(statisticsPeriodProvider.notifier)
+                      .select(picked),
+                ),
+                const SizedBox(height: AppSpacing.md),
                 KpiGrid([
                   KpiCard(
                     icon: Icons.folder_copy_outlined,
-                    label: l10n.statsTotalCases,
-                    value: '${s.totalCases}',
+                    label: l10n.statsIntakes,
+                    value: '${s.intakes}',
+                    onTap: () => _showCases(const CaseQuery(), year),
                   ),
                   KpiCard(
                     icon: Icons.medical_information_outlined,
-                    label: l10n.statsOpenCases,
-                    value: '${s.openCases}',
+                    label: l10n.statsInCare,
+                    value: '${s.inCare}',
                   ),
                   KpiCard(
                     icon: Icons.timelapse_outlined,
@@ -122,8 +152,45 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                             ),
                           ),
                   ),
+                  KpiCard(
+                    icon: Icons.flight_takeoff_outlined,
+                    label: l10n.statsReleaseRate,
+                    value: _rate(l10n, s.releaseRate),
+                  ),
+                  KpiCard(
+                    icon: Icons.trending_down_outlined,
+                    label: l10n.statsMortalityRate,
+                    value: _rate(l10n, s.mortalityRate),
+                  ),
                 ]),
+                const SizedBox(height: AppSpacing.sm),
+                // The two rates are shares of the cases that ENDED, not of the
+                // intakes above them — without the denominator on the screen
+                // they would read as either.
+                Text(
+                  l10n.statsRatesBasis(s.closed),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.lg),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.statsSectionIntakesOverTime,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        IntakeSeriesChart(series: s.series),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
                 const _IntakeMapCard(),
                 const SizedBox(height: AppSpacing.md),
                 BreakdownCard(
@@ -138,7 +205,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                         // know can be counted but not named in a filter.
                         onTap: o.type == null
                             ? null
-                            : () => _showCases(CaseQuery(outcome: o.type)),
+                            : () =>
+                                  _showCases(CaseQuery(outcome: o.type), year),
                       ),
                   ],
                 ),
@@ -151,7 +219,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                       BreakdownRow(
                         c.label,
                         c.count,
-                        onTap: () => _showCases(CaseQuery(species: c.label)),
+                        onTap: () =>
+                            _showCases(CaseQuery(species: c.label), year),
                       ),
                   ],
                 ),
@@ -164,7 +233,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                       BreakdownRow(
                         c.label,
                         c.count,
-                        onTap: () => _showCases(CaseQuery(condition: c.label)),
+                        onTap: () =>
+                            _showCases(CaseQuery(condition: c.label), year),
                       ),
                   ],
                 ),
@@ -177,6 +247,14 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
 
     return BackOrHomeScope(child: scaffold);
   }
+
+  /// A 0–1 share as a whole-percent figure, or an em dash while the rate is
+  /// undefined — nothing has ended yet, which is not the same as 0 %.
+  String _rate(AppLocalizations l10n, double? value) => value == null
+      ? '–'
+      : l10n.statsPercentValue(
+          formatNumber(l10n, value * 100, maxFractionDigits: 0),
+        );
 }
 
 /// Entry point into the intake map screen (federfall-xr8t): a title + pin

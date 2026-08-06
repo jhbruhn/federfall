@@ -172,6 +172,10 @@ Future<GeocodingRepository> geocodingRepository(Ref ref) async =>
 Future<PbCaseReportRepository> caseReportRepository(Ref ref) async =>
     PbCaseReportRepository(await _client(ref));
 
+@Riverpod(keepAlive: true)
+Future<PbStatsRepository> statsRepository(Ref ref) async =>
+    PbStatsRepository(await _client(ref));
+
 /// A short-lived PocketBase file access token (FED-8.1) for fetching the
 /// Protected image fields (case intake photos, journal attachments, animal
 /// photo). One token is valid for any protected file the current user may read
