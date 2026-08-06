@@ -242,8 +242,19 @@ List<CarerWorkload> buildCarerWorkload(
 /// hidden anyway.
 @riverpod
 Future<List<CarerWorkload>> carerWorkload(Ref ref) async {
+  // Both watched before the first await, then awaited one at a time rather
+  // than through `(a, b).wait` — same reason as [_counted]: the record form
+  // would hand the UI a ParallelWaitError it cannot map to the offline copy.
+  //
+  // The roster is fetched AFTER the summary rather than racing it, and that
+  // is deliberate: starting it early and awaiting it second leaves a window
+  // where a roster failure has no handler while the summary is still in
+  // flight, which surfaces as an unhandled async error if the summary throws
+  // first. One extra round trip on a card that already cannot render before
+  // the summary lands is the cheaper side of that trade.
   final summaryFuture = ref.watch(dashboardSummaryProvider.future);
-  final usersRepo = await ref.watch(usersRepositoryProvider.future);
-  final (summary, members) = await (summaryFuture, usersRepo.members()).wait;
+  final usersFuture = ref.watch(usersRepositoryProvider.future);
+  final summary = await summaryFuture;
+  final members = await (await usersFuture).members();
   return buildCarerWorkload(members, summary.openByCarer);
 }
