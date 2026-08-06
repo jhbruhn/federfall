@@ -64,7 +64,7 @@ routerAdd(
 
     const period = stats.parsePeriod(query);
     const year = period.year;
-    const t = stats.timeContext(query);
+    const t = require(`${__hooks}/lib_time.js`).timeContext(query);
     const partsOf = t.partsOf;
     const pbStamp = t.pbStamp;
     // Half-open, resolved through the caller's own UTC offset; null for an

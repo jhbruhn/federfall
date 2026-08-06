@@ -109,46 +109,12 @@ routerAdd(
     // correct offset — DST and all — via `DateTime.now().timeZoneOffset`
     // (case_detail_screen.dart), so it's simplest to just have it say so
     // directly instead of guessing a zone here. Falls back to the EU's own
-    // DST rule for Europe/Berlin (CEST from the last Sunday of March 01:00
-    // UTC to the last Sunday of October 01:00 UTC, else CET) when the param
-    // is absent/invalid — e.g. a direct API/curl call, or an older client
-    // build that predates this parameter.
-    const lastSundayUTC = (year, monthIndex) => {
-      const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
-      return lastDay.getUTCDate() - lastDay.getUTCDay();
-    };
-    const berlinOffsetMinutes = (utcMs) => {
-      const year = new Date(utcMs).getUTCFullYear();
-      const dstStart = Date.UTC(year, 2, lastSundayUTC(year, 2), 1, 0, 0);
-      const dstEnd = Date.UTC(year, 9, lastSundayUTC(year, 9), 1, 0, 0);
-      const isDst = utcMs >= dstStart && utcMs < dstEnd;
-      return (isDst ? 2 : 1) * 60;
-    };
-    const tzOffsetParam = parseInt(e.request.url.query().get("tzOffsetMinutes"), 10);
-    // A real-world UTC offset is always within [-12h, +14h]; reject anything
-    // outside that (or NaN from a missing/garbled param) rather than silently
-    // shifting dates by some huge, clearly-wrong amount.
-    const explicitOffsetMinutes =
-      !isNaN(tzOffsetParam) && tzOffsetParam >= -720 && tzOffsetParam <= 840
-        ? tzOffsetParam
-        : null;
-    const dateParts = (value) => {
-      if (!value) return null;
-      const d = new Date(String(value).replace(" ", "T"));
-      if (isNaN(d.getTime())) return null;
-      const offsetMinutes =
-        explicitOffsetMinutes !== null
-          ? explicitOffsetMinutes
-          : berlinOffsetMinutes(d.getTime());
-      const local = new Date(d.getTime() + offsetMinutes * 60000);
-      return {
-        y: local.getUTCFullYear(),
-        mo: local.getUTCMonth() + 1,
-        d: local.getUTCDate(),
-        h: local.getUTCHours(),
-        mi: local.getUTCMinutes(),
-      };
-    };
+    // Caller-local time (federfall-c41f): the DST rule, the offset param and
+    // the wall-clock parts all live in lib_time.js, which the reporting routes
+    // read too — this file's own copy was the original those were taken from.
+    const dateParts = require(`${__hooks}/lib_time.js`).timeContext(
+      e.request.url.query(),
+    ).partsOf;
 
     // ── Gather everything the case timeline shows (mirrors
     // CaseBundle.fromRecord / case_timeline.dart's event list): the case,

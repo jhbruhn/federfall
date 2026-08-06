@@ -52,6 +52,36 @@ void main() {
     expect(s.intakesThisYear, 2);
   });
 
+  test("the year boundary is the DEVICE's, not UTC's", () {
+    // federfall-s0wk: `admittedAt` arrives UTC (pbDate normalises every
+    // timestamp with `.toUtc()`) while `now` is local, so an instant either
+    // side of local midnight used to be counted under the UTC year here and
+    // under the local one on the statistics screen — which resolves the
+    // boundary through the caller's own offset server-side. Same case, two
+    // answers, on two screens a coordinator reads side by side.
+    final offset = DateTime.now().timeZoneOffset;
+    // Local New Year's midnight, as the server would have stored it.
+    final admittedUtc = DateTime(2026).toUtc();
+
+    final s = buildDashboardSummary(
+      [_case(id: '1', admittedAt: admittedUtc)],
+      now,
+    );
+
+    expect(s.intakesThisYear, 1);
+    // On a device EAST of Greenwich that instant is 2025 in UTC, so this
+    // assertion is what fails if the count ever goes back to reading the raw
+    // UTC year. A device on UTC cannot express the case at all — flagged so a
+    // green run there is not mistaken for coverage.
+    expect(
+      offset == Duration.zero || admittedUtc.year == 2025,
+      isTrue,
+      reason: offset == Duration.zero
+          ? 'device is on UTC: this test cannot distinguish the two readings'
+          : 'expected the stored instant to fall in the previous UTC year',
+    );
+  });
+
   test('breaks active cases down by status in enum order', () {
     final s = buildDashboardSummary([
       _case(id: '1', status: CaseStatus.inCare),

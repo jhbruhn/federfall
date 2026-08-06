@@ -77,7 +77,14 @@ DashboardSummary buildDashboardSummary(
         openByCarer[carer] = (openByCarer[carer] ?? 0) + 1;
       }
     }
-    final admitted = c.admittedAt;
+    // `.toLocal()` is load-bearing (federfall-s0wk): `admittedAt` is UTC —
+    // `pbDate` normalises every timestamp with `.toUtc()` — while [now] is the
+    // device's local time, so comparing the two years directly put a bird
+    // admitted at 00:30 on New Year's Day in UTC+1 into LAST year here and
+    // into this one on the statistics screen, which resolves the boundary
+    // through the caller's own offset server-side. Same case, same org, two
+    // answers.
+    final admitted = c.admittedAt?.toLocal();
     if (admitted != null && admitted.year == now.year) intakes++;
   }
 
