@@ -30,15 +30,23 @@
 // that gap should not exist — the grace period is belt and braces for any other
 // writer, including the Admin UI.)
 //
-// The window is org-configurable via organisations.settings JSON:
-//   { "finder_retention_years": 2 }
+// The window is org-configurable via organisations.settings JSON, under the
+// key the APP writes:
+//   { "finderRetentionMonths": 24 }
+// Months, not years, and camelCase — that is what the org-settings screen
+// stores (`org_settings_providers.dart`'s finderRetentionMonthsKey), and a
+// setting the supervisor can see but the cron cannot read is worse than no
+// setting at all. The older `finder_retention_years` key this file used to
+// document is still honoured as a fallback, so a value hand-set in the admin
+// UI against the old documentation does not silently revert to the default.
 //
 // PocketBase isolates each handler's JSVM context, so everything is defined
 // inside the handler (file-level helpers are not visible here).
 
 cronAdd("finderPiiRetention", "0 3 * * *", () => {
-  const DEFAULT_RETENTION_YEARS = 2;
+  const DEFAULT_RETENTION_MONTHS = 24; // two years, as the app's default says
   const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+  const MONTH_MS = YEAR_MS / 12;
   const PAGE = 200;
   // How long an unreferenced finder is left alone before deletion, so a row
   // written moments before its case is never mistaken for an orphan.
@@ -63,17 +71,21 @@ cronAdd("finderPiiRetention", "0 3 * * *", () => {
     return isNaN(d.getTime()) ? null : d;
   };
 
-  // federfall-jumi: read through lib_org.js. This used to call
-  // `org.get("settings")`, which hands JS a byte array rather than an object —
-  // so `finder_retention_years` was ALWAYS undefined and every org silently
-  // got the default window, however it had configured itself.
+  // federfall-jumi: read through lib_org.js, which decodes the JSON field —
+  // `org.get("settings")` hands JS a byte array, so every key read as
+  // undefined and every org silently got the default window.
   const orgs = require(`${__hooks}/lib_org.js`);
-  const retentionMsForOrg = (orgId) =>
-    orgs.positiveNumber(
-      orgs.settingsOf($app, orgId),
-      "finder_retention_years",
-      DEFAULT_RETENTION_YEARS,
-    ) * YEAR_MS;
+  const retentionMsForOrg = (orgId) => {
+    const settings = orgs.settingsOf($app, orgId);
+    // The key the org-settings screen writes, in months.
+    const months = orgs.positiveNumber(settings, "finderRetentionMonths", 0);
+    if (months > 0) return months * MONTH_MS;
+    // Fallback: the years key this file documented before the app surfaced
+    // the setting, so a hand-configured instance keeps its window.
+    const years = orgs.positiveNumber(settings, "finder_retention_years", 0);
+    if (years > 0) return years * YEAR_MS;
+    return DEFAULT_RETENTION_MONTHS * MONTH_MS;
+  };
 
   // Latest "case ended" date for a finder, or null if any case is still active.
   // Reads dispositions directly — a case is "ended" once its status is disposed,

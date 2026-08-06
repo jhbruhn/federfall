@@ -199,18 +199,28 @@ def main():
     # that reason: with one, the default and a working read agree.
     print("\n[finder PII retention cron]")
 
+    # The key here is the one the ORG-SETTINGS SCREEN writes —
+    # `finderRetentionMonths`, in months (org_settings_providers.dart). Writing
+    # the hook's own spelling instead would prove the decode and nothing else:
+    # a window a supervisor can set but the cron cannot read is worse than no
+    # window at all, and that is exactly the bug this fixture exists to catch.
     scrub_org = mk(T, "organisations", {
-        "name": "Scrub Now", "settings": {"finder_retention_years": 0.000001},
+        "name": "Scrub Now", "settings": {"finderRetentionMonths": 0.000001},
     })["id"]
     keep_org = mk(T, "organisations", {
-        "name": "Keep Long", "settings": {"finder_retention_years": 100},
+        "name": "Keep Long", "settings": {"finderRetentionMonths": 1200},
+    })["id"]
+    # A self-hoster who hand-set the older, documented years key keeps it.
+    legacy_org = mk(T, "organisations", {
+        "name": "Legacy Key", "settings": {"finder_retention_years": 0.000001},
     })["id"]
 
     doomed_finder = finder_of_closed_case(T, scrub_org)
     kept_finder = finder_of_closed_case(T, keep_org)
+    legacy_finder = finder_of_closed_case(T, legacy_org)
     check("the probe finders hold PII to begin with (parse guard)",
-          finder_row(T, doomed_finder).get("first_name") == "Anna"
-          and finder_row(T, kept_finder).get("first_name") == "Anna",
+          all(finder_row(T, f).get("first_name") == "Anna"
+              for f in (doomed_finder, kept_finder, legacy_finder)),
           "a fixture finder was not created with its PII")
 
     print("  … waiting for the finder cron to fire (up to 100 s)")
@@ -244,6 +254,12 @@ def main():
     check("an organisation with a long window keeps its finder's PII",
           survivor.get("pii_purged") is False
           and survivor.get("first_name") == "Anna", survivor)
+
+    # The pre-app key still works, so upgrading does not quietly extend an
+    # instance's retention window back to the default.
+    check("a window set under the older years key is still honoured",
+          finder_row(T, legacy_finder).get("pii_purged") is True,
+          finder_row(T, legacy_finder))
 
     print(f"\n{'=' * 50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)
