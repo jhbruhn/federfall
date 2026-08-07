@@ -1,7 +1,15 @@
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart' show DateTimeRange;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockCasesRepo extends Mock implements PbCasesRepository {}
+
+class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
 Case _case(
   String id, {
@@ -93,5 +101,115 @@ void main() {
     );
     expect(result.single.point.latitude, geo.lat);
     expect(result.single.point.longitude, geo.lon);
+  });
+
+  group('what it asks the server for (federfall-trep)', () {
+    late MockCasesRepo cases;
+    late MockAnimalsRepo animals;
+
+    setUpAll(() => registerFallbackValue(DateTime(0)));
+
+    setUp(() {
+      cases = MockCasesRepo();
+      animals = MockAnimalsRepo();
+      when(
+        () => cases.list(
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      ).thenAnswer((_) async => [_case('c1', findGeo: geo)]);
+      when(
+        () => cases.admittedBetween(any(), any()),
+      ).thenAnswer((_) async => [_case('c1', findGeo: geo)]);
+      when(
+        () => animals.byIds(any(), fields: any(named: 'fields')),
+      ).thenAnswer((_) async => const []);
+      when(
+        () => animals.list(
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      ).thenAnswer((_) async => const []);
+    });
+
+    ProviderContainer makeContainer() {
+      final container = ProviderContainer(
+        overrides: [
+          casesRepositoryProvider.overrideWith((ref) async => cases),
+          animalsRepositoryProvider.overrideWith((ref) async => animals),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
+
+    test(
+      'a period is asked of the server, not filtered on the device',
+      () async {
+        final range = DateTimeRange(
+          start: DateTime(2026),
+          end: DateTime(2026, 12, 31),
+        );
+
+        await makeContainer().read(
+          intakeLocationsProvider(admittedRange: range).future,
+        );
+
+        verify(() => cases.admittedBetween(range.start, range.end)).called(1);
+        verifyNever(
+          () => cases.list(
+            filter: any(named: 'filter'),
+            sort: any(named: 'sort'),
+            expand: any(named: 'expand'),
+            fields: any(named: 'fields'),
+          ),
+        );
+      },
+    );
+
+    test(
+      'all time still reads every case — there is no period to ask for',
+      () async {
+        await makeContainer().read(intakeLocationsProvider().future);
+
+        verifyNever(() => cases.admittedBetween(any(), any()));
+        verify(
+          () => cases.list(
+            filter: any(named: 'filter'),
+            sort: any(named: 'sort'),
+            expand: any(named: 'expand'),
+            fields: any(named: 'fields'),
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'only the animals those cases name, and only the columns used',
+      () async {
+        await makeContainer().read(intakeLocationsProvider().future);
+
+        // Pulling every animal in the org to build a species lookup is the read
+        // this issue removed.
+        verifyNever(
+          () => animals.list(
+            filter: any(named: 'filter'),
+            sort: any(named: 'sort'),
+            expand: any(named: 'expand'),
+            fields: any(named: 'fields'),
+          ),
+        );
+        final call = verify(
+          () =>
+              animals.byIds(captureAny(), fields: captureAny(named: 'fields')),
+        ).captured;
+        expect((call[0]! as Iterable<String>).toList(), ['a1']);
+        expect(call[1], 'id,species,name');
+      },
+    );
   });
 }

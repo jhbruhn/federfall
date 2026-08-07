@@ -209,6 +209,33 @@ void main() {
       expect(boundTo, to.toUtc());
     });
 
+    test('admittedBetween is INCLUSIVE at both ends', () async {
+      // Unlike countAdmittedBetween's half-open year: this mirrors a range the
+      // user picked, and the intake map filters again on the device with the
+      // same bounds — a mismatch would put a case sitting exactly on the
+      // boundary in one answer and not the other (federfall-trep).
+      when(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      ).thenAnswer((_) async => ResultList());
+
+      await repo.admittedBetween(DateTime(2026), DateTime(2026, 12, 31));
+
+      verify(
+        () => pb.filter(
+          'admitted_at >= {:from} && admitted_at <= {:to}',
+          any(),
+        ),
+      ).called(1);
+    });
+
     test('a count transfers no records', () async {
       stubCount(42);
 

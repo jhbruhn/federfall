@@ -45,6 +45,17 @@ abstract interface class CasesRepository implements Repository<Case> {
   /// the case browser's "all" scope lists, without pulling it to the device.
   Future<int> countWithStatus(CaseStatus status);
 
+  /// Cases admitted between [from] and [to] **inclusive**, newest first.
+  ///
+  /// Inclusive at both ends, unlike [countAdmittedBetween]'s half-open range,
+  /// and deliberately so: that one models a calendar period (a year is
+  /// `DateTime(y)` up to but excluding `DateTime(y + 1)`), while this one
+  /// mirrors a range the user picked, whose end they mean to be included. A
+  /// caller that filters again on the device — the intake map does — must use
+  /// the same convention on both sides or a case sitting exactly on the
+  /// boundary is in one answer and not the other.
+  Future<List<Case>> admittedBetween(DateTime from, DateTime to);
+
   /// How many of the cases the caller may read were admitted in
   /// `[from, to)` — half-open, so a year range is `DateTime(y)` to
   /// `DateTime(y + 1)` with no end-of-year rounding to get wrong.
@@ -152,6 +163,15 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   @override
   Future<int> countForAdmissionReason(String reasonId) =>
       count(filter: filterExpr('admission_reasons ~ {:r}', {'r': reasonId}));
+
+  @override
+  Future<List<Case>> admittedBetween(DateTime from, DateTime to) => list(
+    filter: filterExpr('admitted_at >= {:from} && admitted_at <= {:to}', {
+      'from': from.toUtc(),
+      'to': to.toUtc(),
+    }),
+    sort: '-created',
+  );
 
   @override
   Future<int> countWithStatus(CaseStatus status) =>

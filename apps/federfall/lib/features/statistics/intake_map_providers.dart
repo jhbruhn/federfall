@@ -80,8 +80,22 @@ Future<List<IntakeLocation>> intakeLocations(
   final casesRepo = await ref.watch(casesRepositoryProvider.future);
   final animalsRepo = await ref.watch(animalsRepositoryProvider.future);
 
-  final cases = await casesRepo.list();
-  final animals = await animalsRepo.list();
+  // Ask the server for the period rather than the whole collection
+  // (federfall-trep). The bounds are inclusive on BOTH sides here and in
+  // [filterIntakeLocations] below, so a case admitted exactly on the boundary
+  // cannot be in one answer and not the other. That client-side pass still
+  // runs — it is what drops the cases with no find location, which no filter
+  // can express against a geoPoint field.
+  final cases = admittedRange == null
+      ? await casesRepo.list()
+      : await casesRepo.admittedBetween(admittedRange.start, admittedRange.end);
+
+  // Only the animals those cases name, and only the two columns the pins read
+  // — this used to pull every animal in the org to build a species lookup.
+  final animals = await animalsRepo.byIds(
+    {for (final c in cases) c.animal},
+    fields: 'id,species,name',
+  );
 
   return filterIntakeLocations(
     cases: cases,

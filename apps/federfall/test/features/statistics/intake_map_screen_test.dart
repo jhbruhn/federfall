@@ -19,13 +19,27 @@ void main() {
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
 
+  setUpAll(() => registerFallbackValue(DateTime(0)));
+
   setUp(() {
     cases = MockCasesRepo();
     animals = MockAnimalsRepo();
-    when(() => animals.list()).thenAnswer(
+    // `byIds`, not `list`: the map fetches only the animals its cases name
+    // (federfall-trep).
+    when(
+      () => animals.byIds(any(), fields: any(named: 'fields')),
+    ).thenAnswer(
       (_) async => const [Animal(id: 'a1', species: 'Columba livia')],
     );
   });
+
+  /// Stubs BOTH case reads with the same rows: the screen defaults to "this
+  /// year", so it asks `admittedBetween` (federfall-trep), and switches to
+  /// `list` only for the all-time period.
+  void stubCases(Future<List<Case>> Function(Invocation) answer) {
+    when(() => cases.list()).thenAnswer(answer);
+    when(() => cases.admittedBetween(any(), any())).thenAnswer(answer);
+  }
 
   Future<void> pump(
     WidgetTester tester, {
@@ -79,7 +93,7 @@ void main() {
     tester,
   ) async {
     final now = DateTime.now();
-    when(() => cases.list()).thenAnswer(
+    stubCases(
       (_) async => [
         Case(
           id: 'c1',
@@ -102,12 +116,14 @@ void main() {
     'tapping a pin shows animal name, case number, species, admitted date '
     'and city, and "Open case" navigates there once the sheet has closed',
     (tester) async {
-      when(() => animals.list()).thenAnswer(
+      when(
+        () => animals.byIds(any(), fields: any(named: 'fields')),
+      ).thenAnswer(
         (_) async => const [
           Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
         ],
       );
-      when(() => cases.list()).thenAnswer(
+      stubCases(
         (_) async => [
           Case(
             id: 'c1',
@@ -148,7 +164,7 @@ void main() {
     tester,
   ) async {
     final now = DateTime.now();
-    when(() => cases.list()).thenAnswer(
+    stubCases(
       (_) async => [
         for (final id in ['c1', 'c2'])
           Case(
@@ -171,7 +187,7 @@ void main() {
   testWidgets('shows an empty state when nothing has a find-location', (
     tester,
   ) async {
-    when(() => cases.list()).thenAnswer(
+    stubCases(
       (_) async => const [Case(id: 'c1', animal: 'a1')],
     );
 
@@ -186,7 +202,7 @@ void main() {
   testWidgets('a carer gets the unauthorized view, not the map', (
     tester,
   ) async {
-    when(() => cases.list()).thenAnswer((_) async => const []);
+    stubCases((_) async => const []);
 
     await pump(tester, role: UserRole.carer);
 
