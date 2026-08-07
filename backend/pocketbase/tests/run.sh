@@ -41,15 +41,22 @@ echo "==> Ensuring image $IMAGE exists"
 docker image inspect "$IMAGE" >/dev/null 2>&1 || \
   docker build --target backend -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"
 
+# pb_hooks must be mounted here too, not only at serve: onBootstrap hooks run
+# for EVERY command, and the image bakes a copy of them — so without the mount
+# these steps execute whatever hooks were in the image the day it was built,
+# and one that persists state (geocode.pb.js writes settings.rateLimits) can
+# poison the fresh data dir before the hooks under test ever run.
 echo "==> Applying migrations to throwaway data dir"
 docker run --rm \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
+  -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
   -v "$DATA:/pb/pb_data" \
   "$IMAGE" migrate up
 
 echo "==> Creating superuser"
 docker run --rm \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
+  -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
   -v "$DATA:/pb/pb_data" \
   "$IMAGE" superuser upsert "$ADMIN_EMAIL" "$ADMIN_PASS"
 

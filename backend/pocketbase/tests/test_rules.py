@@ -149,6 +149,49 @@ def listf(token, coll, flt):
 def main():
     T = admin_token()
 
+    # ── federfall-sjtg: geocode limiter must not disarm the default brakes ──
+    # geocode.pb.js switches PocketBase's rate limiter on to budget the
+    # geocode proxy. It used to do that from a "clean slate", discarding the
+    # inactive factory default rules — shipping instances whose ONLY throttled
+    # paths were the geocode routes, i.e. no server-side brake on
+    # auth-with-password at all. Assert the merge keeps the defaults active,
+    # and that hammering auth actually draws a 429.
+    #
+    # Runs FIRST (right after the one superuser auth): the `*:auth` budget is
+    # 2 requests per 3 s, so this block must trip it deliberately and then
+    # raise the caps before the suite's own logins start.
+    print("\n[rate limiting]")
+    s, st = req("GET", "/api/settings", T)
+    check("settings readable", s == 200 and bool(st), f"status {s}")
+    rl = (st or {}).get("rateLimits") or {}
+    rules = rl.get("rules") or []
+    labels = [str(r.get("label")) for r in rules]
+    check("rate limiting is enabled", rl.get("enabled") is True, rl)
+    check("the geocode budget is applied",
+          "/api/federfall/geocode" in labels
+          and "/api/federfall/geocode/" in labels, labels)
+    check("PocketBase's default auth brake survives the geocode merge",
+          "*:auth" in labels, labels)
+    got429 = False
+    for _ in range(8):
+        s, _ = req("POST", "/api/collections/users/auth-with-password",
+                   body={"identity": "nobody@f.local",
+                         "password": "WrongWrong1!"})
+        if s == 429:
+            got429 = True
+            break
+    check("hammering auth-with-password hits a 429", got429,
+          "no 429 within 8 attempts")
+    # The suite itself must not run throttled: raise every non-geocode cap
+    # sky-high. The geocode budget stays untouched — the flood test at the
+    # very end relies on it.
+    for r in rules:
+        if not str(r.get("label", "")).startswith("/api/federfall/geocode"):
+            r["maxRequests"] = 100000
+    s, _ = req("PATCH", "/api/settings", T,
+               {"rateLimits": {"enabled": True, "rules": rules}})
+    check("suite raised the default caps for itself", s == 200, f"status {s}")
+
     # ── schema / seed sanity ────────────────────────────────────────────────
     print("\n[schema & seed]")
     s, d = req("GET", f"/api/collections/organisations/records/{ORG}", T)

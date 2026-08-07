@@ -403,17 +403,32 @@ onBootstrap((e) => {
   const labels = ["/api/federfall/geocode", "/api/federfall/geocode/"];
 
   const settings = e.app.settings();
-  // When rate limiting was off, the stored rule set is just PocketBase's
-  // inactive factory default — start from a clean slate so ONLY the geocode
-  // routes get limited (the suite and normal API traffic stay unthrottled).
-  // When the operator already enabled it, keep their rules and merge ours in.
-  const others = settings.rateLimits.enabled
-    ? (settings.rateLimits.rules || []).filter(
-        (r) => labels.indexOf(String(r.label)) < 0,
-      )
-    : [];
+  // Merge into whatever rules are stored — an operator's own edits survive
+  // (their rule under a factory label wins over the restore below). An
+  // earlier version of this hook (federfall-sjtg) started from a "clean
+  // slate" instead, discarding PocketBase's inactive factory defaults on the
+  // way to enabling the limiter — shipping instances whose ONLY throttled
+  // paths were the geocode routes, i.e. no brute-force brake on
+  // auth-with-password at all.
+  const others = (settings.rateLimits.rules || []).filter(
+    (r) => labels.indexOf(String(r.label)) < 0,
+  );
+  // Any instance that ever booted the clean-slate version has the defaults
+  // wiped from its STORED settings, so preserving them is not enough: restore
+  // every factory rule (PocketBase 0.39, probed from a pristine instance)
+  // whose label is absent. To neuter one deliberately, raise its maxRequests
+  // instead of deleting it — a deleted default comes back on every boot.
+  const factory = [
+    { label: "*:auth", audience: "", duration: 3, maxRequests: 2 },
+    { label: "*:create", audience: "", duration: 5, maxRequests: 20 },
+    { label: "/api/batch", audience: "", duration: 1, maxRequests: 3 },
+    { label: "/api/", audience: "", duration: 10, maxRequests: 300 },
+  ];
+  const present = others.map((r) => String(r.label));
+  const restored = factory.filter((d) => present.indexOf(d.label) < 0);
   settings.rateLimits.enabled = true;
   settings.rateLimits.rules = others.concat(
+    restored,
     labels.map((l) => ({
       label: l,
       audience: "",
