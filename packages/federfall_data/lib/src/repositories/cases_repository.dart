@@ -39,10 +39,12 @@ class CaseBrowseQuery {
 
   /// The lifecycle statuses to keep. Empty means any.
   ///
-  /// A SET rather than "everything except disposed": `status != {:s}` is the
-  /// one filter shape this project does not trust (federfall-jt5u recorded it
-  /// over-matching a disposed row), and the bead's own fix direction is an
-  /// explicit list of the statuses wanted.
+  /// A SET rather than "everything except disposed". Not distrust of
+  /// `status != {:s}` — federfall-jt5u suspected that shape and a live probe
+  /// cleared it — but because every other facet here is a set too, and the
+  /// caller asking for exact statuses is what makes [allowUnsetStatus] below a
+  /// decision rather than an accident. The trade-off is that a status added
+  /// server-side which this client has never heard of falls outside the set.
   final List<CaseStatus> statuses;
 
   /// Whether a case with no status at all belongs in [statuses]' result.

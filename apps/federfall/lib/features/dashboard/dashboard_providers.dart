@@ -61,12 +61,11 @@ const List<CaseStatus> _activeStatuses = [
 /// separate from the provider so it can be unit-tested without PocketBase.
 ///
 /// [DashboardSummary.activeCount] comes from [totalCases] MINUS
-/// [disposedCases], never from a `status != 'disposed'` count. That is not
-/// stylistic — a filter written that way answered 25 where the arithmetic said
-/// 24 on three runs and agreed on the next (federfall-jt5u, which is also why
-/// the `case_carer_load` view is pinned to the subtraction). It also keeps a
-/// case with no status at all counted as active, which is what "has not yet
-/// been disposed" means.
+/// [disposedCases] rather than from a `status != 'disposed'` count. The
+/// original reason was a suspect `!=` (federfall-jt5u, since probed and
+/// cleared); what keeps the subtraction is that it counts a case with no
+/// status at all as active, which is what "has not yet been disposed" means,
+/// and that both counts are already on hand.
 DashboardSummary buildDashboardSummary({
   required int totalCases,
   required int disposedCases,

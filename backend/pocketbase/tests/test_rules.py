@@ -1571,11 +1571,12 @@ def main():
     def open_of(uid):
         """Open cases by SUBTRACTION rather than with `status != "disposed"`.
 
-        Not a workaround for a proven bug — a measurement I could not
-        reproduce: three runs had that filter answer 25 where the arithmetic
-        said 24, and the next run had it agree. Subtracting the disposed count
-        from the total is unambiguous either way, so the view is pinned to that
-        instead of to a filter whose answer moved (federfall-jt5u)."""
+        Once a workaround for a filter I suspected of over-matching; a live
+        probe cleared it, and the 25 that started the doubt turned out to be an
+        org-blind count of a carer holding a case in a second org — the very
+        thing `cases_of`'s org clause above exists to exclude (federfall-jt5u).
+        Kept as subtraction anyway: it pins the SQL view against arithmetic
+        rather than against a second spelling of the view's own predicate."""
         return cases_of(uid) - cases_of(uid, ' && status = "disposed"')
 
     check("the carer load is exactly that member's open caseload",
@@ -1671,7 +1672,8 @@ def main():
           browse(toks["a"], 'animal.species = "trep Hohltaube"')
           == {trep_case}, "fixture did not land")
 
-    # An explicit status set, never `status != "disposed"` (federfall-jt5u).
+    # An explicit status set rather than `status != "disposed"` — a preference
+    # in the repository, not a precaution (federfall-jt5u).
     open_set = browse(CO, f'(status = "in_care" || status = '
                           f'"ready_for_release" || status = "") && '
                           f'animal.species ~ "trep "')

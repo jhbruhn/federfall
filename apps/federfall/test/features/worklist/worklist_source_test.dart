@@ -110,9 +110,10 @@ void main() {
   });
 
   test('the disposed filter still runs on the device', () async {
-    // Deliberately NOT pushed into the server query: it needs a `!=`, and
-    // federfall-jt5u records one of those disagreeing with the arithmetic on
-    // three runs out of four. Over one carer's cases it costs a few rows.
+    // Deliberately NOT pushed into the server query — though no longer because
+    // the `!=` it would need was suspect (federfall-jt5u probed that and
+    // cleared it). `forCarer` is shared with the member sheet's pre-check, so
+    // narrowing it there would change that caller too.
     when(() => cases.forCarer('me')).thenAnswer(
       (_) async => [
         const Case(id: 'open', animal: 'a1', status: CaseStatus.inCare),

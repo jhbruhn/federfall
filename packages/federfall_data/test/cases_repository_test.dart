@@ -474,11 +474,11 @@ void main() {
         ),
       );
 
-      // federfall-jt5u: `status != "disposed"` was measured over-matching a
-      // disposed row, so the complement is spelled out instead.
-      expect(f!.expression, isNot(contains('!=')));
+      // Spelled out rather than as a `!=` complement — a preference now, not a
+      // precaution: federfall-jt5u suspected that filter shape and a live probe
+      // cleared it.
       expect(
-        f.expression,
+        f!.expression,
         "(status = 'in_care' || status = 'ready_for_release' "
         "|| status = '')",
       );

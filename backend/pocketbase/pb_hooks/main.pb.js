@@ -458,6 +458,12 @@ onRecordDeleteRequest((e) => {
   // by design — federfall-xxi). The member sheet pre-checks this client-side,
   // but that check is racy (a concurrent handoff between check and delete) and
   // trivially bypassed by a direct API call, so the invariant lives here.
+  //
+  // `!=` rather than a list of open statuses, and deliberately so: it was
+  // suspected of over-matching (federfall-jt5u) and a live probe cleared it,
+  // including that a case with no status at all counts as open. It is also the
+  // fail-safe direction — a status added server-side before this hook knows it
+  // reads as open and refuses the delete, where a set would silently drop it.
   {
     const open = e.app.findRecordsByFilter(
       "cases",

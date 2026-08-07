@@ -17,9 +17,9 @@
 //   case_carer_load — "how many OPEN cases is each member the active carer
 //     of", one row per carer. Open means "not disposed", the same intent as
 //     the guard on deleting a member in main.pb.js — though that guard is
-//     written as a PocketBase filter and this is SQL, so the two agree by
-//     construction only as long as the filter's != means what it says
-//     (federfall-jt5u records one run where it appeared not to).
+//     written as a PocketBase filter and this is SQL. The two do agree:
+//     federfall-jt5u doubted the filter's != and a live probe cleared it. What
+//     the two spellings really differ on is NULL, hence the guard below.
 //
 // ── Why the rules do the scoping ────────────────────────────────────────────
 // A view's list rule runs per caller, so "which counts may I read" is enforced

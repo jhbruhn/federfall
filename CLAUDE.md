@@ -173,7 +173,10 @@ deliberately matches removed markings too; and `dispositions_via_case.type ?= x`
 SUPERSET of "its terminal disposition is x", so `CaseBrowseFeed` narrows the page it gets
 back with `terminalDispositionByCase` — which is what keeps the outcome facet agreeing with
 `case_report_rows` and the statistics screen. The "active" split is an explicit status set
-(`in_care || ready_for_release || ""`), never `status != "disposed"` — see federfall-jt5u.
+(`in_care || ready_for_release || ""`) rather than `status != "disposed"` — because the
+facet IS a set and names the statuses it wants, not because `!=` is untrustworthy:
+federfall-jt5u probed that against a live 0.39.8 and cleared it (the 25-vs-24 that started
+the doubt was an org-blind count of a carer who also held a case in another org).
 `test_rules.py`'s `[case browser filters]` block pins all of it against a live PocketBase,
 including that a carer's widened scope still returns nothing of another carer's.
 

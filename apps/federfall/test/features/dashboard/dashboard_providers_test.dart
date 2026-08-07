@@ -37,11 +37,10 @@ void main() {
 
   group('buildDashboardSummary', () {
     test('derives active cases by subtracting disposed from the total', () {
-      // NOT a `status != "disposed"` count (federfall-jt5u): that filter
-      // answered 25 where the arithmetic said 24 on three runs and agreed on
-      // the next. Subtraction is unambiguous either way — and it keeps a case
-      // with no status at all counted as active, which is what "has not yet
-      // been disposed" means.
+      // NOT a `status != "disposed"` count — not because that filter is
+      // suspect (federfall-jt5u probed it and cleared it), but because
+      // subtraction keeps a case with no status at all counted as active,
+      // which is what "has not yet been disposed" means.
       final s = buildDashboardSummary(
         totalCases: 10,
         disposedCases: 4,

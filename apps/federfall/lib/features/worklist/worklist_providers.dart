@@ -130,10 +130,11 @@ Future<WorklistSource> worklistSource(Ref ref) async {
   // and keep the handful they carry. `forCarer` issues exactly the
   // `active_carer = {:me}` equality the discarded rows failed.
   //
-  // The disposed check stays here on purpose. It is the one predicate that
-  // would need a server-side `!=`, and federfall-jt5u records a count filtered
-  // that way disagreeing with the arithmetic on three runs out of four. Over a
-  // single carer's cases the difference is a handful of rows either way.
+  // The disposed check stays here, but no longer because a server-side `!=`
+  // was suspect — federfall-jt5u probed that and cleared it. It stays because
+  // `forCarer` is shared with the member sheet's pre-check, so narrowing it
+  // would change a second caller's contract to save a handful of rows over one
+  // carer's caseload.
   final mine = await casesRepo.forCarer(me);
   final myActive = mine.where((c) => c.status != CaseStatus.disposed).toList();
   if (myActive.isEmpty) return const WorklistSource();
