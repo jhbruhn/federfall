@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_screen.dart';
+import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
+import 'package:federfall_data/federfall_data.dart';
 // `Finder` here is flutter_test's, so hide the models' unrelated PII record of
 // the same name (the mirror image of the usual clash — see CLAUDE.md).
 import 'package:federfall_models/federfall_models.dart' hide Finder;
@@ -122,6 +126,140 @@ void main() {
     // layout shows the compact "all caught up" card above the caseload.
     expect(find.text('Caseload'), findsOneWidget);
     expect(find.text("Nothing due — you're all caught up."), findsOneWidget);
+  });
+
+  group('Today preview through a reload (federfall-f8xe)', () {
+    const summary = DashboardSummary(
+      activeCount: 4,
+      intakesThisYear: 7,
+      byStatus: {},
+    );
+
+    WorklistItem item(String id) => WorklistItem(
+      kind: WorklistKind.medicationDue,
+      caseId: id,
+      dueAt: DateTime(2026, 6, 23, 9),
+      severity: WorklistSeverity.upcoming,
+      caseNumber: id,
+      animalName: 'Lotte',
+      drug: 'Metacam',
+    );
+
+    /// Pumps the dashboard with a worklist the test controls: each build of
+    /// `worklistProvider` takes the next completer, so a reload can be held
+    /// open and inspected mid-flight.
+    Future<(ProviderContainer, List<Completer<List<WorklistItem>>>)> pump(
+      WidgetTester tester,
+    ) async {
+      final completers = <Completer<List<WorklistItem>>>[];
+      final container = ProviderContainer(
+        // Riverpod 3 retries a failed provider on a timer, which outlives the
+        // widget tree and trips the pending-timer check. The error states here
+        // are about the first failure, not the recovery policy.
+        retry: (_, _) => null,
+        overrides: [
+          dashboardSummaryProvider.overrideWith((ref) async => summary),
+          currentUserProvider.overrideWith((ref) async => null),
+          carerWorkloadProvider.overrideWith((ref) async => const []),
+          // The real one starts periodic timers; nothing here needs them.
+          worklistTickerProvider.overrideWith((ref) {}),
+          worklistProvider.overrideWith((ref) {
+            final completer = Completer<List<WorklistItem>>();
+            completers.add(completer);
+            return completer.future;
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            locale: Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: DashboardScreen(),
+          ),
+        ),
+      );
+      // `pump`, never `pumpAndSettle`: the card's progress bar animates for as
+      // long as the load runs, so settling would wait for a frame that never
+      // comes. Two frames is enough for the immediate futures above.
+      await tester.pump();
+      await tester.pump();
+      return (container, completers);
+    }
+
+    testWidgets('keeps the list on screen while it reloads', (tester) async {
+      final (container, completers) = await pump(tester);
+      completers.first.complete([item('c1'), item('c2')]);
+      await tester.pump();
+      expect(find.text('2 tasks due'), findsOneWidget);
+
+      // The ticker's refetch, held open — this is the window the card used to
+      // spend as a `SizedBox.shrink()`, blinking out of the layout.
+      container.invalidate(worklistProvider);
+      await tester.pump();
+
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('2 tasks due'), findsOneWidget);
+      // ...and it says so rather than pretending nothing is happening.
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+      completers.last.complete([item('c1')]);
+      await tester.pump();
+      expect(find.text('1 task due'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+    });
+
+    testWidgets('a failed reload keeps the list, not an error', (tester) async {
+      final (container, completers) = await pump(tester);
+      completers.first.complete([item('c1')]);
+      await tester.pump();
+
+      container.invalidate(worklistProvider);
+      await tester.pump();
+      completers.last.completeError(
+        const RepositoryException(
+          'Could not reach the server',
+          kind: RepositoryErrorKind.network,
+        ),
+      );
+      await tester.pump();
+
+      // The app-wide offline strip states the cause; replacing a good list
+      // with an error would only cost the user what they were reading.
+      expect(find.text('1 task due'), findsOneWidget);
+    });
+
+    testWidgets('a first load that fails says so, with a retry', (
+      tester,
+    ) async {
+      final (_, completers) = await pump(tester);
+
+      completers.first.completeError(
+        const RepositoryException('nope'),
+      );
+      await tester.pump();
+
+      // Nothing to preserve here, so the card reports instead of vanishing —
+      // which is what it used to do, until the next tick.
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
+    testWidgets('the card holds its place during the first load', (
+      tester,
+    ) async {
+      await pump(tester);
+
+      // Never completed: the shell is up with its progress bar, so the
+      // caseload below it does not jump when the list lands.
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.textContaining('due'), findsNothing);
+    });
   });
 
   group('layout (federfall-773v)', () {

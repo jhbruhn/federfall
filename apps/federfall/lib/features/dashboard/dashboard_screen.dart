@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
@@ -7,6 +8,7 @@ import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/home/account_menu.dart';
+import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/features/worklist/worklist_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -149,52 +151,83 @@ class _WorklistPreview extends ConsumerWidget {
       )
       ..watch(worklistTickerProvider);
 
-    return ref
-        .watch(worklistProvider)
-        .maybeWhen(
-          data: (list) {
-            if (list.isEmpty) {
-              if (!showEmptyState) return const SizedBox.shrink();
-              return Card(
-                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                child: ListTile(
-                  leading: const IconChip(Icons.check_circle_outline),
-                  title: Text(
-                    l10n.todayTitle,
-                    style: theme.textTheme.titleMedium,
+    final async = ref.watch(worklistProvider);
+    // Whatever is already on screen STAYS on screen through a reload
+    // (federfall-f8xe). The ticker invalidates this every minute and refetches
+    // it every 15, so a card that renders `SizedBox.shrink()` for anything but
+    // `data` blinks out on a cadence — for the length of a round trip on the
+    // refetch, and a failed one used to hide it until the next tick. The Today
+    // tab never had that because it goes through `AsyncValueView`, whose
+    // `skipLoadingOnReload` the ticker's own doc already claims for both.
+    final items = async.value;
+    final error = async.hasError ? async.error : null;
+    // A dropped connection while a list is already up defers to the app-wide
+    // offline strip rather than replacing good data with an error — the same
+    // trade `AsyncValueView` makes, via the same predicate.
+    final showError =
+        error != null && !(items != null && isNetworkError(error));
+    final due = items ?? const <WorklistItem>[];
+
+    // The narrow layout adds no chrome when nothing is due, so it must not pop
+    // a card in while the first load is still in flight either.
+    if (!showEmptyState && due.isEmpty && !showError) {
+      return const SizedBox.shrink();
+    }
+
+    final now = DateTime.now();
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Column(
+        children: [
+          // A refresh says so instead of vanishing. The 2px slot is always
+          // present, so appearing and disappearing cannot shift the card's
+          // contents by a hair.
+          SizedBox(
+            height: 2,
+            child: async.isLoading
+                ? const LinearProgressIndicator(minHeight: 2)
+                : null,
+          ),
+          ListTile(
+            leading: IconChip(
+              showError
+                  ? Icons.error_outline
+                  : due.isEmpty
+                  ? Icons.check_circle_outline
+                  : Icons.today_outlined,
+            ),
+            title: Text(l10n.todayTitle, style: theme.textTheme.titleMedium),
+            subtitle: switch ((showError, items)) {
+              (true, _) => Text(loadErrorMessage(l10n, error!)),
+              // Before the first load lands there is nothing true to say; the
+              // progress bar above is the whole message.
+              (_, null) => null,
+              _ when due.isEmpty => Text(l10n.worklistEmpty),
+              _ => Text(l10n.worklistDueCount(due.length)),
+            },
+            trailing: showError
+                ? TextButton(
+                    onPressed: () => ref.invalidate(worklistSourceProvider),
+                    child: Text(l10n.actionRetry),
+                  )
+                : due.isEmpty
+                ? null
+                : TextButton(
+                    // `go`, not `push`: an imperative push leaves the address
+                    // bar on the dashboard while Today is on screen.
+                    onPressed: () => context.go(AppRoutes.today),
+                    child: Text(l10n.worklistSeeAll),
                   ),
-                  subtitle: Text(l10n.worklistEmpty),
-                ),
-              );
-            }
-            final now = DateTime.now();
-            return Card(
-              margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const IconChip(Icons.today_outlined),
-                    title: Text(
-                      l10n.todayTitle,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    subtitle: Text(l10n.worklistDueCount(list.length)),
-                    trailing: TextButton(
-                      // `go`, not `push`: an imperative push leaves the address
-                      // bar on the dashboard while Today is on screen.
-                      onPressed: () => context.go(AppRoutes.today),
-                      child: Text(l10n.worklistSeeAll),
-                    ),
-                  ),
-                  for (final item in list.take(_previewMax))
-                    WorklistTile(item: item, now: now),
-                  const SizedBox(height: AppSpacing.xs),
-                ],
-              ),
-            );
-          },
-          orElse: () => const SizedBox.shrink(),
-        );
+          ),
+          if (!showError) ...[
+            for (final item in due.take(_previewMax))
+              WorklistTile(item: item, now: now),
+            if (due.isNotEmpty) const SizedBox(height: AppSpacing.xs),
+          ],
+        ],
+      ),
+    );
   }
 }
 
