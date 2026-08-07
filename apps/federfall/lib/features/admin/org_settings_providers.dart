@@ -44,8 +44,9 @@ Future<int> orgQuarantineDefaultDays(Ref ref) async {
 /// edit it from the org settings screen (UX Phase A).
 @riverpod
 Future<Organisation> currentOrganisation(Ref ref) async {
-  final user = await ref.watch(currentUserProvider.future);
-  final orgId = user?.org;
+  // The org, not the user (federfall-bpw6): a token refresh must not re-read
+  // the organisation record — see the note on currentUserProvider.
+  final orgId = await ref.watch(currentUserProvider.selectAsync((u) => u?.org));
   if (orgId == null || orgId.isEmpty) {
     throw const RepositoryException('the current user has no organisation');
   }

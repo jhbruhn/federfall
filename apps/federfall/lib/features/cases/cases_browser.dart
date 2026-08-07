@@ -223,7 +223,12 @@ class CasesBrowserData {
 /// responsive than round-tripping each filter change.
 @riverpod
 Future<CasesBrowserData> casesBrowserData(Ref ref) async {
-  final userFuture = ref.watch(currentUserProvider.future);
+  // The id, not the user (federfall-bpw6): this reads every case and every
+  // animal, and watching `.future` re-ran all of it on every token refresh —
+  // i.e. every time a browser window regained focus.
+  final userIdFuture = ref.watch(
+    currentUserProvider.selectAsync((u) => u?.id),
+  );
   final codesFuture = ref.watch(activeMarkingCodesByAnimalProvider.future);
   final (casesRepo, animalsRepo) = await (
     ref.watch(casesRepositoryProvider.future),
@@ -231,8 +236,8 @@ Future<CasesBrowserData> casesBrowserData(Ref ref) async {
   ).waitUnwrapped;
   // The fetches are independent — issue them concurrently so a (live-)refresh
   // costs one round trip, not three in sequence.
-  final (user, codesByAnimal, cases, animals) = await (
-    userFuture,
+  final (myUserId, codesByAnimal, cases, animals) = await (
+    userIdFuture,
     codesFuture,
     casesRepo.list(sort: '-created'),
     animalsRepo.list(),
@@ -240,7 +245,7 @@ Future<CasesBrowserData> casesBrowserData(Ref ref) async {
   return CasesBrowserData(
     cases: cases,
     animalsById: {for (final a in animals) a.id: a},
-    myUserId: user?.id ?? '',
+    myUserId: myUserId ?? '',
     codesByAnimal: codesByAnimal,
   );
 }

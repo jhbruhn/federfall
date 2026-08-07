@@ -100,7 +100,10 @@ class WorklistSource {
 /// per-minute tick invalidates just the derived [worklist] instead.
 @riverpod
 Future<WorklistSource> worklistSource(Ref ref) async {
-  final me = (await ref.watch(currentUserProvider.future))?.id;
+  // The id, not the user: a token refresh re-emits an identical AppUser, and
+  // watching `.future` would refetch all of this on every window refocus
+  // (federfall-bpw6 — see the note on currentUserProvider).
+  final me = await ref.watch(currentUserProvider.selectAsync((u) => u?.id));
   if (me == null) return const WorklistSource();
 
   // Repositories all share the resolved client; resolve them together.

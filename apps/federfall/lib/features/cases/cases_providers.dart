@@ -54,7 +54,11 @@ Future<List<T>> caseBundleList<T>(
 /// viewer pays for the share lookup that could still grant `edit` access.
 @riverpod
 Future<bool> canEditCase(Ref ref, String caseId) async {
-  final me = await ref.watch(currentUserProvider.future);
+  // The whole user is genuinely needed here (id, role, and [caseEditableBy]
+  // takes the object), but selecting it still deduplicates: AppUser is
+  // `freezed`, so the identical user a token refresh re-emits compares equal
+  // and nothing recomputes (federfall-bpw6).
+  final me = await ref.watch(currentUserProvider.selectAsync((u) => u));
   if (me == null) return false;
   if (me.role == UserRole.supervisor) return true;
   final medicalCase = await ref.watch(caseByIdProvider(caseId).future);

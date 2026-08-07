@@ -67,8 +67,13 @@ class Reminders extends _$Reminders {
       ref.watch(appointmentRemindersEnabledProvider.future),
     ).waitUnwrapped;
     final anyOn = medsOn || appointmentsOn;
-    final user = anyOn ? await ref.watch(currentUserProvider.future) : null;
-    if (!anyOn || user == null) {
+    // Only "is anyone signed in" is used, so only that is watched: watching
+    // the user re-planned every reminder on each token refresh, i.e. on every
+    // window refocus (federfall-bpw6).
+    final signedIn =
+        anyOn &&
+        await ref.watch(currentUserProvider.selectAsync((u) => u != null));
+    if (!signedIn) {
       await scheduler.cancelAll();
       return;
     }
