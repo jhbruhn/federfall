@@ -1,8 +1,8 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
-import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall_data/federfall_data.dart';
+import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -11,22 +11,35 @@ class MockCasesRepo extends Mock implements PbCasesRepository {}
 
 class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
+class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
+
+Case _case(String id, {String animal = 'a1'}) => Case(id: id, animal: animal);
+
 void main() {
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
+  late MockDispositionsRepo dispositions;
+
+  setUpAll(() => registerFallbackValue(const CaseBrowseQuery()));
 
   setUp(() {
     cases = MockCasesRepo();
     animals = MockAnimalsRepo();
+    dispositions = MockDispositionsRepo();
     when(
-      () => animals.list(
-        filter: any(named: 'filter'),
-        sort: any(named: 'sort'),
-        expand: any(named: 'expand'),
-        fields: any(named: 'fields'),
-      ),
+      () => animals.byIds(any(), fields: any(named: 'fields')),
     ).thenAnswer((_) async => const []);
   });
+
+  void stubBrowse(PbPage<Case> Function() answer) {
+    when(
+      () => cases.browse(
+        query: any(named: 'query'),
+        after: any(named: 'after'),
+        perPage: any(named: 'perPage'),
+      ),
+    ).thenAnswer((_) async => answer());
+  }
 
   ProviderContainer makeContainer() {
     final container = ProviderContainer(
@@ -37,10 +50,10 @@ void main() {
       overrides: [
         casesRepositoryProvider.overrideWith((ref) async => cases),
         animalsRepositoryProvider.overrideWith((ref) async => animals),
-        currentUserProvider.overrideWith((ref) async => null),
-        activeMarkingCodesByAnimalProvider.overrideWith(
-          (ref) async => const {},
+        dispositionsRepositoryProvider.overrideWith(
+          (ref) async => dispositions,
         ),
+        currentUserProvider.overrideWith((ref) async => null),
       ],
     );
     addTearDown(container.dispose);
@@ -53,24 +66,15 @@ void main() {
     // `isNetworkError` does not recognise — so the case browser showed a
     // generic error and threw away the list, the scroll position and the
     // filters, instead of keeping them until the connection returned.
-    when(
-      () => cases.list(
-        filter: any(named: 'filter'),
-        sort: any(named: 'sort'),
-        expand: any(named: 'expand'),
-        fields: any(named: 'fields'),
-      ),
-    ).thenAnswer(
-      (_) => Future.error(
-        const RepositoryException(
-          'Could not reach the server',
-          kind: RepositoryErrorKind.network,
-        ),
+    stubBrowse(
+      () => throw const RepositoryException(
+        'Could not reach the server',
+        kind: RepositoryErrorKind.network,
       ),
     );
 
     return expectLater(
-      makeContainer().read(casesBrowserDataProvider.future),
+      makeContainer().read(caseBrowseFeedProvider(const CaseQuery()).future),
       throwsA(
         isA<RepositoryException>().having(
           (e) => e.kind,
@@ -81,20 +85,216 @@ void main() {
     );
   });
 
-  test('the gathered reads still all land on the happy path', () async {
-    when(
-      () => cases.list(
-        filter: any(named: 'filter'),
-        sort: any(named: 'sort'),
-        expand: any(named: 'expand'),
-        fields: any(named: 'fields'),
+  test('the first page carries its cases and their animals', () async {
+    stubBrowse(
+      () => PbPage(
+        items: [
+          _case('c1'),
+          _case('c2', animal: 'a2'),
+        ],
+        cursor: const PbCursor(value: '2026-08-04 10:00:00.000Z', id: 'c2'),
       ),
-    ).thenAnswer((_) async => const []);
+    );
+    when(() => animals.byIds(any(), fields: any(named: 'fields'))).thenAnswer(
+      (_) async => const [
+        Animal(id: 'a1', species: 'Columba livia'),
+        Animal(id: 'a2', species: 'Streptopelia decaocto'),
+      ],
+    );
 
-    final data = await makeContainer().read(casesBrowserDataProvider.future);
+    final state = await makeContainer().read(
+      caseBrowseFeedProvider(const CaseQuery()).future,
+    );
 
-    expect(data.cases, isEmpty);
-    expect(data.animalsById, isEmpty);
-    expect(data.myUserId, '');
+    expect(state.cases.map((c) => c.id), ['c1', 'c2']);
+    expect(state.animalsById.keys, ['a1', 'a2']);
+    expect(state.hasMore, isTrue);
+    // Only the two columns a row draws cross the wire.
+    final fields = verify(
+      () => animals.byIds(any(), fields: captureAny(named: 'fields')),
+    ).captured.single;
+    expect(fields, 'id,species,name,photo');
+  });
+
+  test('the resolved query reaches the repository', () async {
+    stubBrowse(() => const PbPage(items: []));
+
+    await makeContainer().read(
+      caseBrowseFeedProvider(
+        const CaseQuery(activity: CaseActivity.closed, species: 'Hohltaube'),
+      ).future,
+    );
+
+    final query =
+        verify(
+              () => cases.browse(
+                query: captureAny(named: 'query'),
+                after: any(named: 'after'),
+                perPage: any(named: 'perPage'),
+              ),
+            ).captured.single
+            as CaseBrowseQuery;
+    expect(query.statuses, [CaseStatus.disposed]);
+    expect(query.species, 'Hohltaube');
+  });
+
+  test('a self-contradictory query answers empty without a request', () async {
+    // `?activity=closed&status=in_care` — reachable by hand-editing a link.
+    final state = await makeContainer().read(
+      caseBrowseFeedProvider(
+        const CaseQuery(
+          activity: CaseActivity.closed,
+          status: CaseStatus.inCare,
+        ),
+      ).future,
+    );
+
+    expect(state.cases, isEmpty);
+    expect(state.hasMore, isFalse);
+    verifyNever(
+      () => cases.browse(
+        query: any(named: 'query'),
+        after: any(named: 'after'),
+        perPage: any(named: 'perPage'),
+      ),
+    );
+  });
+
+  group('the outcome facet is narrowed to the TERMINAL disposition', () {
+    setUp(() {
+      // The server matches "carries a disposition of this type", so a
+      // re-disposed case comes back for its earlier outcome too.
+      stubBrowse(
+        () => const PbPage(
+          items: [Case(id: 'c1', animal: 'a1')],
+        ),
+      );
+      when(() => dispositions.byCases(any())).thenAnswer(
+        (_) async => [
+          Disposition(
+            id: 'd1',
+            caseId: 'c1',
+            type: DispositionType.placedInAviary,
+            disposedAt: DateTime.utc(2026, 3),
+          ),
+          Disposition(
+            id: 'd2',
+            caseId: 'c1',
+            type: DispositionType.released,
+            disposedAt: DateTime.utc(2026, 5),
+          ),
+        ],
+      );
+    });
+
+    test('the superseded outcome is dropped from the page', () async {
+      final state = await makeContainer().read(
+        caseBrowseFeedProvider(
+          const CaseQuery(outcome: DispositionType.placedInAviary),
+        ).future,
+      );
+
+      expect(state.cases, isEmpty);
+    });
+
+    test('the terminal outcome is kept', () async {
+      final state = await makeContainer().read(
+        caseBrowseFeedProvider(
+          const CaseQuery(outcome: DispositionType.released),
+        ).future,
+      );
+
+      expect(state.cases.map((c) => c.id), ['c1']);
+    });
+
+    test('no outcome facet costs no dispositions request', () async {
+      await makeContainer().read(
+        caseBrowseFeedProvider(const CaseQuery()).future,
+      );
+
+      verifyNever(() => dispositions.byCases(any()));
+    });
+  });
+
+  group('loadMore', () {
+    test('appends the next page and keeps the rows on screen', () async {
+      var call = 0;
+      stubBrowse(
+        () => call++ == 0
+            ? PbPage(
+                items: [_case('c1')],
+                cursor: const PbCursor(value: 'x', id: 'c1'),
+              )
+            : const PbPage(
+                items: [Case(id: 'c2', animal: 'a1')],
+              ),
+      );
+      final container = makeContainer();
+      final feed = caseBrowseFeedProvider(const CaseQuery());
+      await container.read(feed.future);
+
+      await container.read(feed.notifier).loadMore();
+
+      final state = container.read(feed).requireValue;
+      expect(state.cases.map((c) => c.id), ['c1', 'c2']);
+      expect(state.hasMore, isFalse);
+    });
+
+    test('a failed page keeps the list and offers a retry', () async {
+      var call = 0;
+      stubBrowse(() {
+        switch (call++) {
+          case 0:
+            return PbPage(
+              items: [_case('c1')],
+              cursor: const PbCursor(value: 'x', id: 'c1'),
+            );
+          case 1:
+            throw const RepositoryException('boom');
+          default:
+            return const PbPage(
+              items: [Case(id: 'c2', animal: 'a1')],
+            );
+        }
+      });
+      final container = makeContainer();
+      final feed = caseBrowseFeedProvider(const CaseQuery());
+      await container.read(feed.future);
+
+      await container.read(feed.notifier).loadMore();
+
+      final failed = container.read(feed).requireValue;
+      // federfall-ia9n: the rows already read stay, and the cursor with them,
+      // so the retry resumes with no gap and no duplicates.
+      expect(failed.cases.map((c) => c.id), ['c1']);
+      expect(failed.pageError, isA<RepositoryException>());
+      expect(failed.cursor, const PbCursor(value: 'x', id: 'c1'));
+
+      // And it does not auto-retry against a server that is down.
+      await container.read(feed.notifier).loadMore();
+      expect(call, 2);
+
+      await container.read(feed.notifier).retryPage();
+      final recovered = container.read(feed).requireValue;
+      expect(recovered.cases.map((c) => c.id), ['c1', 'c2']);
+      expect(recovered.pageError, isNull);
+    });
+
+    test('is a no-op once the list is exhausted', () async {
+      stubBrowse(() => PbPage(items: [_case('c1')]));
+      final container = makeContainer();
+      final feed = caseBrowseFeedProvider(const CaseQuery());
+      await container.read(feed.future);
+
+      await container.read(feed.notifier).loadMore();
+
+      verify(
+        () => cases.browse(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).called(1);
+    });
   });
 }

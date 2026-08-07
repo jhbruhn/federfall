@@ -9,41 +9,147 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
-AnimalListItem _item(
-  String id, {
-  String? name,
-  String species = 'Columba livia',
-  List<String> codes = const [],
-}) => AnimalListItem(
-  animal: Animal(id: id, species: species, name: name),
-  codes: codes,
-);
+class _MockMarkingsRepo extends Mock implements PbMarkingsRepository {}
 
-List<String> _ids(List<AnimalListItem> items) =>
-    items.map((i) => i.animal.id).toList();
+Animal _animal(String id, {String? name}) =>
+    Animal(id: id, species: 'Columba livia', name: name);
 
 void main() {
-  final registry = [
-    _item('a1', name: 'Pip', codes: const ['DE-1234']),
-    _item('a2', name: 'Fritz', codes: const ['NL-9999']),
-    _item('a3', codes: const ['CHIP-42']),
-  ];
+  // The registry is server-filtered and paged now (federfall-trep): the search
+  // is a query, and only the page on screen's markings are read.
+  group('AnimalRegistryFeed', () {
+    late _MockAnimalsRepo animals;
+    late _MockMarkingsRepo markings;
 
-  test('empty query returns everything', () {
-    expect(filterAnimals(registry, '   '), registry);
-  });
+    setUp(() {
+      animals = _MockAnimalsRepo();
+      markings = _MockMarkingsRepo();
+      when(() => markings.activeByAnimals(any())).thenAnswer((_) async => []);
+    });
 
-  test('matches by animal name, case-insensitively', () {
-    expect(_ids(filterAnimals(registry, 'pip')), ['a1']);
-  });
+    void stubBrowse(PbPage<Animal> Function() answer) {
+      when(
+        () => animals.browse(
+          text: any(named: 'text'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer((_) async => answer());
+    }
 
-  test('matches by active marking code, case-insensitively', () {
-    expect(_ids(filterAnimals(registry, 'chip-42')), ['a3']);
-    expect(_ids(filterAnimals(registry, 'nl-99')), ['a2']);
-  });
+    ProviderContainer makeContainer() {
+      final container = ProviderContainer(
+        retry: (_, _) => null,
+        overrides: [
+          animalsRepositoryProvider.overrideWith((ref) async => animals),
+          markingsRepositoryProvider.overrideWith((ref) async => markings),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
 
-  test('returns nothing when neither name nor code matches', () {
-    expect(filterAnimals(registry, 'zzz'), isEmpty);
+    test('the search term is what the server is asked', () async {
+      stubBrowse(() => const PbPage(items: []));
+
+      await makeContainer().read(animalRegistryFeedProvider('pip').future);
+
+      final text = verify(
+        () => animals.browse(
+          text: captureAny(named: 'text'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).captured.single;
+      expect(text, 'pip');
+    });
+
+    test("rows carry the codes of the page's own markings", () async {
+      stubBrowse(
+        () => PbPage(
+          items: [
+            _animal('a1', name: 'Pip'),
+            _animal('a2'),
+          ],
+        ),
+      );
+      when(() => markings.activeByAnimals(any())).thenAnswer(
+        (_) async => const [
+          Marking(id: 'm1', animal: 'a1', type: 'ring', code: 'DE-1234'),
+          Marking(id: 'm2', animal: 'a1', type: 'chip', code: 'CHIP-42'),
+          // A codeless marking (a colour band, say) contributes nothing.
+          Marking(id: 'm3', animal: 'a2', type: 'band'),
+        ],
+      );
+
+      final state = await makeContainer().read(
+        animalRegistryFeedProvider('').future,
+      );
+
+      expect(state.items.map((i) => i.animal.id), ['a1', 'a2']);
+      expect(state.items.first.codes, ['DE-1234', 'CHIP-42']);
+      expect(state.items.last.codes, isEmpty);
+      // Only the animals on this page, not every active marking in the org.
+      final asked =
+          verify(
+                () => markings.activeByAnimals(captureAny()),
+              ).captured.single
+              as Iterable<String>;
+      expect(asked, ['a1', 'a2']);
+    });
+
+    test('loadMore appends the next page', () async {
+      var call = 0;
+      stubBrowse(
+        () => call++ == 0
+            ? PbPage(
+                items: [_animal('a1', name: 'Anton')],
+                cursor: const PbCursor(value: 'Anton', id: 'a1'),
+              )
+            : PbPage(items: [_animal('a2', name: 'Berta')]),
+      );
+      final container = makeContainer();
+      final feed = animalRegistryFeedProvider('');
+      await container.read(feed.future);
+
+      await container.read(feed.notifier).loadMore();
+
+      final state = container.read(feed).requireValue;
+      expect(state.items.map((i) => i.animal.id), ['a1', 'a2']);
+      expect(state.hasMore, isFalse);
+      // Resumed from the cursor, not from a page number.
+      final after = verify(
+        () => animals.browse(
+          text: any(named: 'text'),
+          after: captureAny(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).captured;
+      expect(after.last, const PbCursor(value: 'Anton', id: 'a1'));
+    });
+
+    test('a failed page keeps the rows already on screen', () async {
+      var call = 0;
+      stubBrowse(() {
+        if (call++ == 0) {
+          return PbPage(
+            items: [_animal('a1', name: 'Anton')],
+            cursor: const PbCursor(value: 'Anton', id: 'a1'),
+          );
+        }
+        throw const RepositoryException('boom');
+      });
+      final container = makeContainer();
+      final feed = animalRegistryFeedProvider('');
+      await container.read(feed.future);
+
+      await container.read(feed.notifier).loadMore();
+
+      final state = container.read(feed).requireValue;
+      expect(state.items.map((i) => i.animal.id), ['a1']);
+      expect(state.pageError, isA<RepositoryException>());
+      expect(state.cursor, const PbCursor(value: 'Anton', id: 'a1'));
+    });
   });
 
   // The avatar resolves `animals.photo` only (federfall-v1yh) — no case-scoped

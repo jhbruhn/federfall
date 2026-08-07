@@ -4,10 +4,123 @@ import 'package:federfall_data/src/pb_repository.dart';
 import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:http/http.dart' as http;
+import 'package:meta/meta.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 /// Ids of the records created by one atomic intake call.
 typedef IntakeResult = ({String caseId, String animalId});
+
+/// What the case browser is looking for, in terms the server understands.
+///
+/// Every field narrows; leaving one out means "any". Turned into a bound
+/// filter by [PbCasesRepository.filterFor], so nothing here is ever
+/// interpolated into a filter string. The UI's own `CaseQuery` (which also
+/// carries Flutter types and route parsing) maps onto this — the mine/all/named
+/// -carer decision and the local-day → UTC conversion both happen there, so by
+/// the time a query reaches here every value is already the one to match.
+@immutable
+class CaseBrowseQuery {
+  const CaseBrowseQuery({
+    this.activeCarer,
+    this.statuses = const [],
+    this.allowUnsetStatus = false,
+    this.species,
+    this.outcome,
+    this.conditionLabel,
+    this.admittedFrom,
+    this.admittedTo,
+    this.text = '',
+  });
+
+  /// Only cases this user is the active carer of. Null for any carer — which
+  /// is not "every case in the org" but "every case the list rule exposes",
+  /// since that scoping is the server's job either way.
+  final String? activeCarer;
+
+  /// The lifecycle statuses to keep. Empty means any.
+  ///
+  /// A SET rather than "everything except disposed": `status != {:s}` is the
+  /// one filter shape this project does not trust (federfall-jt5u recorded it
+  /// over-matching a disposed row), and the bead's own fix direction is an
+  /// explicit list of the statuses wanted.
+  final List<CaseStatus> statuses;
+
+  /// Whether a case with no status at all belongs in [statuses]' result.
+  ///
+  /// `cases.status` is `required: false`, so an unset value is possible even
+  /// though the hooks always default it. The browser's client-side predicate
+  /// treated such a case as active, and "active" is the only caller that wants
+  /// it: naming an exact status must not match a case that has none.
+  final bool allowUnsetStatus;
+
+  /// Exact species of the case's animal.
+  final String? species;
+
+  /// Outcome recorded on the case. Matches a case carrying ANY disposition of
+  /// this type — see [PbCasesRepository.filterFor] for why the caller has to
+  /// narrow that to the terminal one itself.
+  final DispositionType? outcome;
+
+  /// A diagnosis recorded on the case, by display label: either a `conditions`
+  /// code-list entry of that name or free text of that name. Matching the
+  /// label (not a code-list id) is what keeps free-text diagnoses findable.
+  final String? conditionLabel;
+
+  /// Inclusive lower bound on the admission instant.
+  final DateTime? admittedFrom;
+
+  /// Exclusive upper bound, so a day range is `[midnight, next midnight)` with
+  /// no end-of-day rounding to get wrong.
+  final DateTime? admittedTo;
+
+  /// Free text matched against the case number, the animal's name and the
+  /// codes of the animal's markings.
+  final String text;
+
+  bool get isEmpty =>
+      (activeCarer == null || activeCarer!.isEmpty) &&
+      statuses.isEmpty &&
+      species == null &&
+      outcome == null &&
+      conditionLabel == null &&
+      admittedFrom == null &&
+      admittedTo == null &&
+      text.trim().isEmpty;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CaseBrowseQuery &&
+      other.activeCarer == activeCarer &&
+      _sameStatuses(other.statuses) &&
+      other.allowUnsetStatus == allowUnsetStatus &&
+      other.species == species &&
+      other.outcome == outcome &&
+      other.conditionLabel == conditionLabel &&
+      other.admittedFrom == admittedFrom &&
+      other.admittedTo == admittedTo &&
+      other.text == text;
+
+  bool _sameStatuses(List<CaseStatus> other) {
+    if (other.length != statuses.length) return false;
+    for (var i = 0; i < statuses.length; i++) {
+      if (other[i] != statuses[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    activeCarer,
+    Object.hashAll(statuses),
+    allowUnsetStatus,
+    species,
+    outcome,
+    conditionLabel,
+    admittedFrom,
+    admittedTo,
+    text,
+  );
+}
 
 /// Repository over the `cases` collection (admission episodes).
 ///
@@ -31,6 +144,21 @@ abstract interface class CasesRepository implements Repository<Case> {
 
   /// Cases where [carerId] is the active carer ("my cases"), newest first.
   Future<List<Case>> forCarer(String carerId);
+
+  /// One page of the case browser's result set for [query], newest first.
+  ///
+  /// Every facet the browser offers is resolved server-side; the device
+  /// receives the rows it will show and nothing else. Paged by cursor rather
+  /// than page number for the reason [PbReadOnlyRepository.page] gives — cases
+  /// are admitted while the list is being read.
+  ///
+  /// There is deliberately no "browse everything" convenience: the whole point
+  /// of this method is that the collection no longer crosses the wire.
+  Future<PbPage<Case>> browse({
+    CaseBrowseQuery query,
+    PbCursor? after,
+    int perPage,
+  });
 
   /// The case with the given per-year number, or `null`.
   Future<Case?> byCaseNumber(String caseNumber);
@@ -153,6 +281,106 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
   Future<Case?> byCaseNumber(String caseNumber) => firstWhere(
     filterExpr('case_number = {:n}', {'n': caseNumber}),
   );
+
+  @override
+  Future<PbPage<Case>> browse({
+    CaseBrowseQuery query = const CaseBrowseQuery(),
+    PbCursor? after,
+    int perPage = 50,
+  }) => page(filter: filterFor(query), after: after, perPage: perPage);
+
+  /// The bound filter for [query], or null when it narrows nothing.
+  ///
+  /// Three of the clauses reach outside the `cases` row, which PocketBase does
+  /// natively — this project's own access rules already lean on both forward
+  /// (`case.org`) and back (`case_shares_via_case.shared_with`) traversal:
+  ///
+  ///   • `animal.species` / `animal.name` — forward, single relation.
+  ///   • `animal.markings_via_animal.code` — back-relation, "any marking of
+  ///     this case's animal carries that code". It is deliberately not
+  ///     restricted to active markings: a second clause on the same
+  ///     back-relation is satisfied independently, so `is_active = true &&
+  ///     code ~ x` would match an animal with one active marking and a
+  ///     DIFFERENT one bearing the code. Searching a ring that has since been
+  ///     removed and still finding the bird is the better of the two failures.
+  ///   • `dispositions_via_case.type` — back-relation, "the case carries a
+  ///     disposition of this type". That is a SUPERSET of "its terminal
+  ///     disposition is of this type", which is what the browser facet means
+  ///     and what `case_report_rows` and the statistics screen report. A
+  ///     filter cannot express "the latest one", so the caller narrows the
+  ///     page it gets back — see `CaseBrowseFeed` in the app.
+  ///
+  /// Exposed for tests and for callers that need to combine it; building one
+  /// by hand is what [PbFilter] exists to prevent.
+  PbFilter? filterFor(CaseBrowseQuery query) {
+    if (query.isEmpty) return null;
+
+    final clauses = <String>[];
+    final params = <String, dynamic>{};
+
+    final carer = query.activeCarer;
+    if (carer != null && carer.isNotEmpty) {
+      clauses.add('active_carer = {:carer}');
+      params['carer'] = carer;
+    }
+
+    if (query.statuses.isNotEmpty) {
+      // An OR group, parenthesised so it cannot swallow the other clauses.
+      final or = <String>[];
+      for (var i = 0; i < query.statuses.length; i++) {
+        or.add('status = {:st$i}');
+        params['st$i'] = query.statuses[i].wire;
+      }
+      if (query.allowUnsetStatus) {
+        or.add('status = {:stNone}');
+        params['stNone'] = '';
+      }
+      clauses.add('(${or.join(' || ')})');
+    }
+
+    final species = query.species;
+    if (species != null && species.isNotEmpty) {
+      clauses.add('animal.species = {:species}');
+      params['species'] = species;
+    }
+
+    final outcome = query.outcome;
+    if (outcome != null) {
+      clauses.add('dispositions_via_case.type ?= {:outcome}');
+      params['outcome'] = outcome.wire;
+    }
+
+    final condition = query.conditionLabel;
+    if (condition != null && condition.isNotEmpty) {
+      // Either half of what a diagnosis can be (1700000006): a code-list
+      // reference or the free text typed in its place.
+      clauses.add(
+        '(case_conditions_via_case.condition.label ?= {:cond}'
+        ' || case_conditions_via_case.free_text ?= {:cond})',
+      );
+      params['cond'] = condition;
+    }
+
+    if (query.admittedFrom != null) {
+      clauses.add('admitted_at >= {:from}');
+      params['from'] = query.admittedFrom!.toUtc();
+    }
+    if (query.admittedTo != null) {
+      clauses.add('admitted_at < {:to}');
+      params['to'] = query.admittedTo!.toUtc();
+    }
+
+    final text = query.text.trim();
+    if (text.isNotEmpty) {
+      clauses.add(
+        '(case_number ~ {:text} || animal.name ~ {:text}'
+        ' || animal.markings_via_animal.code ~ {:text})',
+      );
+      params['text'] = text;
+    }
+
+    return filterExpr(clauses.join(' && '), params);
+  }
 
   // `admission_reasons` is the one MULTI relation (maxSelect 99) among the
   // code-list referrers, and membership needs `~`: verified against a live

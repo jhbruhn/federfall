@@ -116,7 +116,7 @@ class _CaseOverflowMenu extends ConsumerWidget {
     final deleted = await confirmDeleteCase(context, ref, medicalCase);
     if (!deleted) return;
     ref
-      ..invalidate(casesBrowserDataProvider)
+      ..invalidate(caseBrowseFeedProvider)
       ..invalidate(dashboardSummaryProvider);
     if (context.mounted) context.go(AppRoutes.cases);
   }
@@ -538,7 +538,7 @@ class _CaseActionsState extends ConsumerState<_CaseActions> {
       await repo.update(widget.medicalCase.id, {'status': status.wire});
       ref
         ..invalidate(caseBundleProvider(widget.medicalCase.id))
-        ..invalidate(casesBrowserDataProvider)
+        ..invalidate(caseBrowseFeedProvider)
         ..invalidate(dashboardSummaryProvider);
     } on Object catch (e, stackTrace) {
       reportCaughtError(e, stackTrace);

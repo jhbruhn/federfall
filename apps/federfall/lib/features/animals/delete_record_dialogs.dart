@@ -80,7 +80,7 @@ Future<bool> confirmDeleteAnimal(
     // The cascade reaches cases and everything under them, so the registry and
     // every per-animal leaf has to be re-read rather than patched.
     ref
-      ..invalidate(animalsRegistryProvider)
+      ..invalidate(animalRegistryFeedProvider)
       ..invalidate(animalLifetimeProvider(animal.id))
       ..invalidate(casesForAnimalProvider(animal.id));
     ok = true;

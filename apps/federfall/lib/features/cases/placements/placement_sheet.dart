@@ -168,7 +168,7 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
 
       if (handoff) {
         ref
-          ..invalidate(casesBrowserDataProvider)
+          ..invalidate(caseBrowseFeedProvider)
           ..invalidate(dashboardSummaryProvider);
       }
 

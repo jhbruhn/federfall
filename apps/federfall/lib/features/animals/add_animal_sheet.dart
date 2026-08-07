@@ -65,7 +65,7 @@ class _AddAnimalSheetState extends ConsumerState<AddAnimalSheet>
       createdId = created.id;
 
       ref
-        ..invalidate(animalsRegistryProvider)
+        ..invalidate(animalRegistryFeedProvider)
         ..invalidate(aviaryResidentsProvider(widget.aviaryId));
     });
     if (ok && mounted) navigator.pop(createdId);

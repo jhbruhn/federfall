@@ -182,7 +182,7 @@ class AnimalAvatar extends ConsumerWidget {
       ..invalidate(animalByIdProvider(animalId))
       ..invalidate(animalAvatarUrlProvider(animalId))
       ..invalidate(animalLifetimeProvider(animalId))
-      ..invalidate(animalsRegistryProvider);
+      ..invalidate(animalRegistryFeedProvider);
   }
 }
 

@@ -156,6 +156,27 @@ name-first header over Overview / History tabs. See
 `federfall-ui-prefers-unified-consistent-views` memory — favor one consistent view over
 fragmented sections.
 
+**Long lists filter server-side and page by cursor** (federfall-trep): no screen reads a
+collection to narrow it on the device. The case browser and the animals registry both follow
+the audit log's shape — a pure query object → `filterFor()` → `PbReadOnlyRepository.page()`
+(keyset, never `?page=`, because the thing being read grows while it is read) → a feed
+notifier with `loadMore`/`retryPage` → a scroll listener plus the shared `PagedListTail`.
+Consequences: search fields are debounced (~300 ms) because a keystroke is a request; the
+empty state tells "nothing yet" from "no matches" by whether the QUERY narrows anything, not
+by counting loaded rows; the filter pickers read the small vocabulary views
+(`animal_species`, `condition_labels`) rather than the loaded page; and the animals registry
+pages by `+name,+id`, i.e. in SQLite's BINARY collation, so its order is case-sensitive in a
+way the old `toLowerCase()` compare was not. Two facets do not survive translation intact
+and are documented where they are built (`PbCasesRepository.filterFor`): a back-relation
+cannot be constrained twice (two clauses match independently), so a marking-code search
+deliberately matches removed markings too; and `dispositions_via_case.type ?= x` is a
+SUPERSET of "its terminal disposition is x", so `CaseBrowseFeed` narrows the page it gets
+back with `terminalDispositionByCase` — which is what keeps the outcome facet agreeing with
+`case_report_rows` and the statistics screen. The "active" split is an explicit status set
+(`in_care || ready_for_release || ""`), never `status != "disposed"` — see federfall-jt5u.
+`test_rules.py`'s `[case browser filters]` block pins all of it against a live PocketBase,
+including that a carer's widened scope still returns nothing of another carer's.
+
 **The audit log stores snapshots, never relations** (federfall-qt96 / by7w / ybua):
 `audit_events` is append-only (no write rules; a tamper guard in 1700000068 blocks even a
 superuser UPDATE) and supervisor-only, emitted exclusively from `pb_hooks/lib_audit.js` —

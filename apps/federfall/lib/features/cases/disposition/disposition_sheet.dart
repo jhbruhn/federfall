@@ -184,9 +184,9 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
   void _refresh() {
     ref
       ..invalidate(caseBundleProvider(widget.caseId))
-      ..invalidate(casesBrowserDataProvider)
+      ..invalidate(caseBrowseFeedProvider)
       ..invalidate(dashboardSummaryProvider)
-      ..invalidate(animalsRegistryProvider);
+      ..invalidate(animalRegistryFeedProvider);
   }
 
   Future<void> _delete() async {

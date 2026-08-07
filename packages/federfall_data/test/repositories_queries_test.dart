@@ -224,6 +224,32 @@ void main() {
       verify(() => pb.filter('case = {:c}', {'c': 'case1'})).called(1);
       expect(capturedQuery()[1], '-disposed_at');
     });
+
+    test('byCases ORs the ids into one request', () async {
+      // The case browser's terminal-outcome pass: one query for the page, not
+      // one per case (federfall-trep).
+      await PbDispositionsRepository(pb).byCases(['case1', 'case2']);
+      verify(
+        () => pb.filter('case = {:c0} || case = {:c1}', {
+          'c0': 'case1',
+          'c1': 'case2',
+        }),
+      ).called(1);
+    });
+
+    test('byCases short-circuits to an empty list without querying', () async {
+      expect(await PbDispositionsRepository(pb).byCases(const []), isEmpty);
+      verifyNever(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+        ),
+      );
+    });
   });
 
   group('PbVetAppointmentsRepository', () {
@@ -301,6 +327,33 @@ void main() {
       verify(
         () => pb.filter('code = {:c} && is_active = true', {'c': 'DE-1'}),
       ).called(1);
+    });
+
+    test('activeByAnimals ORs the ids under one active flag', () async {
+      // The registry's row codes, for the page on screen rather than for the
+      // whole org (federfall-trep). The OR group is parenthesised, or the
+      // is_active guard would only bind to the first animal.
+      await PbMarkingsRepository(pb).activeByAnimals(['a1', 'a2']);
+      verify(
+        () => pb.filter(
+          'is_active = true && (animal = {:a0} || animal = {:a1})',
+          {'a0': 'a1', 'a1': 'a2'},
+        ),
+      ).called(1);
+    });
+
+    test('activeByAnimals asks nothing for no animals', () async {
+      expect(await PbMarkingsRepository(pb).activeByAnimals(const []), isEmpty);
+      verifyNever(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+        ),
+      );
     });
   });
 

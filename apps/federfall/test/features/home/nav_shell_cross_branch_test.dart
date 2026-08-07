@@ -22,6 +22,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/helpers.dart';
+
 class _FakeServerConfig extends ServerConfigController {
   @override
   Future<ServerConfig> build() async =>
@@ -46,20 +48,16 @@ Future<ProviderContainer> _pumpPhone(WidgetTester tester) async {
       authStatusProvider.overrideWith(_FakeAuthStatus.new),
       serverInfoProvider.overrideWith((ref) async => null),
       currentUserProvider.overrideWith((ref) async => null),
-      casesBrowserDataProvider.overrideWith(
-        (ref) async => const CasesBrowserData(
-          cases: [],
-          animalsById: {},
-          myUserId: 'u1',
+      caseBrowseFeedProvider.overrideWith2((_) => FakeCaseBrowseFeed()),
+      animalRegistryFeedProvider.overrideWith2(
+        (_) => FakeAnimalRegistryFeed(
+          items: const [
+            AnimalListItem(
+              animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
+              codes: [],
+            ),
+          ],
         ),
-      ),
-      animalsRegistryProvider.overrideWith(
-        (ref) async => const [
-          AnimalListItem(
-            animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
-            codes: [],
-          ),
-        ],
       ),
       animalLifetimeProvider('a1').overrideWith(
         (ref) async => const AnimalLifetime(

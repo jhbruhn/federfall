@@ -18,6 +18,39 @@ class PbAnimalsRepository extends PbRepository<Animal> {
     sort: 'name',
   );
 
+  /// The animals registry, name-sorted, one page at a time (federfall-trep).
+  ///
+  /// [text] matches the animal's name or the code of any marking it carries —
+  /// the same two things the registry's search box always matched, now asked
+  /// of the server instead of of a copy of the collection. As on the case
+  /// browser, the marking clause is not restricted to active markings: two
+  /// conditions on one back-relation are satisfied independently, so a
+  /// combined `is_active = true && code ~ q` could pair one animal's active
+  /// marking with a different, removed one.
+  ///
+  /// Ordered by name rather than by recency because a registry is browsed
+  /// alphabetically. That order is now the server's — SQLite's BINARY
+  /// collation — so unlike the old `toLowerCase()` compare it is
+  /// case-sensitive; unnamed birds (empty name) still group at the top.
+  Future<PbPage<Animal>> browse({
+    String text = '',
+    PbCursor? after,
+    int perPage = 50,
+  }) {
+    final q = text.trim();
+    return page(
+      filter: q.isEmpty
+          ? null
+          : filterExpr(
+              '(name ~ {:q} || markings_via_animal.code ~ {:q})',
+              {'q': q},
+            ),
+      after: after,
+      perPage: perPage,
+      sortKey: const PbSortKey('name', descending: false),
+    );
+  }
+
   /// Current residents of an aviary.
   Future<List<Animal>> residentsOf(String aviaryId) => list(
     filter: filterExpr('current_aviary = {:a}', {'a': aviaryId}),

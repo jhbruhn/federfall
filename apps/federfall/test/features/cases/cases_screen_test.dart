@@ -2,7 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 // The FULL roster provider — the one the filter's carer picker reads (not
 // `placements_providers`' active-only namesake).
 import 'package:federfall/features/admin/admin_providers.dart';
-import 'package:federfall/features/cases/case_facets.dart';
+import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
@@ -13,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../helpers/helpers.dart';
 
 /// Seeds [pendingCaseQueryProvider] with a value, as if a dashboard KPI had
 /// queued a filter before switching to the Cases tab.
@@ -25,16 +27,24 @@ class _SeededPending extends PendingCaseQuery {
   CaseQuery? build() => _initial;
 }
 
-Future<void> _pump(
+/// Longer than the search field's debounce, so a typed term reaches the feed.
+/// `pumpAndSettle` alone would not get there: a pending Timer schedules no
+/// frame, so it stops before the debounce elapses.
+const _pastDebounce = Duration(milliseconds: 400);
+
+/// Every filter is resolved by the server now (federfall-trep), so these
+/// pump the screen over a fake feed and assert on the QUERY it asks with —
+/// what used to be checked by counting the rows that survived on the device.
+Future<List<CaseQuery>> _pump(
   WidgetTester tester, {
   List<Case> cases = const [],
+  List<Case> Function(CaseQuery query)? rowsFor,
   Map<String, Animal> animalsById = const {},
-  String myUserId = 'me',
   AppUser? user,
   CaseQuery? initialQuery,
   CaseQuery? pending,
-  CaseFacets facets = CaseFacets.empty,
   List<ConditionLabel> recorded = const [],
+  List<String> species = const [],
   List<AppUser> members = const [],
 }) async {
   // Compact width so the account menu sits in the app bar (on wider widths it
@@ -45,20 +55,22 @@ Future<void> _pump(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
+  final asked = <CaseQuery>[];
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        casesBrowserDataProvider.overrideWith(
-          (ref) async => CasesBrowserData(
+        caseBrowseFeedProvider.overrideWith2(
+          (_) => FakeCaseBrowseFeed(
             cases: cases,
             animalsById: animalsById,
-            myUserId: myUserId,
+            rowsFor: rowsFor,
+            onQuery: asked.add,
           ),
         ),
         currentUserProvider.overrideWith((ref) async => user),
         pendingCaseQueryProvider.overrideWith(() => _SeededPending(pending)),
-        caseFacetsProvider.overrideWith((ref) async => facets),
         recordedConditionsProvider.overrideWith((ref) async => recorded),
+        animalSpeciesProvider.overrideWith((ref) async => species),
         orgMembersProvider.overrideWith((ref) async => members),
       ],
       child: MaterialApp(
@@ -70,6 +82,7 @@ Future<void> _pump(
     ),
   );
   await tester.pumpAndSettle();
+  return asked;
 }
 
 /// Pumps [CasesScreen] behind a [GoRouter] parked at `/cases/<selectedId>`,
@@ -79,9 +92,7 @@ Future<void> _pump(
 Future<void> _pumpWithSelection(
   WidgetTester tester, {
   required String selectedId,
-  required List<Case> cases,
-  Map<String, Animal> animalsById = const {},
-  String myUserId = 'me',
+  required List<Case> Function(CaseQuery query) rowsFor,
 }) async {
   tester.view.physicalSize = const Size(420, 1400);
   tester.view.devicePixelRatio = 1.0;
@@ -99,12 +110,8 @@ Future<void> _pumpWithSelection(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        casesBrowserDataProvider.overrideWith(
-          (ref) async => CasesBrowserData(
-            cases: cases,
-            animalsById: animalsById,
-            myUserId: myUserId,
-          ),
+        caseBrowseFeedProvider.overrideWith2(
+          (_) => FakeCaseBrowseFeed(rowsFor: rowsFor),
         ),
         currentUserProvider.overrideWith((ref) async => null),
       ],
@@ -119,29 +126,61 @@ Future<void> _pumpWithSelection(
   await tester.pumpAndSettle();
 }
 
+const _mine = Case(
+  id: 'c1',
+  animal: 'a1',
+  caseNumber: '2026-001',
+  activeCarer: 'me',
+  status: CaseStatus.inCare,
+);
+const _theirs = Case(
+  id: 'c2',
+  animal: 'a2',
+  caseNumber: '2026-099',
+  activeCarer: 'other',
+  status: CaseStatus.inCare,
+);
+
 void main() {
   testWidgets('shows the empty state when there are no cases', (tester) async {
     await _pump(tester);
     expect(find.text('No cases yet'), findsOneWidget);
   });
 
+  testWidgets('an empty NARROWED list says no matches, not no cases', (
+    tester,
+  ) async {
+    // The loaded rows can no longer tell the two apart — the server sent only
+    // what matched — so the query is what the empty state reads.
+    await _pump(tester, initialQuery: const CaseQuery(species: 'Hohltaube'));
+
+    expect(find.text('No matching cases'), findsOneWidget);
+    expect(find.text('No cases yet'), findsNothing);
+  });
+
+  testWidgets("defaults to asking for the user's own active cases", (
+    tester,
+  ) async {
+    final asked = await _pump(tester, cases: const [_mine]);
+
+    expect(asked.last.allScope, isFalse);
+    expect(asked.last.activity, CaseActivity.active);
+    final browse = asked.last.toBrowseQuery('me');
+    expect(browse.activeCarer, 'me');
+    expect(browse.statuses, [CaseStatus.inCare, CaseStatus.readyForRelease]);
+    expect(find.text('2026-001'), findsOneWidget);
+  });
+
   testWidgets('a deep-linked initialQuery widens to all cases', (tester) async {
-    await _pump(
+    final asked = await _pump(
       tester,
-      // A case owned by someone else: hidden under the default "mine" scope,
-      // shown when the dashboard deep-links scope=all.
-      cases: const [
-        Case(
-          id: 'c1',
-          animal: 'a1',
-          caseNumber: '2026-099',
-          activeCarer: 'other',
-          status: CaseStatus.inCare,
-        ),
-      ],
+      cases: const [_theirs],
       initialQuery: const CaseQuery(allScope: true),
     );
 
+    expect(asked.last.allScope, isTrue);
+    // No carer clause, so the access rules alone decide what comes back.
+    expect(asked.last.toBrowseQuery('me').activeCarer, isNull);
     expect(find.text('2026-099'), findsOneWidget);
   });
 
@@ -151,22 +190,8 @@ void main() {
       await _pumpWithSelection(
         tester,
         selectedId: 'c2',
-        cases: const [
-          Case(
-            id: 'c1',
-            animal: 'a1',
-            caseNumber: '2026-001',
-            activeCarer: 'me',
-            status: CaseStatus.inCare,
-          ),
-          Case(
-            id: 'c2',
-            animal: 'a2',
-            caseNumber: '2026-099',
-            activeCarer: 'other',
-            status: CaseStatus.inCare,
-          ),
-        ],
+        // What the server would answer for each scope.
+        rowsFor: (q) => q.allScope ? const [_mine, _theirs] : const [_mine],
       );
 
       // c2 belongs to another carer, so the default "mine" scope would
@@ -182,15 +207,7 @@ void main() {
       await _pumpWithSelection(
         tester,
         selectedId: 'c2',
-        cases: const [
-          Case(
-            id: 'c2',
-            animal: 'a2',
-            caseNumber: '2026-099',
-            activeCarer: 'other',
-            status: CaseStatus.inCare,
-          ),
-        ],
+        rowsFor: (q) => q.allScope ? const [_theirs] : const [],
       );
       expect(find.text('2026-099'), findsOneWidget);
 
@@ -206,112 +223,33 @@ void main() {
   );
 
   testWidgets('applies a pending KPI filter on mount', (tester) async {
-    await _pump(
+    final asked = await _pump(
       tester,
-      // Another carer's case: hidden under the default "mine" scope, revealed
-      // by the pending scope=all filter a dashboard KPI queued.
-      cases: const [
-        Case(
-          id: 'c1',
-          animal: 'a1',
-          caseNumber: '2026-099',
-          activeCarer: 'other',
-          status: CaseStatus.inCare,
-        ),
-      ],
+      cases: const [_theirs],
       pending: const CaseQuery(allScope: true),
     );
 
+    expect(asked.last.allScope, isTrue);
     expect(find.text('2026-099'), findsOneWidget);
   });
 
-  testWidgets("defaults to the user's own active cases", (tester) async {
-    await _pump(
-      tester,
-      cases: const [
-        Case(
-          id: 'c1',
-          animal: 'a1',
-          caseNumber: '2026-001',
-          activeCarer: 'me',
-          status: CaseStatus.inCare,
-        ),
-        Case(
-          id: 'c2',
-          animal: 'a2',
-          caseNumber: '2026-002',
-          activeCarer: 'someone-else',
-          status: CaseStatus.inCare,
-        ),
-        Case(
-          id: 'c3',
-          animal: 'a3',
-          caseNumber: '2026-003',
-          activeCarer: 'me',
-          status: CaseStatus.disposed,
-        ),
-      ],
-    );
-
-    // Mine + active only: c1 shows; the other carer's (c2) and the closed
-    // (c3) ones are filtered out by default.
-    expect(find.text('2026-001'), findsOneWidget);
-    expect(find.text('2026-002'), findsNothing);
-    expect(find.text('2026-003'), findsNothing);
-  });
-
-  testWidgets('search matches case number and animal name', (tester) async {
-    await _pump(
-      tester,
-      cases: const [
-        Case(
-          id: 'c1',
-          animal: 'a1',
-          caseNumber: '2026-001',
-          activeCarer: 'me',
-          status: CaseStatus.inCare,
-        ),
-        Case(
-          id: 'c2',
-          animal: 'a2',
-          caseNumber: '2026-002',
-          activeCarer: 'me',
-          status: CaseStatus.inCare,
-        ),
-      ],
-      animalsById: const {
-        'a1': Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
-        'a2': Animal(id: 'a2', species: 'Columba livia', name: 'Fritz'),
-      },
-    );
-
-    await tester.enterText(find.byType(TextField), 'pip');
-    await tester.pumpAndSettle();
-
-    expect(find.text('2026-001'), findsOneWidget);
-    expect(find.text('2026-002'), findsNothing);
-  });
-
-  testWidgets('shows the no-matches state when filters exclude all', (
+  testWidgets('the search term reaches the server, once the typing stops', (
     tester,
   ) async {
-    await _pump(
-      tester,
-      cases: const [
-        Case(
-          id: 'c1',
-          animal: 'a1',
-          caseNumber: '2026-001',
-          activeCarer: 'me',
-          status: CaseStatus.inCare,
-        ),
-      ],
-    );
+    final asked = await _pump(tester, cases: const [_mine]);
+    final before = asked.length;
 
-    await tester.enterText(find.byType(TextField), 'nope');
+    await tester.enterText(find.byType(TextField), 'pip');
+    await tester.pump();
+
+    // Debounced: mid-keystroke nothing has been asked yet, so a three-letter
+    // term is one request rather than three.
+    expect(asked.length, before);
+
+    await tester.pump(_pastDebounce);
     await tester.pumpAndSettle();
 
-    expect(find.text('No matching cases'), findsOneWidget);
+    expect(asked.last.text, 'pip');
   });
 
   testWidgets('account menu offers profile but hides admin for a carer', (
@@ -349,54 +287,37 @@ void main() {
     expect(find.text('Statistics'), findsOneWidget);
   });
 
-  testWidgets('an outcome handed over from statistics filters the list', (
+  testWidgets('an outcome handed over from statistics is asked for', (
     tester,
   ) async {
-    await _pump(
+    final asked = await _pump(
       tester,
-      cases: const [
-        Case(id: 'c1', animal: 'a1', caseNumber: '2026-001'),
-        Case(id: 'c2', animal: 'a1', caseNumber: '2026-002'),
-      ],
+      cases: const [_mine],
       pending: const CaseQuery(
         allScope: true,
         activity: CaseActivity.all,
         outcome: DispositionType.released,
       ),
-      facets: const CaseFacets(
-        outcomeByCase: {
-          'c1': DispositionType.released,
-          'c2': DispositionType.died,
-        },
-      ),
     );
 
-    expect(find.text('2026-001'), findsOneWidget);
-    expect(find.text('2026-002'), findsNothing);
+    expect(asked.last.outcome, DispositionType.released);
+    expect(asked.last.toBrowseQuery('me').outcome, DispositionType.released);
   });
 
   testWidgets('the filter sheet shows and clears a handed-over facet', (
     tester,
   ) async {
-    await _pump(
+    final asked = await _pump(
       tester,
-      cases: const [
-        Case(id: 'c1', animal: 'a1', caseNumber: '2026-001'),
-        Case(id: 'c2', animal: 'a1', caseNumber: '2026-002'),
-      ],
+      cases: const [_mine],
       pending: const CaseQuery(
         allScope: true,
         activity: CaseActivity.all,
         condition: 'Katzenbiss',
       ),
-      facets: const CaseFacets(
-        conditionsByCase: {
-          'c1': {'Katzenbiss'},
-        },
-      ),
     );
 
-    expect(find.text('2026-002'), findsNothing);
+    expect(asked.last.condition, 'Katzenbiss');
 
     await tester.tap(find.byTooltip('Filters'));
     await tester.pumpAndSettle();
@@ -405,31 +326,23 @@ void main() {
     // or the list would be short of cases with nothing on screen saying why.
     expect(find.text('Katzenbiss'), findsOneWidget);
 
-    // Clearing it releases the list behind the sheet, which updates live.
+    // Clearing it re-asks without the facet, and the list behind the sheet
+    // updates live.
     await tester.tap(find.text('Katzenbiss'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Any diagnosis').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('2026-002'), findsOneWidget);
+    expect(asked.last.condition, isNull);
   });
 
   testWidgets('the filter sheet can pick an outcome and a diagnosis', (
     tester,
   ) async {
-    await _pump(
+    final asked = await _pump(
       tester,
-      cases: const [
-        Case(id: 'c1', animal: 'a1', caseNumber: '2026-001'),
-        Case(id: 'c2', animal: 'a1', caseNumber: '2026-002'),
-      ],
+      cases: const [_mine],
       pending: const CaseQuery(allScope: true, activity: CaseActivity.all),
-      facets: const CaseFacets(
-        outcomeByCase: {
-          'c1': DispositionType.released,
-          'c2': DispositionType.died,
-        },
-      ),
       recorded: const [
         ConditionLabel(id: 'k1', label: 'Katzenbiss', caseCount: 1),
       ],
@@ -439,7 +352,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // The outcome options need no data at all and the diagnoses come from the
-    // org's code list, so neither picker waits on the per-case facet load.
+    // small `condition_labels` view, so opening the filters costs no per-case
+    // read — there is none left to cost.
     expect(find.text('Any outcome'), findsOneWidget);
     expect(find.text('Any diagnosis'), findsOneWidget);
 
@@ -448,7 +362,7 @@ void main() {
     // Offered because a case actually records it, not because the code list
     // happens to contain it.
     expect(find.text('Katzenbiss'), findsWidgets);
-    await tester.tap(find.text('Any diagnosis').last);
+    await tester.tap(find.text('Katzenbiss').last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Any outcome'));
@@ -456,8 +370,30 @@ void main() {
     await tester.tap(find.text('Released').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('2026-001'), findsOneWidget);
-    expect(find.text('2026-002'), findsNothing);
+    expect(asked.last.condition, 'Katzenbiss');
+    expect(asked.last.outcome, DispositionType.released);
+  });
+
+  testWidgets('the species picker offers the org vocabulary, not the page', (
+    tester,
+  ) async {
+    // It used to be the distinct species among the loaded cases, which only
+    // worked while the whole collection was on the device — and could not
+    // offer a species held only by cases outside the current scope.
+    final asked = await _pump(
+      tester,
+      cases: const [_mine],
+      species: const ['Columba livia', 'Hohltaube'],
+    );
+
+    await tester.tap(find.byTooltip('Filters'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Any species'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hohltaube').last);
+    await tester.pumpAndSettle();
+
+    expect(asked.last.species, 'Hohltaube');
   });
 
   group('carer filter (federfall-9mit)', () {
@@ -468,30 +404,27 @@ void main() {
       role: UserRole.carer,
       isActive: true,
     );
-    const cases = [
-      Case(
-        id: 'c1',
-        animal: 'a1',
-        caseNumber: '2026-001',
-        activeCarer: 'anna',
-      ),
-      Case(id: 'c2', animal: 'a1', caseNumber: '2026-002', activeCarer: 'me'),
-    ];
+    const annas = Case(
+      id: 'c1',
+      animal: 'a1',
+      caseNumber: '2026-001',
+      activeCarer: 'anna',
+    );
 
-    testWidgets('a handed-over carer filter names them and lists their cases', (
+    testWidgets('a handed-over carer filter names them and asks for theirs', (
       tester,
     ) async {
-      await _pump(
+      final asked = await _pump(
         tester,
-        cases: cases,
+        cases: const [annas],
         pending: const CaseQuery(carer: 'anna'),
         members: const [anna],
       );
 
       // The dashboard's workload card queues the filter without widening the
       // scope, so this also proves the carer supersedes the "mine" default.
+      expect(asked.last.toBrowseQuery('me').activeCarer, 'anna');
       expect(find.text('2026-001'), findsOneWidget);
-      expect(find.text('2026-002'), findsNothing);
       // Titled by whose caseload it is — "All cases" would read as though the
       // tap had not taken.
       expect(find.text('Cases of Anna'), findsOneWidget);
@@ -502,7 +435,7 @@ void main() {
     ) async {
       await _pump(
         tester,
-        cases: cases,
+        cases: const [annas],
         pending: const CaseQuery(carer: 'anna'),
       );
 
@@ -515,9 +448,11 @@ void main() {
     testWidgets('the sheet picks a carer and parks the scope toggle', (
       tester,
     ) async {
-      await _pump(tester, cases: cases, members: const [anna]);
-
-      expect(find.text('2026-002'), findsOneWidget);
+      final asked = await _pump(
+        tester,
+        cases: const [annas],
+        members: const [anna],
+      );
 
       await tester.tap(find.byTooltip('Filters'));
       await tester.pumpAndSettle();
@@ -527,8 +462,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The list behind the sheet swaps to Anna's caseload…
-      expect(find.text('2026-001'), findsOneWidget);
-      expect(find.text('2026-002'), findsNothing);
+      expect(asked.last.toBrowseQuery('me').activeCarer, 'anna');
       // …and the mine/all toggle goes inert, because the carer stands in for
       // it rather than intersecting with it.
       final scope = tester.widget<SegmentedButton<bool>>(
@@ -540,9 +474,9 @@ void main() {
     testWidgets('the filter pickers take no free text', (tester) async {
       await _pump(
         tester,
-        cases: cases,
+        cases: const [annas],
         // A species so that picker is offered too — all four have to hold.
-        animalsById: const {'a1': Animal(id: 'a1', species: 'Columba livia')},
+        species: const ['Columba livia'],
         members: const [anna],
         recorded: const [
           ConditionLabel(id: 'k1', label: 'Katzenbiss', caseCount: 1),

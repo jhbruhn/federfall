@@ -447,4 +447,210 @@ void main() {
       );
     });
   });
+
+  group('CaseBrowseQuery → filter', () {
+    setUp(() {
+      // Stand in for PocketBase's parameter binding: splice the params into
+      // the expression so assertions see what would have been sent.
+      when(() => pb.filter(any(), any())).thenAnswer((i) {
+        var expr = i.positionalArguments.first as String;
+        final params = i.positionalArguments[1] as Map<String, dynamic>? ?? {};
+        for (final param in params.entries) {
+          expr = expr.replaceAll('{:${param.key}}', "'${param.value}'");
+        }
+        return expr;
+      });
+    });
+
+    test('an empty query filters nothing', () {
+      expect(repo.filterFor(const CaseBrowseQuery()), isNull);
+    });
+
+    test('the active split is an explicit status set, never a !=', () {
+      final f = repo.filterFor(
+        const CaseBrowseQuery(
+          statuses: [CaseStatus.inCare, CaseStatus.readyForRelease],
+          allowUnsetStatus: true,
+        ),
+      );
+
+      // federfall-jt5u: `status != "disposed"` was measured over-matching a
+      // disposed row, so the complement is spelled out instead.
+      expect(f!.expression, isNot(contains('!=')));
+      expect(
+        f.expression,
+        "(status = 'in_care' || status = 'ready_for_release' "
+        "|| status = '')",
+      );
+    });
+
+    test('an empty carer adds no clause', () {
+      // The app hands one over only while the signed-in user is still
+      // unknown; `active_carer = ''` would ask for the UNASSIGNED cases.
+      expect(repo.filterFor(const CaseBrowseQuery(activeCarer: '')), isNull);
+      expect(
+        repo
+            .filterFor(
+              const CaseBrowseQuery(activeCarer: '', species: 'Hohltaube'),
+            )!
+            .expression,
+        isNot(contains('active_carer')),
+      );
+    });
+
+    test('an unset status is admitted only when asked for', () {
+      final f = repo.filterFor(
+        const CaseBrowseQuery(statuses: [CaseStatus.disposed]),
+      );
+
+      expect(f!.expression, "(status = 'disposed')");
+    });
+
+    test('narrows by carer, species, outcome and diagnosis', () {
+      final f = repo.filterFor(
+        const CaseBrowseQuery(
+          activeCarer: 'user1',
+          species: 'Hohltaube',
+          outcome: DispositionType.released,
+          conditionLabel: 'Katzenbiss',
+        ),
+      );
+
+      expect(f!.expression, contains("active_carer = 'user1'"));
+      // Forward relation traversal onto the case's animal.
+      expect(f.expression, contains("animal.species = 'Hohltaube'"));
+      // A back-relation, so the any-of operator, and the WIRE value rather
+      // than the Dart name.
+      expect(
+        f.expression,
+        contains(
+          "dispositions_via_case.type ?= '${DispositionType.released.wire}'",
+        ),
+      );
+      // Both halves of what a diagnosis can be — code list or free text.
+      expect(
+        f.expression,
+        contains("case_conditions_via_case.condition.label ?= 'Katzenbiss'"),
+      );
+      expect(
+        f.expression,
+        contains("case_conditions_via_case.free_text ?= 'Katzenbiss'"),
+      );
+    });
+
+    test('text searches the case number, the animal and its markings', () {
+      final f = repo.filterFor(const CaseBrowseQuery(text: 'AB12'));
+
+      expect(f!.expression, contains("case_number ~ 'AB12'"));
+      expect(f.expression, contains("animal.name ~ 'AB12'"));
+      expect(
+        f.expression,
+        contains("animal.markings_via_animal.code ~ 'AB12'"),
+      );
+      // One parenthesised OR group, so a second facet cannot be swallowed.
+      expect(f.expression, startsWith('('));
+    });
+
+    test('blank text narrows nothing', () {
+      expect(repo.filterFor(const CaseBrowseQuery(text: '   ')), isNull);
+    });
+
+    test('the admission range is half-open and in UTC', () {
+      final f = repo.filterFor(
+        CaseBrowseQuery(
+          admittedFrom: DateTime.utc(2026),
+          admittedTo: DateTime.utc(2027),
+        ),
+      );
+
+      expect(f!.expression, contains('admitted_at >='));
+      expect(f.expression, contains('admitted_at <'));
+      expect(f.expression, isNot(contains('admitted_at <=')));
+      expect(f.expression, contains('2026-01-01'));
+      expect(f.expression, contains('2027-01-01'));
+    });
+
+    test('facets are ANDed together', () {
+      final f = repo.filterFor(
+        const CaseBrowseQuery(activeCarer: 'user1', species: 'Hohltaube'),
+      );
+
+      expect(
+        f!.expression,
+        "active_carer = 'user1' && animal.species = "
+        "'Hohltaube'",
+      );
+    });
+  });
+
+  group('browse()', () {
+    ResultList<RecordModel> resultOf(List<RecordModel> items) =>
+        ResultList(items: items);
+
+    RecordModel row(String id, String created) =>
+        RecordModel({'id': id, 'created': created});
+
+    test('pages newest first and hands back a resumable cursor', () async {
+      when(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      ).thenAnswer(
+        (_) async => resultOf([
+          row('case1', '2026-08-04 10:00:02.000Z'),
+          row('case2', '2026-08-04 10:00:01.000Z'),
+        ]),
+      );
+
+      final page = await repo.browse(perPage: 2);
+
+      expect(page.items.map((c) => c.id), ['case1', 'case2']);
+      // A full page might still be the last one, so the cursor is offered and
+      // the next (empty) call settles it.
+      expect(
+        page.cursor,
+        const PbCursor(value: '2026-08-04 10:00:01.000Z', id: 'case2'),
+      );
+
+      final captured = verify(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: captureAny(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      ).captured;
+      expect(captured.single, '-created,-id');
+    });
+
+    test('a short page ends the feed', () async {
+      when(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      ).thenAnswer(
+        (_) async => resultOf([row('case1', '2026-08-04 10:00:02.000Z')]),
+      );
+
+      final page = await repo.browse();
+
+      expect(page.hasMore, isFalse);
+      expect(page.cursor, isNull);
+    });
+  });
 }

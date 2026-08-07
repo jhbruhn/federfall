@@ -534,7 +534,7 @@ void main() {
     /// A first page of [n] rows with more behind it.
     PbPage<AuditEvent> firstPage(int n) => PbPage(
       items: [for (var i = 0; i < n; i++) _event(id: 'audt$i')],
-      cursor: const PbCursor(created: '2026-08-04 09:00:00.000Z', id: 'audt0'),
+      cursor: const PbCursor(value: '2026-08-04 09:00:00.000Z', id: 'audt0'),
     );
 
     Future<void> scrollToEnd(WidgetTester tester) async {

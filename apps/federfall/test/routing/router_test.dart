@@ -5,6 +5,7 @@ import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/features/admin/management_screen.dart';
+import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/auth/confirm_reset_screen.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
@@ -71,13 +72,8 @@ Future<ProviderContainer> _pumpAt(
       // Discovery is exercised in its own tests; here it just resolves so the
       // login gate doesn't reach for the network.
       serverInfoProvider.overrideWith((ref) async => null),
-      casesBrowserDataProvider.overrideWith(
-        (ref) async => const CasesBrowserData(
-          cases: [],
-          animalsById: {},
-          myUserId: 'u1',
-        ),
-      ),
+      caseBrowseFeedProvider.overrideWith2((_) => FakeCaseBrowseFeed()),
+      animalRegistryFeedProvider.overrideWith2((_) => FakeAnimalRegistryFeed()),
       currentUserProvider.overrideWith((ref) async => null),
       // The real store reads the platform keystore, which never answers under
       // `flutter test` — the intake wizard is one of the routes pumped here.
@@ -154,12 +150,9 @@ void main() {
           ),
         ),
         authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
-        casesBrowserDataProvider.overrideWith(
-          (ref) async => const CasesBrowserData(
-            cases: [],
-            animalsById: {},
-            myUserId: 'u1',
-          ),
+        caseBrowseFeedProvider.overrideWith2((_) => FakeCaseBrowseFeed()),
+        animalRegistryFeedProvider.overrideWith2(
+          (_) => FakeAnimalRegistryFeed(),
         ),
         currentUserProvider.overrideWith((ref) async => null),
         caseByIdProvider(
@@ -185,6 +178,10 @@ void main() {
   testWidgets('a pushed /cases/browse applies the deep-linked filter', (
     tester,
   ) async {
+    // The filtering is the server's now (federfall-trep), so what the deep
+    // link has to get right is the QUERY the browser asks with — not which of
+    // a locally-held list survives it.
+    final asked = <CaseQuery>[];
     final container = ProviderContainer(
       overrides: [
         serverConfigControllerProvider.overrideWith(
@@ -193,10 +190,10 @@ void main() {
           ),
         ),
         authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
-        casesBrowserDataProvider.overrideWith(
-          (ref) async => const CasesBrowserData(
-            // Owned by someone else: only visible under scope=all.
-            cases: [
+        caseBrowseFeedProvider.overrideWith2(
+          (_) => FakeCaseBrowseFeed(
+            // Owned by someone else: only reachable under scope=all.
+            cases: const [
               Case(
                 id: 'c1',
                 animal: 'a1',
@@ -205,9 +202,11 @@ void main() {
                 status: CaseStatus.inCare,
               ),
             ],
-            animalsById: {},
-            myUserId: 'u1',
+            onQuery: asked.add,
           ),
+        ),
+        animalRegistryFeedProvider.overrideWith2(
+          (_) => FakeAnimalRegistryFeed(),
         ),
         currentUserProvider.overrideWith((ref) async => null),
       ],
@@ -221,10 +220,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The transient browser renders and the scope=all filter reveals the
-    // other carer's case (hidden under the default "mine" scope).
+    // The transient browser renders, and it asked for every accessible case
+    // rather than only the signed-in carer's — which is what reveals the other
+    // carer's case that the default "mine" scope hides.
     expect(find.byType(CasesScreen), findsOneWidget);
     expect(find.text('2026-099'), findsOneWidget);
+    expect(asked.last.allScope, isTrue);
+    expect(asked.last.activity, CaseActivity.active);
+    expect(asked.last.toBrowseQuery('u1').activeCarer, isNull);
   });
 
   testWidgets('a deep link entered before sign-in is restored after it', (
@@ -240,12 +243,9 @@ void main() {
         ),
         authStatusProvider.overrideWith(() => auth),
         serverInfoProvider.overrideWith((ref) async => null),
-        casesBrowserDataProvider.overrideWith(
-          (ref) async => const CasesBrowserData(
-            cases: [],
-            animalsById: {},
-            myUserId: 'u1',
-          ),
+        caseBrowseFeedProvider.overrideWith2((_) => FakeCaseBrowseFeed()),
+        animalRegistryFeedProvider.overrideWith2(
+          (_) => FakeAnimalRegistryFeed(),
         ),
         currentUserProvider.overrideWith((ref) async => null),
         caseByIdProvider(
@@ -289,12 +289,9 @@ void main() {
           ),
         ),
         authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
-        casesBrowserDataProvider.overrideWith(
-          (ref) async => const CasesBrowserData(
-            cases: [],
-            animalsById: {},
-            myUserId: 'u1',
-          ),
+        caseBrowseFeedProvider.overrideWith2((_) => FakeCaseBrowseFeed()),
+        animalRegistryFeedProvider.overrideWith2(
+          (_) => FakeAnimalRegistryFeed(),
         ),
         currentUserProvider.overrideWith(
           (ref) async => const AppUser(
@@ -340,12 +337,9 @@ void main() {
           ),
         ),
         authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
-        casesBrowserDataProvider.overrideWith(
-          (ref) async => const CasesBrowserData(
-            cases: [],
-            animalsById: {},
-            myUserId: 'u1',
-          ),
+        caseBrowseFeedProvider.overrideWith2((_) => FakeCaseBrowseFeed()),
+        animalRegistryFeedProvider.overrideWith2(
+          (_) => FakeAnimalRegistryFeed(),
         ),
         currentUserProvider.overrideWith(
           (ref) async => const AppUser(
@@ -557,13 +551,8 @@ class _RestorableAppState extends State<_RestorableApp> {
       ),
       authStatusProvider.overrideWith(() => _FakeAuthStatus(authed: true)),
       serverInfoProvider.overrideWith((ref) async => null),
-      casesBrowserDataProvider.overrideWith(
-        (ref) async => const CasesBrowserData(
-          cases: [],
-          animalsById: {},
-          myUserId: 'u1',
-        ),
-      ),
+      caseBrowseFeedProvider.overrideWith2((_) => FakeCaseBrowseFeed()),
+      animalRegistryFeedProvider.overrideWith2((_) => FakeAnimalRegistryFeed()),
       // A supervisor so the role-gated overlays (admin, statistics) are
       // reachable in the exclusion-policy test below.
       currentUserProvider.overrideWith(

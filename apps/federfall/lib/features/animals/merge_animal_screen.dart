@@ -121,7 +121,7 @@ class _MergeAnimalScreenState extends ConsumerState<MergeAnimalScreen> {
             ..invalidate(animalByIdProvider(candidate.id))
             ..invalidate(animalLifetimeProvider(current.id))
             ..invalidate(animalLifetimeProvider(candidate.id))
-            ..invalidate(animalsRegistryProvider);
+            ..invalidate(animalRegistryFeedProvider);
           if (!mounted) return;
           router.go(AppRoutes.animalDetail(resultId));
         } finally {

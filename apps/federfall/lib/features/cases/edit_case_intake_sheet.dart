@@ -139,7 +139,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
       });
       ref
         ..invalidate(caseBundleProvider(widget.medicalCase.id))
-        ..invalidate(casesBrowserDataProvider)
+        ..invalidate(caseBrowseFeedProvider)
         ..invalidate(dashboardSummaryProvider);
     });
     if (ok && mounted) navigator.pop(true);

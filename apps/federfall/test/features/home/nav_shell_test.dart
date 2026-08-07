@@ -15,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/helpers.dart';
+
 /// Authenticated, configured-server fakes so the router lands in the shell.
 class _FakeServerConfig extends ServerConfigController {
   @override
@@ -38,16 +40,8 @@ Future<void> _pump(WidgetTester tester, {required Size size}) async {
     overrides: [
       serverConfigControllerProvider.overrideWith(_FakeServerConfig.new),
       authStatusProvider.overrideWith(_FakeAuthStatus.new),
-      casesBrowserDataProvider.overrideWith(
-        (ref) async => const CasesBrowserData(
-          cases: [],
-          animalsById: {},
-          myUserId: 'u1',
-        ),
-      ),
-      animalsRegistryProvider.overrideWith(
-        (ref) async => const <AnimalListItem>[],
-      ),
+      caseBrowseFeedProvider.overrideWith2((_) => FakeCaseBrowseFeed()),
+      animalRegistryFeedProvider.overrideWith2((_) => FakeAnimalRegistryFeed()),
       currentUserProvider.overrideWith((ref) async => null),
       // No real periodic timer in the widget test.
       worklistTickerProvider.overrideWith((ref) {}),

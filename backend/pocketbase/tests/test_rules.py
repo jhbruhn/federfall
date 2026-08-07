@@ -1592,6 +1592,92 @@ def main():
         check(f"{coll} is read-only even for a supervisor", s != 200,
               f"status {s}")
 
+    # ── federfall-trep: the case browser's filters, run on the server ───────
+    # The browser stopped pulling `cases` + `animals` to the device to filter
+    # them there. Every facet is now a PocketBase filter, and three of them
+    # reach outside the case row — a forward relation and two back-relations.
+    # Those forms are new to this client, so they are checked against a real
+    # PocketBase rather than only against the expression the repository builds.
+    print("\n[case browser filters]")
+
+    trep_animal = mk(T, "animals", {"species": "trep Hohltaube",
+                                    "name": "trep Pip", "org": ORG})["id"]
+    trep_other = mk(T, "animals", {"species": "trep Ringeltaube",
+                                   "org": ORG})["id"]
+    trep_mtype = listf(T, "marking_types", "id != ''")[0]["id"]
+    mk(T, "markings", {"animal": trep_animal, "type": trep_mtype,
+                       "code": "TREP-4711", "is_active": True, "org": ORG})
+    trep_case = mk(T, "cases", {"animal": trep_animal, "active_carer": A,
+                                "case_number": "TREP-001", "org": ORG})["id"]
+    trep_plain = mk(T, "cases", {"animal": trep_other, "active_carer": A,
+                                 "case_number": "TREP-002", "org": ORG})["id"]
+    # One code-list diagnosis and one typed as free text — the filter matches
+    # by LABEL precisely so both are reachable.
+    trep_cond = mk(T, "conditions", {"label": "trep Fraktur", "active": True,
+                                     "org": ORG})["id"]
+    mk(T, "case_conditions", {"case": trep_case, "condition": trep_cond,
+                              "org": ORG})
+    mk(T, "case_conditions", {"case": trep_case, "free_text": "trep Katzenbiss",
+                              "org": ORG})
+    # Re-dispositioned, so "carries a disposition of this type" and "its
+    # TERMINAL one is of this type" genuinely differ on this row.
+    mk(T, "dispositions", {"case": trep_case, "type": "placed_in_aviary",
+                           "disposed_at": "2026-03-01 10:00:00.000Z",
+                           "org": ORG})
+    mk(T, "dispositions", {"case": trep_case, "type": "released",
+                           "disposed_at": "2026-05-01 10:00:00.000Z",
+                           "org": ORG})
+
+    def browse(tok, flt):
+        return {c["id"] for c in listf(tok, "cases", flt)}
+
+    CO = toks["coord"]
+    check("species filters through the animal relation",
+          browse(CO, 'animal.species = "trep Hohltaube"') == {trep_case},
+          "forward traversal")
+    check("text search matches the animal's name",
+          trep_case in browse(CO, 'animal.name ~ "trep Pip"'), "no match")
+    check("text search matches a marking code on the animal",
+          browse(CO, 'animal.markings_via_animal.code ~ "TREP-4711"')
+          == {trep_case}, "back-relation traversal")
+    check("diagnosis matches a code-list label",
+          browse(CO, 'case_conditions_via_case.condition.label ?= '
+                     '"trep Fraktur"') == {trep_case},
+          "nested back-relation")
+    check("diagnosis matches free text of the same shape",
+          browse(CO, 'case_conditions_via_case.free_text ?= '
+                     '"trep Katzenbiss"') == {trep_case}, "free text missed")
+
+    # The outcome facet: the filter is a SUPERSET of what the browser means,
+    # which is why the app narrows the page it gets back to the terminal
+    # disposition. Both halves are asserted so a PocketBase that one day CAN
+    # express "the latest one" is a visible change, not a silent one.
+    check("outcome matches the terminal disposition",
+          trep_case in browse(CO, 'dispositions_via_case.type ?= "released"'),
+          "terminal outcome missed")
+    check("...and over-matches a superseded one, hence the client's last pass",
+          trep_case in browse(CO,
+                              'dispositions_via_case.type ?= '
+                              '"placed_in_aviary"'),
+          "no longer a superset — the app's refinement can be dropped")
+
+    # The one that matters: with no carer clause at all, the browser's "all"
+    # scope is whatever the list rule allows. It must still be nothing of
+    # another carer's, however the facets are combined.
+    check("a carer's widened scope still excludes another carer's case",
+          browse(toks["b"], 'animal.species = "trep Hohltaube"') == set(),
+          "leaked across carers")
+    check("...and the case is there to be missed",
+          browse(toks["a"], 'animal.species = "trep Hohltaube"')
+          == {trep_case}, "fixture did not land")
+
+    # An explicit status set, never `status != "disposed"` (federfall-jt5u).
+    open_set = browse(CO, f'(status = "in_care" || status = '
+                          f'"ready_for_release" || status = "") && '
+                          f'animal.species ~ "trep "')
+    check("the active split is expressible as a status set",
+          trep_plain in open_set, "open case missing from the explicit set")
+
     # ── guest role: can authenticate, but walled off from all data ──────────
     print("\n[guest role]")
     mkuser(T, "guest@f.local", "guest")

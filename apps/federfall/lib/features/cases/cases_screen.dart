@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:federfall/core/realtime/live_refresh.dart';
 // Prefixed: this file also needs `memberLabel` from `placements_providers`,
 // which declares an `orgMembersProvider` of its own (the active-only handoff
 // roster). The filter wants the FULL roster — see `_carerOptions`.
 import 'package:federfall/features/admin/admin_providers.dart' as admin;
 import 'package:federfall/features/animals/animal_avatar.dart';
+import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/features/cases/carer_line.dart';
-import 'package:federfall/features/cases/case_facets.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
@@ -40,9 +42,18 @@ class CasesScreen extends ConsumerStatefulWidget {
   ConsumerState<CasesScreen> createState() => _CasesScreenState();
 }
 
+/// How long the search field waits for the typing to stop before asking the
+/// server. Each keystroke is now a request, so this is the difference between
+/// one query per pause and one per character.
+const _searchDebounce = Duration(milliseconds: 300);
+
 class _CasesScreenState extends ConsumerState<CasesScreen> {
   final _searchController = TextEditingController();
+  final _scroll = ScrollController();
   late CaseQuery _query;
+
+  /// Pending debounced search update, cancelled by the next keystroke.
+  Timer? _searchTimer;
 
   /// The case id (if any) this screen has already auto-widened the scope for
   /// — so a manual switch back to "mine" while still viewing that same case
@@ -52,6 +63,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_maybeLoadMore);
     // A dashboard KPI (or the nav menu) hands a filter off via the
     // pending-query provider when switching to this tab (the tab's state
     // survives, so a route query can't re-seed a live screen). Consume it once
@@ -67,8 +79,29 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   /// is already alive (the cases tab was visited before), then clear it.
   void _applyPending(CaseQuery query) {
     _searchController.text = query.text;
+    // A handed-over filter is not typing, so it takes effect at once — and the
+    // cancel keeps a keystroke still in flight from overwriting it.
+    _searchTimer?.cancel();
     _update(query);
     _clearPendingAfterFrame();
+  }
+
+  /// Debounces the search field: the query — and with it the request — only
+  /// changes once the typing pauses.
+  void _onSearchChanged(String text) {
+    _searchTimer?.cancel();
+    _searchTimer = Timer(_searchDebounce, () {
+      if (mounted) _update(_query.copyWith(text: text));
+    });
+  }
+
+  void _maybeLoadMore() {
+    if (!_scroll.hasClients) return;
+    // Within a screenful of the bottom. loadMore() is a no-op while a page is
+    // in flight, so firing this on every scroll frame is safe.
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 600) {
+      unawaited(ref.read(caseBrowseFeedProvider(_query).notifier).loadMore());
+    }
   }
 
   /// Clear the pending filter once consumed — deferred so it never mutates the
@@ -81,6 +114,8 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
 
   @override
   void dispose() {
+    _searchTimer?.cancel();
+    _scroll.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -94,15 +129,17 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   /// otherwise look absent from its own list. Widen to "all cases" once per
   /// case so it stays visible/highlighted; deferred so it never mutates state
   /// during build.
-  void _maybeWidenScopeForSelection(
-    String? selectedId,
-    List<Case> filtered,
-    List<Case> accessible,
-  ) {
-    if (selectedId == null || _query.allScope) return;
+  ///
+  /// The list is now server-filtered and paged, so "not in [loaded]" no longer
+  /// proves the case is out of scope — it may simply be further down than the
+  /// pages fetched so far. Widening anyway is the cheaper mistake: it is one
+  /// toggle to undo, it happens at most once per case, and the alternative
+  /// (asking the server whether this one case matches) is a request to answer
+  /// a question about a case already open on screen.
+  void _maybeWidenScopeForSelection(String? selectedId, List<Case> loaded) {
+    if (selectedId == null || _query.allScope || _query.carer != null) return;
     if (_autoWidenedFor == selectedId) return;
-    if (filtered.any((c) => c.id == selectedId)) return;
-    if (!accessible.any((c) => c.id == selectedId)) return;
+    if (loaded.any((c) => c.id == selectedId)) return;
     _autoWidenedFor = selectedId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _update(_query.copyWith(allScope: true));
@@ -110,16 +147,16 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
   }
 
   void _clear() {
+    _searchTimer?.cancel();
     _searchController.clear();
     _update(const CaseQuery());
   }
 
-  Future<void> _openFilters(List<String> speciesOptions) async {
+  Future<void> _openFilters() async {
     await showAppSheet<void>(
       context,
       builder: (_) => _FilterSheet(
         initial: _query,
-        speciesOptions: speciesOptions,
         onChanged: _update,
         onClear: _clear,
       ),
@@ -159,19 +196,14 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
     // the case_shares create/delete event reflects the change live.
     ref.liveRefresh(
       const ['cases', 'animals', 'case_shares'],
-      () => ref.invalidate(casesBrowserDataProvider),
+      () => ref.invalidate(caseBrowseFeedProvider),
     );
-    final data = ref.watch(casesBrowserDataProvider);
-    // The outcome/diagnosis facets resolve against two collections the browser
-    // otherwise never touches, so watch them only while a query actually uses
-    // one (federfall-5puj) — the provider is disposed again when it's cleared.
-    final facets = _query.needsFacets
-        ? ref.watch(caseFacetsProvider)
-        : const AsyncValue<CaseFacets>.data(CaseFacets.empty);
-    // When the list is empty its empty-state already offers an "admit a case"
-    // CTA, so suppress the FAB then — two identical primary actions on one
-    // screen is redundant. While loading or on error (no known list) keep it.
-    final showFab = data.value?.cases.isNotEmpty ?? true;
+    final feed = ref.watch(caseBrowseFeedProvider(_query));
+    // The empty list offers an "admit a case" CTA of its own, so suppress the
+    // FAB then — two identical primary actions on one screen is redundant.
+    // Under a narrowed query the empty state is "no matches", which offers
+    // nothing, so the FAB stays. Likewise while loading or on error.
+    final showFab = _query.isNarrowed || (feed.value?.cases.isNotEmpty ?? true);
 
     return Scaffold(
       appBar: AppBar(
@@ -185,78 +217,81 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
               child: const Icon(Icons.add),
             )
           : null,
-      body: AsyncValueView<CasesBrowserData>(
-        value: data,
-        onRetry: () => ref.invalidate(casesBrowserDataProvider),
-        data: (d) => AsyncValueView<CaseFacets>(
-          value: facets,
-          onRetry: () => ref.invalidate(caseFacetsProvider),
-          data: (f) => _results(d, f, selectedId),
-        ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: _SearchBar(
+              controller: _searchController,
+              facetCount: _query.activeFacetCount,
+              onChanged: _onSearchChanged,
+              onOpenFilters: _openFilters,
+            ),
+          ),
+          const Divider(height: 1),
+          // Inside the Column, not around it: the search field has to stay put
+          // while the results below it load, or typing loses focus on every
+          // request.
+          Expanded(
+            child: AsyncValueView<CaseBrowseState>(
+              value: feed,
+              onRetry: () => ref.invalidate(caseBrowseFeedProvider(_query)),
+              data: (state) => _results(state, selectedId),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _results(CasesBrowserData d, CaseFacets facets, String? selectedId) {
+  Widget _results(CaseBrowseState state, String? selectedId) {
     final l10n = context.l10n;
-    final results = filterCases(
-      d.cases,
-      d.animalsById,
-      myUserId: d.myUserId,
-      query: _query,
-      codesByAnimal: d.codesByAnimal,
-      facets: facets,
-    );
-    _maybeWidenScopeForSelection(selectedId, results, d.cases);
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: _SearchBar(
-            controller: _searchController,
-            facetCount: _query.activeFacetCount,
-            onChanged: (v) => _update(_query.copyWith(text: v)),
-            onOpenFilters: () => _openFilters(d.speciesOptions),
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: d.cases.isEmpty
-              ? EmptyView(
-                  icon: Icons.medical_information_outlined,
-                  title: l10n.casesEmpty,
-                  message: l10n.casesEmptyBody,
-                  actionLabel: l10n.casesEmptyAction,
-                  actionIcon: Icons.add,
-                  onAction: () => context.push(AppRoutes.newCase),
-                )
-              : results.isEmpty
-              ? EmptyView(message: l10n.casesNoMatches)
-              : RefreshIndicator(
-                  onRefresh: () {
-                    // The facets ride along: they're a second source behind
-                    // the same list, so a pull has to refresh both.
-                    ref.invalidate(caseFacetsProvider);
-                    return ref.refresh(casesBrowserDataProvider.future);
-                  },
-                  child: ListView.builder(
-                    itemCount: results.length,
-                    itemBuilder: (context, i) {
-                      final c = results[i];
-                      return _CaseTile(
-                        c,
-                        d.animalsById[c.animal],
-                        // Redundant in the "mine" scope — every case is
-                        // already the signed-in user's — and under a carer
-                        // filter, where the app bar already names them.
-                        showCarer: _query.allScope && _query.carer == null,
-                        selected: c.id == selectedId,
-                      );
-                    },
-                  ),
-                ),
-        ),
-      ],
+    _maybeWidenScopeForSelection(selectedId, state.cases);
+
+    if (state.cases.isEmpty) {
+      // Which emptiness this is can no longer be read off the loaded rows —
+      // the server sent only what matched. The query itself says it: nothing
+      // narrows the default view, so there is nothing to find.
+      return _query.isNarrowed
+          ? EmptyView(message: l10n.casesNoMatches)
+          : EmptyView(
+              icon: Icons.medical_information_outlined,
+              title: l10n.casesEmpty,
+              message: l10n.casesEmptyBody,
+              actionLabel: l10n.casesEmptyAction,
+              actionIcon: Icons.add,
+              onAction: () => context.push(AppRoutes.newCase),
+            );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => ref.refresh(caseBrowseFeedProvider(_query).future),
+      child: ListView.builder(
+        controller: _scroll,
+        // Always scrollable, so pull-to-refresh works on a short list.
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: state.cases.length + (state.hasMore ? 1 : 0),
+        itemBuilder: (context, i) {
+          if (i >= state.cases.length) {
+            return PagedListTail(
+              error: state.pageError,
+              onRetry: () => unawaited(
+                ref.read(caseBrowseFeedProvider(_query).notifier).retryPage(),
+              ),
+            );
+          }
+          final c = state.cases[i];
+          return _CaseTile(
+            c,
+            state.animalsById[c.animal],
+            // Redundant in the "mine" scope — every case is already the
+            // signed-in user's — and under a carer filter, where the app bar
+            // already names them.
+            showCarer: _query.allScope && _query.carer == null,
+            selected: c.id == selectedId,
+          );
+        },
+      ),
     );
   }
 }
@@ -320,13 +355,11 @@ class _SearchBar extends StatelessWidget {
 class _FilterSheet extends ConsumerStatefulWidget {
   const _FilterSheet({
     required this.initial,
-    required this.speciesOptions,
     required this.onChanged,
     required this.onClear,
   });
 
   final CaseQuery initial;
-  final List<String> speciesOptions;
   final ValueChanged<CaseQuery> onChanged;
   final VoidCallback onClear;
 
@@ -363,6 +396,25 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
     ];
   }
 
+  /// Species offered by the filter: the org's recorded vocabulary, from the
+  /// `animal_species` view — the same small row set the intake screen's
+  /// species field reads.
+  ///
+  /// It used to be the distinct species among the loaded cases, which was only
+  /// possible while the whole collection was on the device and was wrong at
+  /// the edges anyway: a species held only by cases outside the current scope
+  /// was not offered, so the filter could not reach them. As with the carer
+  /// and diagnosis pickers, an active value the view didn't supply is appended
+  /// rather than rendered as a blank the user can neither read nor clear.
+  List<String> get _speciesOptions {
+    final recorded = ref.watch(animalSpeciesProvider).value ?? const <String>[];
+    final own = _query.species;
+    return [
+      ...recorded,
+      if (own != null && !recorded.contains(own)) own,
+    ];
+  }
+
   /// Carers offered by the filter: the FULL roster, deactivated members
   /// included. Two reasons it isn't the active-only handoff list — filtering by
   /// a carer is not assigning to them, and a deactivated member can still hold
@@ -390,6 +442,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
     final theme = Theme.of(context);
     final range = _query.admittedRange;
     final carers = _carerOptions;
+    final speciesOptions = _speciesOptions;
 
     return SafeArea(
       child: Padding(
@@ -479,7 +532,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
               onSelectionChanged: (s) =>
                   _apply(_query.copyWith(activity: s.first)),
             ),
-            if (widget.speciesOptions.isNotEmpty) ...[
+            if (speciesOptions.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
               _FilterLabel(l10n.casesSpeciesLabel),
               DropdownMenu<String?>(
@@ -491,7 +544,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
                     value: null,
                     label: l10n.casesFilterSpeciesAny,
                   ),
-                  for (final s in widget.speciesOptions)
+                  for (final s in speciesOptions)
                     DropdownMenuEntry(value: s, label: s),
                 ],
                 onSelected: (s) => _apply(

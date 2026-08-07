@@ -33,6 +33,7 @@ export 'widgets/map_tile_layer.dart';
 export 'widgets/map_wheel_zoom.dart';
 export 'widgets/menu_action.dart';
 export 'widgets/offline_notice.dart';
+export 'widgets/paged_list_tail.dart';
 export 'widgets/primary_button.dart';
 export 'widgets/staged_photos.dart';
 export 'widgets/tag_chip.dart';

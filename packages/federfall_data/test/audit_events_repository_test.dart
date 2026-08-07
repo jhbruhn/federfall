@@ -87,7 +87,7 @@ void main() {
       expect(page.hasMore, isTrue);
       expect(
         page.cursor,
-        const PbCursor(created: '2026-08-04 10:00:01.000Z', id: 'e2'),
+        const PbCursor(value: '2026-08-04 10:00:01.000Z', id: 'e2'),
       );
     });
 
@@ -113,7 +113,7 @@ void main() {
       stub((_) => []);
 
       await repo.search(
-        after: const PbCursor(created: '2026-08-04 10:00:01.000Z', id: 'e2'),
+        after: const PbCursor(value: '2026-08-04 10:00:01.000Z', id: 'e2'),
       );
 
       final filter = lastCall[#filter] as String;
@@ -129,7 +129,7 @@ void main() {
 
       await repo.search(
         query: const AuditQuery(caseId: 'case1'),
-        after: const PbCursor(created: '2026-08-04 10:00:01.000Z', id: 'e2'),
+        after: const PbCursor(value: '2026-08-04 10:00:01.000Z', id: 'e2'),
       );
 
       final filter = lastCall[#filter] as String;

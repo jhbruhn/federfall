@@ -54,29 +54,69 @@ class PbFilter {
   String toString() => expression;
 }
 
+/// The column a keyset page is ordered and resumed by.
+///
+/// One field plus `id`, never an expression: the sort has to be something
+/// PocketBase can put in an `ORDER BY` *and* something the resume predicate can
+/// compare against, and those two have to be the same thing.
+///
+/// Ordering is the server's, i.e. SQLite's — BINARY collation on a text column.
+/// So a name key sorts `Zora` before `berta`, which a `toLowerCase()` compare
+/// on the device did not. Worth knowing before choosing a text key.
+@immutable
+class PbSortKey {
+  const PbSortKey(this.field, {this.descending = true});
+
+  /// Newest first — the feed default, and what [PbReadOnlyRepository.page]
+  /// uses unless told otherwise.
+  static const newestCreated = PbSortKey('created');
+
+  /// The record field to order by. Paired with `id` in both the sort and the
+  /// resume predicate, so it need not be unique.
+  final String field;
+  final bool descending;
+
+  /// The `sort` parameter this key implies.
+  String get sort => descending ? '-$field,-id' : '$field,id';
+
+  /// `<` walking down the order, `>` walking up it.
+  String get _comparison => descending ? '<' : '>';
+
+  @override
+  bool operator ==(Object other) =>
+      other is PbSortKey &&
+      other.field == field &&
+      other.descending == descending;
+
+  @override
+  int get hashCode => Object.hash(field, descending);
+}
+
 /// Where a keyset page left off: the sort key of the last row it returned.
 ///
-/// `created` alone is not enough — PocketBase stores milliseconds, so two rows
-/// written in the same millisecond would make one of them unreachable (or
-/// repeat forever). The id breaks that tie.
+/// The key value alone is not enough — a `created` key is stored to the
+/// millisecond, so two rows written in the same one would make either
+/// unreachable or repeated forever, and a `name` key ties far more often than
+/// that. The id breaks it.
 @immutable
 class PbCursor {
-  const PbCursor({required this.created, required this.id});
+  const PbCursor({required this.value, required this.id});
 
-  /// The raw PocketBase datetime string, passed back verbatim so no parse and
-  /// re-format can shift it.
-  final String created;
+  /// The last row's value for the [PbSortKey.field] it was paged by, as
+  /// PocketBase returned it — passed back verbatim so no parse and re-format
+  /// can shift it.
+  final String value;
   final String id;
 
   @override
   bool operator ==(Object other) =>
-      other is PbCursor && other.created == created && other.id == id;
+      other is PbCursor && other.value == value && other.id == id;
 
   @override
-  int get hashCode => Object.hash(created, id);
+  int get hashCode => Object.hash(value, id);
 
   @override
-  String toString() => 'PbCursor($created, $id)';
+  String toString() => 'PbCursor($value, $id)';
 }
 
 /// One page of a keyset-paged read, newest first.
@@ -178,22 +218,27 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
   /// twice and misses others entirely. Asking for "older than the last row I
   /// saw" cannot skip or repeat, however much arrives in between.
   ///
-  /// The sort is therefore fixed to `-created,-id` and is not a parameter: it
-  /// has to be the same key the cursor is built from, or paging silently
-  /// returns nonsense. Callers who want a different order want [list].
+  /// The sort is therefore [sortKey] and nothing else: it has to be the same
+  /// key the cursor is built from, or paging silently returns nonsense. Pass
+  /// the SAME key on every call of one sequence — a cursor does not carry the
+  /// key it came from, and resuming under a different one is meaningless.
+  /// Callers who want an arbitrary multi-field order want [list].
   Future<PbPage<T>> page({
     PbFilter? filter,
     PbCursor? after,
     int perPage = 50,
     String? expand,
     String? fields,
+    PbSortKey sortKey = PbSortKey.newestCreated,
   }) {
     return guard(() async {
       var expression = filter?.expression;
       if (after != null) {
+        final f = sortKey.field;
+        final cmp = sortKey._comparison;
         final keyset = pb.filter(
-          '(created < {:c} || (created = {:c} && id < {:i}))',
-          {'c': after.created, 'i': after.id},
+          '($f $cmp {:c} || ($f = {:c} && id $cmp {:i}))',
+          {'c': after.value, 'i': after.id},
         );
         expression = expression == null ? keyset : '($expression) && $keyset';
       }
@@ -202,14 +247,14 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
       // unbuildable cursor, so it is always requested back.
       final projection = fields == null
           ? null
-          : {...fields.split(','), 'id', 'created'}.join(',');
+          : {...fields.split(','), 'id', sortKey.field}.join(',');
 
       final result = await service.getList(
         page: 1,
         perPage: perPage,
         skipTotal: true,
         filter: expression,
-        sort: '-created,-id',
+        sort: sortKey.sort,
         expand: expand,
         fields: projection,
       );
@@ -223,7 +268,7 @@ abstract class PbReadOnlyRepository<T> implements ReadOnlyRepository<T> {
         cursor: last == null || result.items.length < perPage
             ? null
             : PbCursor(
-                created: '${last.data['created'] ?? ''}',
+                value: '${last.data[sortKey.field] ?? ''}',
                 id: last.id,
               ),
       );

@@ -606,7 +606,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       }
 
       ref
-        ..invalidate(casesBrowserDataProvider)
+        ..invalidate(caseBrowseFeedProvider)
         ..invalidate(dashboardSummaryProvider);
       if (!mounted) return;
       // Optional intake exam: open the same sheet on the just-created case

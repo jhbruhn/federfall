@@ -64,7 +64,7 @@ class _EditAnimalSheetState extends ConsumerState<EditAnimalSheet>
       ref
         ..invalidate(animalByIdProvider(widget.animal.id))
         ..invalidate(animalLifetimeProvider(widget.animal.id))
-        ..invalidate(animalsRegistryProvider);
+        ..invalidate(animalRegistryFeedProvider);
     });
     if (ok && mounted) navigator.pop(true);
   }

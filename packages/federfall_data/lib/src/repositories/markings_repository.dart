@@ -23,10 +23,40 @@ class PbMarkingsRepository extends PbRepository<Marking> {
     filter: filterExpr('code = {:c} && is_active = true', {'c': code}),
   );
 
-  /// Every currently-active marking the member may see (org-scoped) — the
-  /// source for the code-by-animal lookup behind registry rows and search.
-  Future<List<Marking>> allActive() =>
-      list(filter: filterExpr('is_active = true'));
+  static const int _byAnimalsChunkSize = 100;
+
+  /// Active markings for a set of animals — the codes shown on the animals
+  /// registry's rows, fetched for the page on screen rather than for the org
+  /// (federfall-trep). Same chunked `animal = {:x} || …` shape as
+  /// `PbAnimalsRepository.byIds`; empty input costs no request.
+  Future<List<Marking>> activeByAnimals(Iterable<String> animalIds) async {
+    final wanted = animalIds.toSet().toList();
+    if (wanted.isEmpty) return const [];
+    final chunks = <Future<List<Marking>>>[];
+    for (var start = 0; start < wanted.length; start += _byAnimalsChunkSize) {
+      final end = start + _byAnimalsChunkSize;
+      final chunk = wanted.sublist(
+        start,
+        end > wanted.length ? wanted.length : end,
+      );
+      final params = <String, Object?>{};
+      final clauses = <String>[];
+      for (var i = 0; i < chunk.length; i++) {
+        clauses.add('animal = {:a$i}');
+        params['a$i'] = chunk[i];
+      }
+      chunks.add(
+        list(
+          filter: filterExpr(
+            'is_active = true && (${clauses.join(' || ')})',
+            params,
+          ),
+        ),
+      );
+    }
+    final results = await Future.wait(chunks);
+    return [for (final r in results) ...r];
+  }
 
   /// How many markings still name the [typeId] code-list entry.
   ///
