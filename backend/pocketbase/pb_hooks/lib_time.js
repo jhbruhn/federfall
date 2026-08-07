@@ -15,11 +15,17 @@
 // STATELESS, like the other lib_ modules: each pooled JSVM holds its own copy.
 
 // ── Caller-local time ────────────────────────────────────────────────────────
-// goja has no Intl and the image carries no tzdata, so a zone name cannot be
-// resolved server-side. The client states its own UTC offset instead
+// goja has no Intl and the image carries no tzdata, so a zone NAME cannot be
+// resolved server-side. Verified empirically rather than assumed: `typeof Intl`
+// is "undefined", and calling into it does not even throw a catchable JS error
+// — it silently empties the response, which is why this must never be reached
+// for by a future edit. The client states its own UTC offset instead
 // (`?tzOffsetMinutes=`, the same convention case_report.pb.js uses); absent or
-// out of range, we fall back to the EU's own Europe/Berlin DST rule, which is
-// right for this app's users and never worse than assuming UTC.
+// out of range, we fall back to the EU's own Europe/Berlin DST rule (CEST from
+// the last Sunday of March 01:00 UTC to the last Sunday of October 01:00 UTC,
+// else CET), which is right for this app's users and never worse than assuming
+// UTC. That path covers a direct API/curl call and an older client build that
+// predates the parameter.
 
 const lastSundayUTC = (y, monthIndex) => {
   const lastDay = new Date(Date.UTC(y, monthIndex + 1, 0));

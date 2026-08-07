@@ -99,19 +99,15 @@ routerAdd(
     }
 
     // ── Date parts: the template constructs a Typst `datetime` from these and
-    // formats/localizes it itself. Converted from PocketBase's stored UTC to
-    // the CALLER's wall-clock time via `?tzOffsetMinutes=` (signed minutes,
-    // e.g. 120 for UTC+2) rather than a hard-coded zone — goja/JSVM has no
-    // Intl at all (verified empirically: `typeof Intl` is "undefined", and
-    // calling into it doesn't even throw a catchable JS error, it silently
-    // empties the response), so there's no real IANA tzdata to resolve a zone
-    // NAME against server-side. The Flutter client already knows its own
-    // correct offset — DST and all — via `DateTime.now().timeZoneOffset`
-    // (case_detail_screen.dart), so it's simplest to just have it say so
-    // directly instead of guessing a zone here. Falls back to the EU's own
-    // Caller-local time (federfall-c41f): the DST rule, the offset param and
-    // the wall-clock parts all live in lib_time.js, which the reporting routes
-    // read too — this file's own copy was the original those were taken from.
+    // formats/localizes it itself, so what it needs is wall-clock parts in the
+    // CALLER's zone, not an instant.
+    //
+    // Caller-local time (federfall-c41f): the `?tzOffsetMinutes=` param, its
+    // Europe/Berlin fallback and the parts themselves all live in lib_time.js,
+    // which annual_report.pb.js and stats.pb.js read too — this file's own copy
+    // was the original those were taken from, and a DST fix then had to be made
+    // twice. The client supplies the offset from
+    // `DateTime.now().timeZoneOffset` (case_detail_screen.dart).
     const dateParts = require(`${__hooks}/lib_time.js`).timeContext(
       e.request.url.query(),
     ).partsOf;
