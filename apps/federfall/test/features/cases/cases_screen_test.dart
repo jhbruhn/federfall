@@ -213,7 +213,9 @@ void main() {
 
       await tester.tap(find.byTooltip('Filters'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Mine'));
+      await tester.tap(find.text('All cases').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('My cases').last);
       await tester.pumpAndSettle();
 
       // Narrowed back to "mine" on purpose — the auto-widen must not
@@ -445,30 +447,42 @@ void main() {
       expect(find.text('2026-001'), findsOneWidget);
     });
 
-    testWidgets('the sheet picks a carer and parks the scope toggle', (
+    testWidgets('one picker covers mine, all, and a colleague', (
       tester,
     ) async {
+      // Mine / all / a named carer were never independent — a carer
+      // supersedes the scope — so they are one control. Two of them made the
+      // default self-contradictory: a "Mine" toggle beside an "Any carer"
+      // picker, describing the same list.
       final asked = await _pump(
         tester,
         cases: const [annas],
         members: const [anna],
       );
 
+      // It opens on what the list is actually showing, not on "any".
+      expect(find.text('My cases'), findsOneWidget);
+      expect(find.byType(SegmentedButton<bool>), findsNothing);
+
       await tester.tap(find.byTooltip('Filters'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Any carer'));
+      await tester.tap(find.text('My cases').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Anna').last);
       await tester.pumpAndSettle();
 
-      // The list behind the sheet swaps to Anna's caseload…
       expect(asked.last.toBrowseQuery('me').activeCarer, 'anna');
-      // …and the mine/all toggle goes inert, because the carer stands in for
-      // it rather than intersecting with it.
-      final scope = tester.widget<SegmentedButton<bool>>(
-        find.byType(SegmentedButton<bool>),
-      );
-      expect(scope.onSelectionChanged, isNull);
+
+      // Leaving the colleague again lands on a scope, not on a half-cleared
+      // state that still carries them.
+      await tester.tap(find.text('Anna').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('All cases').last);
+      await tester.pumpAndSettle();
+
+      expect(asked.last.carer, isNull);
+      expect(asked.last.allScope, isTrue);
+      expect(asked.last.toBrowseQuery('me').activeCarer, isNull);
     });
 
     testWidgets('the filter pickers take no free text', (tester) async {

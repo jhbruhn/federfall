@@ -341,12 +341,52 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
+/// Whose cases the browser is showing: the signed-in user's, every case they
+/// may access, or one named colleague's.
+///
+/// ONE picker, because these three were never independent. [CaseQuery.carer]
+/// supersedes [CaseQuery.allScope] rather than intersecting with it — picking a
+/// colleague while scoped to "mine" would otherwise yield nothing — which the
+/// sheet used to express as a mine/all toggle that greyed itself out whenever a
+/// colleague was named. Two controls for one question also made the default
+/// read as a contradiction: the toggle said "Mine" while the carer picker
+/// beside it said "Any carer".
+@immutable
+class _Caseload {
+  const _Caseload.mine() : carerId = null, allScope = false;
+  const _Caseload.all() : carerId = null, allScope = true;
+  const _Caseload.of(String this.carerId) : allScope = false;
+
+  /// The colleague whose caseload this names, or null for the mine/all
+  /// entries.
+  final String? carerId;
+  final bool allScope;
+
+  /// [query] pointed at this caseload. Both fields are always written, so
+  /// leaving a colleague cannot strand the scope they were picked from.
+  CaseQuery applyTo(CaseQuery query) {
+    final id = carerId;
+    return id == null
+        ? query.copyWith(allScope: allScope, clearCarer: true)
+        : query.copyWith(carer: id);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Caseload &&
+      other.carerId == carerId &&
+      other.allScope == allScope;
+
+  @override
+  int get hashCode => Object.hash(carerId, allScope);
+}
+
 /// Bottom sheet holding the secondary filters. Edits its own copy of the query
 /// and pushes each change up live, so the list behind it updates immediately.
 ///
 /// Every `DropdownMenu` here sets `requestFocusOnTap: false`. They are pickers
-/// over a closed set — the carers, species, outcomes and diagnoses that exist —
-/// so there is nothing a typed value could mean. Left at the default the field
+/// over a closed set — the caseloads, species, outcomes and diagnoses that
+/// exist — so there is nothing a typed value could mean. Left at the default it
 /// is editable on desktop/web (the flag resolves per platform: read-only on
 /// Android/iOS, focusable elsewhere), and since none of them sets
 /// `enableFilter`, typing only overwrites the label of a selection that is
@@ -425,6 +465,14 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
   List<AppUser> get _carerOptions =>
       ref.watch(admin.orgMembersProvider).value ?? const [];
 
+  /// Which caseload the current query names — the selected entry of the one
+  /// picker that now covers mine / all / a colleague's.
+  _Caseload get _caseload {
+    final carerId = _query.carer;
+    if (carerId != null) return _Caseload.of(carerId);
+    return _query.allScope ? const _Caseload.all() : const _Caseload.mine();
+  }
+
   Future<void> _pickDateRange() async {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
@@ -471,46 +519,32 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            _FilterLabel(l10n.casesScopeLabel),
-            SegmentedButton<bool>(
-              segments: [
-                ButtonSegment(value: false, label: Text(l10n.casesScopeMine)),
-                ButtonSegment(value: true, label: Text(l10n.casesScopeAll)),
-              ],
-              selected: {_query.allScope},
-              // Inert while a carer is picked — that names the caseload to
-              // show, so it stands in for the mine/all split rather than
-              // intersecting with it (see CaseQuery.carer). Disabled instead of
-              // hidden so the relationship is visible, not mysterious.
-              onSelectionChanged: _query.carer != null
-                  ? null
-                  : (s) => _apply(_query.copyWith(allScope: s.first)),
-            ),
-            // Also shown while the roster is still loading if a carer filter is
-            // already in force, so the badge never counts a facet with no
-            // control on screen to clear it.
-            if (carers.isNotEmpty || _query.carer != null) ...[
-              const SizedBox(height: AppSpacing.md),
-              _FilterLabel(l10n.placementFieldCarer),
-              DropdownMenu<String?>(
-                initialSelection: _query.carer,
-                expandedInsets: EdgeInsets.zero,
-                requestFocusOnTap: false,
-                dropdownMenuEntries: [
-                  DropdownMenuEntry(
-                    value: null,
-                    label: l10n.casesFilterCarerAny,
-                  ),
-                  for (final m in carers)
-                    DropdownMenuEntry(value: m.id, label: memberLabel(m)),
-                ],
-                onSelected: (id) => _apply(
-                  id == null
-                      ? _query.copyWith(clearCarer: true)
-                      : _query.copyWith(carer: id),
+            _FilterLabel(l10n.casesCaseloadLabel),
+            DropdownMenu<_Caseload>(
+              initialSelection: _caseload,
+              expandedInsets: EdgeInsets.zero,
+              requestFocusOnTap: false,
+              dropdownMenuEntries: [
+                // The same words the app bar then shows, so the entry and the
+                // title agree about which list this is.
+                DropdownMenuEntry(
+                  value: const _Caseload.mine(),
+                  label: l10n.casesTitle,
                 ),
-              ),
-            ],
+                DropdownMenuEntry(
+                  value: const _Caseload.all(),
+                  label: l10n.casesAllTitle,
+                ),
+                for (final m in carers)
+                  DropdownMenuEntry(
+                    value: _Caseload.of(m.id),
+                    label: memberLabel(m),
+                  ),
+              ],
+              onSelected: (choice) {
+                if (choice != null) _apply(choice.applyTo(_query));
+              },
+            ),
             const SizedBox(height: AppSpacing.md),
             _FilterLabel(l10n.casesActivityLabel),
             SegmentedButton<CaseActivity>(
