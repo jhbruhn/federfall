@@ -62,46 +62,60 @@ class DashboardScreen extends ConsumerWidget {
             ],
           );
 
-          // Wide screens place the actionable Today preview and the caseload
-          // overview side-by-side (federfall-zbe); narrower ones stack them.
-          // The workload card follows the caseload in both — it is reference
-          // material for the oversight roles, not an action list.
-          final body = context.isExpanded
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // showEmptyState so the column is never blank beside the
-                    // caseload when nothing is due.
-                    const Expanded(
-                      child: _WorklistPreview(showEmptyState: true),
-                    ),
-                    const SizedBox(width: AppSpacing.lg),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [caseload, const _CarerWorkloadCard()],
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  // Today always leads — even when nothing is due it shows a
-                  // compact "all caught up" card, so the actionable section is
-                  // the consistent lead and the caseload reads as reference
-                  // below it (federfall-6ds).
-                  children: [
-                    const _WorklistPreview(showEmptyState: true),
-                    caseload,
-                    const _CarerWorkloadCard(),
-                  ],
-                );
-
           return RefreshIndicator(
             onRefresh: () => ref.refresh(dashboardSummaryProvider.future),
-            child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [body],
+            // Keyed on the width actually available, not on the window class:
+            // a NavigationRail stands beside this body on medium and expanded
+            // windows, so `context.isExpanded` promised a split the content
+            // never had room for (federfall-773v). Same mechanism the
+            // statistics screen uses.
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumn =
+                    constraints.maxWidth >= kDashboardTwoColumnMin;
+                // Wide windows place the actionable Today preview and the
+                // caseload overview side by side (federfall-zbe); narrower
+                // ones stack them. The workload card follows the caseload in
+                // both — it is reference material for the oversight roles, not
+                // an action list. Today always leads: first column when there
+                // are two, first card when there is one, and even with nothing
+                // due it shows a compact "all caught up" card so the
+                // actionable section is the consistent lead (federfall-6ds).
+                final body = twoColumn
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // showEmptyState so the column is never blank beside
+                          // the caseload when nothing is due.
+                          const Expanded(
+                            child: _WorklistPreview(showEmptyState: true),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [caseload, const _CarerWorkloadCard()],
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const _WorklistPreview(showEmptyState: true),
+                          caseload,
+                          const _CarerWorkloadCard(),
+                        ],
+                      );
+
+                return ContentBounds(
+                  maxWidth: twoColumn ? kWideContentMaxWidth : kContentMaxWidth,
+                  child: ListView(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    children: [body],
+                  ),
+                );
+              },
             ),
           );
         },

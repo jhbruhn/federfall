@@ -83,8 +83,8 @@ class KpiCard extends StatelessWidget {
   }
 }
 
-/// Lays [tiles] out as a grid of equal-width [KpiCard]s: two columns on a
-/// phone, more as the window earns them.
+/// Lays [tiles] out as a grid of equal-width, equal-height [KpiCard]s: two
+/// columns on a phone, more as the window earns them.
 ///
 /// The width comes from the incoming constraints rather than a fixed number, so
 /// tiles grow with the pane and a long label at a large text scale gets room to
@@ -92,6 +92,14 @@ class KpiCard extends StatelessWidget {
 /// readable tile rather than the window class: five tiles in two columns is
 /// three rows of scrolling on a desktop, and a tile stretched to 600px is a
 /// number lost in a field of white.
+///
+/// Rows are laid out one at a time under an [IntrinsicHeight] rather than as
+/// one `Wrap`, because a `Wrap` gives every child its own height: at 400px the
+/// dashboard's own labels rendered 176px and 196px tiles side by side — "Active
+/// cases" fits on one line and "Intakes this year" wraps to two — leaving each
+/// row ragged along the bottom. The tallest tile in a row now sets the height
+/// for that row, so the cards read as one grid while still sizing to their
+/// content (a fixed aspect ratio would clip the very labels that cause this).
 class KpiGrid extends StatelessWidget {
   const KpiGrid(this.tiles, {super.key});
 
@@ -109,14 +117,38 @@ class KpiGrid extends StatelessWidget {
         // grid) and never more than four (past that the eye stops reading a
         // row and starts scanning a table).
         final columns = fits.clamp(2, 4);
-        final width =
-            (constraints.maxWidth - AppSpacing.md * (columns - 1)) / columns;
-        return Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.md,
-          children: [
-            for (final tile in tiles) SizedBox(width: width, child: tile),
-          ],
+        final rows = <Widget>[];
+        for (var start = 0; start < tiles.length; start += columns) {
+          final end = start + columns;
+          final row = tiles.sublist(
+            start,
+            end > tiles.length ? tiles.length : end,
+          );
+          if (rows.isNotEmpty) {
+            rows.add(const SizedBox(height: AppSpacing.md));
+          }
+          rows.add(
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < columns; i++) ...[
+                    if (i > 0) const SizedBox(width: AppSpacing.md),
+                    // A short last row keeps its columns: the empty slots hold
+                    // their share of the width so a lone final tile stays tile
+                    // -sized instead of stretching across the whole grid.
+                    Expanded(
+                      child: i < row.length ? row[i] : const SizedBox.shrink(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: rows,
         );
       },
     );

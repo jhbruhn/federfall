@@ -143,7 +143,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
               ];
 
               return ContentBounds(
-                maxWidth: twoColumn ? kStatsMaxWidth : kContentMaxWidth,
+                maxWidth: twoColumn ? kWideContentMaxWidth : kContentMaxWidth,
                 child: ListView(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   children: [

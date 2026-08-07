@@ -51,10 +51,24 @@ const double kSheetMaxWidth = 640;
 /// does. Below this the screen stays the single column a phone gets.
 const double kStatsTwoColumnMin = 960;
 
-/// Width cap for the statistics screen once it is two columns. Wider than
-/// [kContentMaxWidth] because two columns of chart need the room; without a cap
-/// a 4K window would stretch a breakdown row across half a metre.
-const double kStatsMaxWidth = 1280;
+/// Width at/above which the dashboard lays its Today preview and its caseload
+/// side by side instead of stacking them.
+///
+/// Higher than [kStatsTwoColumnMin], and derived rather than chosen: the right
+/// column carries the KPI grid, which needs room for two tiles at its own
+/// 240px minimum (`KpiGrid`), i.e. 496 including the gap between them. Two such
+/// columns plus the gap between them and the page's own padding is 1040. Below
+/// that the caseload is better off with the full width — and the split used to
+/// happen at [kExpandedMin], which is not even the width the dashboard gets: a
+/// `NavigationRail` stands beside it, so the body is 80–200px narrower than the
+/// window and the tiles came out under 190px.
+const double kDashboardTwoColumnMin = 1040;
+
+/// Width cap for a page that has earned two columns (statistics, the
+/// dashboard). Wider than [kContentMaxWidth] because two columns of chart or of
+/// cards need the room; without a cap a 4K window would stretch a breakdown row
+/// across half a metre.
+const double kWideContentMaxWidth = 1280;
 
 /// Width of the *detail pane* at/above which the case detail lays Overview and
 /// History out side-by-side instead of behind tabs. Keyed on the pane (not the
