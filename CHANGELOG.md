@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.17.0](https://github.com/jhbruhn/federfall/compare/v0.16.0...v0.17.0) (2026-08-07)
+
+
+### Features
+
+* **backend:** count views for the dashboard, so it stops reading whole collections ([6cf5928](https://github.com/jhbruhn/federfall/commit/6cf592814334bdd080d6cca412fd07688f6de750))
+* **statistics:** a month is a period too, and each breakdown shows its shape ([c207b7d](https://github.com/jhbruhn/federfall/commit/c207b7d2f6f21d311bdb737ce8e5a74ae2dbf5a1))
+* **statistics:** let the statistics screen use a desktop window ([e22cc71](https://github.com/jhbruhn/federfall/commit/e22cc717c4eaa007251350538af1ac1b094917b3))
+* **statistics:** report intakes over time, and outcome rates ([998e923](https://github.com/jhbruhn/federfall/commit/998e923a0ae502ff0b70a78e4a4318025072960d))
+
+
+### Bug Fixes
+
+* **app:** render every date in local time, through one formatter (federfall-yok0) ([4bf3dc4](https://github.com/jhbruhn/federfall/commit/4bf3dc4fec0b42a5c787c0f8d7c6aa81765bb6d4))
+* **app:** report the error that happened, not a ParallelWaitError ([9dee209](https://github.com/jhbruhn/federfall/commit/9dee209f3a8a9091cfa0dd7bd3f1d60c41c1b307))
+* **app:** seed the prescription end date in local time (federfall-ao0k) ([3943115](https://github.com/jhbruhn/federfall/commit/394311524a64b5ac2f13a7b6c92694d2a20f2395))
+* **app:** stop a token refresh refetching the case list and the worklist ([bca7fd0](https://github.com/jhbruhn/federfall/commit/bca7fd0d759c74a559030a07d8215038f59850d2))
+* **backend:** budget the report render routes, and make the rate-limit labels actually bind (federfall-ds0d) ([f66fd66](https://github.com/jhbruhn/federfall/commit/f66fd664e04d53762795734b3c8228dc38220e4c))
+* **backend:** hand the report payload to typst as a file, not as an argv element (federfall-ds0d) ([77cf588](https://github.com/jhbruhn/federfall/commit/77cf5880297bcb78d5fceeb60938c419bf98d2ba))
+* **backend:** make vet_appointments case/org immutable after create (federfall-nbqy) ([a7a1b13](https://github.com/jhbruhn/federfall/commit/a7a1b13b646d8dfe0416da26000dbf79b4723529))
+* **backend:** pin authorship fields to the authenticated caller (federfall-vfry) ([189b237](https://github.com/jhbruhn/federfall/commit/189b2371a064ffa5b56273de67fb735fdb10a8a1))
+* **backend:** re-point a merged animal's egg records and aviary stays (federfall-0ua6) ([dd25cb0](https://github.com/jhbruhn/federfall/commit/dd25cb081d36457cbf4fd358f0c3f1ecbd34a1b9))
+* **backend:** stop the geocode rate limiter from disarming PocketBase's default brakes (federfall-sjtg) ([20f5937](https://github.com/jhbruhn/federfall/commit/20f5937c26b44f7f7dd24e459b9c2410eac3ac8f))
+* **backend:** stop the purge crons from spinning forever on an undeletable page (federfall-ex20) ([d0cdecc](https://github.com/jhbruhn/federfall/commit/d0cdecc75406bb1c0356ca23bb24650c58a1e328))
+* **cases:** keep paging when the outcome facet empties a page (federfall-etd7) ([0f4d6ce](https://github.com/jhbruhn/federfall/commit/0f4d6ce98cf159d1a497599c127aadd0c7408462))
+* **cases:** one caseload picker instead of a scope toggle beside it ([88165fc](https://github.com/jhbruhn/federfall/commit/88165fcd0873abec724678041a8d0cf7efe0d261))
+* **dashboard,cases:** make each KPI equal the list it opens, and survive a missing view ([5421ba5](https://github.com/jhbruhn/federfall/commit/5421ba59af37e7c671bb98855803c555f0355227))
+* **dashboard:** stop the Today card blinking out every time it reloads ([fdb946e](https://github.com/jhbruhn/federfall/commit/fdb946ef9d753b0b31c6c136dfcca136bf912ef3))
+* **dashboard:** stop the workload provider wrapping its errors too ([ade743b](https://github.com/jhbruhn/federfall/commit/ade743b2e0d12963c70c4dfc1fe02098c6fdf691))
+* **hooks,dashboard:** one timezone helper, and one year boundary ([58d943f](https://github.com/jhbruhn/federfall/commit/58d943fd064880c2ad4ec35311c3bdd249ef2f33))
+* **hooks:** read an org's settings in one place, and decode it there ([a48e1be](https://github.com/jhbruhn/federfall/commit/a48e1beb508526366f311c01162384e9499f80d3))
+* **hooks:** read the finder retention window the app actually writes ([1f588a4](https://github.com/jhbruhn/federfall/commit/1f588a43caf279cc619089aca905aca3b22231f1))
+* **intake:** keep a fractional intake weight (federfall-nd2c) ([d089db3](https://github.com/jhbruhn/federfall/commit/d089db3f422935644e390c6283de6b214b328ec7))
+* **intake:** set lifetime_status on a newly admitted animal ([ae3720c](https://github.com/jhbruhn/federfall/commit/ae3720c175470600e50a141851dd061cef7757e1))
+* **ui,dashboard:** one size per KPI row, and a split the dashboard can afford ([b6ef2f6](https://github.com/jhbruhn/federfall/commit/b6ef2f69489f69f0dfe0ed618a450d470c1f8909))
+
+
+### Performance Improvements
+
+* **cases,animals:** filter the browser and registry on the server ([ec9bc5c](https://github.com/jhbruhn/federfall/commit/ec9bc5c156e8d25a9c6da026f9b3297d5a069b8b))
+* **dashboard:** count on the server, stop pulling two collections to the device ([b3e6c5b](https://github.com/jhbruhn/federfall/commit/b3e6c5bcb70521725a714993c8b304bcd1825608))
+* **worklist,statistics:** ask the server for the rows, not for the collection ([c38566a](https://github.com/jhbruhn/federfall/commit/c38566aeb786ba7b191ae86b67094349d168bf4e))
+
 ## [0.16.0](https://github.com/jhbruhn/federfall/compare/v0.15.0...v0.16.0) (2026-08-04)
 
 
