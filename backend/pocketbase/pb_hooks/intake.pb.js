@@ -106,6 +106,16 @@ routerAdd(
         animal = new Record(tx.findCollectionByNameOrId("animals"));
         animal.set("species", species);
         if (str(body.name)) animal.set("name", str(body.name));
+        // A bird being admitted is in care — otherwise `lifetime_status` stays
+        // empty until the first disposition and the registry shows no status
+        // chip at all. Set ONLY on this branch: a brand-new record has no
+        // history to overwrite, so it is safe whatever order cases are entered
+        // in. The re-identification branch above deliberately does NOT get
+        // this — the derivation hooks order dispositions by `created` rather
+        // than `disposed_at`, so writing a lifetime state there would clobber
+        // an existing aviary residency when archived cases are backfilled
+        // (federfall-sinp).
+        animal.set("lifetime_status", "in_care");
         animal.set("org", org);
         tx.save(animal);
       }

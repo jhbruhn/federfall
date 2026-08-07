@@ -2207,6 +2207,14 @@ def main():
     iq = listf(T, "quarantine_records", f'case = "{ic["id"]}"')
     check("quarantine override row (admitted+10d), no default duplicate",
           len(iq) == 1 and iq[0]["quarantine_until"][:10] == "2026-06-11", iq)
+    # A newly admitted bird is in care from the start. Without this the field
+    # stayed empty until the first disposition and the registry showed no
+    # status chip at all.
+    _, ianimal = req("GET",
+                     f"/api/collections/animals/records/{icase['animal']}", T)
+    check("intake sets lifetime_status on the new animal",
+          ianimal.get("lifetime_status") == "in_care",
+          ianimal.get("lifetime_status"))
 
     # Multipart intake: the Dart SDK sends the payload as an `@jsonPayload`
     # field next to the `intake_photos` files — exactly what the app does for
@@ -2296,6 +2304,28 @@ def main():
     fanimal = mk(T, "animals", {"species": "Stadttaube", "org": org2})["id"]
     s, _ = req("POST", "/api/federfall/intake", toks["a"], {"animal": fanimal})
     check("intake CANNOT reuse a foreign-org animal", s == 400, f"status {s}")
+
+    # ...and re-identifying an EXISTING animal must not write its lifetime
+    # state at all. The derivation hooks order dispositions by `created` rather
+    # than `disposed_at` (federfall-sinp), so an intake that stamped "in_care"
+    # here would evict a resident whose archived case is being backfilled —
+    # clearing current_aviary and closing the open aviary_stays row with a
+    # present-dated `ended_at`. Only the new-animal branch sets the field.
+    ri_av = mk(T, "aviaries", {"name": "Voliere Reident", "org": ORG})["id"]
+    ri_animal = mk(T, "animals", {
+        "species": "Stadttaube", "org": ORG,
+        "lifetime_status": "in_aviary", "current_aviary": ri_av,
+    })["id"]
+    s, _ = req("POST", "/api/federfall/intake", toks["a"], {"animal": ri_animal})
+    check("re-identification intake succeeds", s == 200, f"status {s}")
+    _, ri = req("GET", f"/api/collections/animals/records/{ri_animal}", T)
+    check("re-identification leaves an existing lifetime_status alone",
+          ri.get("lifetime_status") == "in_aviary", ri.get("lifetime_status"))
+    check("re-identification leaves the residency intact",
+          ri.get("current_aviary") == ri_av, ri.get("current_aviary"))
+    ri_stays = listf(T, "aviary_stays", f'animal = "{ri_animal}" && ended_at = ""')
+    check("re-identification does not close the open aviary stay",
+          len(ri_stays) == 1, ri_stays)
 
     # cases.finder is locked for direct writes (federfall-9hy): linking is
     # exclusively the intake route's job.
