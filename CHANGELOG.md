@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/jhbruhn/federfall/compare/v0.17.0...v0.17.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* remove redundant sentence to trigger release ([6814ae9](https://github.com/jhbruhn/federfall/commit/6814ae92212d186d7acff1464fd40b57090bf38a))
+
 ## [0.17.0](https://github.com/jhbruhn/federfall/compare/v0.16.0...v0.17.0) (2026-08-07)
 
 
