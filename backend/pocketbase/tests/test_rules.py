@@ -1507,48 +1507,27 @@ def main():
                {"case_number": "nope", "org": ORG})
     check("the view is read-only even for a supervisor", s != 200, f"status {s}")
 
-    # ── federfall-s0wk: dashboard count views ───────────────────────────────
-    # The dashboard's figures as counts rather than as two full collections on
-    # the device. The rules do the scoping — a carer reads their own viewer
-    # row, coordinators/supervisors read the org — so nothing re-implements
+    # ── federfall-s0wk: the carer-load view ─────────────────────────────────
+    # The workload card's figures as counts rather than as a full collection on
+    # the device. The rule does the scoping, so nothing re-implements
     # who-may-see-what in JS.
-    print("\n[dashboard count views]")
+    #
+    # 1700000070 added a second view here, `case_viewer_counts`. It is gone
+    # (1700000071, federfall-45o4): the dashboard's status figures count on
+    # `cases` instead, because the list rule scopes a count exactly as it
+    # scopes the list each tile taps through to — which a viewer-scoped view
+    # cannot do for a coordinator reading org-wide.
+    print("\n[dashboard count view]")
 
     s0_animal = mk(T, "animals", {"species": "s0wk Taube", "org": ORG})["id"]
-    # One case A is the active carer of, one shared with B (whose own caseload
-    # is otherwise empty), so "may see" and "is carer of" cannot be confused.
-    s0_mine = mk(T, "cases", {"animal": s0_animal, "active_carer": A,
-                              "org": ORG})["id"]
+    # One case A is the active carer of, one also shared with B (whose own
+    # caseload is otherwise empty), so "may see" and "is carer of" cannot be
+    # confused.
+    mk(T, "cases", {"animal": s0_animal, "active_carer": A, "org": ORG})
     s0_shared = mk(T, "cases", {"animal": s0_animal, "active_carer": A,
                                 "org": ORG})["id"]
     mk(T, "case_shares", {"case": s0_shared, "shared_with": B,
                           "access": "read", "org": ORG})
-
-    def viewer_rows(tok):
-        return listf(tok, "case_viewer_counts", "id != ''")
-
-    a_rows = viewer_rows(toks["a"])
-    check("a carer reads only their own viewer row",
-          bool(a_rows) and all(r.get("viewer") == A for r in a_rows),
-          [r.get("viewer") for r in a_rows])
-    a_in_care = sum(r.get("cases", 0) for r in a_rows
-                    if r.get("status") == "in_care")
-    check("...counting the cases they are the carer of", a_in_care >= 2,
-          a_in_care)
-
-    b_rows = [r for r in viewer_rows(toks["b"]) if r.get("viewer") == B]
-    b_in_care = sum(r.get("cases", 0) for r in b_rows
-                    if r.get("status") == "in_care")
-    check("a share puts the case in the recipient's count too",
-          b_in_care >= 1, b_rows)
-
-    check("a coordinator reads the whole org's viewer rows",
-          len({r.get("viewer") for r in viewer_rows(toks["coord"])}) > 1,
-          "only one viewer visible")
-    check("other-org member sees none of this org's rows",
-          all(r.get("org") == "" or r.get("org") != ORG
-              for r in listf(te, "case_viewer_counts", f'org = "{ORG}"')),
-          "leaked across orgs")
 
     # The workload view is org-wide by construction, so it is gated like every
     # other org-wide figure — the card that shows it is canViewReports-only.
@@ -1587,11 +1566,17 @@ def main():
           load.get(B, 0) == open_of(B),
           f'view {load.get(B)} vs cases {open_of(B)}')
 
-    for coll in ("case_viewer_counts", "case_carer_load"):
-        s, _ = req("POST", f"/api/collections/{coll}/records", toks["sup"],
-                   {"org": ORG})
-        check(f"{coll} is read-only even for a supervisor", s != 200,
-              f"status {s}")
+    s, _ = req("POST", "/api/collections/case_carer_load/records", toks["sup"],
+               {"org": ORG})
+    check("case_carer_load is read-only even for a supervisor", s != 200,
+          f"status {s}")
+
+    # And the view that used to sit beside it is really gone, not merely
+    # unread — an unused collection keeps answering, so this pins the drop.
+    s, _ = req("GET", "/api/collections/case_viewer_counts/records",
+               toks["sup"])
+    check("case_viewer_counts is gone (federfall-45o4)", s == 404,
+          f"status {s}")
 
     # ── federfall-trep: the case browser's filters, run on the server ───────
     # The browser stopped pulling `cases` + `animals` to the device to filter
@@ -1713,9 +1698,8 @@ def main():
     # case_report_rows can't join that sweep — it is coordinator/supervisor
     # only, so the carer token above would make the non-vacuous check fail for
     # the right reason. Same wall, checked against a supervisor instead.
-    for coll in ("case_viewer_counts", "case_carer_load"):
-        check(f"guest sees no {coll}",
-              len(listf(gtok, coll, "id != ''")) == 0, "non-empty")
+    check("guest sees no case_carer_load",
+          len(listf(gtok, "case_carer_load", "id != ''")) == 0, "non-empty")
     check("supervisor sees case_report_rows (wall check is non-vacuous)",
           len(listf(toks["sup"], "case_report_rows", "id != ''")) > 0, "empty")
     check("guest sees no case_report_rows",
