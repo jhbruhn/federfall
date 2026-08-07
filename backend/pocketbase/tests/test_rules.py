@@ -649,6 +649,48 @@ def main():
     s, _ = req("PATCH", f"/api/collections/journal_entries/records/{je['id']}", tc,
                {"text": "wound check — healing well"})
     check("journal_entry content stays editable", s == 200, f"status {s}")
+    # vet_appointments shipped (1700000064) without the :isset suffix —
+    # federfall-nbqy: the stored-record grant let the carer or an edit-share
+    # holder re-point an appointment into ANY case, even another org's.
+    # 1700000072 closes it; same probe as the journal entry above.
+    s, vab = req("POST", "/api/collections/vet_appointments/records", tc,
+                 {"case": case, "starts_at": "2026-08-06 09:00:00.000Z",
+                  "reason": "Nachkontrolle", "org": ORG})
+    check("setup: edit-share C can book an appointment", s == 200, f"{s} {vab}")
+    s, _ = req("PATCH", f"/api/collections/vet_appointments/records/{vab['id']}",
+               tc, {"case": victim})
+    check("vet_appointment.case is immutable (no timeline injection)",
+          s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/vet_appointments/records/{vab['id']}",
+               tc, {"org": org2})
+    check("vet_appointment.org is immutable", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/vet_appointments/records/{vab['id']}",
+               tc, {"outcome": "alles verheilt"})
+    check("vet_appointment content stays editable", s == 200, f"status {s}")
+    req("DELETE", f"/api/collections/vet_appointments/records/{vab['id']}", tc)
+    # The sweep that stops the NEXT collection repeating this: every base
+    # collection whose UPDATE grant traverses `case.` / `exam.` (resolved
+    # against the STORED record) must pin that relation and `org` with :isset
+    # guards. Read from the live schema rather than a list of names — a
+    # sampled list is exactly how vet_appointments slipped through.
+    s, cols = req("GET", "/api/collections?perPage=200", T)
+    check("setup: collections listed for the boundary sweep",
+          s == 200 and bool(cols), f"status {s}")
+    unguarded = []
+    for col in (cols or {}).get("items", []):
+        if col.get("type") != "base":
+            continue
+        rule = col.get("updateRule") or ""
+        for parent in ("case", "exam"):
+            # Top-level traversals only: `exam.case.org` grants via `exam`,
+            # not `case`, so a dot-preceded segment does not count.
+            if not re.search(rf"(?<![.\w]){parent}\.", rule):
+                continue
+            for f in (parent, "org"):
+                if f"@request.body.{f}:isset = false" not in rule:
+                    unguarded.append(f"{col['name']}: no {f} guard")
+    check("every update rule granting via case/exam pins its boundary "
+          "relations", not unguarded, "; ".join(unguarded))
 
     # ── journal_entries: dual-parent (federfall-d5co.2) ─────────────────────
     print("\n[journal_entries: aviary-scoped entries]")
