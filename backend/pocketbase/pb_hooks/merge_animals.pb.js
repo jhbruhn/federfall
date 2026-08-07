@@ -5,8 +5,9 @@
 // REQUIREMENTS.md §6: linking a returning bird at intake is optional and an
 // unringed feral is a carer judgment call, so duplicate animal records happen
 // in real use. This route folds a `duplicate` animal into a `survivor`: every
-// animal-scoped child record (cases, markings, weights, exams — the four
-// collections with a direct `animal` relation) is re-pointed to the survivor,
+// animal-scoped child record (cases, markings, weights, exams, egg_records,
+// aviary_stays — every collection with a direct `animal` relation) is
+// re-pointed to the survivor,
 // the survivor's identity fields are set from whichever record the supervisor
 // picked per field, its lifetime_status/current_aviary are re-derived from the
 // now-merged case history (same rule as the dispositions reconcile in
@@ -114,12 +115,34 @@ routerAdd(
         survivor.set("photo", "");
       }
 
-      tx.save(survivor);
+      // The survivor is saved exactly ONCE, at the end — the identity fields
+      // above and the derived lifetime state below travel in the same write.
+      // Two saves would be two `animals` update events, and a hook that reacts
+      // to a field transition sees both of them against the same stale
+      // `original()` (the after-success callbacks are deferred to the commit
+      // and re-read the same record object), so aviary_stays.pb.js opened two
+      // residencies for one move (federfall-0ua6).
 
-      // Re-point every animal-scoped child collection (the four with a
-      // direct `animal` relation) — everything else hangs off `cases`, which
-      // is repointed here too, so it follows automatically.
-      for (const collection of ["cases", "markings", "weights", "exams"]) {
+      // Re-point every animal-scoped child collection — everything else hangs
+      // off `cases`, which is repointed here too, so it follows automatically.
+      //
+      // federfall-0ua6: this list must name EVERY collection with a direct
+      // `animal` relation, because all of them declare `cascadeDelete: true`
+      // on it — anything missing here is not "left on the duplicate", it is
+      // destroyed by the tx.delete(duplicate) below, without an error and
+      // without a trace. `egg_records` (1700000056) and `aviary_stays`
+      // (1700000052) both landed after the original four were written and
+      // were being erased by every merge. A new collection that points at
+      // `animals` has to be added here too; test_rules.py's [animal merge]
+      // block is the guard.
+      for (const collection of [
+        "cases",
+        "markings",
+        "weights",
+        "exams",
+        "egg_records",
+        "aviary_stays",
+      ]) {
         for (const rec of tx.findRecordsByFilter(
           collection,
           "animal = {:a}",
@@ -129,6 +152,23 @@ routerAdd(
           { a: duplicateId },
         )) {
           rec.set("animal", survivorId);
+          // The residency ledger allows exactly ONE open row per animal
+          // ("current residency" = the latest row with `ended_at` unset), and
+          // the survivor may already have one — so a re-pointed open stay
+          // would leave the bird resident in two enclosures at once, which
+          // `forAnimalAt` and the aviary rosters both read as truth. Close it
+          // as of the merge: the survivor's own residency is re-derived below
+          // through `current_aviary`, which aviary_stays.pb.js turns into a
+          // fresh open row when it changes. A residency that really continues
+          // therefore shows as two consecutive rows split at the merge —
+          // honest for an append-only ledger, since the two records WERE
+          // separate until this moment.
+          if (
+            collection === "aviary_stays" &&
+            rec.getString("ended_at") === ""
+          ) {
+            rec.set("ended_at", new Date().toISOString());
+          }
           tx.save(rec);
         }
       }
@@ -177,6 +217,22 @@ routerAdd(
           case "transferred":
             lifetime = "at_large_released";
             break;
+        }
+      } else {
+        // No disposition anywhere in the merged history, so nothing has
+        // decided this bird's lifetime state — don't let the "in_care"
+        // default overwrite a case-less aviary residency. add_animal_sheet
+        // .dart adds a resident straight to an enclosure with no case at all
+        // (1700000052 lists it as one of the five current_aviary writers), so
+        // that residency exists only on the animal record. Keep whichever
+        // side documents one, the survivor first: dropping it here would
+        // silently evict the bird and close its stay (federfall-0ua6).
+        const housed =
+          survivor.getString("current_aviary") ||
+          duplicate.getString("current_aviary");
+        if (housed) {
+          lifetime = "in_aviary";
+          aviary = housed;
         }
       }
       survivor.set("lifetime_status", lifetime);

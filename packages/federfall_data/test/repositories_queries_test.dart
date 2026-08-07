@@ -156,6 +156,12 @@ void main() {
       expect(capturedQuery()[1], '-started_at');
     });
 
+    test('forAnimal reads one bird whole history, newest first', () async {
+      await PbAviaryStaysRepository(pb).forAnimal('anml1');
+      verify(() => pb.filter('animal = {:a}', {'a': 'anml1'})).called(1);
+      expect(capturedQuery()[1], '-started_at');
+    });
+
     test(
       'forAnimalAt bounds the date and treats an unset end as open',
       () async {

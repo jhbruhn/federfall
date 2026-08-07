@@ -1210,6 +1210,94 @@ def main():
         s, _ = req("GET", f"/api/collections/{coll}/records/{rec_id}", T)
         check(f"deleting the animal removes {label}", s == 404, f"status {s}")
 
+    # ── animal merge: every child collection is re-pointed (federfall-0ua6) ──
+    # The merge ends in tx.delete(duplicate), and EVERY collection with a
+    # direct `animal` relation cascades on it. So a collection the re-point
+    # loop forgets is not left behind — it is destroyed, inside the merge
+    # transaction, with a 200 on the wire. `egg_records` and `aviary_stays`
+    # were both added after that list was written and were being erased by
+    # every merge. This block is the guard for the whole list, so add a case
+    # here whenever a new collection points at `animals`.
+    print("\n[animal merge]")
+    mg_av_a = mk(T, "aviaries", {"name": "Merge-Voliere A", "org": ORG})["id"]
+    mg_av_b = mk(T, "aviaries", {"name": "Merge-Voliere B", "org": ORG})["id"]
+    # Both records are aviary residents, in DIFFERENT enclosures — the case
+    # that produces two open stays on one animal if the ledger is re-pointed
+    # without reconciling it.
+    mg_keep = mk(T, "animals", {
+        "species": "Stadttaube", "name": "Bleibt", "org": ORG,
+        "current_aviary": mg_av_a, "lifetime_status": "in_aviary",
+    })["id"]
+    mg_gone = mk(T, "animals", {
+        "species": "Stadttaube", "name": "Dublette", "org": ORG,
+        "current_aviary": mg_av_b, "lifetime_status": "in_aviary",
+    })["id"]
+    mg_case = mk(T, "cases", {
+        "animal": mg_gone, "active_carer": A, "org": ORG,
+    })["id"]
+    mg_weight = mk(T, "weights", {
+        "animal": mg_gone, "weight_g": 280, "org": ORG,
+    })["id"]
+    mg_marking = mk(T, "markings", {
+        "animal": mg_gone, "type": ti77_type, "org": ORG,
+    })["id"]
+    mg_egg = mk(T, "egg_records", {
+        "animal": mg_gone, "count": 2, "org": ORG,
+    })["id"]
+    mg_stay = listf(T, "aviary_stays", f'animal = "{mg_gone}"')
+    check("the duplicate starts with one open stay",
+          len(mg_stay) == 1 and mg_stay[0]["ended_at"] == "", mg_stay)
+    mg_stay = mg_stay[0]["id"] if mg_stay else ""
+
+    s, _ = req("POST", "/api/federfall/merge-animals", toks["sup"],
+               {"survivor": mg_keep, "duplicate": mg_gone, "fields": {}})
+    check("merge succeeds", s == 200, f"status {s}")
+    for coll, rec_id, label in [
+        ("cases", mg_case, "cases"),
+        ("weights", mg_weight, "weights"),
+        ("markings", mg_marking, "markings"),
+        ("egg_records", mg_egg, "egg records"),
+        ("aviary_stays", mg_stay, "aviary stays"),
+    ]:
+        s, d = req("GET", f"/api/collections/{coll}/records/{rec_id}", T)
+        check(f"the duplicate's {label} survive the merge, on the survivor",
+              s == 200 and (d or {}).get("animal") == mg_keep, f"{s} {d}")
+
+    mg_stays = listf(T, "aviary_stays", f'animal = "{mg_keep}"')
+    mg_open = [x for x in mg_stays if x["ended_at"] == ""]
+    check("the merged bird is resident in exactly ONE enclosure",
+          len(mg_open) == 1 and mg_open[0]["aviary"] == mg_av_a, mg_stays)
+    check("...with the duplicate's residency closed, not deleted",
+          len(mg_stays) == 2
+          and any(x["id"] == mg_stay and x["ended_at"] != "" for x in mg_stays),
+          mg_stays)
+    s, mg_survivor = req("GET", f"/api/collections/animals/records/{mg_keep}", T)
+    check("the survivor keeps its own enclosure",
+          (mg_survivor or {}).get("current_aviary") == mg_av_a
+          and (mg_survivor or {}).get("lifetime_status") == "in_aviary",
+          mg_survivor)
+
+    # A case-less residency (add_animal_sheet.dart adds a resident straight to
+    # an enclosure, no case and therefore no disposition) lives ONLY on the
+    # animal record — so the merge's disposition-driven re-derivation used to
+    # reset it to "in care" and evict the bird.
+    mg2_keep = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    mg2_gone = mk(T, "animals", {
+        "species": "Stadttaube", "org": ORG,
+        "current_aviary": mg_av_b, "lifetime_status": "in_aviary",
+    })["id"]
+    s, _ = req("POST", "/api/federfall/merge-animals", toks["sup"],
+               {"survivor": mg2_keep, "duplicate": mg2_gone, "fields": {}})
+    check("merging a case-less resident succeeds", s == 200, f"status {s}")
+    s, mg2 = req("GET", f"/api/collections/animals/records/{mg2_keep}", T)
+    check("a case-less residency survives the merge",
+          (mg2 or {}).get("current_aviary") == mg_av_b
+          and (mg2 or {}).get("lifetime_status") == "in_aviary", mg2)
+    mg2_stays = listf(T, "aviary_stays", f'animal = "{mg2_keep}"')
+    mg2_open = [x for x in mg2_stays if x["ended_at"] == ""]
+    check("...as one open stay in that enclosure",
+          len(mg2_open) == 1 and mg2_open[0]["aviary"] == mg_av_b, mg2_stays)
+
     # ── code-list delete semantics (federfall-58t1) ──────────────────────────
     # The code-list delete confirmation names how many live records reference an
     # entry and states what deleting it would do to them. That copy is only true

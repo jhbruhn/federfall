@@ -5,6 +5,7 @@ import 'package:federfall/features/animals/animal_search_picker.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
@@ -500,6 +501,11 @@ class _FieldDiffSection extends StatelessWidget {
 /// Read-only preview of what the merge moves — every animal-scoped record on
 /// the record that is ABOUT to be deleted (whichever side that ends up being
 /// depends on [_SurvivorPicker]'s current selection).
+///
+/// One line per collection the server re-points, and they have to stay in step:
+/// each of these cascade-deletes with the duplicate, so a collection missing
+/// here is one whose loss this screen would not have warned about
+/// (federfall-0ua6).
 class _MovesSummary extends ConsumerWidget {
   const _MovesSummary({required this.duplicateId});
 
@@ -519,6 +525,11 @@ class _MovesSummary extends ConsumerWidget {
         .value
         ?.length;
     final exams = ref.watch(examsForAnimalProvider(duplicateId)).value?.length;
+    final eggs = ref.watch(eggsForAnimalProvider(duplicateId)).value?.length;
+    final stays = ref
+        .watch(aviaryStaysForAnimalProvider(duplicateId))
+        .value
+        ?.length;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -533,6 +544,8 @@ class _MovesSummary extends ConsumerWidget {
             Text(l10n.animalMergeMarkingsCount(markings ?? 0)),
             Text(l10n.animalMergeWeightsCount(weights ?? 0)),
             Text(l10n.animalMergeExamsCount(exams ?? 0)),
+            Text(l10n.animalMergeEggsCount(eggs ?? 0)),
+            Text(l10n.animalMergeStaysCount(stays ?? 0)),
           ],
         ),
       ),

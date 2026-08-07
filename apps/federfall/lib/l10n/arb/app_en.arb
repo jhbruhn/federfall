@@ -619,9 +619,19 @@
         "description": "Count of exams moving in a merge",
         "placeholders": { "count": { "type": "int" } }
     },
+    "animalMergeEggsCount": "{count, plural, =0{No egg records} =1{1 egg record} other{{count} egg records}}",
+    "@animalMergeEggsCount": {
+        "description": "Count of egg records moving in a merge",
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "animalMergeStaysCount": "{count, plural, =0{No aviary stays} =1{1 aviary stay} other{{count} aviary stays}}",
+    "@animalMergeStaysCount": {
+        "description": "Count of aviary residency records moving in a merge",
+        "placeholders": { "count": { "type": "int" } }
+    },
     "animalMergeConfirmTitle": "Merge these animals?",
     "@animalMergeConfirmTitle": { "description": "Title of the merge confirmation dialog" },
-    "animalMergeConfirmBody": "{duplicate} will be permanently deleted; its cases, markings, weights and exams move to {survivor}. This cannot be undone.",
+    "animalMergeConfirmBody": "{duplicate} will be permanently deleted; its cases, markings, weights, exams, egg records and aviary history move to {survivor}. This cannot be undone.",
     "@animalMergeConfirmBody": {
         "description": "Body of the merge confirmation dialog",
         "placeholders": {

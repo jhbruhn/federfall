@@ -38,18 +38,34 @@ onRecordAfterUpdateSuccess((e) => {
   if (before !== after) {
     const now = new Date().toISOString();
 
-    if (before) {
-      const open = e.app.findRecordsByFilter(
-        "aviary_stays", "animal = {:a} && ended_at = ''", "-started_at", 1, 0,
-        { a: animal.id },
-      );
-      if (open.length > 0) {
-        open[0].set("ended_at", now);
-        e.app.save(open[0]);
+    // Close every row that is still open and is not the one `after` already
+    // calls for. The invariant this enforces is "at most one open stay, and it
+    // names current_aviary" — stated over ALL open rows rather than just
+    // closing the latest one, because two can exist:
+    //
+    //   * a merge re-points the duplicate's ledger onto the survivor
+    //     (merge_animals.pb.js, federfall-0ua6) — it closes what it moves, but
+    //     the invariant should not depend on a caller remembering to;
+    //   * a writer that saves the same animal twice in one transaction gets
+    //     this callback twice for ONE transition, since the after-success
+    //     hooks are deferred to the commit and each re-reads the same record
+    //     object against the same stale `original()`. Skipping an already-open
+    //     row for `after` makes the second run a no-op instead of a second
+    //     residency in the enclosure the bird is already in.
+    let alreadyOpen = false;
+    for (const stay of e.app.findRecordsByFilter(
+      "aviary_stays", "animal = {:a} && ended_at = ''", "-started_at", 0, 0,
+      { a: animal.id },
+    )) {
+      if (after && !alreadyOpen && stay.getString("aviary") === after) {
+        alreadyOpen = true;
+        continue;
       }
+      stay.set("ended_at", now);
+      e.app.save(stay);
     }
 
-    if (after) {
+    if (after && !alreadyOpen) {
       const stay = new Record(e.app.findCollectionByNameOrId("aviary_stays"));
       stay.set("animal", animal.id);
       stay.set("aviary", after);

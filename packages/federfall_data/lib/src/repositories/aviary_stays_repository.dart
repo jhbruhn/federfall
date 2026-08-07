@@ -19,6 +19,14 @@ class PbAviaryStaysRepository extends PbReadOnlyRepository<AviaryStay> {
     sort: '-started_at',
   );
 
+  /// Every residency one animal has had, newest stay first — its whole side of
+  /// the ledger, as opposed to [forAnimalAt]'s single point in time. Read by
+  /// the merge preview, which has to say how much history a merge moves.
+  Future<List<AviaryStay>> forAnimal(String animalId) => list(
+    filter: filterExpr('animal = {:a}', {'a': animalId}),
+    sort: '-started_at',
+  );
+
   /// The stays of one animal that were open on [at] — normally zero (never
   /// housed then) or one. Used to answer "which enclosure was this bird in on
   /// that date", the reason no aviary is denormalised onto dated records.

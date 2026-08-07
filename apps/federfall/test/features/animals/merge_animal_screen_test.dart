@@ -1,6 +1,8 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/merge_animal_screen.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
@@ -57,6 +59,19 @@ Future<void> _pump(
           weightsForAnimalProvider(id).overrideWith((ref) async => []),
           examsForAnimalProvider(id).overrideWith((ref) async => []),
         ],
+        eggsForAnimalProvider('a1').overrideWith((ref) async => []),
+        aviaryStaysForAnimalProvider('a1').overrideWith((ref) async => []),
+        // The candidate carries the two kinds of history the merge used to
+        // cascade-delete without counting them (federfall-0ua6).
+        eggsForAnimalProvider('a2').overrideWith(
+          (ref) async => const [EggRecord(id: 'e1', animal: 'a2', count: 2)],
+        ),
+        aviaryStaysForAnimalProvider('a2').overrideWith(
+          (ref) async => const [
+            AviaryStay(id: 's1', animal: 'a2', aviary: 'v1'),
+            AviaryStay(id: 's2', animal: 'a2', aviary: 'v2'),
+          ],
+        ),
         reidSearchProvider('kiki').overrideWith(
           (ref) async => [const ReidMatch(animal: _candidate, markings: [])],
         ),
@@ -108,6 +123,25 @@ void main() {
     // Species agrees on both records, so it gets no picker.
     expect(find.text('Species'), findsNothing);
   });
+
+  testWidgets(
+    'the moves summary counts every collection the merge re-points, '
+    'including egg records and aviary stays',
+    (tester) async {
+      await _pump(tester, animals: MockAnimalsRepo());
+      await _pickCandidate(tester);
+
+      // Each of these cascade-deletes with the duplicate, so anything the
+      // summary leaves out is history a supervisor is not warned about
+      // (federfall-0ua6).
+      expect(find.text('No cases'), findsOneWidget);
+      expect(find.text('No markings'), findsOneWidget);
+      expect(find.text('No weight entries'), findsOneWidget);
+      expect(find.text('No exams'), findsOneWidget);
+      expect(find.text('1 egg record'), findsOneWidget);
+      expect(find.text('2 aviary stays'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'submits the merge with the chosen survivor and field picks, '

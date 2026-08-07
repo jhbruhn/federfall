@@ -205,6 +205,15 @@ Future<List<CaseSummary>> caseSummariesForAnimal(
   return repo.forAnimal(animalId);
 }
 
+/// One animal's residency history (1700000052), newest stay first — the
+/// aviary side of its record, which lives on the animal rather than on any of
+/// its cases and therefore travels with it through a merge.
+@riverpod
+Future<List<AviaryStay>> aviaryStaysForAnimal(Ref ref, String animalId) async {
+  final repo = await ref.watch(aviaryStaysRepositoryProvider.future);
+  return repo.forAnimal(animalId);
+}
+
 /// One animal's full lifetime record (FED-7.6): identity, every marking, and
 /// every case (newest-first) with the set of cases the user may open in full.
 @immutable

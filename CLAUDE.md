@@ -125,7 +125,17 @@ with it, while `weights` / `markings` / `egg_records` are animal-level and
 survive a *case* delete. Hooks that reconcile a parent on delete must tolerate
 that parent being gone (`main.pb.js`'s disposition reconcile) — it runs
 `onRecordAfterDeleteSuccess`, so throwing there turns a committed delete into a
-400 rather than rolling anything back. Multi-record writes are atomic server-side:
+400 rather than rolling anything back. That cascade is also why
+`merge_animals.pb.js` must re-point EVERY collection with a direct `animal`
+relation (cases / markings / weights / exams / egg_records / aviary_stays)
+before it deletes the duplicate: one left out is not left behind, it is
+destroyed inside the merge transaction and answered with a 200 (federfall-0ua6
+— `egg_records` and `aviary_stays` were both added after that list was written).
+`test_rules.py`'s `[animal merge]` block is the guard, and the merge screen's
+own moves summary lists the same collections. Note also that the survivor is
+saved ONCE there: after-success hooks are deferred to the commit and re-read the
+same record object, so two saves deliver two transitions off one stale
+`original()` — which is how one aviary move opened two residencies. Multi-record writes are atomic server-side:
 case intake goes through `POST /api/federfall/intake` (`pb_hooks/intake.pb.js`, one
 transaction for animal+finder+case+weight+quarantine; `cases.finder` is locked against
 direct client writes), and a handoff is just a placement with `to_user` — the hook derives
