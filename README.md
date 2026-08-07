@@ -171,4 +171,3 @@ So, while LLMs are still being heavily oversold and the circular economy of the 
 
 Federfall is licensed under the [GNU AGPL-3.0](LICENSE).
 This is a network-copyleft license: if you run a modified version as a service, you have to share your changes.
-That fits a tool meant to be self-hosted and shared between associations.
