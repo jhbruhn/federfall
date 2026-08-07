@@ -83,7 +83,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       text: _preset == _FreqPreset.custom ? '${p?.intervalHours ?? ''}' : '',
     );
     _startedAt = (p?.startedAt ?? p?.created)?.toLocal() ?? DateTime.now();
-    _endedAt = p?.endedAt;
+    _endedAt = p?.endedAt?.toLocal();
     _controlled = p?.isControlled ?? false;
   }
 

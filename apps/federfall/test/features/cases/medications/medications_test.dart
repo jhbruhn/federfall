@@ -267,6 +267,37 @@ void main() {
       expect(body['frequency_kind'], 'scheduled');
       expect(body['interval_hours'], 12);
     });
+
+    testWidgets('editing seeds both dates in local time', (tester) async {
+      // The server hands back UTC; DateField formats what it is given and
+      // pickDateTime re-seeds from it, so a UTC value would both display and
+      // re-store the wrong instant. Asserted as `isUtc`, not as text, so it
+      // holds in a UTC-clocked CI too.
+      final started = DateTime.utc(2026, 3, 14, 23, 30);
+      final ended = DateTime.utc(2026, 3, 20, 23, 30);
+
+      await pump(
+        tester,
+        PrescriptionSheet(
+          caseId: 'c1',
+          plan: Medication(
+            id: 'm1',
+            caseId: 'c1',
+            drug: 'Baytril',
+            startedAt: started,
+            endedAt: ended,
+          ),
+        ),
+      );
+
+      DateTime? valueOf(String label) =>
+          tester.widget<DateField>(find.widgetWithText(DateField, label)).value;
+
+      expect(valueOf('Start')!.isUtc, isFalse);
+      expect(valueOf('Start')!.isAtSameMomentAs(started), isTrue);
+      expect(valueOf('Active until')!.isUtc, isFalse);
+      expect(valueOf('Active until')!.isAtSameMomentAs(ended), isTrue);
+    });
   });
 
   group('AdministrationSheet', () {
