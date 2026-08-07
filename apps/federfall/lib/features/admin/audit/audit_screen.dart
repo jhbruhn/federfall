@@ -126,6 +126,9 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
                 if (i >= state.events.length) {
                   return PagedListTail(
                     error: state.pageError,
+                    onLoad: () => unawaited(
+                      ref.read(auditFeedProvider(_query).notifier).loadMore(),
+                    ),
                     onRetry: () => unawaited(
                       ref.read(auditFeedProvider(_query).notifier).retryPage(),
                     ),

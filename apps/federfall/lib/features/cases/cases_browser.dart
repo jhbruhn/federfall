@@ -329,6 +329,11 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
   /// is a single round trip and the scroll listener never fires.
   static const int _pageSize = 50;
 
+  /// How many server pages one [_load] may consume while the outcome facet
+  /// refines them away to nothing. Only reached when a long run of cases all
+  /// carry a superseded disposition of the selected type.
+  static const int _maxPagesPerLoad = 10;
+
   @override
   Future<CaseBrowseState> build(CaseQuery query) async {
     // The id, not the user (federfall-bpw6): watching the whole user re-ran
@@ -429,21 +434,44 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
   /// The animals are a second request rather than a relation expand because
   /// only two of their columns are ever drawn; `byIds` with a projection is
   /// the same shape the intake map uses.
+  ///
+  /// "One page" means one *server* page, except under the outcome facet, where
+  /// [_refineToTerminalOutcome] can leave nothing of it (federfall-etd7): a
+  /// page of re-disposed cases refines away entirely, and a caller handed zero
+  /// rows has no way to tell "no matches" from "none on this page" — the list
+  /// then shows an empty state and never asks for the next one. So while the
+  /// facet is set, this keeps consuming server pages until a row survives or
+  /// the result set is exhausted, bounded by [_maxPagesPerLoad] so one
+  /// `loadMore` cannot turn into an unbounded scan. Hitting that bound is not
+  /// an end state: the cursor still advances, so the next call resumes.
   Future<_CasePage> _load(
     CasesRepository casesRepo,
     PbAnimalsRepository animalsRepo,
     CaseBrowseQuery browse, {
     required PbCursor? after,
   }) async {
-    final page = await casesRepo.browse(
-      query: browse,
-      after: after,
-      perPage: _pageSize,
-    );
     final outcome = browse.outcome;
-    final cases = outcome == null
-        ? page.items
-        : await _refineToTerminalOutcome(page.items, outcome);
+    final maxPages = outcome == null ? 1 : _maxPagesPerLoad;
+    final cases = <Case>[];
+    var cursor = after;
+    var hasMore = false;
+    var pages = 0;
+    do {
+      final page = await casesRepo.browse(
+        query: browse,
+        after: cursor,
+        perPage: _pageSize,
+      );
+      cursor = page.cursor;
+      hasMore = page.hasMore;
+      pages++;
+      cases.addAll(
+        outcome == null
+            ? page.items
+            : await _refineToTerminalOutcome(page.items, outcome),
+      );
+    } while (cases.isEmpty && hasMore && pages < maxPages);
+
     final animals = await animalsRepo.byIds(
       cases.map((c) => c.animal).where((id) => id.isNotEmpty),
       fields: 'id,species,name,photo',
@@ -451,8 +479,8 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
     return (
       cases: cases,
       animalsById: {for (final a in animals) a.id: a},
-      cursor: page.cursor,
-      hasMore: page.hasMore,
+      cursor: cursor,
+      hasMore: hasMore,
     );
   }
 

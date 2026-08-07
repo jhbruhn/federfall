@@ -138,6 +138,11 @@ class _AnimalsScreenState extends ConsumerState<AnimalsScreen> {
           if (i >= state.items.length) {
             return PagedListTail(
               error: state.pageError,
+              onLoad: () => unawaited(
+                ref
+                    .read(animalRegistryFeedProvider(_query).notifier)
+                    .loadMore(),
+              ),
               onRetry: () => unawaited(
                 ref
                     .read(animalRegistryFeedProvider(_query).notifier)

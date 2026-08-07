@@ -46,6 +46,9 @@ Future<List<CaseQuery>> _pump(
   List<ConditionLabel> recorded = const [],
   List<String> species = const [],
   List<AppUser> members = const [],
+  bool hasMore = false,
+  void Function()? onLoadMore,
+  bool settle = true,
 }) async {
   // Compact width so the account menu sits in the app bar (on wider widths it
   // moves to the navigation rail, which this standalone screen has no shell to
@@ -65,6 +68,8 @@ Future<List<CaseQuery>> _pump(
             animalsById: animalsById,
             rowsFor: rowsFor,
             onQuery: asked.add,
+            hasMore: hasMore,
+            onLoadMore: onLoadMore,
           ),
         ),
         currentUserProvider.overrideWith((ref) async => user),
@@ -81,7 +86,15 @@ Future<List<CaseQuery>> _pump(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    // A list still expecting a page draws a spinner in its tail, which never
+    // settles. Two frames: the first resolves the feed's future, the second
+    // runs the post-frame callback that tail schedules.
+    await tester.pump();
+    await tester.pump();
+  }
   return asked;
 }
 
@@ -156,6 +169,28 @@ void main() {
 
     expect(find.text('No matching cases'), findsOneWidget);
     expect(find.text('No cases yet'), findsNothing);
+  });
+
+  testWidgets('no rows but another page is still a search, not an empty list', (
+    tester,
+  ) async {
+    // What the outcome facet leaves behind when a whole server page refines
+    // away (federfall-etd7): the "no matches" state would have ended the
+    // search here, with the matches sitting past the cursor.
+    var loads = 0;
+    await _pump(
+      tester,
+      initialQuery: const CaseQuery(outcome: DispositionType.released),
+      hasMore: true,
+      onLoadMore: () => loads++,
+      settle: false,
+    );
+
+    expect(find.text('No matching cases'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    // And the tail asked for the page it is announcing, without being scrolled
+    // to — there is nothing here to scroll.
+    expect(loads, greaterThan(0));
   });
 
   testWidgets("defaults to asking for the user's own active cases", (

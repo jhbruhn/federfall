@@ -248,7 +248,11 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
     final l10n = context.l10n;
     _maybeWidenScopeForSelection(selectedId, state.cases);
 
-    if (state.cases.isEmpty) {
+    // `hasMore` with no rows is not emptiness: under the outcome facet a
+    // server page can refine away entirely (federfall-etd7), and the answer is
+    // still being read. Falling through to the list draws just the tail, which
+    // fetches the next page — an EmptyView would end the search then and there.
+    if (state.cases.isEmpty && !state.hasMore) {
       // Which emptiness this is can no longer be read off the loaded rows —
       // the server sent only what matched. The query itself says it: nothing
       // narrows the default view, so there is nothing to find.
@@ -275,6 +279,9 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
           if (i >= state.cases.length) {
             return PagedListTail(
               error: state.pageError,
+              onLoad: () => unawaited(
+                ref.read(caseBrowseFeedProvider(_query).notifier).loadMore(),
+              ),
               onRetry: () => unawaited(
                 ref.read(caseBrowseFeedProvider(_query).notifier).retryPage(),
               ),

@@ -216,6 +216,92 @@ void main() {
     });
   });
 
+  group('a page refined away by the outcome facet is not the answer', () {
+    // Every case here carries a superseded disposition of the type asked for,
+    // so the refinement empties whole server pages (federfall-etd7).
+    void stubSupersededPages({required int matchOn, required int pages}) {
+      var call = 0;
+      stubBrowse(() {
+        final n = call++;
+        return PbPage(
+          items: [_case('c$n')],
+          cursor: n < pages - 1 ? PbCursor(value: 'x$n', id: 'c$n') : null,
+        );
+      });
+      when(() => dispositions.byCases(any())).thenAnswer((invocation) async {
+        final id =
+            (invocation.positionalArguments.first as Iterable<String>).single;
+        return [
+          Disposition(
+            id: 'd-$id-1',
+            caseId: id,
+            type: DispositionType.released,
+            disposedAt: DateTime.utc(2026, 3),
+          ),
+          Disposition(
+            id: 'd-$id-2',
+            caseId: id,
+            // Only the page named by `matchOn` keeps a released terminal
+            // outcome; the rest were re-disposed into an aviary afterwards.
+            type: id == 'c$matchOn'
+                ? DispositionType.released
+                : DispositionType.placedInAviary,
+            disposedAt: DateTime.utc(2026, 5),
+          ),
+        ];
+      });
+    }
+
+    test('the next page is fetched until a row survives', () async {
+      stubSupersededPages(matchOn: 2, pages: 4);
+
+      final state = await makeContainer().read(
+        caseBrowseFeedProvider(
+          const CaseQuery(outcome: DispositionType.released),
+        ).future,
+      );
+
+      // Not the empty list the first two pages alone would have produced —
+      // which the screen would have shown as "no matches" for good.
+      expect(state.cases.map((c) => c.id), ['c2']);
+      verify(
+        () => cases.browse(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).called(3);
+    });
+
+    test('the scan is bounded, and leaves a cursor to resume from', () async {
+      // Nothing ever matches: without a bound this would walk the collection.
+      stubSupersededPages(matchOn: -1, pages: 1000);
+
+      final container = makeContainer();
+      final feed = caseBrowseFeedProvider(
+        const CaseQuery(outcome: DispositionType.released),
+      );
+      final state = await container.read(feed.future);
+
+      expect(state.cases, isEmpty);
+      // Still more to read — the empty state must not claim "no matches", and
+      // the next loadMore picks up where this stopped rather than at the top.
+      expect(state.hasMore, isTrue);
+      expect(state.cursor, isNotNull);
+      verify(
+        () => cases.browse(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).called(10);
+
+      await container.read(feed.notifier).loadMore();
+
+      expect(container.read(feed).requireValue.cursor, isNot(state.cursor));
+    });
+  });
+
   group('loadMore', () {
     test('appends the next page and keeps the rows on screen', () async {
       var call = 0;

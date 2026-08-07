@@ -11,13 +11,15 @@ import 'package:federfall_models/federfall_models.dart';
 /// repository it does not care about. Tests ABOUT the feeds override the
 /// repositories instead, so the query they send is still under test.
 
-/// A case browser holding [cases], exhausted (no further page).
+/// A case browser holding [cases], exhausted unless [hasMore] says otherwise.
 class FakeCaseBrowseFeed extends CaseBrowseFeed {
   FakeCaseBrowseFeed({
     this.cases = const [],
     this.animalsById = const {},
     this.rowsFor,
     this.onQuery,
+    this.hasMore = false,
+    this.onLoadMore,
   });
 
   final List<Case> cases;
@@ -33,6 +35,15 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
   /// a deep link, say — inspects it here instead of counting rows.
   final void Function(CaseQuery query)? onQuery;
 
+  /// Whether a further page exists — i.e. whether the list draws its tail.
+  /// Worth setting with no [cases] at all: that is the state the outcome facet
+  /// reaches when a whole server page refines away (federfall-etd7).
+  final bool hasMore;
+
+  /// Called instead of actually appending a page, so a test can see that the
+  /// list asked for one.
+  final void Function()? onLoadMore;
+
   @override
   Future<CaseBrowseState> build(CaseQuery query) async {
     onQuery?.call(query);
@@ -40,8 +51,12 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
       browse: query.toBrowseQuery('me'),
       cases: rowsFor?.call(query) ?? cases,
       animalsById: animalsById,
+      hasMore: hasMore,
     );
   }
+
+  @override
+  Future<void> loadMore() async => onLoadMore?.call();
 }
 
 /// An animals registry holding [items], exhausted (no further page).
