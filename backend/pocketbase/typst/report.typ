@@ -1,7 +1,7 @@
 // federfall-gdp8 — per-case PDF report.
 //
 // Rendered server-side by pb_hooks/case_report.pb.js via `typst compile
-// --input data=<json> report.typ out.pdf`. Unlike the first version of this
+// --input dataPath=<file> report.typ out.pdf`. Unlike the first version of this
 // file, ALL localization lives in report_common.typ (the STRINGS dict,
 // shared with receipt.typ — see federfall-i0wq), not in the hook — the hook
 // only sends structured, untranslated data: wire enum values (e.g.
@@ -16,7 +16,11 @@
 #import "vendor/codetastic/codetastic.typ": qrcode
 #import "report_common.typ": fmtAt, fmtDate, lbl, renderEvent, resolveStrings
 
-#let data = json(bytes(sys.inputs.data))
+// The payload arrives as a FILE under the typst --root, not as an --input
+// string: an argv element is size-capped and world-readable in the process
+// table (federfall-ds0d). `read(..., encoding: none)` yields raw bytes, which
+// is what json() wants.
+#let data = json(read(sys.inputs.dataPath, encoding: none))
 #let lang = data.at("lang", default: "de")
 #let S = resolveStrings(lang)
 

@@ -17,7 +17,11 @@
 #import "vendor/codetastic/codetastic.typ": qrcode
 #import "report_common.typ": fmtAt, fmtDate, lbl, renderEvent, resolveStrings
 
-#let data = json(bytes(sys.inputs.data))
+// The payload arrives as a FILE under the typst --root, not as an --input
+// string: an argv element is size-capped and world-readable in the process
+// table (federfall-ds0d). `read(..., encoding: none)` yields raw bytes, which
+// is what json() wants.
+#let data = json(read(sys.inputs.dataPath, encoding: none))
 #let lang = data.at("lang", default: "de")
 #let S = resolveStrings(lang)
 

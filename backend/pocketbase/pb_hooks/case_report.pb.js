@@ -564,18 +564,30 @@ routerAdd(
     // template input. Everything above (payload assembly, auth, photo temp
     // file) is shared — JSVM handlers can't share file-level helpers across
     // routes, so branching only here avoids duplicating ~300 lines.
+    //
+    // federfall-ds0d — the payload reaches Typst as a FILE (`--input
+    // dataPath=`), never as `--input data=<the whole JSON>`. An argument has a
+    // hard size ceiling (~2 MB on Linux, ARG_MAX) that a long timeline can
+    // approach, and an argument is world-readable in the process table for as
+    // long as the compile runs — this payload is one bird's clinical record.
+    // The file goes under the same /pb/report-tmp scratch dir as the photo, so
+    // the template (rooted at /pb) can read it; both are removed below.
     const RECEIPT_PPI = 203;
+    const stamp = Date.now() + "-" + Math.floor(Math.random() * 1e9);
     const outPath =
       $os.tempDir() +
       "/federfall-report-" +
       caseId +
       "-" +
-      Date.now() +
-      "-" +
-      Math.floor(Math.random() * 1e9) +
+      stamp +
       (widthDots !== null ? ".png" : ".pdf");
-    const compile = (p) =>
-      widthDots !== null
+    const dataDir = "/pb/report-tmp/data-" + caseId + "-" + stamp;
+    const dataPath = dataDir + "/data.json";
+    const compile = (p) => {
+      $os.mkdirAll(dataDir, 0o755);
+      $os.writeFile(dataPath, JSON.stringify(p), 0o644);
+      const dataInput = "dataPath=" + dataPath.slice("/pb".length);
+      return widthDots !== null
         ? $os
             .cmd(
               "typst",
@@ -583,7 +595,7 @@ routerAdd(
               "--root",
               "/pb",
               "--input",
-              "data=" + JSON.stringify(p),
+              dataInput,
               "--input",
               "widthDots=" + widthDots,
               "--format",
@@ -601,11 +613,12 @@ routerAdd(
               "--root",
               "/pb",
               "--input",
-              "data=" + JSON.stringify(p),
+              dataInput,
               "/pb/typst/report.typ",
               outPath,
             )
             .run();
+    };
     try {
       try {
         compile(payload);
@@ -642,6 +655,11 @@ routerAdd(
         } catch (_) {
           // best-effort cleanup
         }
+      }
+      try {
+        $os.removeAll(dataDir);
+      } catch (_) {
+        // best-effort cleanup
       }
     }
 

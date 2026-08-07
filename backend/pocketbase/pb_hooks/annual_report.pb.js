@@ -329,16 +329,26 @@ routerAdd(
     // ── Render. Same shape as case_report.pb.js: Typst writes to a file so
     // the bytes never round-trip through a JS string, and `--root` is "/pb"
     // so the template can read shared_strings.json beside itself.
+    //
+    // federfall-ds0d — the payload goes to Typst as a FILE, not as
+    // `--input data=<the whole JSON>`. An argument has a hard size ceiling
+    // (~2 MB on Linux, ARG_MAX), and this payload carries one entry per case
+    // in the period with lib_stats.loadCaseRows reading unbounded: a few
+    // thousand cases and the report stops rendering, with an opaque exec error
+    // rather than anything a reader could act on. Passing a path also keeps
+    // the case list out of the process table, where every account on the host
+    // can read it out of `ps`. The temp file lives under the typst `--root` so
+    // the template can reach it (a path outside /pb is unreadable to Typst) —
+    // /pb/report-tmp is the same runtime scratch dir case_report.pb.js writes
+    // its photo to, deliberately not the static template directory.
+    const stamp = Date.now() + "-" + Math.floor(Math.random() * 1e9);
+    const dataDir = "/pb/report-tmp/annual-" + periodSlug + "-" + stamp;
+    const dataPath = dataDir + "/data.json";
     const outPath =
-      $os.tempDir() +
-      "/federfall-annual-" +
-      periodSlug +
-      "-" +
-      Date.now() +
-      "-" +
-      Math.floor(Math.random() * 1e9) +
-      ".pdf";
+      $os.tempDir() + "/federfall-annual-" + periodSlug + "-" + stamp + ".pdf";
     try {
+      $os.mkdirAll(dataDir, 0o755);
+      $os.writeFile(dataPath, JSON.stringify(payload), 0o644);
       $os
         .cmd(
           "typst",
@@ -346,7 +356,7 @@ routerAdd(
           "--root",
           "/pb",
           "--input",
-          "data=" + JSON.stringify(payload),
+          "dataPath=" + dataPath.slice("/pb".length),
           "/pb/typst/annual_report.typ",
           outPath,
         )
@@ -362,6 +372,12 @@ routerAdd(
           year,
         );
       return e.json(500, { error: "Report generation failed." });
+    } finally {
+      try {
+        $os.removeAll(dataDir);
+      } catch (_) {
+        // best-effort cleanup
+      }
     }
 
     let bytes;

@@ -1,7 +1,7 @@
 // federfall-dk0c — annual report (REQUIREMENTS.md §10).
 //
 // Rendered server-side by pb_hooks/annual_report.pb.js via `typst compile
-// --input data=<json> annual_report.typ out.pdf`. Same split as report.typ:
+// --input dataPath=<file> annual_report.typ out.pdf`. Same split as report.typ:
 // the hook sends structured, untranslated data (wire enum values, raw date
 // parts, DB-authored labels) and ALL localization happens here through
 // report_common.typ's STRINGS / shared_strings.json.
@@ -19,7 +19,11 @@
 // question this report is not for.
 #import "report_common.typ": fmtDate, fmtDateTime, lbl, resolveStrings
 
-#let data = json(bytes(sys.inputs.data))
+// The payload arrives as a FILE under the typst --root, not as an --input
+// string: an argv element is size-capped and world-readable in the process
+// table (federfall-ds0d). `read(..., encoding: none)` yields raw bytes, which
+// is what json() wants.
+#let data = json(read(sys.inputs.dataPath, encoding: none))
 #let lang = data.at("lang", default: "de")
 #let S = resolveStrings(lang)
 #let A = S.annual
