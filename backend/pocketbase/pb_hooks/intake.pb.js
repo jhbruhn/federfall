@@ -269,7 +269,14 @@ cronAdd("idempotencyKeyPurge", "30 4 * * *", () => {
   const PAGE = 500;
   const now = new Date().toISOString().replace("T", " ");
   let purged = 0;
-  // Re-query from offset 0 each round: deleting shrinks the result set.
+  let offset = 0;
+  // Re-query from the same offset each round: deleting shrinks the result set.
+  //
+  // federfall-ex20 — a row whose delete keeps failing does NOT leave the filter,
+  // so with a fixed offset of 0 a full page of persistently failing rows refills
+  // the batch forever and `batch.length < PAGE` never becomes true. Advancing
+  // past a page that removed nothing steps over them — the same guard
+  // finder_retention.pb.js uses.
   for (;;) {
     let batch;
     try {
@@ -278,21 +285,24 @@ cronAdd("idempotencyKeyPurge", "30 4 * * *", () => {
         "expires_at < {:now}",
         "expires_at",
         PAGE,
-        0,
+        offset,
         { now: now },
       );
     } catch (_) {
       break;
     }
     if (!batch || batch.length === 0) break;
+    let purgedThisBatch = 0;
     for (let i = 0; i < batch.length; i++) {
       try {
         $app.delete(batch[i]);
         purged++;
+        purgedThisBatch++;
       } catch (_) {
         // skip a row already gone / locked; the next run retries it
       }
     }
+    if (purgedThisBatch === 0) offset += batch.length;
     if (batch.length < PAGE) break;
   }
   if (purged > 0) {

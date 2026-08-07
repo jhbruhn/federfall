@@ -341,8 +341,17 @@ cronAdd("geocodeCachePurge", "0 4 * * *", () => {
   const PAGE = 500;
   const now = new Date().toISOString().replace("T", " ");
   let purged = 0;
-  // Re-query from offset 0 each round: deleting shrinks the result set, so the
-  // next page of still-expired rows slides back to the front.
+  let offset = 0;
+  // Re-query from the same offset each round: deleting shrinks the result set,
+  // so the next page of still-expired rows slides back to the front.
+  //
+  // federfall-ex20 — but only rows that ACTUALLY went away slide. A row whose
+  // delete keeps failing (locked, or held by a constraint) stays in the filter
+  // at the same position, and with a fixed offset of 0 a full page of those
+  // refills the batch forever: `batch.length < PAGE` never becomes true and the
+  // cron spins until the process is killed. Advancing past a page that removed
+  // nothing steps over the stuck rows instead — the same guard
+  // finder_retention.pb.js uses.
   for (;;) {
     let batch;
     try {
@@ -351,21 +360,24 @@ cronAdd("geocodeCachePurge", "0 4 * * *", () => {
         "expires_at < {:now}",
         "expires_at",
         PAGE,
-        0,
+        offset,
         { now: now },
       );
     } catch (_) {
       break;
     }
     if (!batch || batch.length === 0) break;
+    let purgedThisBatch = 0;
     for (let i = 0; i < batch.length; i++) {
       try {
         $app.delete(batch[i]);
         purged++;
+        purgedThisBatch++;
       } catch (_) {
         // skip a row already gone / locked; the next run retries it
       }
     }
+    if (purgedThisBatch === 0) offset += batch.length;
     if (batch.length < PAGE) break;
   }
   if (purged > 0) {
