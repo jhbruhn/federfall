@@ -1,3 +1,4 @@
+import 'package:federfall/core/async/parallel_wait.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/realtime/collection_events.dart';
 import 'package:federfall/features/reminders/reminder_plan.dart';
@@ -64,7 +65,7 @@ class Reminders extends _$Reminders {
     final (medsOn, appointmentsOn) = await (
       ref.watch(medicationRemindersEnabledProvider.future),
       ref.watch(appointmentRemindersEnabledProvider.future),
-    ).wait;
+    ).waitUnwrapped;
     final anyOn = medsOn || appointmentsOn;
     final user = anyOn ? await ref.watch(currentUserProvider.future) : null;
     if (!anyOn || user == null) {

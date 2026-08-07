@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall/core/async/parallel_wait.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
@@ -119,7 +120,7 @@ Future<WorklistSource> worklistSource(Ref ref) async {
     ref.watch(followUpsRepositoryProvider.future),
     ref.watch(caseQuarantineRepositoryProvider.future),
     ref.watch(vetAppointmentsRepositoryProvider.future),
-  ).wait;
+  ).waitUnwrapped;
 
   final allCases = await casesRepo.list(sort: '-created');
   final myActive = allCases
@@ -129,22 +130,26 @@ Future<WorklistSource> worklistSource(Ref ref) async {
 
   final animalIds = {for (final c in myActive) c.animal};
 
-  // Independent queries, all fired at once and awaited together. `.wait`
-  // rejects with a ParallelWaitError if ANY of them fails, which is right for
-  // these: a worklist missing a source silently would be worse than an error
-  // with a retry.
+  // Independent queries, all fired at once and awaited together. If ANY of
+  // them fails the worklist fails, which is right for these: a worklist
+  // missing a source silently would be worse than an error with a retry.
+  //
+  // Failing loudly does not require failing vaguely, though — hence
+  // `waitUnwrapped` rather than `.wait`, which would report a dropped
+  // connection as a ParallelWaitError the UI cannot recognise as one
+  // (federfall-s5mm).
   final (medicationsDue, followUps, activity, animals, quarantine) = await (
     medDueRepo.mine(me),
     followUpsRepo.openForCarer(me),
     activityRepo.all(),
     animalsRepo.byIds(animalIds),
     quarantineRepo.all(),
-  ).wait;
+  ).waitUnwrapped;
 
   // Appointments are the exception, and deliberately tolerant. The app/server
   // compatibility gate checks the MAJOR version only, and an APK that
   // auto-updated ahead of its container is the common self-hoster case — such a
-  // client 404s on `vet_appointments`. In the `.wait` above that would take
+  // client 404s on `vet_appointments`. Gathered above that would take
   // down the whole worklist AND every reminder; degrading to "no appointments"
   // costs only the feature that cannot work anyway.
   var appointments = const <VetAppointment>[];

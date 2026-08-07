@@ -1,3 +1,4 @@
+import 'package:federfall/core/async/parallel_wait.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
@@ -112,16 +113,11 @@ DashboardSummary buildDashboardSummary({
 /// half fixed. Local midnights, converted to UTC on the way out.
 @riverpod
 Future<DashboardSummary> dashboardSummary(Ref ref) async {
-  // Watched synchronously (before any await) so the dependencies register,
-  // then awaited one by one rather than through `(a, b, c).wait` — see the
-  // note on [_counted] for why the record form is avoided here. All three
-  // resolve the same cached client, so this costs no extra round trip.
-  final casesFuture = ref.watch(casesRepositoryProvider.future);
-  final animalsFuture = ref.watch(animalsRepositoryProvider.future);
-  final carerLoadFuture = ref.watch(carerLoadRepositoryProvider.future);
-  final casesRepo = await casesFuture;
-  final animalsRepo = await animalsFuture;
-  final carerLoadRepo = await carerLoadFuture;
+  final (casesRepo, animalsRepo, carerLoadRepo) = await (
+    ref.watch(casesRepositoryProvider.future),
+    ref.watch(animalsRepositoryProvider.future),
+    ref.watch(carerLoadRepositoryProvider.future),
+  ).waitUnwrapped;
 
   final now = DateTime.now();
   final yearStart = DateTime(now.year);
@@ -154,16 +150,10 @@ Future<DashboardSummary> dashboardSummary(Ref ref) async {
   );
 }
 
-/// Awaits [counts] concurrently, propagating the FIRST underlying error.
-///
-/// `(a, b, …).wait` — the record form used elsewhere in the app — reports a
-/// failure as a [ParallelWaitError] instead, which the app's error mapping
-/// cannot read: `isNetworkError` and `loadErrorMessage` both test for a
-/// [RepositoryException]. Wrapped, a dropped connection renders as a generic
-/// failure AND takes the figures already on screen with it, where
-/// `AsyncValueView` would otherwise keep them until the connection returns.
-/// `Future.wait` over a homogeneous list has no such wrapper (federfall-s5mm
-/// tracks the app's remaining record-`.wait` sites).
+/// Awaits [counts] concurrently, propagating the FIRST underlying error — the
+/// homogeneous counterpart to `waitUnwrapped`, and the same reasoning: a
+/// wrapped failure is one the app's error mapping cannot read. See
+/// `core/async/parallel_wait.dart`.
 Future<List<int>> _counted(List<Future<int>> counts) => Future.wait(counts);
 
 /// The org-wide carer load, or nothing when it cannot be read.
@@ -242,19 +232,9 @@ List<CarerWorkload> buildCarerWorkload(
 /// hidden anyway.
 @riverpod
 Future<List<CarerWorkload>> carerWorkload(Ref ref) async {
-  // Both watched before the first await, then awaited one at a time rather
-  // than through `(a, b).wait` — same reason as [_counted]: the record form
-  // would hand the UI a ParallelWaitError it cannot map to the offline copy.
-  //
-  // The roster is fetched AFTER the summary rather than racing it, and that
-  // is deliberate: starting it early and awaiting it second leaves a window
-  // where a roster failure has no handler while the summary is still in
-  // flight, which surfaces as an unhandled async error if the summary throws
-  // first. One extra round trip on a card that already cannot render before
-  // the summary lands is the cheaper side of that trade.
-  final summaryFuture = ref.watch(dashboardSummaryProvider.future);
-  final usersFuture = ref.watch(usersRepositoryProvider.future);
-  final summary = await summaryFuture;
-  final members = await (await usersFuture).members();
-  return buildCarerWorkload(members, summary.openByCarer);
+  final (summary, usersRepo) = await (
+    ref.watch(dashboardSummaryProvider.future),
+    ref.watch(usersRepositoryProvider.future),
+  ).waitUnwrapped;
+  return buildCarerWorkload(await usersRepo.members(), summary.openByCarer);
 }

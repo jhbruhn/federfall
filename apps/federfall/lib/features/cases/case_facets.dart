@@ -1,3 +1,4 @@
+import 'package:federfall/core/async/parallel_wait.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -112,12 +113,12 @@ Future<CaseFacets> caseFacets(Ref ref) async {
   final (dispositionsRepo, caseConditionsRepo) = await (
     ref.watch(dispositionsRepositoryProvider.future),
     ref.watch(caseConditionsRepositoryProvider.future),
-  ).wait;
+  ).waitUnwrapped;
   final (labels, dispositions, caseConditions) = await (
     labelsFuture,
     dispositionsRepo.list(),
     caseConditionsRepo.list(),
-  ).wait;
+  ).waitUnwrapped;
 
   return buildCaseFacets(
     dispositions: dispositions,

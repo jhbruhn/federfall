@@ -1,3 +1,4 @@
+import 'package:federfall/core/async/parallel_wait.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/case_facets.dart';
@@ -227,7 +228,7 @@ Future<CasesBrowserData> casesBrowserData(Ref ref) async {
   final (casesRepo, animalsRepo) = await (
     ref.watch(casesRepositoryProvider.future),
     ref.watch(animalsRepositoryProvider.future),
-  ).wait;
+  ).waitUnwrapped;
   // The fetches are independent — issue them concurrently so a (live-)refresh
   // costs one round trip, not three in sequence.
   final (user, codesByAnimal, cases, animals) = await (
@@ -235,7 +236,7 @@ Future<CasesBrowserData> casesBrowserData(Ref ref) async {
     codesFuture,
     casesRepo.list(sort: '-created'),
     animalsRepo.list(),
-  ).wait;
+  ).waitUnwrapped;
   return CasesBrowserData(
     cases: cases,
     animalsById: {for (final a in animals) a.id: a},
