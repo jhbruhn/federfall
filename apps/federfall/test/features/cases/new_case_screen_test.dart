@@ -297,7 +297,7 @@ void main() {
     await tapNext(tester); // step 0 → 1
 
     await pickInjury(tester);
-    await enterByLabel(tester, 'Intake weight (g)', '250');
+    await enterByLabel(tester, 'Intake weight (g)', '250,5');
     await enterByLabel(tester, 'Find location', 'Domplatz');
 
     await tapNext(tester); // step 1 → 2
@@ -317,8 +317,10 @@ void main() {
     expect(caseBody['intake_notes'], 'thin but alert');
     expect(caseBody['find_location'], 'Domplatz');
 
-    // Intake weight travels with the intake (a Weight row server-side).
-    expect(payload['weight_g'], 250);
+    // Intake weight travels with the intake (a Weight row server-side), and
+    // grams are fractional — a decimal comma reaches the server as 250.5,
+    // not 250 (federfall-nd2c).
+    expect(payload['weight_g'], 250.5);
 
     final finderBody = payload['finder'] as Map<String, dynamic>;
     expect(finderBody['last_name'], 'Klein');

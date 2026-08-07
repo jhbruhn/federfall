@@ -169,7 +169,11 @@ routerAdd(
 
       // Intake weight: a real weights row (single source of truth + trend),
       // baselined at admission — was a separate client call before.
-      const weight = parseInt(body.weight_g, 10);
+      // parseFloat, not parseInt (federfall-nd2c): `weights.weight_g` is a
+      // plain number column with no integer constraint and the exam route
+      // writes fractions into it, so a scale reading of 180.5 g must survive
+      // an intake the same way it survives an examination.
+      const weight = parseFloat(body.weight_g);
       if (!isNaN(weight) && weight > 0) {
         const w = new Record(tx.findCollectionByNameOrId("weights"));
         w.set("animal", aId);

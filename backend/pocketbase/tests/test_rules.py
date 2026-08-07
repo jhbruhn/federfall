@@ -2185,7 +2185,7 @@ def main():
         "finder": {"last_name": "Fund", "phone": "0151 999"},
         "case": {"intake_notes": "thin but alert",
                  "admitted_at": "2026-06-01 10:00:00.000Z"},
-        "weight_g": 250, "quarantine_days": 10,
+        "weight_g": 250.5, "quarantine_days": 10,
     })
     check("intake creates the case", s == 200 and bool(ic and ic.get("id")), f"{s} {ic}")
     _, icase = req("GET", f"/api/collections/cases/records/{ic['id']}", T)
@@ -2199,8 +2199,11 @@ def main():
           len(ifinders) == 1 and icase["finder"] == ifinders[0]["id"],
           icase.get("finder"))
     iw = listf(T, "weights", f'case = "{ic["id"]}"')
-    check("intake weight became a weights row",
-          len(iw) == 1 and iw[0]["weight_g"] == 250, iw)
+    # A gram scale reads fractions and `weights.weight_g` has no integer
+    # constraint, so the intake must keep the .5 the exam route keeps
+    # (federfall-nd2c — intake used to parseInt it away).
+    check("intake weight became a weights row, fraction intact",
+          len(iw) == 1 and iw[0]["weight_g"] == 250.5, iw)
     iq = listf(T, "quarantine_records", f'case = "{ic["id"]}"')
     check("quarantine override row (admitted+10d), no default duplicate",
           len(iq) == 1 and iq[0]["quarantine_until"][:10] == "2026-06-11", iq)

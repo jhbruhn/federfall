@@ -551,7 +551,12 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       // a failure strands nothing and retrying cannot duplicate records. The
       // backend sets org/active_carer from the session and fills in case
       // number, status and the default quarantine window.
-      final weight = int.tryParse(_intakeWeightController.text.trim());
+      // Grams are fractional (federfall-nd2c) — a gram scale reads 180.5 —
+      // and a German keyboard types the decimal comma, like every other
+      // weight field in the app.
+      final weight = double.tryParse(
+        _intakeWeightController.text.trim().replaceAll(',', '.'),
+      );
       final quarantineDays = int.tryParse(
         _quarantineDaysController.text.trim(),
       );
@@ -915,8 +920,10 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           controller: _intakeWeightController,
           label: l10n.caseFieldIntakeWeight,
           prefixIcon: Icons.monitor_weight_outlined,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+          ],
           textInputAction: TextInputAction.next,
           enabled: !_busy,
         ),
