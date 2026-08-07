@@ -837,6 +837,32 @@ def main():
     # Org isolation: another org's member sees no summary.
     check("other-org member CANNOT view case summary", not summary(te, sumcase))
 
+    # ── quarantine view scope (federfall-teh6) ──────────────────────────────
+    # `case_quarantine` is org-wide BY DESIGN, and deliberately more permissive
+    # than the `quarantine_records` rows it summarises: a quarantine end date is
+    # an operational fact the whole org needs ("this bird may be contagious
+    # until D"), in the same class as the status and dates case_summaries
+    # already publishes; the reason, who set it and the history stay behind the
+    # case rule. This block is what makes that a decision rather than a drift —
+    # if the predicate is ever narrowed to the case view rule, these three
+    # checks are where it must be re-stated. See 1700000037's header.
+    print("\n[quarantine view scope]")
+    # Every case gets a quarantine row from the cases create hook, so sumcase —
+    # which D can neither view nor holds a share on — already has one.
+    s, qrows = req(
+        "GET",
+        "/api/collections/quarantine_records/records?filter="
+        + urllib.parse.quote(f"case = '{sumcase}'"), td)
+    check("same-org outsider CANNOT read the quarantine_records rows",
+          s != 200 or not (qrows or {}).get("items"), f"{s} {qrows}")
+    s, qv = req("GET",
+                f"/api/collections/case_quarantine/records/{sumcase}", td)
+    check("same-org outsider CAN read the quarantine view (org-wide by design)",
+          s == 200 and bool(qv.get("quarantine_until")), f"{s} {qv}")
+    s, _ = req("GET", f"/api/collections/case_quarantine/records/{sumcase}", te)
+    check("other-org member CANNOT read the quarantine view", s != 200,
+          f"status {s}")
+
     # ── animal photo upload (ctw.7) ─────────────────────────────────────────
     # The animals.photo file field accepts an image upload from an org member
     # and stores a filename; it's then readable (org-wide identity layer).
@@ -3766,7 +3792,6 @@ def main():
     check("small bursts stay under the limit (first requests pass)",
           statuses[0] == 400 and statuses[1] == 400,
           f"first {statuses[:2]}")
-
     # The reverse route has a budget of its own, and it needs the prefix label
     # to bind: while that label was unqualified it lost to the factory "/api/"
     # rule, so reverse lookups ran on the general 300-per-10s default — the one

@@ -15,10 +15,26 @@
 // (`quarantine_records`) and re-evaluates on its 1-minute ticker for the
 // clock-driven "quarantine ending" transition.
 //
-// Org-scoped read for any active member — consistent with case_summaries
-// exposing status/dates org-wide (a quarantine end date is no more sensitive
-// than the case status already is); the full quarantine_records rows stay
-// case-scoped.
+// ── Read scope: org-wide, on purpose (federfall-teh6) ───────────────────────
+// listRule/viewRule are `active member && org = @request.auth.org` — no carer,
+// share or role narrowing. Since the view's id IS the case id, any active
+// member can therefore read `quarantine_until` for every case in the org,
+// including cases the `cases` rule (private-by-default, 1700000010) will not
+// show them. That is the same stance `case_summaries` (1700000016) and
+// `case_activity` (1700000022) take: identity and lifecycle facts are org-wide,
+// clinical detail is not. A quarantine end date belongs in the first class —
+// it says a bird may be contagious and when that lifts, which is an
+// operational fact the whole org needs, and it adds nothing to what
+// case_summaries already publishes about the same case (number, status, dates,
+// carer).
+//
+// It does mean this view is strictly MORE permissive than the collection it
+// summarises: `quarantine_records` is case-scoped (childEdit, 1700000036), so
+// the reason text, who set it and the full history stay behind the case rule.
+// The asymmetry is the point, not an oversight — narrow the predicate to the
+// case view rule only if that operational argument stops holding, and re-state
+// the change in test_rules.py's [quarantine view scope] block, which pins
+// today's answer.
 
 migrate(
   (app) => {
