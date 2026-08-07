@@ -627,6 +627,37 @@ def main():
     s, _ = req("DELETE", f"/api/collections/weights/records/{wB['id']}", toks["sup"])
     check("a supervisor can delete any weight", s == 204, f"status {s}")
 
+    # ── authorship is the server's to state (federfall-vfry) ────────────────
+    # `author` / `created_by` / `applied_by` and the rest of the actor fields
+    # were ordinary writable fields, so a member could attribute a record to a
+    # colleague just by naming them in the body. authorship.pb.js pins them to
+    # the authenticated caller on create and puts them back on update. This
+    # matters twice over for weights: the delete guard right above hands a
+    # weight's own author rights over it, so a spoofed author is also a way to
+    # hand someone else the power to erase the row.
+    print("\n[authorship pinning]")
+    s, spoof = req("POST", "/api/collections/weights/records", toks["d"],
+                   {"animal": animal, "weight_g": 333, "org": ORG, "author": A})
+    check("D can log a weight naming A as author", s == 200, f"{s} {spoof}")
+    check("...but the stored author is D, not A",
+          spoof.get("author") == D, f"{spoof.get('author')} (A={A}, D={D})")
+    s, patched = req("PATCH",
+                     f"/api/collections/weights/records/{spoof['id']}",
+                     toks["d"], {"author": A, "weight_g": 334})
+    check("an update cannot rewrite authorship either",
+          s == 200 and patched.get("author") == D, f"{s} {patched.get('author')}")
+    check("...while the rest of the update still lands",
+          patched.get("weight_g") == 334, patched.get("weight_g"))
+    # A carer with edit rights on the case cannot forge a colleague's clinical
+    # entry there either — C holds an edit share on `case`.
+    s, adm = req("POST", "/api/collections/medication_administrations/records",
+                 toks["c"], {"case": case, "drug": "Baytril",
+                             "administered_at": "2026-06-09 09:00:00.000Z",
+                             "org": ORG, "administered_by": A})
+    check("an edit-share holder cannot log a dose as someone else",
+          s == 200 and adm.get("administered_by") == C,
+          f"{s} {adm.get('administered_by')}")
+
     # ── org isolation ───────────────────────────────────────────────────────
     print("\n[org isolation]")
     org2 = mk(T, "organisations", {"name": "Andere Orga"})["id"]
