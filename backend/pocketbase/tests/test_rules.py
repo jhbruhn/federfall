@@ -167,10 +167,27 @@ def main():
     rules = rl.get("rules") or []
     labels = [str(r.get("label")) for r in rules]
     check("rate limiting is enabled", rl.get("enabled") is True, rl)
+    # Every federfall label is METHOD-QUALIFIED. Matching is not
+    # longest-prefix-wins: an exact rule wins, and failing that the first prefix
+    # rule in STORED ORDER does — so a bare "/api/federfall/cases/" loses to the
+    # factory "/api/" rule ahead of it and budgets nothing. Only the first
+    # search label ("GET <path>") is out of "/api/"'s reach. See
+    # rate_limits.pb.js; the two flood tests at the end of this file are what
+    # prove the labels actually bind.
     check("the geocode budget is applied",
-          "/api/federfall/geocode" in labels
-          and "/api/federfall/geocode/" in labels, labels)
-    check("PocketBase's default auth brake survives the geocode merge",
+          "GET /api/federfall/geocode" in labels
+          and "GET /api/federfall/geocode/" in labels, labels)
+    # federfall-ds0d: both report routes shell out to `typst compile`, once per
+    # request, synchronously — the only subprocess this app spawns. The case
+    # report is open to any active member for any case they can view, so an
+    # authenticated loop over it is a CPU/temp-space exhaustion primitive
+    # without a budget. Prefix labels: exactly one route lives under each.
+    check("the report budget is applied",
+          "GET /api/federfall/reports/" in labels
+          and "GET /api/federfall/cases/" in labels, labels)
+    check("no inert unqualified label is left lying around",
+          not [x for x in labels if x.startswith("/api/federfall/")], labels)
+    check("PocketBase's default auth brake survives the federfall merge",
           "*:auth" in labels, labels)
     got429 = False
     for _ in range(8):
@@ -186,7 +203,7 @@ def main():
     # sky-high. The geocode budget stays untouched — the flood test at the
     # very end relies on it.
     for r in rules:
-        if not str(r.get("label", "")).startswith("/api/federfall/geocode"):
+        if "/api/federfall/geocode" not in str(r.get("label", "")):
             r["maxRequests"] = 100000
     s, _ = req("PATCH", "/api/settings", T,
                {"rateLimits": {"enabled": True, "rules": rules}})
@@ -3749,6 +3766,48 @@ def main():
     check("small bursts stay under the limit (first requests pass)",
           statuses[0] == 400 and statuses[1] == 400,
           f"first {statuses[:2]}")
+
+    # The reverse route has a budget of its own, and it needs the prefix label
+    # to bind: while that label was unqualified it lost to the factory "/api/"
+    # rule, so reverse lookups ran on the general 300-per-10s default — the one
+    # route where a loop actually reaches the upstream geocoder per request,
+    # since a moving pin misses the cache every time.
+    statuses = []
+    for _ in range(45):
+        s, _ = req("GET", "/api/federfall/geocode/reverse", toks["a"])
+        statuses.append(s)
+    check("sustained reverse-geocode traffic hits the rate limit too (429)",
+          429 in statuses, f"statuses {sorted(set(statuses))}")
+
+    # ── report render budget (federfall-ds0d) ───────────────────────────────
+    # Every report request starts a `typst` process, so an authenticated loop
+    # over the case report is a CPU exhaustion primitive. What has to be proven
+    # here is not that the rule is STORED — the [rate limiting] block at the top
+    # already read it out of settings — but that a PREFIX label actually binds
+    # to a path with a record id in the middle of it. Runs last, and lowers the
+    # budget to 2/minute for the duration, so proving it costs two renders
+    # rather than twenty.
+    print("\n[report rate limit]")
+    s, rst = req("GET", "/api/settings", T)
+    rrules = ((rst or {}).get("rateLimits") or {}).get("rules") or []
+    lowered = False
+    for r in rrules:
+        if str(r.get("label")) == "GET /api/federfall/cases/":
+            r["maxRequests"], r["duration"] = 2, 60
+            lowered = True
+    check("setup: the report budget is there to lower", lowered, rrules)
+    s, _ = req("PATCH", "/api/settings", T,
+               {"rateLimits": {"enabled": True, "rules": rrules}})
+    check("setup: report budget lowered to 2 per minute", s == 200, f"status {s}")
+    rstatuses = []
+    for _ in range(6):
+        rs, _, _ = req_bytes("GET", f"/api/federfall/cases/{case}/report.pdf",
+                             toks["a"])
+        rstatuses.append(rs)
+    check("the budget's own renders go through", rstatuses[0] == 200,
+          f"first {rstatuses[0]}")
+    check("sustained report rendering hits the rate limit (429)",
+          429 in rstatuses, f"statuses {rstatuses}")
 
     # ── summary ─────────────────────────────────────────────────────────────
     print(f"\n{'='*50}\n{_passed} passed, {_failed} failed")

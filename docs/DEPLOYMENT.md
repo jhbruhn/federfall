@@ -86,6 +86,23 @@ FEDERFALL_GEOCODE_RATE_MAX: "30"      # requests per window per client IP; "0" d
 FEDERFALL_GEOCODE_RATE_WINDOW: "60"   # window length in seconds
 ```
 
+The two report routes get a budget of their own, for a different reason.
+Rendering a case report or the annual report starts a `typst` process per request, so a single signed-in account looping that URL is enough to saturate the CPU of a small box.
+Twenty renders per minute is far more than printing a receipt per intake ever needs, and it turns that loop into something that costs the caller time rather than the server:
+
+```yaml
+FEDERFALL_REPORT_RATE_MAX: "20"       # renders per window per client IP; "0" disables
+FEDERFALL_REPORT_RATE_WINDOW: "60"    # window length in seconds
+```
+
+Setting either `_MAX` to `"0"` drops only that budget.
+PocketBase's own defaults — including the brake on repeated failed logins — stay switched on regardless, so opting out of one budget can never quietly remove the others.
+If you terminate rate limiting at your reverse proxy and want Federfall to keep its hands off the setting entirely, say so explicitly:
+
+```yaml
+FEDERFALL_RATE_LIMITS_DISABLED: "1"   # leave PocketBase's rate-limit settings untouched
+```
+
 How long a cached lookup stays good is tunable too, though the defaults are sensible and most instances never touch these.
 Addresses do not move, so successful lookups are held for a month; a lookup that found nothing is retried sooner, in case the upstream data improves:
 

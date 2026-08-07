@@ -28,6 +28,8 @@
 //   FEDERFALL_GEOCODE_RATE_MAX             requests allowed per window per
 //                                          client IP (default 30; 0 disables)
 //   FEDERFALL_GEOCODE_RATE_WINDOW          window length in seconds (default 60)
+// The last two are read by rate_limits.pb.js, which owns every rate-limit rule
+// this app applies; see the note at the bottom of this file.
 //
 // PocketBase runs each route handler in an isolated JSVM context, so it cannot
 // see file-level helpers — everything a handler needs is defined inside it
@@ -385,77 +387,9 @@ cronAdd("geocodeCachePurge", "0 4 * * *", () => {
   }
 });
 
-// federfall-0tf — rate-limit the geocode routes. The cache absorbs repeats,
-// but unique queries were relayed upstream unthrottled; against public OSM
-// Nominatim (1 req/s policy) a batch extraction could get the whole instance
-// blocked. The budget is deliberately burst-friendly — a carer typing a few
-// address searches never hits it — while capping sustained extraction. Uses
-// PocketBase's own per-client-IP rate limiter via settings, applied on every
-// start like settings.pb.js.
-//
-// Behind a reverse proxy the "client IP" is the proxy's own address unless
-// FEDERFALL_TRUSTED_PROXY_HEADERS is set (settings.pb.js, federfall-223) —
-// without it this budget is shared by ALL users instead of per client.
-onBootstrap((e) => {
-  e.next();
-
-  const env = (k) => {
-    const v = $os.getenv(k);
-    return v && v !== "" ? v : "";
-  };
-  const max = parseInt(env("FEDERFALL_GEOCODE_RATE_MAX"), 10);
-  const maxRequests = isNaN(max) ? 30 : max;
-  if (maxRequests <= 0) return; // explicit opt-out
-  const win = parseInt(env("FEDERFALL_GEOCODE_RATE_WINDOW"), 10);
-  const duration = isNaN(win) || win <= 0 ? 60 : win;
-
-  // An exact-path label plus a trailing-slash prefix label: PocketBase treats
-  // "/x" as a complete path and "/x/" as a prefix, so the pair covers both
-  // /geocode and /geocode/reverse.
-  const labels = ["/api/federfall/geocode", "/api/federfall/geocode/"];
-
-  const settings = e.app.settings();
-  // Merge into whatever rules are stored — an operator's own edits survive
-  // (their rule under a factory label wins over the restore below). An
-  // earlier version of this hook (federfall-sjtg) started from a "clean
-  // slate" instead, discarding PocketBase's inactive factory defaults on the
-  // way to enabling the limiter — shipping instances whose ONLY throttled
-  // paths were the geocode routes, i.e. no brute-force brake on
-  // auth-with-password at all.
-  const others = (settings.rateLimits.rules || []).filter(
-    (r) => labels.indexOf(String(r.label)) < 0,
-  );
-  // Any instance that ever booted the clean-slate version has the defaults
-  // wiped from its STORED settings, so preserving them is not enough: restore
-  // every factory rule (PocketBase 0.39, probed from a pristine instance)
-  // whose label is absent. To neuter one deliberately, raise its maxRequests
-  // instead of deleting it — a deleted default comes back on every boot.
-  const factory = [
-    { label: "*:auth", audience: "", duration: 3, maxRequests: 2 },
-    { label: "*:create", audience: "", duration: 5, maxRequests: 20 },
-    { label: "/api/batch", audience: "", duration: 1, maxRequests: 3 },
-    { label: "/api/", audience: "", duration: 10, maxRequests: 300 },
-  ];
-  const present = others.map((r) => String(r.label));
-  const restored = factory.filter((d) => present.indexOf(d.label) < 0);
-  settings.rateLimits.enabled = true;
-  settings.rateLimits.rules = others.concat(
-    restored,
-    labels.map((l) => ({
-      label: l,
-      audience: "",
-      duration: duration,
-      maxRequests: maxRequests,
-    })),
-  );
-  e.app.save(settings);
-  e.app
-    .logger()
-    .info(
-      "federfall: geocode rate limit applied",
-      "maxRequests",
-      maxRequests,
-      "windowSec",
-      duration,
-    );
-});
+// federfall-0tf — the geocode rate limit itself is applied in rate_limits.pb.js,
+// with every other budget this app sets: PocketBase's limiter is configured
+// through `settings.rateLimits`, one stored list, and a second hook rewriting
+// that list is how a rule gets silently dropped (federfall-sjtg). The
+// FEDERFALL_GEOCODE_RATE_* env vars documented at the top of this file are read
+// there.
