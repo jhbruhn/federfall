@@ -71,7 +71,7 @@ class FollowUpTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: done ? Icons.event_available_outlined : Icons.event_repeat_outlined,
-      date: formatEventDate(materialL10n, due),
+      date: formatLocalDate(materialL10n, due),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(

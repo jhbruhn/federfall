@@ -228,7 +228,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
             value: _foundAt,
             formatted: _foundAt == null
                 ? null
-                : materialL10n.formatMediumDate(_foundAt!),
+                : formatLocalDate(materialL10n, _foundAt),
             enabled: !isBusy,
             onPick: () => _pickDate(
               current: _foundAt,
@@ -253,7 +253,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
             value: _admittedAt,
             formatted: _admittedAt == null
                 ? null
-                : materialL10n.formatMediumDate(_admittedAt!),
+                : formatLocalDate(materialL10n, _admittedAt),
             enabled: !isBusy,
             onPick: () => _pickDate(
               current: _admittedAt,

@@ -80,8 +80,10 @@ class _Chart extends StatelessWidget {
     // Pad the value axis so the line is not glued to the edges.
     final pad = ((maxY - minY) * 0.15).clamp(5.0, double.infinity);
 
-    String dateLabel(double ms) => materialL10n.formatShortDate(
+    String dateLabel(double ms) => formatLocalDate(
+      materialL10n,
       DateTime.fromMillisecondsSinceEpoch(ms.toInt()),
+      style: DateStyle.short,
     );
 
     return LineChart(

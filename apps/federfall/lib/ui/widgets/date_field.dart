@@ -33,7 +33,7 @@ class DateField extends StatelessWidget {
     final materialL10n = MaterialLocalizations.of(context);
     final text = value == null
         ? (placeholder ?? '')
-        : formatDateMaybeTime(materialL10n, value!, withTime: showTime);
+        : formatLocalDate(materialL10n, value, withTime: showTime);
     return InkWell(
       onTap: enabled ? onPick : null,
       child: InputDecorator(
@@ -53,35 +53,48 @@ class DateField extends StatelessWidget {
   }
 }
 
-/// Formats [value] as a medium date, optionally followed by its time of day.
-/// [value] is expected to already be in local time.
-String formatDateMaybeTime(
-  MaterialLocalizations materialL10n,
-  DateTime value, {
-  bool withTime = false,
-}) {
-  final date = materialL10n.formatMediumDate(value);
-  if (!withTime) return date;
-  final time = materialL10n.formatTimeOfDay(TimeOfDay.fromDateTime(value));
-  return '$date, $time';
+/// Which of Material's date shapes [formatLocalDate] renders.
+enum DateStyle {
+  /// Material's medium form — "Wed, Jun 2" in English. Carries a weekday but
+  /// no year, so it reads best for something the surrounding screen already
+  /// places in time.
+  medium,
+
+  /// Material's short form — "6/2/2026" in English. Numeric and, unlike
+  /// [medium], it carries the year, which anything spanning seasons needs.
+  short,
 }
 
-/// Formats a chronology event's timestamp for display. PocketBase stores UTC
-/// (and `MaterialLocalizations` does not convert time zones), so this converts
-/// to local time first; pass any timeline date through here so every entry
-/// shares one time-zone-correct treatment. Returns '' for null so a tile can
-/// simply omit the header.
-String formatEventDate(
+/// Formats [value] **in the reader's local time zone**, optionally followed by
+/// its time of day. Returns '' for null so a tile can simply omit the line.
+///
+/// This is the only place in the app that turns a `DateTime` into a date
+/// string, and it exists because the naive spelling is wrong: PocketBase
+/// stores UTC, `MaterialLocalizations` formats whatever fields it is handed,
+/// and it does not convert time zones. So `formatMediumDate(case.admittedAt)`
+/// silently renders the UTC calendar day — which in CET/CEST is the *previous*
+/// day for anything logged after 22:00 UTC (federfall-yok0). Converting here,
+/// once, is what makes that unrepresentable; `toLocal()` is idempotent, so
+/// passing a value that is already local (form state, a picker result) is
+/// correct too and needs no thought at the call site.
+///
+/// `date_field_test.dart` fails the build if any other file under `lib/`
+/// formats a date directly.
+String formatLocalDate(
   MaterialLocalizations materialL10n,
   DateTime? value, {
   bool withTime = false,
+  DateStyle style = DateStyle.medium,
 }) {
   if (value == null) return '';
-  return formatDateMaybeTime(
-    materialL10n,
-    value.toLocal(),
-    withTime: withTime,
-  );
+  final local = value.toLocal();
+  final date = switch (style) {
+    DateStyle.medium => materialL10n.formatMediumDate(local),
+    DateStyle.short => materialL10n.formatShortDate(local),
+  };
+  if (!withTime) return date;
+  final time = materialL10n.formatTimeOfDay(TimeOfDay.fromDateTime(local));
+  return '$date, $time';
 }
 
 /// Opens a date picker seeded at [initial] (local), returning the picked

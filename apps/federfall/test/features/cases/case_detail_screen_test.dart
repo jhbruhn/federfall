@@ -303,7 +303,7 @@ void main() {
       // so this holds in any timezone (in UTC CI toLocal is a no-op; on a
       // machine at UTC+2 the un-converted code would render the prior day).
       final ml = MaterialLocalizations.of(tester.element(find.text('Pauli')));
-      final expected = formatEventDate(ml, foundInstant);
+      final expected = formatLocalDate(ml, foundInstant);
       // Overview: both the "Found on" and "Admitted on" rows show that day.
       expect(find.text(expected), findsNWidgets(2));
 

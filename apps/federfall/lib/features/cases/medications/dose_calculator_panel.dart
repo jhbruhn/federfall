@@ -225,7 +225,7 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
             ? null
             : Text(
                 '${formatWeightG(l10n, weight.weightG)} · '
-                '${formatEventDate(materialL10n, weighedAt)}',
+                '${formatLocalDate(materialL10n, weighedAt)}',
               ),
         // Top padding, unlike the usual zero: the first row is a text field
         // whose floating label would otherwise be clipped against the header.

@@ -81,7 +81,7 @@ class QuarantineTile extends ConsumerWidget {
     if (phase == QuarantinePhase.ended) {
       return TimelineItem(
         icon: Icons.health_and_safety_outlined,
-        date: formatEventDate(materialL10n, entry.until ?? entry.created),
+        date: formatLocalDate(materialL10n, entry.until ?? entry.created),
         isLast: isLast,
         child: Text(
           l10n.quarantineEndedEvent,
@@ -97,7 +97,7 @@ class QuarantineTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.shield_outlined,
-      date: formatEventDate(materialL10n, date),
+      date: formatLocalDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(
@@ -114,7 +114,7 @@ class QuarantineTile extends ConsumerWidget {
             until == null
                 ? l10n.quarantineTitle
                 : l10n.quarantineTileUntil(
-                    materialL10n.formatMediumDate(until),
+                    formatLocalDate(materialL10n, until),
                   ),
             style: theme.textTheme.bodyLarge,
           ),

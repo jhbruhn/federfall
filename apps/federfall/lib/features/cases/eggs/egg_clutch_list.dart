@@ -95,7 +95,7 @@ class EggClutchList extends StatelessWidget {
 /// single date when the whole clutch landed on one day. Uppercased like the
 /// other group headers in the app.
 ///
-/// `formatShortDate` rather than the `formatMediumDate` the rows use:
+/// [DateStyle.short] rather than the [DateStyle.medium] the rows use:
 /// Material's medium form is "Wed, Jun 2" — a weekday nobody needs here and,
 /// worse, no year at all, which a lifetime ledger spanning seasons has to show.
 String clutchHeader(
@@ -103,13 +103,14 @@ String clutchHeader(
   MaterialLocalizations materialL10n,
   List<EggRecord> clutch,
 ) {
-  final dates = clutch
-      .map((e) => e.laidAt ?? e.created)
-      .nonNulls
-      .map((at) => at.toLocal())
-      .toList();
-  final first = dates.isEmpty ? '' : materialL10n.formatShortDate(dates.first);
-  final last = dates.isEmpty ? '' : materialL10n.formatShortDate(dates.last);
+  final dates = clutch.map((e) => e.laidAt ?? e.created).nonNulls.toList();
+  const short = DateStyle.short;
+  final first = dates.isEmpty
+      ? ''
+      : formatLocalDate(materialL10n, dates.first, style: short);
+  final last = dates.isEmpty
+      ? ''
+      : formatLocalDate(materialL10n, dates.last, style: short);
   final label = first == last ? first : '$first – $last';
   return l10n
       .eggClutchHeader(label, clutch.fold(0, (sum, e) => sum + e.count))
@@ -155,7 +156,7 @@ class EggRow extends ConsumerWidget {
         ],
       ),
       subtitle: switch (at) {
-        final at? => Text(materialL10n.formatMediumDate(at.toLocal())),
+        final at? => Text(formatLocalDate(materialL10n, at)),
         _ => null,
       },
       trailing: EggEntryMenu(egg: egg),

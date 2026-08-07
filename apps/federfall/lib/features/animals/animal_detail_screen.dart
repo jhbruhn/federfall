@@ -250,7 +250,7 @@ class _WeightSection extends ConsumerWidget {
                       leading: const Icon(Icons.monitor_weight_outlined),
                       title: Text(formatWeightG(l10n, latest.weightG)),
                       subtitle: switch (latest.measuredAt ?? latest.created) {
-                        final at? => Text(materialL10n.formatMediumDate(at)),
+                        final at? => Text(formatLocalDate(materialL10n, at)),
                         _ => null,
                       },
                     ),
@@ -422,9 +422,7 @@ class _ExamsSection extends ConsumerWidget {
                         leading: const Icon(Icons.monitor_heart_outlined),
                         title: Text(
                           switch (exam.examinedAt ?? exam.created) {
-                            final at? => materialL10n.formatMediumDate(
-                              at.toLocal(),
-                            ),
+                            final at? => formatLocalDate(materialL10n, at),
                             _ => l10n.examTitle,
                           },
                         ),
@@ -548,7 +546,7 @@ class _MarkingsSection extends ConsumerWidget {
                           m.removedAt == null
                               ? l10n.markingRemoved
                               : l10n.markingRemovedOn(
-                                  materialL10n.formatMediumDate(m.removedAt!),
+                                  formatLocalDate(materialL10n, m.removedAt),
                                 ),
                         ),
                   trailing: PopupMenuButton<void>(

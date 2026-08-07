@@ -245,7 +245,7 @@ class _EggReassignSheetState extends ConsumerState<EggReassignSheet>
           ],
           const SizedBox(height: AppSpacing.xs),
           Text(
-            materialL10n.formatMediumDate(_laidAt.toLocal()),
+            formatLocalDate(materialL10n, _laidAt),
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -289,7 +289,7 @@ class _CoResidents extends ConsumerWidget {
       children: [
         Text(
           l10n.eggReassignCandidatesTitle(
-            materialL10n.formatMediumDate(at.toLocal()),
+            formatLocalDate(materialL10n, at),
           ),
           style: theme.textTheme.titleSmall,
         ),

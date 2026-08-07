@@ -77,7 +77,7 @@ class PrescriptionTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.medication_outlined,
-      date: formatEventDate(materialL10n, date),
+      date: formatLocalDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(
@@ -132,7 +132,7 @@ class PrescriptionTile extends ConsumerWidget {
                 ),
               if (plan.endedAt case final e?)
                 Text(
-                  l10n.medUntil(materialL10n.formatMediumDate(e)),
+                  l10n.medUntil(formatLocalDate(materialL10n, e)),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -218,7 +218,7 @@ class AdministrationTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.vaccines_outlined,
-      date: formatEventDate(materialL10n, date, withTime: true),
+      date: formatLocalDate(materialL10n, date, withTime: true),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(

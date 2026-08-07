@@ -53,7 +53,7 @@ class DispositionTile extends StatelessWidget {
     final caseId = this.caseId;
     return TimelineItem(
       icon: _icon,
-      date: formatEventDate(materialL10n, date),
+      date: formatLocalDate(materialL10n, date),
       isLast: isLast,
       trailing: (caseId == null || !canEdit)
           ? null

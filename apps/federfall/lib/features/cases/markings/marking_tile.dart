@@ -81,7 +81,7 @@ class MarkingTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.sell_outlined,
-      date: formatEventDate(materialL10n, date),
+      date: formatLocalDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(
@@ -126,7 +126,7 @@ class MarkingTile extends ConsumerWidget {
               marking.removedAt == null
                   ? l10n.markingRemoved
                   : l10n.markingRemovedOn(
-                      materialL10n.formatMediumDate(marking.removedAt!),
+                      formatLocalDate(materialL10n, marking.removedAt),
                     ),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,

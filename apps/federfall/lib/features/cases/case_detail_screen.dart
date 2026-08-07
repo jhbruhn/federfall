@@ -769,7 +769,7 @@ class _IntakeSection extends ConsumerWidget {
         ref.watch(canEditCaseProvider(medicalCase.id)).value ?? false;
 
     String? date(DateTime? d) =>
-        d == null ? null : formatEventDate(materialL10n, d);
+        d == null ? null : formatLocalDate(materialL10n, d);
 
     final reasonsById =
         ref.watch(admissionReasonsByIdProvider).value ?? const {};

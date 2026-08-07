@@ -149,7 +149,7 @@ class _ConditionRollupTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.coronavirus_outlined,
-      date: formatEventDate(
+      date: formatLocalDate(
         materialL10n,
         condition.onsetDate ?? condition.created,
       ),

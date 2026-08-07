@@ -90,7 +90,7 @@ class ExamTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.monitor_heart_outlined,
-      date: formatEventDate(materialL10n, at),
+      date: formatLocalDate(materialL10n, at),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(

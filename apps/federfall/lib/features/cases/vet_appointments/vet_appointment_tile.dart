@@ -119,7 +119,7 @@ class VetAppointmentTile extends ConsumerWidget {
         (_, true) => Icons.event_busy_outlined,
         _ => Icons.medical_services_outlined,
       },
-      date: formatEventDate(
+      date: formatLocalDate(
         materialL10n,
         startsAt ?? appointment.created,
         withTime: startsAt != null,

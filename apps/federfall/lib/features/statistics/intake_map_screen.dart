@@ -276,7 +276,7 @@ class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
                   icon: Icons.event_available_outlined,
                   text:
                       '${l10n.caseFieldAdmittedAt} '
-                      '${materialL10n.formatMediumDate(admittedAt)}',
+                      '${formatLocalDate(materialL10n, admittedAt)}',
                 ),
               if (location.city case final city? when city.isNotEmpty)
                 _SheetRow(icon: Icons.place_outlined, text: city),

@@ -70,7 +70,7 @@ class PlacementTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: isHandoff ? Icons.swap_horiz : Icons.move_down_outlined,
-      date: formatEventDate(materialL10n, date),
+      date: formatLocalDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(

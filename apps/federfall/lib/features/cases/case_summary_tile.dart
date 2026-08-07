@@ -2,6 +2,7 @@ import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -29,10 +30,10 @@ class CaseSummaryTile extends StatelessWidget {
     final end = summary.endedAt;
     final span = switch ((start, end)) {
       (final s?, final e?) =>
-        '${materialL10n.formatMediumDate(s)} – '
-            '${materialL10n.formatMediumDate(e)}',
-      (final s?, null) => materialL10n.formatMediumDate(s),
-      (null, final e?) => materialL10n.formatMediumDate(e),
+        '${formatLocalDate(materialL10n, s)} – '
+            '${formatLocalDate(materialL10n, e)}',
+      (final s?, null) => formatLocalDate(materialL10n, s),
+      (null, final e?) => formatLocalDate(materialL10n, e),
       (null, null) => null,
     };
     final subtitle = [

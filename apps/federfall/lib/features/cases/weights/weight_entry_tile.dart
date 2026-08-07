@@ -64,7 +64,7 @@ class WeightEntryTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.monitor_weight_outlined,
-      date: formatEventDate(materialL10n, date),
+      date: formatLocalDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(

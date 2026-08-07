@@ -267,6 +267,18 @@ the chart carry every category and its exact count.
 - **l10n:** every user-facing string lives in `app_en.arb` + `app_de.arb` (German is the
   primary UI language). Enum→label helpers in `features/cases/cases_labels.dart` (e.g.
   `admissionReasonLabel`), resolving `l10n` like `Validators` does.
+- **One function renders every date** (federfall-yok0): `MaterialLocalizations` and intl's
+  `DateFormat` format the fields they are handed and do **not** convert time zones, while
+  every PocketBase timestamp arrives UTC — so `materialL10n.formatMediumDate(c.admittedAt)`
+  prints the UTC calendar day, which in CET/CEST is the *previous* day for anything after
+  22:00 UTC. It fails invisibly on a UTC-clocked dev machine and CI. So `formatLocalDate`
+  (`ui/widgets/date_field.dart`, with `DateStyle.medium`/`.short` and `withTime:`) is the
+  only place in `lib/` that turns a `DateTime` into a date string: it converts first, and
+  `toLocal()` is idempotent, so form state and picker results pass through it unchanged and
+  no call site has to know which kind it holds. `date_field_test.dart` sweeps `lib/` and
+  fails on any other Material date formatter, and on any `DateFormat…format(x)` statement
+  lacking `toLocal()` — a `DateTime(…)` built inside the same statement is exempt, which is
+  what lets the charts keep formatting `DateTime(2000, month)` for a month name.
 - **Fonts are bundled, never downloaded** (federfall-sbtx): web has no system fonts —
   CanvasKit/skwasm resolves a codepoint no loaded font covers by fetching a per-glyph Noto
   slice from `fonts.gstatic.com`, which `web_headers.pb.js`'s CSP blocks and the engine then

@@ -56,7 +56,7 @@ class EggEntryTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.egg_outlined,
-      date: formatEventDate(materialL10n, egg.laidAt ?? egg.created),
+      date: formatLocalDate(materialL10n, egg.laidAt ?? egg.created),
       isLast: isLast,
       trailing: canEdit ? EggEntryMenu(egg: egg, caseId: caseId) : null,
       child: Column(

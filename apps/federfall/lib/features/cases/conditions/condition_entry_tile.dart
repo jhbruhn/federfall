@@ -66,7 +66,7 @@ class ConditionEntryTile extends ConsumerWidget {
 
     return TimelineItem(
       icon: Icons.coronavirus_outlined,
-      date: formatEventDate(materialL10n, date),
+      date: formatLocalDate(materialL10n, date),
       isLast: isLast,
       trailing: canEdit
           ? TimelineEntryMenu(
@@ -102,7 +102,7 @@ class ConditionEntryTile extends ConsumerWidget {
                 ),
               if (entry.resolvedDate case final r?)
                 Text(
-                  l10n.conditionResolvedOn(materialL10n.formatMediumDate(r)),
+                  l10n.conditionResolvedOn(formatLocalDate(materialL10n, r)),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

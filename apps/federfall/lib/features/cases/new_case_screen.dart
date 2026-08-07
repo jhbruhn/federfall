@@ -331,7 +331,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           children: [
             Text(
               l10n.caseDraftRestoreMessage(
-                formatDateMaybeTime(
+                formatLocalDate(
                   materialL10n,
                   draft.savedAt,
                   withTime: true,
@@ -1262,7 +1262,7 @@ class _DateField extends StatelessWidget {
     final materialL10n = MaterialLocalizations.of(context);
     final text = value == null
         ? l10n.caseDateNotSet
-        : materialL10n.formatMediumDate(value!);
+        : formatLocalDate(materialL10n, value);
     return InkWell(
       onTap: enabled ? onPick : null,
       child: InputDecorator(
