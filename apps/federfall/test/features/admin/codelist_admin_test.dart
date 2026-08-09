@@ -6,6 +6,7 @@ import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
+import 'package:federfall/features/cases/microscopy/microscopy_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -40,6 +41,9 @@ class MockAdministrationsRepo extends Mock
 
 class MockMedicationProductsRepo extends Mock
     implements PbMedicationProductsRepository {}
+
+class MockMicroscopyFindingTypesRepo extends Mock
+    implements PbMicroscopyFindingTypesRepository {}
 
 /// Overrides the collection that references the conditions code list, so the
 /// delete confirmation can count how many diagnoses point at an entry.
@@ -523,5 +527,104 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Cancel'), findsNothing);
     expect(find.byType(SnackBar), findsOne);
     verifyNever(() => repo.delete(any()));
+  });
+
+  // federfall-06ij — the first list needing a control beyond {label, active}.
+  group('the microscopy vocabulary carries its applicability chips', () {
+    testWidgets('a new entry applies to every probe until narrowed', (
+      tester,
+    ) async {
+      final repo = MockMicroscopyFindingTypesRepo();
+      when(() => repo.create(any())).thenAnswer(
+        (_) async => const MicroscopyFindingType(id: 'new', label: 'Kokzidien'),
+      );
+
+      await _pump(
+        tester,
+        role: UserRole.supervisor,
+        screen: CodelistAdminScreen(spec: microscopyFindingTypesCodelistSpec),
+        overrides: [
+          microscopyFindingTypesProvider.overrideWith((ref) async => const []),
+          microscopyFindingTypesRepositoryProvider.overrideWith(
+            (ref) async => repo,
+          ),
+        ],
+      );
+
+      await tester.tap(
+        find.widgetWithText(FloatingActionButton, 'New finding'),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Name'),
+        'Kokzidien',
+      );
+
+      // Untick one — the other stays, so the entry is offered for that probe
+      // only.
+      await tester.tap(find.widgetWithText(FilterChip, 'Crop swab'));
+      await tester.pumpAndSettle();
+
+      final saveButton = find.widgetWithText(FilledButton, 'Save');
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      final data =
+          verify(() => repo.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(data['label'], 'Kokzidien');
+      expect(data['sample_types'], ['fecal']);
+    });
+
+    testWidgets('an existing entry shows what it applies to, on the tile too', (
+      tester,
+    ) async {
+      final repo = MockMicroscopyFindingTypesRepo();
+      when(() => repo.update(any(), any())).thenAnswer(
+        (_) async => const MicroscopyFindingType(id: 't1', label: 'Hefen'),
+      );
+
+      await _pump(
+        tester,
+        role: UserRole.supervisor,
+        screen: CodelistAdminScreen(spec: microscopyFindingTypesCodelistSpec),
+        overrides: [
+          microscopyFindingTypesProvider.overrideWith(
+            (ref) async => const [
+              MicroscopyFindingType(
+                id: 't1',
+                label: 'Hefen',
+                sampleTypes: [
+                  MicroscopySampleType.cropSwab,
+                  MicroscopySampleType.fecal,
+                ],
+              ),
+            ],
+          ),
+          microscopyFindingTypesRepositoryProvider.overrideWith(
+            (ref) async => repo,
+          ),
+        ],
+      );
+
+      // Hefen is the reason there is ONE list with an applicability field
+      // rather than two lists kept in step by hand.
+      expect(find.text('Crop swab · Faecal sample'), findsOneWidget);
+
+      await tester.tap(find.text('Hefen'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilterChip, 'Faecal sample'));
+      await tester.pumpAndSettle();
+      final saveButton = find.widgetWithText(FilledButton, 'Save');
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      final data =
+          verify(() => repo.update('t1', captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(data['sample_types'], ['crop_swab']);
+    });
   });
 }

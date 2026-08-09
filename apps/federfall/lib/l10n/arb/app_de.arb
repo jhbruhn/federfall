@@ -847,6 +847,22 @@
     "admissionReasonCodelistDeleteAction": "Aufnahmegrund löschen",
     "admissionReasonCodelistDeleteConfirm": "„{label}“ aus den Aufnahmegründen löschen?",
     "admissionReasonCodelistInUse": "{count, plural, =1{1 Fall nennt diesen Aufnahmegrund} other{{count} Fälle nennen diesen Aufnahmegrund}}",
+    "microscopyFindingTypesAdminTitle": "Mikroskopie-Befunde",
+    "microscopyFindingTypesAdminSubtitle": "Die Begriffe, die im Mikroskopie-Bogen zur Auswahl stehen.",
+    "microscopyFindingTypesAdminEmpty": "Noch keine Befunde hinterlegt. Lege die Begriffe an, die dein Team benennt.",
+    "microscopyFindingTypeCodelistNewTitle": "Neuer Befund",
+    "microscopyFindingTypeCodelistEditTitle": "Befund bearbeiten",
+    "microscopyFindingTypeActiveHelp": "Inaktive Begriffe bleiben an bereits erfassten Befunden erhalten, werden aber nicht mehr angeboten.",
+    "microscopyFindingTypeCodelistDeleteAction": "Befund löschen",
+    "microscopyFindingTypeCodelistDeleteConfirm": "„{label}“ aus den Mikroskopie-Befunden löschen?",
+    "@microscopyFindingTypeCodelistDeleteConfirm": {
+        "placeholders": { "label": { "type": "String" } }
+    },
+    "microscopyFindingTypeCodelistInUse": "{count, plural, =1{1 erfasster Befund nutzt diesen Begriff} other{{count} erfasste Befunde nutzen diesen Begriff}}",
+    "@microscopyFindingTypeCodelistInUse": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "microscopySampleTypesHelp": "Bestimmt, bei welcher Probenart dieser Befund zur Auswahl steht. Ohne Auswahl erscheint er bei allen.",
     "markingTypesAdminTitle": "Kennzeichnungsarten",
     "markingTypesAdminSubtitle": "Ring- und Kennzeichnungsarten, die dein Team anlegt",
     "markingTypesAdminEmpty": "Noch keine Kennzeichnungsarten. Lege die von deinem Team genutzten Arten an.",
@@ -949,6 +965,10 @@
     "microscopyRecordVideo": "Video aufnehmen",
     "microscopyOpenFailed": "Anhang konnte nicht geöffnet werden",
     "microscopyCreateDiagnosis": "Diagnose anlegen",
+    "microscopyCreateDiagnosisFor": "Diagnose anlegen: {finding}",
+    "@microscopyCreateDiagnosisFor": {
+        "placeholders": { "finding": { "type": "String" } }
+    },
 
     "hydrationNormal": "Normal",
     "hydrationMild": "Leicht",

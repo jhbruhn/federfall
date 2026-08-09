@@ -206,9 +206,32 @@ federfall.yourdomain.tld {
 }
 ```
 
-Caddy obtains and renews the certificate on its own, streams the realtime updates the app relies on, and does not cap upload sizes — so photo uploads and live updates work without further tuning.
+Caddy obtains and renews the certificate on its own, streams the realtime updates the app relies on, and does not cap request bodies by default — so uploads and live updates work without further tuning.
 
-If you prefer nginx, two settings matter: raise `client_max_body_size` (photos can be a few megabytes) and turn off proxy buffering for `/api/realtime` so server-sent events are not held back.
+If you prefer nginx, two settings matter: raise `client_max_body_size` and turn off proxy buffering for `/api/realtime` so server-sent events are not held back.
+
+### Upload size
+
+Microscopy records accept **video** attachments — up to 50 MB per file, five per record. Photos are a few megabytes; a phone clip is not.
+
+nginx's `client_max_body_size` defaults to **1 MB**, so an upload larger than that is rejected before it ever reaches Federfall. The failure is a bare `413` from a component this project does not ship, with nothing in the container's own logs to explain it — so raise it deliberately:
+
+```nginx
+client_max_body_size 60m;
+```
+
+Caddy has no such cap, but if you set `request_body { max_size ... }` yourself, keep it above the same figure:
+
+```caddyfile
+federfall.yourdomain.tld {
+    request_body {
+        max_size 60MB
+    }
+    reverse_proxy localhost:8090
+}
+```
+
+60 MB rather than 50 leaves room for the multipart envelope around the file. If you also sit behind a CDN or a cloud load balancer, check its own body limit — several cap well below this and cannot be raised.
 
 Whichever proxy you use, also tell PocketBase which header carries the real client address:
 

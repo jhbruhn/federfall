@@ -165,21 +165,33 @@ class MicroscopyTile extends ConsumerWidget {
           // An OFFER, never a side effect: a positive finding is evidence, the
           // diagnosis is a human call, and the seeded conditions list already
           // holds "Trichomonadose".
-          if (canEdit && graded.isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                icon: const Icon(Icons.coronavirus_outlined, size: 18),
-                label: Text(l10n.microscopyCreateDiagnosis),
-                onPressed: () => unawaited(
-                  showConditionEntrySheet(
-                    context,
-                    caseId: caseId,
-                    initialLabel: _nameOf(graded.first, typesById),
+          //
+          // One per finding, because a sample carrying Trichomonaden AND
+          // Spulwurmeier is two diagnoses, not one: a single button could only
+          // ever pre-fill one of them, and which one it picked would be
+          // arbitrary from the reader's side.
+          if (canEdit)
+            for (final f in graded)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.coronavirus_outlined, size: 18),
+                  label: Text(
+                    graded.length == 1
+                        ? l10n.microscopyCreateDiagnosis
+                        : l10n.microscopyCreateDiagnosisFor(
+                            _nameOf(f, typesById),
+                          ),
+                  ),
+                  onPressed: () => unawaited(
+                    showConditionEntrySheet(
+                      context,
+                      caseId: caseId,
+                      initialLabel: _nameOf(f, typesById),
+                    ),
                   ),
                 ),
               ),
-            ),
         ],
       ),
     );

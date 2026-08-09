@@ -75,6 +75,12 @@ enum AdminSection {
     AppRoutes.markingTypesAdmin,
     AppRoutes.markingTypesAdminSegment,
   ),
+  microscopyFindingTypes(
+    AdminSectionGroup.codelists,
+    Icons.biotech_outlined,
+    AppRoutes.microscopyFindingTypesAdmin,
+    AppRoutes.microscopyFindingTypesAdminSegment,
+  ),
   medicationRoutes(
     AdminSectionGroup.codelists,
     Icons.medication_outlined,
@@ -113,6 +119,8 @@ enum AdminSection {
     AdminSection.conditions => l10n.conditionsAdminTitle,
     AdminSection.admissionReasons => l10n.admissionReasonsAdminTitle,
     AdminSection.markingTypes => l10n.markingTypesAdminTitle,
+    AdminSection.microscopyFindingTypes =>
+      l10n.microscopyFindingTypesAdminTitle,
     AdminSection.medicationRoutes => l10n.medicationRoutesAdminTitle,
     AdminSection.medicationProducts => l10n.medProductsAdminTitle,
     AdminSection.audit => l10n.auditTitle,
@@ -127,6 +135,8 @@ enum AdminSection {
     AdminSection.conditions => l10n.conditionsAdminSubtitle,
     AdminSection.admissionReasons => l10n.admissionReasonsAdminSubtitle,
     AdminSection.markingTypes => l10n.markingTypesAdminSubtitle,
+    AdminSection.microscopyFindingTypes =>
+      l10n.microscopyFindingTypesAdminSubtitle,
     AdminSection.medicationRoutes => l10n.medicationRoutesAdminSubtitle,
     AdminSection.medicationProducts => l10n.medProductsAdminSubtitle,
     AdminSection.audit => l10n.auditSubtitle,
@@ -143,6 +153,9 @@ enum AdminSection {
     ),
     AdminSection.markingTypes => CodelistAdminScreen(
       spec: markingTypesCodelistSpec,
+    ),
+    AdminSection.microscopyFindingTypes => CodelistAdminScreen(
+      spec: microscopyFindingTypesCodelistSpec,
     ),
     AdminSection.medicationRoutes => CodelistAdminScreen(
       spec: medicationRoutesCodelistSpec,

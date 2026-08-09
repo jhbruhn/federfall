@@ -1,9 +1,11 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/codelist_admin.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
+import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
+import 'package:federfall/features/cases/microscopy/microscopy_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 
@@ -86,6 +88,55 @@ final markingTypesCodelistSpec = CodelistSpec<MarkingType>(
   // The only list whose referencing relation (`markings.type`) is required —
   // PocketBase rejects the delete while any marking uses the type.
   deleteBlockedWhenInUse: true,
+);
+
+/// The org's microscopy vocabulary (Trichomonaden, Hefen, Spulwurmeier…).
+///
+/// The first list needing a control beyond `{label, active}`: `sample_types`
+/// says which probe kinds offer a term, and it exists because the two lists
+/// the workflow has are different but OVERLAPPING — *Hefen* occurs in both a
+/// crop swab and a faecal sample, and two lists would have to be kept in step
+/// by hand.
+final microscopyFindingTypesCodelistSpec = CodelistSpec<MicroscopyFindingType>(
+  watchList: (ref) => ref.watch(microscopyFindingTypesProvider),
+  refresh: (ref) => ref.invalidate(microscopyFindingTypesProvider),
+  repository: (ref) =>
+      ref.read(microscopyFindingTypesRepositoryProvider.future),
+  id: (t) => t.id,
+  label: (t) => t.label,
+  active: (t) => t.active,
+  description: (t) => t.description,
+  chips: CodelistChips<MicroscopyFindingType>(
+    field: 'sample_types',
+    label: (l10n) => l10n.microscopyFieldSampleTypes,
+    help: (l10n) => l10n.microscopySampleTypesHelp,
+    options: [for (final t in MicroscopySampleType.values) t.wire],
+    optionLabel: (l10n, wire) => switch (MicroscopySampleType.fromWire(wire)) {
+      final t? => microscopySampleTypeLabel(l10n, t),
+      // A value this build predates should still be legible, not blank.
+      null => wire,
+    },
+    read: (t) => [for (final s in t.sampleTypes) s.wire],
+  ),
+  tileIcon: Icons.label_outline,
+  emptyIcon: Icons.biotech_outlined,
+  title: (l10n) => l10n.microscopyFindingTypesAdminTitle,
+  emptyMessage: (l10n) => l10n.microscopyFindingTypesAdminEmpty,
+  newTitle: (l10n) => l10n.microscopyFindingTypeCodelistNewTitle,
+  editTitle: (l10n) => l10n.microscopyFindingTypeCodelistEditTitle,
+  deleteAction: (l10n) => l10n.microscopyFindingTypeCodelistDeleteAction,
+  deleteConfirm: (l10n, label) =>
+      l10n.microscopyFindingTypeCodelistDeleteConfirm(label),
+  activeHelp: (l10n) => l10n.microscopyFindingTypeActiveHelp,
+  countReferences: (ref, t) async {
+    final repo = await ref.read(microscopyFindingsRepositoryProvider.future);
+    return repo.countForType(t.id);
+  },
+  inUse: (l10n, count) => l10n.microscopyFindingTypeCodelistInUse(count),
+  // Left FALSE deliberately: `microscopy_findings.finding_type` is
+  // optional, so PocketBase blanks it rather than refusing the delete, and
+  // the finding keeps its severity. That is the `conditions` behaviour,
+  // not `marking_types`'.
 );
 
 /// The org's routes-of-administration vocabulary (oral, subcutaneous…).

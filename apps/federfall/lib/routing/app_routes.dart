@@ -98,6 +98,9 @@ abstract final class AppRoutes {
   /// Supervisor-only marking-type code-list editor (federfall-28a).
   static const markingTypesAdmin = '/admin/marking-types';
 
+  /// Supervisor-only microscopy finding-type code-list editor (federfall-06ij).
+  static const microscopyFindingTypesAdmin = '/admin/microscopy-findings';
+
   /// Supervisor-only medication-route code-list editor (federfall-7k9).
   static const medicationRoutesAdmin = '/admin/medication-routes';
   static const medicationProductsAdmin = '/admin/medications';
@@ -124,6 +127,9 @@ abstract final class AppRoutes {
 
   /// `marking-types` — marking-type code-list, child of the management hub.
   static const markingTypesAdminSegment = 'marking-types';
+
+  /// `microscopy-findings` — microscopy vocabulary, child of the hub.
+  static const microscopyFindingTypesAdminSegment = 'microscopy-findings';
 
   /// `medication-routes` — medication-route code-list, child of the hub.
   static const medicationRoutesAdminSegment = 'medication-routes';

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -52,6 +54,19 @@ class MicroscopySheet extends ConsumerStatefulWidget {
   ConsumerState<MicroscopySheet> createState() => _MicroscopySheetState();
 }
 
+/// How long the "grades dropped" notice offers its undo before it goes.
+const Duration _dropNoticeDuration = Duration(seconds: 8);
+
+/// The grades a probe switch dropped, plus the probe they belonged to, held
+/// only for as long as the undo is on offer.
+class _DroppedGrades {
+  const _DroppedGrades(this.grades, this.probe, this.method);
+
+  final Map<String, MicroscopySeverity> grades;
+  final MicroscopySampleType? probe;
+  final MicroscopyMethod? method;
+}
+
 /// One free-text ("Sonstiges") row: a name the vocabulary does not have, with
 /// its own grade.
 class _FreeRow {
@@ -83,6 +98,10 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
   /// Set once the user has tried to save, so the required-probe error only
   /// appears after they asked for something impossible.
   bool _showSampleTypeError = false;
+
+  /// What the last probe switch dropped, while the undo is still on offer.
+  _DroppedGrades? _dropped;
+  Timer? _dropNotice;
 
   bool get _isEditing => widget.sample != null;
 
@@ -118,6 +137,7 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
 
   @override
   void dispose() {
+    _dropNotice?.cancel();
     _notes.dispose();
     _externalLab.dispose();
     for (final row in _freeRows) {
@@ -172,24 +192,31 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
     markDirty();
 
     if (dropped.isEmpty) return;
-    final l10n = context.l10n;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.microscopyGradesDropped(dropped.length)),
-          action: SnackBarAction(
-            label: l10n.microscopyUndo,
-            // Undo puts the probe back too, not just the grades — otherwise
-            // the restored rows would have nowhere to render.
-            onPressed: () => setState(() {
-              _sampleType = previous;
-              _method = previousMethod;
-              _grades.addAll(dropped);
-            }),
-          ),
-        ),
-      );
+    // Shown INSIDE the sheet, not as a SnackBar: a modal bottom sheet covers
+    // the bottom edge a snackbar lives on, and one raised from a sheet's
+    // context never auto-dismisses. So the sheet owns the notice and its
+    // lifetime — it goes on undo, on the next probe change, or on the timer.
+    setState(
+      () => _dropped = _DroppedGrades(dropped, previous, previousMethod),
+    );
+    _dropNotice?.cancel();
+    _dropNotice = Timer(_dropNoticeDuration, () {
+      if (mounted) setState(() => _dropped = null);
+    });
+  }
+
+  /// Puts back the grades the last probe switch dropped, and the probe with
+  /// them — a restored row needs somewhere to render.
+  void _undoDrop() {
+    final dropped = _dropped;
+    if (dropped == null) return;
+    _dropNotice?.cancel();
+    setState(() {
+      _sampleType = dropped.probe;
+      _method = dropped.method;
+      _grades.addAll(dropped.grades);
+      _dropped = null;
+    });
   }
 
   void _setGrade(String typeId, MicroscopySeverity? severity) {
@@ -392,6 +419,26 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
                 ),
+              ),
+            ),
+          if (_dropped case final dropped?)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      l10n.microscopyGradesDropped(dropped.grades.length),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: isBusy ? null : _undoDrop,
+                    child: Text(l10n.microscopyUndo),
+                  ),
+                ],
               ),
             ),
           if (_sampleType == MicroscopySampleType.fecal) ...[

@@ -7,12 +7,44 @@ import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// A multi-select over a fixed vocabulary, rendered as a chip group in the
+/// code-list sheet and as badges on the tile.
+///
+/// Values are the WIRE strings the column stores, not a Dart enum: this is the
+/// boundary where the form becomes a request body, and keeping the enum out
+/// means one list's control needs no new type parameter on [CodelistSpec].
+class CodelistChips<T> {
+  const CodelistChips({
+    required this.field,
+    required this.label,
+    required this.help,
+    required this.options,
+    required this.optionLabel,
+    required this.read,
+  });
+
+  /// The PocketBase column this writes (e.g. `sample_types`).
+  final String field;
+
+  final String Function(AppLocalizations) label;
+  final String Function(AppLocalizations) help;
+
+  /// The wire values on offer, in the order they should be shown.
+  final List<String> options;
+
+  final String Function(AppLocalizations, String wire) optionLabel;
+
+  /// The wire values currently set on an entry.
+  final List<String> Function(T) read;
+}
+
 /// Describes one supervisor-managed code list for the shared admin screen and
 /// edit sheet: how to read, refresh and mutate its entries, plus the strings
-/// and icons that differ per list. All four lists are structurally a
+/// and icons that differ per list. Every list is structurally a
 /// `{label, active}` record; conditions additionally carry a description, a
 /// notifiable flag and a contagious flag, enabled by providing
-/// [description]/[notifiable]/[contagious].
+/// [description]/[notifiable]/[contagious], and a list needing a control none
+/// of those cover supplies [chips].
 ///
 /// The concrete specs live in `codelist_specs.dart`.
 class CodelistSpec<T> {
@@ -37,6 +69,7 @@ class CodelistSpec<T> {
     this.description,
     this.notifiable,
     this.contagious,
+    this.chips,
     this.deleteBlockedWhenInUse = false,
   });
 
@@ -89,6 +122,11 @@ class CodelistSpec<T> {
   /// Reads the optional contagious flag; non-null adds the switch to the
   /// sheet (stored as `is_contagious`) and the badge to the tile.
   final bool Function(T)? contagious;
+
+  /// An extra multi-select this list needs beyond `{label, active}` — the
+  /// microscopy vocabulary's `sample_types` applicability. Non-null adds the
+  /// chip group to the sheet and the chosen labels to the tile subtitle.
+  final CodelistChips<T>? chips;
 }
 
 /// Supervisor-only code-list editor (UX Phase A): maintain one of the org's
@@ -165,6 +203,8 @@ class _CodelistTile<T> extends ConsumerWidget {
     final badges = [
       if (spec.notifiable?.call(entry) ?? false) l10n.conditionNotifiableLabel,
       if (spec.contagious?.call(entry) ?? false) l10n.conditionContagiousLabel,
+      if (spec.chips case final chips?)
+        for (final wire in chips.read(entry)) chips.optionLabel(l10n, wire),
       if (inactive) l10n.conditionInactiveBadge,
     ];
 
@@ -228,6 +268,7 @@ class _CodelistSheetState<T> extends ConsumerState<CodelistSheet<T>>
   late bool _notifiable;
   late bool _contagious;
   late bool _active;
+  late final Set<String> _chips;
 
   CodelistSpec<T> get _spec => widget.spec;
 
@@ -246,6 +287,15 @@ class _CodelistSheetState<T> extends ConsumerState<CodelistSheet<T>>
     _notifiable = e != null && (_spec.notifiable?.call(e) ?? false);
     _contagious = e != null && (_spec.contagious?.call(e) ?? false);
     _active = e == null || _spec.active(e);
+    // A new entry starts with every option ticked. An unticked chip group is
+    // what a supervisor gets by not touching the control, and shipping that as
+    // "applies nowhere" would hide the entry they just created.
+    final chips = _spec.chips;
+    _chips = switch (chips) {
+      null => <String>{},
+      _ when e == null => chips.options.toSet(),
+      _ => chips.read(e as T).toSet(),
+    };
   }
 
   @override
@@ -267,6 +317,13 @@ class _CodelistSheetState<T> extends ConsumerState<CodelistSheet<T>>
         if (_description case final d?) 'description': d.text.trim(),
         if (_spec.notifiable != null) 'is_notifiable': _notifiable,
         if (_spec.contagious != null) 'is_contagious': _contagious,
+        // Sent in the vocabulary's own order, not selection order, so an edit
+        // that changes nothing produces no diff for the audit log to record.
+        if (_spec.chips case final chips?)
+          chips.field: [
+            for (final o in chips.options)
+              if (_chips.contains(o)) o,
+          ],
       };
       final existing = widget.entry;
       if (existing == null) {
@@ -309,6 +366,45 @@ class _CodelistSheetState<T> extends ConsumerState<CodelistSheet<T>>
               minLines: 2,
               maxLines: 5,
               textCapitalization: TextCapitalization.sentences,
+            ),
+          ],
+          if (_spec.chips case final chips?) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              chips.label(l10n),
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              spacing: AppSpacing.sm,
+              children: [
+                for (final option in chips.options)
+                  FilterChip(
+                    label: Text(chips.optionLabel(l10n, option)),
+                    selected: _chips.contains(option),
+                    onSelected: isBusy
+                        ? null
+                        : (on) {
+                            setState(() {
+                              if (on) {
+                                _chips.add(option);
+                              } else {
+                                _chips.remove(option);
+                              }
+                            });
+                            markDirty();
+                          },
+                  ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(
+                chips.help(l10n),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
           ],
           const SizedBox(height: AppSpacing.sm),

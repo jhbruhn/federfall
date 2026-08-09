@@ -1769,6 +1769,30 @@
         "description": "How many cases still reference the admission reason being deleted",
         "placeholders": { "count": { "type": "int" } }
     },
+    "microscopyFindingTypesAdminTitle": "Microscopy findings",
+    "@microscopyFindingTypesAdminTitle": { "description": "Title of the microscopy finding-type code-list editor" },
+    "microscopyFindingTypesAdminSubtitle": "The terms offered in the microscopy form.",
+    "@microscopyFindingTypesAdminSubtitle": { "description": "Admin hub subtitle for the microscopy vocabulary" },
+    "microscopyFindingTypesAdminEmpty": "No findings configured yet. Add the terms your team uses.",
+    "@microscopyFindingTypesAdminEmpty": { "description": "Empty state for the microscopy vocabulary" },
+    "microscopyFindingTypeCodelistNewTitle": "New finding",
+    "@microscopyFindingTypeCodelistNewTitle": { "description": "Title when creating a microscopy vocabulary entry" },
+    "microscopyFindingTypeCodelistEditTitle": "Edit finding",
+    "@microscopyFindingTypeCodelistEditTitle": { "description": "Title when editing a microscopy vocabulary entry" },
+    "microscopyFindingTypeActiveHelp": "Inactive terms stay on findings already recorded but are no longer offered.",
+    "@microscopyFindingTypeActiveHelp": { "description": "Helper text for the microscopy vocabulary active toggle" },
+    "microscopyFindingTypeCodelistDeleteAction": "Delete finding",
+    "@microscopyFindingTypeCodelistDeleteAction": { "description": "Destructive action deleting a microscopy vocabulary entry" },
+    "microscopyFindingTypeCodelistDeleteConfirm": "Delete \"{label}\" from the microscopy findings?",
+    "@microscopyFindingTypeCodelistDeleteConfirm": {
+        "placeholders": { "label": { "type": "String" } }
+    },
+    "microscopyFindingTypeCodelistInUse": "{count, plural, =1{1 recorded finding uses this term} other{{count} recorded findings use this term}}",
+    "@microscopyFindingTypeCodelistInUse": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "microscopySampleTypesHelp": "Decides which sample type offers this finding. With none ticked it appears for all.",
+    "@microscopySampleTypesHelp": { "description": "Helper text for the sample-type applicability chips" },
     "markingTypesAdminTitle": "Marking types",
     "@markingTypesAdminTitle": { "description": "Title of the marking-type code-list editor" },
     "markingTypesAdminSubtitle": "Kinds of ring and marking your team applies",
@@ -1975,6 +1999,11 @@
     "microscopyRecordVideo": "Record video",
     "microscopyOpenFailed": "The attachment could not be opened",
     "microscopyCreateDiagnosis": "Create diagnosis",
+    "microscopyCreateDiagnosisFor": "Create diagnosis: {finding}",
+    "@microscopyCreateDiagnosisFor": {
+        "description": "Diagnosis shortcut naming which finding it pre-fills",
+        "placeholders": { "finding": { "type": "String" } }
+    },
     "@examDeleteAction": { "description": "Delete action on the exam tile menu" },
 
     "hydrationNormal": "Normal",

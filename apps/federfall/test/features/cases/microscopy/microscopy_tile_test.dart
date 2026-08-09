@@ -183,6 +183,36 @@ void main() {
     expect(find.text('Create diagnosis'), findsOneWidget);
   });
 
+  // Two parasites are two diagnoses. A single shortcut could only pre-fill
+  // one of them, and which one it picked would be arbitrary to the reader.
+  testWidgets('each finding gets its own, named diagnosis shortcut', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      sample: const MicroscopySample(id: 'm1', caseId: 'c1'),
+      findings: const [
+        MicroscopyFinding(
+          id: 'f1',
+          sample: 'm1',
+          findingType: 't_spul',
+          severity: MicroscopySeverity.plusPlus,
+        ),
+        MicroscopyFinding(
+          id: 'f2',
+          sample: 'm1',
+          findingType: 't_kok',
+          severity: MicroscopySeverity.plus,
+        ),
+      ],
+    );
+
+    expect(find.text('Create diagnosis: Spulwurmeier'), findsOneWidget);
+    expect(find.text('Create diagnosis: Kokzidien-Oozysten'), findsOneWidget);
+    // The unqualified label belongs to the single-finding case only.
+    expect(find.text('Create diagnosis'), findsNothing);
+  });
+
   testWidgets('a sample with nothing found offers no diagnosis', (
     tester,
   ) async {
