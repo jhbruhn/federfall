@@ -57,6 +57,12 @@ class IntakeSeriesChart extends StatelessWidget {
     // Four gridlines at most, on whole birds — a half-intake axis label would
     // be nonsense.
     final step = (tallest / 4).ceil().clamp(1, 1 << 30);
+    // The ceiling is the next multiple of that step, not `tallest + step`:
+    // fl_chart labels maxY whatever it is, so a top off the interval printed
+    // 0, 3, 6, 9, 12, 14 with the last two labels nearly touching
+    // (federfall-p0dd). Rounding up keeps a clear step of headroom above the
+    // tallest bar — a tallest that already IS a multiple gets a whole one.
+    final ceiling = (tallest ~/ step + 1) * step;
 
     final label = _bucketLabel(context);
     final monthFormat = DateFormat.MMM(
@@ -87,7 +93,7 @@ class IntakeSeriesChart extends StatelessWidget {
           height: 180,
           child: BarChart(
             BarChartData(
-              maxY: (tallest + step).toDouble(),
+              maxY: ceiling.toDouble(),
               gridData: FlGridData(
                 drawVerticalLine: false,
                 horizontalInterval: step.toDouble(),

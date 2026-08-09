@@ -117,6 +117,42 @@ void main() {
     expect(find.text('Mar 2025'), findsOneWidget);
   });
 
+  testWidgets('the axis top is a tick, not a label wedged above the last one', (
+    tester,
+  ) async {
+    // federfall-p0dd: fl_chart labels maxY whatever it is, so a ceiling off the
+    // tick interval read 0, 3, 6, 9, 12, 14 with the top two nearly touching.
+    final data = await _pump(
+      tester,
+      const IntakeSeries(
+        kind: SeriesBucket.month,
+        points: [IntakePoint(1, 11), IntakePoint(2, 4)],
+      ),
+    );
+
+    final step = data!.gridData.horizontalInterval!;
+    expect(step, 3);
+    expect(data.maxY, 12);
+    expect(data.maxY % step, 0);
+    // The tallest bar still clears the top gridline.
+    expect(data.maxY, greaterThan(11));
+  });
+
+  testWidgets('a tallest that is already a tick keeps a full step of air', (
+    tester,
+  ) async {
+    final data = await _pump(
+      tester,
+      const IntakeSeries(
+        kind: SeriesBucket.month,
+        points: [IntakePoint(1, 12)],
+      ),
+    );
+
+    expect(data!.gridData.horizontalInterval, 3);
+    expect(data.maxY, 15);
+  });
+
   testWidgets('an empty series says so instead of drawing an empty axis', (
     tester,
   ) async {
