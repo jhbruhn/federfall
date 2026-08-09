@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.18.0](https://github.com/jhbruhn/federfall/compare/v0.17.2...v0.18.0) (2026-08-09)
+
+
+### Features
+
+* manage the microscopy vocabulary from the admin hub ([515a4d9](https://github.com/jhbruhn/federfall/commit/515a4d96c254bbd48cf77faffd8ae75f125ba322))
+* map microscopy records into models, repositories and the audit log ([5cb8145](https://github.com/jhbruhn/federfall/commit/5cb814533295b5d66bdd167bd4bdbaedd6593db7))
+* record microscopy findings on a case (backend) ([f60d3a1](https://github.com/jhbruhn/federfall/commit/f60d3a11ac17b5f99ff00b0a478ae640f37c6133))
+* record microscopy on the case timeline (sheet, tile, attachments) ([91cca51](https://github.com/jhbruhn/federfall/commit/91cca51ac2df6fd8a140fad62e15efd45b972ea7))
+* require the preparation on a faecal microscopy sample ([feb9219](https://github.com/jhbruhn/federfall/commit/feb92193150239ce12d8d4b7cf17e8ab521daa81))
+
 ## [0.17.2](https://github.com/jhbruhn/federfall/compare/v0.17.1...v0.17.2) (2026-08-09)
 
 
