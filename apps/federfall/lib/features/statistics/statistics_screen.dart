@@ -160,16 +160,6 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _kpis(l10n, s, period),
-                    const SizedBox(height: AppSpacing.sm),
-                    // The two rates are shares of the cases that ENDED, not of
-                    // the intakes above them — without the denominator on the
-                    // screen they would read as either.
-                    Text(
-                      l10n.statsRatesBasis(s.closed),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
                     const SizedBox(height: AppSpacing.lg),
                     chart,
                     const SizedBox(height: AppSpacing.md),
@@ -233,15 +223,21 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                   ),
                 ),
         ),
+        // Both rates are shares of the cases that ENDED, not of the intakes
+        // beside them, so each carries its own denominator: under the grid the
+        // same sentence qualified all five tiles (federfall-v5di). It is also
+        // what explains the em dash while nothing has ended yet.
         KpiCard(
           icon: Icons.flight_takeoff_outlined,
           label: l10n.statsReleaseRate,
           value: _rate(l10n, s.releaseRate),
+          note: l10n.statsRateBasis(s.closed),
         ),
         KpiCard(
           icon: Icons.trending_down_outlined,
           label: l10n.statsMortalityRate,
           value: _rate(l10n, s.mortalityRate),
+          note: l10n.statsRateBasis(s.closed),
         ),
       ]);
 

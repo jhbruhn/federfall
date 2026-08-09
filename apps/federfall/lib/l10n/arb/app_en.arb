@@ -259,9 +259,9 @@
         "description": "A percentage figure",
         "placeholders": { "value": { "type": "String" } }
     },
-    "statsRatesBasis": "{count, plural, =0{No case has ended in this period yet} =1{Rates over 1 ended case} other{Rates over {count} ended cases}}",
-    "@statsRatesBasis": {
-        "description": "Names the denominator of the release/mortality rates (federfall-nmwi)",
+    "statsRateBasis": "{count, plural, =0{No case has ended in this period yet} =1{of 1 ended case} other{of {count} ended cases}}",
+    "@statsRateBasis": {
+        "description": "Denominator note inside the release/mortality rate tiles (federfall-nmwi); sits in the tile it qualifies rather than under the whole grid (federfall-v5di)",
         "placeholders": { "count": { "type": "int" } }
     },
     "statsAvgTimeInCare": "Avg. time in care",

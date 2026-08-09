@@ -76,8 +76,8 @@
     "@statsPercentValue": {
         "placeholders": { "value": { "type": "String" } }
     },
-    "statsRatesBasis": "{count, plural, =0{In diesem Zeitraum ist noch kein Fall abgeschlossen} =1{Quoten bezogen auf 1 abgeschlossenen Fall} other{Quoten bezogen auf {count} abgeschlossene Fälle}}",
-    "@statsRatesBasis": {
+    "statsRateBasis": "{count, plural, =0{In diesem Zeitraum ist noch kein Fall abgeschlossen} =1{von 1 abgeschlossenen Fall} other{von {count} abgeschlossenen Fällen}}",
+    "@statsRateBasis": {
         "placeholders": { "count": { "type": "int" } }
     },
     "statsAvgTimeInCare": "Ø Verweildauer",

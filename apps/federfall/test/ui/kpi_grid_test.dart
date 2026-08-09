@@ -108,6 +108,43 @@ void main() {
     expect(rects[2].left, rects[0].left);
   });
 
+  testWidgets('a note stays inside the tile it qualifies', (tester) async {
+    // federfall-v5di: "Rates over 8 ended cases" under the grid read as a
+    // qualifier on the intake count as well. A tile carries its own.
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: KpiGrid([
+            KpiCard(icon: Icons.pets, label: 'Intakes', value: '12'),
+            KpiCard(
+              icon: Icons.flight_takeoff_outlined,
+              label: 'Release rate',
+              value: '63 %',
+              note: 'of 8 ended cases',
+            ),
+          ]),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.widgetWithText(KpiCard, 'Release rate'),
+        matching: find.text('of 8 ended cases'),
+      ),
+      findsOneWidget,
+    );
+    // A tile with nothing to qualify grows nothing.
+    expect(
+      find.descendant(
+        of: find.widgetWithText(KpiCard, 'Intakes'),
+        matching: find.text('of 8 ended cases'),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('a phone keeps two columns', (tester) async {
     final width = await _tileWidth(tester, 360);
     expect(width, closeTo((360 - 16) / 2, 1));

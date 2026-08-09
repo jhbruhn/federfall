@@ -12,6 +12,7 @@ class KpiCard extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.note,
     this.onTap,
     super.key,
   });
@@ -22,6 +23,14 @@ class KpiCard extends StatelessWidget {
   /// Pre-formatted, so a tile can show a plain count, a localized duration or
   /// an em dash for "not enough data".
   final String value;
+
+  /// What this number is over, when it is not self-evident — a rate's
+  /// denominator, say. It sits INSIDE the tile because a caption under the
+  /// grid qualifies every tile in it, which is how "Rates over 8 ended cases"
+  /// came to read as a statement about the intake count too (federfall-v5di).
+  /// Where the grid wraps is a function of the window, so there is no position
+  /// beside the tiles that stays beside them.
+  final String? note;
 
   /// Omit for a tile that only reports. The chevron follows this, so a tile
   /// never promises a destination it does not have.
@@ -75,6 +84,15 @@ class KpiCard extends StatelessWidget {
                     ),
                 ],
               ),
+              if (note case final note?) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  note,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

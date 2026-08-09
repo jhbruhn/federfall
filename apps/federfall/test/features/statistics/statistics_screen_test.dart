@@ -130,7 +130,17 @@ void main() {
 
     expect(find.text('63 %'), findsOneWidget);
     expect(find.text('38 %'), findsOneWidget);
-    expect(find.text('Rates over 8 ended cases'), findsOneWidget);
+    // Once per rate tile, not once under the whole grid: a caption below the
+    // five tiles qualified the three that are not rates as well
+    // (federfall-v5di).
+    expect(find.text('of 8 ended cases'), findsNWidgets(2));
+    expect(
+      find.ancestor(
+        of: find.text('of 8 ended cases').first,
+        matching: find.widgetWithText(KpiCard, 'Release rate'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('an undefined rate is an em dash, not 0 %', (tester) async {
@@ -141,9 +151,10 @@ void main() {
     // Avg time in care and both rates: nothing has ended, so none of the three
     // is defined. Claiming a 0 % release rate would be a different statement.
     expect(find.text('–'), findsNWidgets(3));
+    // The note on each rate tile is also what explains its dash.
     expect(
       find.text('No case has ended in this period yet'),
-      findsOneWidget,
+      findsNWidgets(2),
     );
   });
 
