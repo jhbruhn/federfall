@@ -27,6 +27,7 @@ export 'widgets/editable_photo_strip.dart';
 export 'widgets/empty_view.dart';
 export 'widgets/error_view.dart';
 export 'widgets/icon_chip.dart';
+export 'widgets/image_cropper.dart';
 export 'widgets/image_viewer.dart';
 export 'widgets/kpi_card.dart';
 export 'widgets/loading_view.dart';

@@ -11,6 +11,7 @@ dependencies:
   cached_network_image: ^3.4.1
   cached_network_image_platform_interface: ^4.1.1
   connectivity_plus: ^7.2.0
+  crop_image: ^1.0.17
   csv: ^8.0.0
   federfall_data:
     path: ../../packages/federfall_data

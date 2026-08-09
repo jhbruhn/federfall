@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -9,9 +12,14 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart' hide Finder;
+import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
+
+class MockImagePicker extends Mock implements ImagePicker {}
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -19,6 +27,7 @@ Future<void> _pump(
   Uri? thumbUrl,
   Uri? fullUrl,
   PbAnimalsRepository? animals,
+  ImagePicker? picker,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -30,6 +39,7 @@ Future<void> _pump(
         ).overrideWith((ref) async => fullUrl),
         if (animals != null)
           animalsRepositoryProvider.overrideWith((ref) async => animals),
+        if (picker != null) imagePickerProvider.overrideWithValue(picker),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -57,8 +67,44 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+/// Alternates real-async progress with frame pumps until [done], or gives up.
+///
+/// The crop step hands its pixel work to a background isolate, which a widget
+/// test's fake clock does not drive — only `runAsync` does — while the route
+/// transition around it needs ordinary pumps, and `pump` may not be called
+/// from inside `runAsync`. Interleaving is what lets both finish.
+Future<void> _settleAsync(WidgetTester tester, bool Function() done) async {
+  for (var i = 0; i < 60 && !done(); i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+  }
+}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(<String, dynamic>{});
+    registerFallbackValue(<http.MultipartFile>[]);
+    registerFallbackValue(ImageSource.gallery);
+  });
+
   const animal = Animal(id: 'a1', species: 'Columba livia', photo: 'p.jpg');
+  const bare = Animal(id: 'a1', species: 'Columba livia');
+
+  /// A real, decodable JPEG — the crop screen decodes what it is handed, so
+  /// the usual fake bytes would never get past its loading placeholder.
+  final photoBytes = img.encodeJpg(img.Image(width: 40, height: 40));
+
+  /// A picker that always returns [photoBytes] under a non-JPEG name, so the
+  /// re-encode's effect on the upload filename is visible.
+  MockImagePicker pickerReturningPhoto() {
+    final picker = MockImagePicker();
+    when(
+      () => picker.pickImage(source: any(named: 'source')),
+    ).thenAnswer((_) async => XFile.fromData(photoBytes, name: 'shot.png'));
+    return picker;
+  }
 
   testWidgets('tapping a photo opens the full-screen viewer at full res', (
     tester,
@@ -84,7 +130,6 @@ void main() {
   testWidgets('tapping with no photo goes straight to the edit sheet', (
     tester,
   ) async {
-    const bare = Animal(id: 'a1', species: 'Columba livia');
     final animals = MockAnimalsRepo();
     await _pump(tester, animal: bare, animals: animals);
 
@@ -116,5 +161,84 @@ void main() {
 
     expect(find.byType(ImageViewerScreen), findsNothing);
     expect(find.text('Choose from gallery'), findsOneWidget);
+  });
+
+  testWidgets('a picked photo goes through the crop step before upload', (
+    tester,
+  ) async {
+    final animals = MockAnimalsRepo();
+    await _pump(
+      tester,
+      animal: bare,
+      animals: animals,
+      picker: pickerReturningPhoto(),
+    );
+
+    await tester.tap(find.byType(InkWell));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose from gallery'));
+    await _settle(tester);
+
+    expect(find.byType(ImageCropScreen), findsOneWidget);
+    // Nothing is uploaded until the crop is confirmed.
+    verifyNever(() => animals.updateWithFiles(any(), any(), any()));
+  });
+
+  testWidgets('backing out of the crop leaves the photo unchanged', (
+    tester,
+  ) async {
+    final animals = MockAnimalsRepo();
+    await _pump(
+      tester,
+      animal: bare,
+      animals: animals,
+      picker: pickerReturningPhoto(),
+    );
+
+    await tester.tap(find.byType(InkWell));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose from gallery'));
+    await _settle(tester);
+
+    // A fullscreen dialog's leading affordance is Close, not Back.
+    await tester.tap(find.byTooltip('Close'));
+    await _settle(tester);
+
+    expect(find.byType(ImageCropScreen), findsNothing);
+    verifyNever(() => animals.updateWithFiles(any(), any(), any()));
+  });
+
+  testWidgets('confirming the crop uploads the cropped JPEG', (tester) async {
+    final animals = MockAnimalsRepo();
+    final uploaded = Completer<List<http.MultipartFile>>();
+    when(() => animals.updateWithFiles(any(), any(), any())).thenAnswer((
+      invocation,
+    ) async {
+      uploaded.complete(
+        invocation.positionalArguments[2] as List<http.MultipartFile>,
+      );
+      return bare;
+    });
+    await _pump(
+      tester,
+      animal: bare,
+      animals: animals,
+      picker: pickerReturningPhoto(),
+    );
+
+    await tester.tap(find.byType(InkWell));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose from gallery'));
+    await _settle(tester);
+    await tester.tap(find.text('Save'));
+    await _settleAsync(tester, () => uploaded.isCompleted);
+
+    final files = await uploaded.future;
+    expect(files.single.field, 'photo');
+    // Re-encoded as JPEG, so a non-JPEG name must not survive. (`XFile.name`
+    // is empty under test, so this is the fallback stem — the extension is
+    // what this pins.)
+    expect(files.single.filename, endsWith('.jpg'));
+    expect(files.single.length, greaterThan(0));
   });
 }

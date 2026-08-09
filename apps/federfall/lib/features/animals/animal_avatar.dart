@@ -113,8 +113,11 @@ class AnimalAvatar extends ConsumerWidget {
     final hasPhoto = animal?.photo != null && animal!.photo!.isNotEmpty;
     // Everything ref-dependent is captured before the awaits: the camera flow
     // can dispose this element (Android backgrounds the activity), and ref
-    // must not be touched afterwards.
+    // must not be touched afterwards. The navigator is captured for the same
+    // reason — the crop step is pushed after the camera returns, so it cannot
+    // depend on this element's context still being mounted.
     final picker = ref.read(imagePickerProvider);
+    final navigator = Navigator.of(context, rootNavigator: true);
     final repo = await ref.read(animalsRepositoryProvider.future);
     if (!context.mounted) return;
 
@@ -159,12 +162,24 @@ class AnimalAvatar extends ConsumerWidget {
                 : ImageSource.gallery,
           );
           if (shot == null) return;
-          final name = shot.name.isEmpty ? 'animal_photo.jpg' : shot.name;
+          // Square, with the circle the avatar clips to outlined: the header
+          // shows this round, so framing it as anything else would crop twice.
+          final cropped = await showImageCropper(
+            navigator,
+            bytes: await shot.readAsBytes(),
+            aspectRatio: 1,
+            circularPreview: true,
+          );
+          // Backing out of the crop cancels the whole change — the previous
+          // photo (or none) stands.
+          if (cropped == null) return;
           await repo.updateWithFiles(animalId, const {}, [
             http.MultipartFile.fromBytes(
               'photo',
-              await shot.readAsBytes(),
-              filename: name,
+              cropped,
+              // The crop always re-encodes as JPEG, so the picked name's
+              // extension may no longer describe the bytes.
+              filename: _croppedName(shot.name),
             ),
           ]);
       }
@@ -187,3 +202,11 @@ class AnimalAvatar extends ConsumerWidget {
 }
 
 enum _PhotoAction { gallery, camera, remove }
+
+/// Upload filename for a cropped photo: the picked name's stem with a `.jpg`
+/// extension, since the crop re-encodes as JPEG whatever came in. Falls back to
+/// a fixed name — `XFile.name` can be empty (notably in tests).
+String _croppedName(String picked) {
+  final stem = picked.split('/').last.split('.').first;
+  return stem.isEmpty ? 'animal_photo.jpg' : '$stem.jpg';
+}

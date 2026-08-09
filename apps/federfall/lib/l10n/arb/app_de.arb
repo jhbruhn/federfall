@@ -351,6 +351,8 @@
     "imageShareFailed": "Bild konnte nicht geteilt werden.",
     "imagePrevious": "Vorheriges Bild",
     "imageNext": "Nächstes Bild",
+    "imageCropTitle": "Ausschnitt wählen",
+    "imageCropFailed": "Bild konnte nicht zugeschnitten werden.",
     "caseFieldIntakeWeight": "Aufnahmegewicht (g)",
     "caseFieldQuarantineDays": "Quarantäne (Tage)",
     "caseFieldQuarantineDaysHint": "Standard aus den Einstellungen",
