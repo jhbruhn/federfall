@@ -5,13 +5,25 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<BarChartData?> _pump(WidgetTester tester, IntakeSeries series) async {
+Future<BarChartData?> _pump(
+  WidgetTester tester,
+  IntakeSeries series, {
+  double width = 800,
+  Locale locale = const Locale('en'),
+}) async {
   await tester.pumpWidget(
     MaterialApp(
-      locale: const Locale('en'),
+      locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: Scaffold(body: IntakeSeriesChart(series: series)),
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: width,
+            child: IntakeSeriesChart(series: series),
+          ),
+        ),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -19,6 +31,11 @@ Future<BarChartData?> _pump(WidgetTester tester, IntakeSeries series) async {
   if (charts.evaluate().isEmpty) return null;
   return tester.widget<BarChart>(charts).data;
 }
+
+IntakeSeries _twelveMonths() => IntakeSeries(
+  kind: SeriesBucket.month,
+  points: [for (var m = 1; m <= 12; m++) IntakePoint(m, m)],
+);
 
 void main() {
   testWidgets('draws every bucket the server sent, zeros included', (
@@ -151,6 +168,63 @@ void main() {
 
     expect(data!.gridData.horizontalInterval, 3);
     expect(data.maxY, 15);
+  });
+
+  testWidgets('every month is named where the abbreviations fit', (
+    tester,
+  ) async {
+    // A label every third column made reading the chart a counting exercise:
+    // the reader had to walk from the nearest label to find their month.
+    await _pump(tester, _twelveMonths());
+
+    for (final name in const ['Jan', 'Feb', 'Mar', 'Jun', 'Sep', 'Dec']) {
+      expect(find.text(name), findsOneWidget, reason: name);
+    }
+  });
+
+  testWidgets('a narrow chart names every month with one letter, not fewer '
+      'months', (tester) async {
+    // Twelve three-letter labels do not fit a phone. The locale's narrow form
+    // does, and in calendar order it still reads as months — which beats
+    // dropping two months out of every three.
+    await _pump(tester, _twelveMonths(), width: 220);
+
+    expect(find.text('Jan'), findsNothing);
+    // J appears for January, June and July; D only for December.
+    expect(find.text('J'), findsNWidgets(3));
+    expect(find.text('D'), findsOneWidget);
+  });
+
+  testWidgets('the tooltip keeps the readable month, narrow axis or not', (
+    tester,
+  ) async {
+    // The axis may be down to initials, but a tap has room to say "Mar".
+    final data = await _pump(tester, _twelveMonths(), width: 220);
+
+    final item = data!.barTouchData.touchTooltipData.getTooltipItem(
+      data.barGroups[2],
+      2,
+      data.barGroups[2].barRods.single,
+      0,
+    );
+    expect(item!.text, 'Mar: 3');
+  });
+
+  testWidgets('a day series still labels every fifth day', (tester) async {
+    // 31 columns have no shorter form to fall back to. One tall day keeps the
+    // value axis on tens, so its labels cannot be mistaken for day numbers.
+    await _pump(
+      tester,
+      IntakeSeries(
+        kind: SeriesBucket.day,
+        points: [for (var d = 1; d <= 31; d++) IntakePoint(d, d == 1 ? 40 : 0)],
+      ),
+    );
+
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('6'), findsOneWidget);
+    expect(find.text('31'), findsOneWidget);
+    expect(find.text('2'), findsNothing);
   });
 
   testWidgets('an empty series says so instead of drawing an empty axis', (

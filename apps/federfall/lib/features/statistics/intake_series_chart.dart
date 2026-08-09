@@ -69,15 +69,6 @@ class IntakeSeriesChart extends StatelessWidget {
       Localizations.localeOf(context).toString(),
     );
     String monthName(int m) => monthFormat.format(DateTime(2000, m));
-    // Twelve months, or a long run of years, will not fit as labels side by
-    // side; every nth keeps them readable and the bars in place.
-    final labelEvery = switch (series.kind) {
-      SeriesBucket.month => 3,
-      // A month has 28–31 columns; a label every fifth day reads as a calendar
-      // without crowding.
-      SeriesBucket.day => 5,
-      SeriesBucket.year => (points.length / 6).ceil().clamp(1, 1 << 30),
-    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,86 +80,101 @@ class IntakeSeriesChart extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
-        SizedBox(
-          height: 180,
-          child: BarChart(
-            BarChartData(
-              maxY: ceiling.toDouble(),
-              gridData: FlGridData(
-                drawVerticalLine: false,
-                horizontalInterval: step.toDouble(),
-              ),
-              borderData: FlBorderData(show: false),
-              barTouchData: BarTouchData(
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                    // Which bucket AND which year — with two rods per group,
-                    // the number alone would be ambiguous.
-                    final period = !hasPrevious
-                        ? ''
-                        : rodIndex == 0
-                        ? ' ${_previousLabel(series, monthName)}'
-                        : ' ${_currentLabel(l10n, series, monthName)}';
-                    return BarTooltipItem(
-                      '${label(points[groupIndex].key)}$period'
-                      ': ${rod.toY.toInt()}',
-                      theme.textTheme.labelMedium ?? const TextStyle(),
-                    );
-                  },
-                ),
-              ),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 32,
-                    interval: step.toDouble(),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // What one bucket actually gets on this screen: the plot is what
+            // is left once the value axis has taken its own width.
+            final (axisLabel, labelEvery) = _axisLabels(
+              context,
+              (constraints.maxWidth - _valueAxisWidth) / points.length,
+              label,
+            );
+            return SizedBox(
+              height: 180,
+              child: BarChart(
+                BarChartData(
+                  maxY: ceiling.toDouble(),
+                  gridData: FlGridData(
+                    drawVerticalLine: false,
+                    horizontalInterval: step.toDouble(),
                   ),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 24,
-                    getTitlesWidget: (value, meta) {
-                      final i = value.toInt();
-                      if (i < 0 || i >= points.length) {
-                        return const SizedBox.shrink();
-                      }
-                      if (i % labelEvery != 0) return const SizedBox.shrink();
-                      return Text(
-                        label(points[i].key),
-                        style: theme.textTheme.labelSmall,
-                      );
-                    },
+                  borderData: FlBorderData(show: false),
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        // Which bucket AND which year — with two rods per
+                        // group, the number alone would be ambiguous.
+                        final period = !hasPrevious
+                            ? ''
+                            : rodIndex == 0
+                            ? ' ${_previousLabel(series, monthName)}'
+                            : ' ${_currentLabel(l10n, series, monthName)}';
+                        return BarTooltipItem(
+                          '${label(points[groupIndex].key)}$period'
+                          ': ${rod.toY.toInt()}',
+                          theme.textTheme.labelMedium ?? const TextStyle(),
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ),
-              barGroups: [
-                for (var i = 0; i < points.length; i++)
-                  BarChartGroupData(
-                    x: i,
-                    barsSpace: 2,
-                    barRods: [
-                      // The comparison year first, so time reads left to right
-                      // inside each group as it does across the axis.
-                      if (hasPrevious)
-                        BarChartRodData(
-                          toY: (previousByKey[points[i].key] ?? 0).toDouble(),
-                          width: 7,
-                          color: colors.primaryContainer,
-                        ),
-                      BarChartRodData(
-                        toY: points[i].count.toDouble(),
-                        width: hasPrevious ? 7 : 10,
-                        color: colors.primary,
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(),
+                    rightTitles: const AxisTitles(),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: _valueAxisWidth,
+                        interval: step.toDouble(),
                       ),
-                    ],
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 24,
+                        getTitlesWidget: (value, meta) {
+                          final i = value.toInt();
+                          if (i < 0 || i >= points.length) {
+                            return const SizedBox.shrink();
+                          }
+                          if (i % labelEvery != 0) {
+                            return const SizedBox.shrink();
+                          }
+                          return Text(
+                            axisLabel(points[i].key),
+                            style: theme.textTheme.labelSmall,
+                          );
+                        },
+                      ),
+                    ),
                   ),
-              ],
-            ),
-          ),
+                  barGroups: [
+                    for (var i = 0; i < points.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barsSpace: 2,
+                        barRods: [
+                          // The comparison year first, so time reads left to
+                          // right inside each group as it does across the
+                          // axis.
+                          if (hasPrevious)
+                            BarChartRodData(
+                              toY: (previousByKey[points[i].key] ?? 0)
+                                  .toDouble(),
+                              width: 7,
+                              color: colors.primaryContainer,
+                            ),
+                          BarChartRodData(
+                            toY: points[i].count.toDouble(),
+                            width: hasPrevious ? 7 : 10,
+                            color: colors.primary,
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -199,6 +205,80 @@ class IntakeSeriesChart extends StatelessWidget {
     return month == null
         ? '${series.previousYear}'
         : '${monthName(month)} ${series.previousYear}';
+  }
+
+  /// What the left axis reserves, and therefore what the plot does not get.
+  static const double _valueAxisWidth = 32;
+
+  /// Air either side of a bottom label, so two never end up touching.
+  static const double _labelGap = 4;
+
+  /// How the bottom axis is labelled in the width it actually has: the label
+  /// for a bucket key, and how many buckets there are between labels.
+  ///
+  /// EVERY month is named. Reading this chart means mapping a bar to a month,
+  /// and a label every third column made that a counting exercise. Where three
+  /// letters do not fit a column — a phone showing twelve months — the
+  /// locale's single-letter form does, and in calendar order it is still read
+  /// as months. Days and years have no shorter form to fall back to and keep
+  /// labelling every nth: 31 days cannot all be named side by side.
+  (String Function(int), int) _axisLabels(
+    BuildContext context,
+    double column,
+    String Function(int) label,
+  ) {
+    switch (series.kind) {
+      // A month has 28–31 columns; a label every fifth day reads as a calendar
+      // without crowding.
+      case SeriesBucket.day:
+        return (label, 5);
+      case SeriesBucket.year:
+        return (label, (series.points.length / 6).ceil().clamp(1, 1 << 30));
+      case SeriesBucket.month:
+        final style = Theme.of(context).textTheme.labelSmall;
+        int strideFor(String Function(int) form) {
+          if (column <= 0) return 1;
+          final widest = _widestLabel(context, style, [
+            for (final p in series.points) form(p.key),
+          ]);
+          return ((widest + _labelGap) / column).ceil().clamp(
+            1,
+            series.points.length,
+          );
+        }
+
+        if (strideFor(label) == 1) return (label, 1);
+        final narrow = DateFormat(
+          // Five Ms is the narrow month: "J" for January, and the locale's own
+          // letter rather than a substring of the abbreviation.
+          'MMMMM',
+          Localizations.localeOf(context).toString(),
+        );
+        String narrowLabel(int key) => narrow.format(DateTime(2000, key));
+        return (narrowLabel, strideFor(narrowLabel));
+    }
+  }
+
+  /// The widest of [labels] as this theme will actually paint them — including
+  /// the reader's text scale, which is what decides whether they fit.
+  static double _widestLabel(
+    BuildContext context,
+    TextStyle? style,
+    List<String> labels,
+  ) {
+    final painter = TextPainter(
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    var widest = 0.0;
+    for (final label in labels) {
+      painter
+        ..text = TextSpan(text: label, style: style)
+        ..layout();
+      if (painter.width > widest) widest = painter.width;
+    }
+    painter.dispose();
+    return widest;
   }
 
   /// Bucket key → axis label: a short month name, or the year itself.
