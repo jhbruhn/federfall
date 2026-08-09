@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/org_settings_providers.dart';
-import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/animal_search_picker.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/features/cases/case_intake_draft.dart';
@@ -14,8 +14,6 @@ import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/exams/exam_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/location/location_picker_screen.dart';
-import 'package:federfall/features/cases/markings/marking_types_providers.dart';
-import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
@@ -729,15 +727,38 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
                       ),
                     ),
                   ),
-                  if (_error != null)
+                  // A failed intake is the one message on this screen the
+                  // carer must not miss — the Create button simply becomes
+                  // tappable again, so the reason has to carry itself.
+                  if (_error case final error?)
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.lg,
                       ),
-                      child: Text(
-                        _error!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        elevation: 0,
+                        color: theme.colorScheme.errorContainer,
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: theme.colorScheme.onErrorContainer,
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: Text(
+                                  error,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onErrorContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -758,7 +779,12 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
     );
   }
 
-  /// Step 0 — the animal identity: re-id search, species and name.
+  /// Step 0 — the animal identity: species, name and the re-id search.
+  ///
+  /// Species leads because it is the field this step is really about: it is
+  /// prefilled with the kind almost every intake is, so the common path is
+  /// "glance, Next". The re-identification search sits below it — a returning
+  /// bird is the exception, and the carer looking for one has its ring in hand.
   Widget _buildAnimalStep(AppLocalizations l10n) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -774,21 +800,6 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             },
           )
         else ...[
-          _ReidSearchField(
-            controller: _reidController,
-            enabled: !_busy,
-            query: _reidQuery,
-            onSearch: (q) => setState(() => _reidQuery = q),
-            onLink: (a) {
-              _touch();
-              setState(() {
-                _linkedAnimal = a;
-                _reidQuery = '';
-                _reidController.clear();
-              });
-            },
-          ),
-          const SizedBox(height: AppSpacing.md),
           _SpeciesField(
             controller: _speciesController,
             enabled: !_busy,
@@ -801,6 +812,23 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             prefixIcon: Icons.badge_outlined,
             textInputAction: TextInputAction.next,
             enabled: !_busy,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AnimalSearchPicker(
+            controller: _reidController,
+            query: _reidQuery,
+            label: l10n.reidSearchLabel,
+            hintText: l10n.reidSearchHint,
+            enabled: !_busy,
+            onSearch: (q) => setState(() => _reidQuery = q),
+            onPick: (a) {
+              _touch();
+              setState(() {
+                _linkedAnimal = a;
+                _reidQuery = '';
+                _reidController.clear();
+              });
+            },
           ),
         ],
       ],
@@ -832,13 +860,18 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           },
         ),
         const SizedBox(height: AppSpacing.md),
-        DropdownButtonFormField<AgeClass>(
+        // Nullable, with an explicit "unknown" entry: age class is optional,
+        // and without a way back to null a mis-tapped value would be stuck for
+        // the rest of the intake — unlike the date fields right below, which
+        // clear.
+        DropdownButtonFormField<AgeClass?>(
           initialValue: _ageClass,
           decoration: InputDecoration(
             labelText: l10n.caseFieldAgeClass,
             prefixIcon: const Icon(Icons.cake_outlined),
           ),
           items: [
+            DropdownMenuItem(child: Text(l10n.ageClassUnknown)),
             for (final a in AgeClass.values)
               DropdownMenuItem(value: a, child: Text(ageClassLabel(l10n, a))),
           ],
@@ -935,6 +968,9 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           prefixIcon: Icons.shield_outlined,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          // Last field of the step: "next" has nowhere to go, and the keyboard
+          // would stay up over the Next button.
+          textInputAction: TextInputAction.done,
           enabled: !_busy,
         ),
       ],
@@ -1364,115 +1400,6 @@ class _FinderSection extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-/// Re-identification search at intake (FED-4.10): look up an existing animal by
-/// an active ring code or by name, so a returning bird's case links to it.
-class _ReidSearchField extends ConsumerWidget {
-  const _ReidSearchField({
-    required this.controller,
-    required this.enabled,
-    required this.query,
-    required this.onSearch,
-    required this.onLink,
-  });
-
-  final TextEditingController controller;
-  final bool enabled;
-  final String query;
-  final ValueChanged<String> onSearch;
-  final ValueChanged<Animal> onLink;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: AppTextField(
-                controller: controller,
-                label: l10n.reidSearchLabel,
-                hintText: l10n.reidSearchHint,
-                prefixIcon: Icons.badge_outlined,
-                enabled: enabled,
-                textInputAction: TextInputAction.search,
-                onChanged: (_) {},
-                onSubmitted: (v) => onSearch(v.trim()),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            IconButton.filledTonal(
-              icon: const Icon(Icons.search),
-              tooltip: l10n.reidSearchLabel,
-              onPressed: enabled
-                  ? () => onSearch(controller.text.trim())
-                  : null,
-            ),
-          ],
-        ),
-        if (query.isNotEmpty)
-          ref
-              .watch(reidSearchProvider(query))
-              .when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                error: (_, _) => const SizedBox.shrink(),
-                data: (matches) => matches.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: AppSpacing.sm),
-                        child: Text(
-                          l10n.reidNoMatches,
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      )
-                    : Card(
-                        margin: const EdgeInsets.only(top: AppSpacing.sm),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final m in matches)
-                              ListTile(
-                                leading: const Icon(Icons.pets_outlined),
-                                title: Text(animalTitle(m.animal)),
-                                subtitle: Text(
-                                  _markingsLine(
-                                    l10n,
-                                    ref.watch(markingTypesByIdProvider).value ??
-                                        const {},
-                                    m,
-                                  ),
-                                ),
-                                onTap: enabled ? () => onLink(m.animal) : null,
-                              ),
-                          ],
-                        ),
-                      ),
-              ),
-      ],
-    );
-  }
-
-  String _markingsLine(
-    AppLocalizations l10n,
-    Map<String, MarkingType> typesById,
-    ReidMatch m,
-  ) {
-    if (m.markings.isEmpty) return l10n.reidNoMarkings;
-    return m.markings
-        .map((mk) {
-          final code = mk.code;
-          final type = typesById[mk.type]?.label ?? '';
-          return code == null || code.isEmpty ? type : '$type $code';
-        })
-        .join(' · ');
   }
 }
 

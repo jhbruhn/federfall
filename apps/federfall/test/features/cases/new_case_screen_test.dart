@@ -327,6 +327,65 @@ void main() {
     expect(finderBody['phone'], '0151 234');
   });
 
+  testWidgets('a mis-picked age class can be set back to unknown', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tapNext(tester); // step 0 → 1
+    await pickInjury(tester);
+
+    // Pick a value, then take it back: age class is optional, so the field
+    // must have a way home to unset — the dropdown carries an explicit
+    // "Unknown" entry for it.
+    await tester.tap(find.text('Age class'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Adult').last);
+    await tester.pumpAndSettle();
+    // The pick landed — without this the test would pass on a dropdown that
+    // never opened.
+    expect(find.text('Adult'), findsOneWidget);
+
+    await tester.tap(find.text('Adult'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unknown').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Adult'), findsNothing);
+    expect(find.text('Unknown'), findsOneWidget);
+
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    final caseBody = capturedPayload()['case'] as Map<String, dynamic>;
+    expect(caseBody.containsKey('age_class'), isFalse);
+  });
+
+  testWidgets('a failed intake says why, on the step it failed on', (
+    tester,
+  ) async {
+    when(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    ).thenThrow(
+      const RepositoryException('offline', kind: RepositoryErrorKind.network),
+    );
+
+    await pump(tester);
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    // The wizard stays put and names the failure — the Create button going
+    // tappable again is not an answer on its own.
+    expect(find.widgetWithText(FilledButton, 'Create case'), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+  });
+
   testWidgets('omits the finder when the section is left blank', (
     tester,
   ) async {

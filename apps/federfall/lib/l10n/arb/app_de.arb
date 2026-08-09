@@ -361,6 +361,7 @@
     "ageClassFledgling": "Ästling",
     "ageClassImmature": "Jungvogel",
     "ageClassAdult": "Altvogel",
+    "ageClassUnknown": "Unbekannt",
     "finderFieldFirstName": "Vorname",
     "finderFieldLastName": "Nachname",
     "finderFieldPhone": "Telefon",

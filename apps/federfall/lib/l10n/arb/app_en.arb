@@ -862,6 +862,8 @@
     "@ageClassImmature": { "description": "Age class: independent juvenile" },
     "ageClassAdult": "Adult",
     "@ageClassAdult": { "description": "Age class: adult" },
+    "ageClassUnknown": "Unknown",
+    "@ageClassUnknown": { "description": "Age-class dropdown entry that leaves the field unset" },
     "finderFieldFirstName": "First name",
     "@finderFieldFirstName": { "description": "Label for the finder's first name" },
     "finderFieldLastName": "Last name",
