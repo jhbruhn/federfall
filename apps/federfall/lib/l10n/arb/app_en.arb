@@ -1128,6 +1128,11 @@
             "exams": { "type": "int" }
         }
     },
+    "caseDeleteMicroscopyCount": "{count, plural, =1{1 microscopy record} other{{count} microscopy records}}",
+    "@caseDeleteMicroscopyCount": {
+        "description": "Microscopy samples a case deletion destroys",
+        "placeholders": { "count": { "type": "int" } }
+    },
     "caseDeleteKeeps": "The animal itself is kept, along with its weights, eggs and markings.",
     "@caseDeleteKeeps": { "description": "Reassurance that animal-level history survives a case deletion" },
     "animalSectionEggs": "Eggs",
@@ -1868,6 +1873,8 @@
 
     "timelineAddExam": "Exam",
     "@timelineAddExam": { "description": "Timeline add-menu item for a structured exam" },
+    "timelineAddMicroscopy": "Microscopy",
+    "@timelineAddMicroscopy": { "description": "Timeline add-menu item for a microscopy record" },
     "caseIntakeWithExam": "Record an exam now",
     "@caseIntakeWithExam": { "description": "Intake toggle to open the exam sheet after creating the case" },
     "caseIntakeWithExamHint": "Opens a structured exam for the new patient after admission.",
@@ -1945,6 +1952,29 @@
     "examDeleteConfirm": "This exam and its findings will be deleted.",
     "@examDeleteConfirm": { "description": "Body of the delete-exam confirmation" },
     "examDeleteAction": "Delete",
+
+    "microscopyTitle": "Microscopy",
+    "microscopyNewTitle": "New microscopy",
+    "microscopyEditTitle": "Edit microscopy",
+    "microscopyEditAction": "Edit",
+    "microscopyDeleteAction": "Delete",
+    "microscopyDeleteTitle": "Delete microscopy?",
+    "microscopyDeleteConfirm": "The sample and all its findings will be deleted.",
+    "microscopySampleTypeRequired": "Please choose a sample type",
+    "microscopyFindingsSection": "Findings",
+    "microscopyAddOther": "Other",
+    "microscopyOtherLabel": "Other finding",
+    "microscopyNoVocabulary": "No findings are configured for this sample type yet.",
+    "microscopyGradesDropped": "{count, plural, =1{1 finding does not apply to the new sample type and was removed} other{{count} findings do not apply to the new sample type and were removed}}",
+    "@microscopyGradesDropped": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "microscopyUndo": "Undo",
+    "microscopyAttachmentsLabel": "Attachments",
+    "microscopyAddVideo": "Add video",
+    "microscopyRecordVideo": "Record video",
+    "microscopyOpenFailed": "The attachment could not be opened",
+    "microscopyCreateDiagnosis": "Create diagnosis",
     "@examDeleteAction": { "description": "Delete action on the exam tile menu" },
 
     "hydrationNormal": "Normal",

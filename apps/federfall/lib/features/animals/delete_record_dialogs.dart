@@ -123,6 +123,15 @@ Future<bool> confirmDeleteCase(
           ),
           false,
         ),
+        // Its own bullet rather than a fifth slot in the line above: samples
+        // cascade with the case (1700000073) and the dialog's whole job is to
+        // state the damage, but a case that never had one should not be told
+        // about a record kind it does not use.
+        if (bundle.microscopySamples.isNotEmpty)
+          (
+            l10n.caseDeleteMicroscopyCount(bundle.microscopySamples.length),
+            false,
+          ),
         (l10n.caseDeleteKeeps, false),
       ],
       confirmLabel: l10n.caseDeleteAction,

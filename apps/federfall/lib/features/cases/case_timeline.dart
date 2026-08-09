@@ -16,6 +16,8 @@ import 'package:federfall/features/cases/markings/marking_tile.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
+import 'package:federfall/features/cases/microscopy/microscopy_providers.dart';
+import 'package:federfall/features/cases/microscopy/microscopy_tile.dart';
 import 'package:federfall/features/cases/placements/placement_tile.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_providers.dart';
@@ -91,6 +93,10 @@ class CaseTimeline extends ConsumerWidget {
     final followUps = ref.watch(followUpsForCaseProvider(caseId));
     final exams = ref.watch(examsForCaseProvider(caseId));
     final examFindings = ref.watch(examFindingsForCaseProvider(caseId));
+    final microscopy = ref.watch(microscopyForCaseProvider(caseId));
+    final microscopyFindings = ref.watch(
+      microscopyFindingsForCaseProvider(caseId),
+    );
     final quarantines = ref.watch(quarantineForCaseProvider(caseId));
     final appointments = ref.watch(vetAppointmentsForCaseProvider(caseId));
     final isLoading =
@@ -106,6 +112,8 @@ class CaseTimeline extends ConsumerWidget {
         followUps.isLoading ||
         exams.isLoading ||
         examFindings.isLoading ||
+        microscopy.isLoading ||
+        microscopyFindings.isLoading ||
         quarantines.isLoading ||
         appointments.isLoading;
     final error =
@@ -121,6 +129,8 @@ class CaseTimeline extends ConsumerWidget {
         followUps.error ??
         exams.error ??
         examFindings.error ??
+        microscopy.error ??
+        microscopyFindings.error ??
         quarantines.error ??
         appointments.error;
 
@@ -163,6 +173,11 @@ class CaseTimeline extends ConsumerWidget {
             _VetAppointmentEvent(appointment),
           for (final exam in exams.value ?? const <Exam>[])
             _ExamEvent(exam, examFindings.value?[exam.id] ?? const []),
+          for (final sample in microscopy.value ?? const <MicroscopySample>[])
+            _MicroscopyEvent(
+              sample,
+              microscopyFindings.value?[sample.id] ?? const [],
+            ),
           for (final quarantine
               in quarantines.value ?? const <Quarantine>[]) ...[
             // Every quarantine shows as a "started" entry; once it has
@@ -313,6 +328,13 @@ class CaseTimeline extends ConsumerWidget {
         findings: findings,
         caseId: caseId,
         animalId: medicalCase.animal,
+        canEdit: canEdit,
+        isLast: isLast,
+      ),
+      _MicroscopyEvent(:final sample, :final findings) => MicroscopyTile(
+        sample: sample,
+        findings: findings,
+        caseId: caseId,
         canEdit: canEdit,
         isLast: isLast,
       ),
@@ -490,6 +512,21 @@ class _ExamEvent extends _Event {
   @override
   DateTime get at =>
       exam.examinedAt ?? exam.created ?? DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+/// A microscopy sample placed on the timeline by when it was examined (or
+/// created), carrying its already-fetched graded findings.
+class _MicroscopyEvent extends _Event {
+  const _MicroscopyEvent(this.sample, this.findings);
+
+  final MicroscopySample sample;
+  final List<MicroscopyFinding> findings;
+
+  @override
+  DateTime get at =>
+      sample.examinedAt ??
+      sample.created ??
+      DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 /// A case outcome placed on the timeline by when the case was disposed.

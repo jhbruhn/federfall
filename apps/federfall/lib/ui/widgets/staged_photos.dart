@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/theme/app_spacing.dart';
+import 'package:federfall/ui/widgets/attachment_kind.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -71,6 +72,10 @@ class StagedPhotos extends StatelessWidget {
 /// bytes once per file (cached across parent rebuilds — a form keystroke must
 /// not hit the disk) and decodes at thumbnail resolution via `cacheWidth`
 /// instead of holding the full-resolution frame in memory.
+///
+/// A picked VIDEO gets [VideoAttachmentThumb] instead and is never read at
+/// all: `Image.memory` throws on it, and a 50 MB clip has no business being
+/// pulled into memory to draw an 88 px tile.
 class LocalPhotoThumb extends StatefulWidget {
   const LocalPhotoThumb({required this.photo, this.size = 88, super.key});
 
@@ -82,25 +87,32 @@ class LocalPhotoThumb extends StatefulWidget {
 }
 
 class _LocalPhotoThumbState extends State<LocalPhotoThumb> {
-  late Future<Uint8List> _bytes;
+  Future<Uint8List>? _bytes;
+
+  /// `XFile.name` can be empty (it is in tests), so fall back to the path —
+  /// both carry the extension this decides on.
+  bool get _isVideo =>
+      isVideoAttachment(widget.photo.name) ||
+      isVideoAttachment(widget.photo.path);
 
   @override
   void initState() {
     super.initState();
-    _bytes = widget.photo.readAsBytes();
+    if (!_isVideo) _bytes = widget.photo.readAsBytes();
   }
 
   @override
   void didUpdateWidget(LocalPhotoThumb oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.photo.path != widget.photo.path) {
-      _bytes = widget.photo.readAsBytes();
+      _bytes = _isVideo ? null : widget.photo.readAsBytes();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final size = widget.size;
+    if (_isVideo) return VideoAttachmentThumb(size: size);
     return FutureBuilder<Uint8List>(
       future: _bytes,
       builder: (context, snap) {

@@ -1,4 +1,5 @@
 import 'package:federfall/theme/app_spacing.dart';
+import 'package:federfall/ui/widgets/attachment_kind.dart';
 import 'package:federfall/ui/widgets/cached_file_image.dart';
 import 'package:federfall/ui/widgets/staged_photos.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,7 @@ class EditablePhotoStrip extends StatelessWidget {
     required this.thumbUrl,
     required this.onRemoveExisting,
     required this.onRemoveNew,
+    this.onOpenExisting,
     this.size = 88,
     super.key,
   });
@@ -37,6 +39,12 @@ class EditablePhotoStrip extends StatelessWidget {
 
   final ValueChanged<int>? onRemoveExisting;
   final ValueChanged<int>? onRemoveNew;
+
+  /// Opens a stored attachment by filename. Supplied where an attachment is
+  /// worth viewing on its own — for a video that is the only way to see it at
+  /// all, since there is no thumbnail and no in-app player.
+  final ValueChanged<String>? onOpenExisting;
+
   final double size;
 
   @override
@@ -58,7 +66,15 @@ class EditablePhotoStrip extends StatelessWidget {
                 onRemove: onRemoveExisting == null
                     ? null
                     : () => onRemoveExisting!(i),
-                child: resolve == null
+                onTap: onOpenExisting == null
+                    ? null
+                    : () => onOpenExisting!(existing[i]),
+                // A video has no thumbnail to ask for: `?thumb=` on a
+                // non-image silently serves the ORIGINAL, so requesting one
+                // would download the whole clip to paint this tile.
+                child: isVideoAttachment(existing[i])
+                    ? VideoAttachmentThumb(size: size)
+                    : resolve == null
                     ? SizedBox(width: size, height: size)
                     : CachedFileImage(
                         url: resolve(existing[i]),
@@ -84,16 +100,20 @@ class EditablePhotoStrip extends StatelessWidget {
 
 /// A rounded thumbnail with an optional remove badge.
 class _Thumb extends StatelessWidget {
-  const _Thumb({required this.child, this.onRemove});
+  const _Thumb({required this.child, this.onRemove, this.onTap});
 
   final Widget child;
   final VoidCallback? onRemove;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        ClipRRect(borderRadius: BorderRadius.circular(8), child: child),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: onTap == null ? child : InkWell(onTap: onTap, child: child),
+        ),
         if (onRemove != null)
           Positioned(
             top: -8,

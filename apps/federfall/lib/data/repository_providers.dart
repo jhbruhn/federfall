@@ -121,6 +121,21 @@ Future<PbExamFindingsRepository> examFindingsRepository(Ref ref) async =>
     PbExamFindingsRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbMicroscopySamplesRepository> microscopySamplesRepository(
+  Ref ref,
+) async => PbMicroscopySamplesRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
+Future<PbMicroscopyFindingsRepository> microscopyFindingsRepository(
+  Ref ref,
+) async => PbMicroscopyFindingsRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
+Future<PbMicroscopyFindingTypesRepository> microscopyFindingTypesRepository(
+  Ref ref,
+) async => PbMicroscopyFindingTypesRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbMarkingsRepository> markingsRepository(Ref ref) async =>
     PbMarkingsRepository(await _client(ref));
 

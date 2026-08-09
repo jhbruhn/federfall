@@ -513,6 +513,10 @@
             "exams": { "type": "int" }
         }
     },
+    "caseDeleteMicroscopyCount": "{count, plural, =1{1 Mikroskopie} other{{count} Mikroskopien}}",
+    "@caseDeleteMicroscopyCount": {
+        "placeholders": { "count": { "type": "int" } }
+    },
     "caseDeleteKeeps": "Das Tier selbst bleibt erhalten, samt Gewichten, Eiern und Kennzeichnungen.",
     "animalSectionEggs": "Eier",
     "animalNoEggs": "Keine Ei-Ablagen erfasst",
@@ -885,6 +889,7 @@
     "resetSuccess": "Passwort gesetzt. Du kannst dich jetzt anmelden.",
 
     "timelineAddExam": "Untersuchung",
+    "timelineAddMicroscopy": "Mikroskopie",
     "caseIntakeWithExam": "Erstuntersuchung jetzt erfassen",
     "caseIntakeWithExamHint": "Öffnet nach der Aufnahme eine strukturierte Untersuchung für den neuen Patienten.",
     "examNewTitle": "Neue Untersuchung",
@@ -921,6 +926,29 @@
     "examDeleteTitle": "Untersuchung löschen?",
     "examDeleteConfirm": "Diese Untersuchung und ihre Befunde werden gelöscht.",
     "examDeleteAction": "Löschen",
+
+    "microscopyTitle": "Mikroskopie",
+    "microscopyNewTitle": "Mikroskopie erfassen",
+    "microscopyEditTitle": "Mikroskopie bearbeiten",
+    "microscopyEditAction": "Bearbeiten",
+    "microscopyDeleteAction": "Löschen",
+    "microscopyDeleteTitle": "Mikroskopie löschen?",
+    "microscopyDeleteConfirm": "Die Probe und alle ihre Befunde werden gelöscht.",
+    "microscopySampleTypeRequired": "Bitte Probenart wählen",
+    "microscopyFindingsSection": "Befunde",
+    "microscopyAddOther": "Sonstiges",
+    "microscopyOtherLabel": "Sonstiger Befund",
+    "microscopyNoVocabulary": "Für diese Probenart ist noch kein Befund hinterlegt.",
+    "microscopyGradesDropped": "{count, plural, =1{1 Befund passt nicht zur neuen Probenart und wurde entfernt} other{{count} Befunde passen nicht zur neuen Probenart und wurden entfernt}}",
+    "@microscopyGradesDropped": {
+        "placeholders": { "count": { "type": "int" } }
+    },
+    "microscopyUndo": "Rückgängig",
+    "microscopyAttachmentsLabel": "Anhänge",
+    "microscopyAddVideo": "Video wählen",
+    "microscopyRecordVideo": "Video aufnehmen",
+    "microscopyOpenFailed": "Anhang konnte nicht geöffnet werden",
+    "microscopyCreateDiagnosis": "Diagnose anlegen",
 
     "hydrationNormal": "Normal",
     "hydrationMild": "Leicht",

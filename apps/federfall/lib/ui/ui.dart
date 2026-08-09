@@ -14,6 +14,7 @@ export 'number_format.dart';
 export 'validators.dart';
 export 'widgets/app_text_field.dart';
 export 'widgets/async_value_view.dart';
+export 'widgets/attachment_kind.dart';
 export 'widgets/breakdown_bars.dart';
 export 'widgets/breakdown_card.dart';
 export 'widgets/breakdown_pie.dart';

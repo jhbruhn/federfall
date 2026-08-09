@@ -8,6 +8,7 @@ import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
+import 'package:federfall/features/cases/microscopy/microscopy_sheet.dart';
 import 'package:federfall/features/cases/placements/placement_sheet.dart';
 import 'package:federfall/features/cases/quarantine/quarantine_sheet.dart';
 import 'package:federfall/features/cases/vet_appointments/vet_appointment_sheet.dart';
@@ -26,6 +27,7 @@ enum _AddKind {
   weight,
   egg,
   exam,
+  microscopy,
   condition,
   quarantine,
   prescription,
@@ -62,6 +64,8 @@ Future<void> showAddEntrySheet(
       await showEggEntrySheet(context, animalId: animalId);
     case _AddKind.exam:
       await showExamSheet(context, caseId: caseId, animalId: animalId);
+    case _AddKind.microscopy:
+      await showMicroscopySheet(context, caseId: caseId);
     case _AddKind.condition:
       await showConditionEntrySheet(context, caseId: caseId);
     case _AddKind.quarantine:
@@ -133,6 +137,11 @@ class _AddEntrySheet extends ConsumerWidget {
             _AddKind.exam,
             Icons.monitor_heart_outlined,
             l10n.timelineAddExam,
+          ),
+          _Entry(
+            _AddKind.microscopy,
+            Icons.biotech_outlined,
+            l10n.timelineAddMicroscopy,
           ),
           // Enabled whatever the animal's recorded sex says: pigeon sex is
           // often unknown or wrong at intake, and a bird recorded as male that

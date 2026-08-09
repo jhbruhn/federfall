@@ -25,6 +25,8 @@ const _caseTimelineCollections = [
   'vet_appointments',
   'exams',
   'exam_findings',
+  'microscopy_samples',
+  'microscopy_findings',
   'markings',
   'egg_records',
   'quarantine_records',
@@ -63,8 +65,9 @@ class CaseLive extends _$CaseLive {
           // escape exam_findings already takes.
           'egg_records' => true,
           // exam_findings has no `case` field (it points at an exam); refetch
-          // on any of its events rather than resolve the parent.
-          'exam_findings' => true,
+          // on any of its events rather than resolve the parent. Same for
+          // microscopy_findings, which reaches its case through `sample`.
+          'exam_findings' || 'microscopy_findings' => true,
           _ => data['case'] == caseId,
         };
         if (belongs) _refetch();
