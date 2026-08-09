@@ -382,6 +382,17 @@ String auditFieldLabel(AppLocalizations l10n, String collection, String field) {
     'cancelled_at' => l10n.auditFieldCancelledAt,
     'set_at' => l10n.auditFieldSetAt,
     'active' => l10n.aviaryFieldActive,
+    // ── microscopy ─────────────────────────────────────────────────────────
+    'sample_type' => l10n.microscopyFieldSampleType,
+    'method' => l10n.microscopyFieldMethod,
+    'examined_by' => l10n.microscopyFieldExaminedBy,
+    'external_lab' => l10n.microscopyFieldExternalLab,
+    'no_findings' => l10n.microscopyFieldNoFindings,
+    'severity' => l10n.microscopyFieldSeverity,
+    'finding_type' => l10n.microscopyFieldFindingType,
+    'sample' => l10n.microscopyFieldSample,
+    // Which probe kinds a vocabulary entry is offered for.
+    'sample_types' => l10n.microscopyFieldSampleTypes,
     // Everything else an UPDATE can surface (federfall-g5ap). CONTENT_FIELDS
     // above is the create/delete allowlist; a diff has no allowlist, so any
     // column of an audited collection can arrive here — and did, as its raw

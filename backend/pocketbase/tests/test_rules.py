@@ -2582,6 +2582,333 @@ def main():
     check("exam save CANNOT denormalize a foreign-org animal", s == 400,
           f"status {s}")
 
+    # ── federfall-vl7g / kp7y: microscopy ────────────────────────────────────
+    # Kropfabstrich / Kotprobe with per-finding grades, written through
+    # POST /api/federfall/microscopy in one transaction (the exam route's
+    # stance — see federfall-lov0). Three things are worth pinning here beyond
+    # the usual permission matrix: the "ohne Befund" XOR, the fact that a
+    # rejected save leaves the PREVIOUS findings intact, and that a sample has
+    # no `animal` relation at all (federfall-h27q — its absence is what keeps
+    # microscopy out of merge_animals.pb.js's re-point list).
+    print("\n[microscopy]")
+    mic_case = mk(T, "cases", {"animal": animal, "active_carer": A,
+                               "org": ORG})["id"]
+    ftypes = listf(T, "microscopy_finding_types", "active = true")
+    by_label = {f["label"]: f for f in ftypes}
+    check("microscopy finding types seeded", len(ftypes) == 5,
+          [f["label"] for f in ftypes])
+    check("Trichomonaden applies to the crop swab only",
+          by_label.get("Trichomonaden", {}).get("sample_types") == ["crop_swab"],
+          by_label.get("Trichomonaden"))
+    # The whole reason this is ONE list with an applicability field.
+    check("Hefen applies to BOTH sample types",
+          sorted(by_label.get("Hefen", {}).get("sample_types") or [])
+          == ["crop_swab", "fecal"], by_label.get("Hefen"))
+    check("the vocabulary carries no 'Sonstiges' or 'ohne Befund' row",
+          not [x for x in by_label
+               if "onstige" in x or "hne Befund" in x], list(by_label))
+    check("finding types are org-scoped",
+          all(f["org"] == ORG for f in ftypes), ftypes)
+
+    trich = by_label["Trichomonaden"]["id"]
+    hefen = by_label["Hefen"]["id"]
+    spul = by_label["Spulwurmeier"]["id"]
+
+    s, _ = req("POST", "/api/federfall/microscopy", None,
+               {"case": mic_case, "sample": {"sample_type": "fecal"}})
+    check("microscopy save requires auth", s == 401, f"status {s}")
+    s, _ = req("POST", "/api/federfall/microscopy", gtok,
+               {"case": mic_case, "sample": {"sample_type": "fecal"}})
+    check("guest CANNOT save microscopy", s == 403, f"status {s}")
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"],
+               {"case": mic_case, "sample": {}})
+    check("microscopy save without a sample_type is rejected", s == 400,
+          f"status {s}")
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"],
+               {"case": mic_case, "sample": {"sample_type": "nose_swab"}})
+    check("unknown sample_type is rejected", s == 400, f"status {s}")
+
+    # Owner creates a graded faecal sample with one vocabulary finding and one
+    # free-text one.
+    s, mic1 = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case,
+        "sample": {"sample_type": "fecal", "method": "flotation",
+                   "examined_by": "in_house",
+                   "examined_at": "2026-06-25 09:00:00.000Z"},
+        "findings": [{"finding_type": spul, "severity": "plus_plus"},
+                     {"free_text": "Ziliaten", "severity": "plus"}],
+    })
+    check("owner creates a microscopy sample via route",
+          s == 200 and bool(mic1 and mic1.get("id")), f"{s} {mic1}")
+    mic1_id = mic1["id"]
+    _, mic1r = req("GET",
+                   f"/api/collections/microscopy_samples/records/{mic1_id}", T)
+    check("microscopy org/author come from the session",
+          mic1r["org"] == ORG and mic1r["author"] == A,
+          f"{mic1r['org']} {mic1r['author']}")
+    check("a microscopy sample carries NO animal relation",
+          "animal" not in mic1r, sorted(mic1r))
+    mfinds = listf(T, "microscopy_findings", f'sample = "{mic1_id}"')
+    check("findings created in the same call", len(mfinds) == 2, mfinds)
+    check("each finding carries exactly one of finding_type / free_text",
+          all(bool(f["finding_type"]) != bool(f["free_text"]) for f in mfinds),
+          mfinds)
+    check("findings inherit the org", all(f["org"] == ORG for f in mfinds),
+          mfinds)
+
+    # Direktabstrich / Flotation is a question about a faecal sample only.
+    s, micc = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case,
+        "sample": {"sample_type": "crop_swab", "method": "flotation"},
+        "findings": [{"finding_type": trich, "severity": "plus_plus_plus"}],
+    })
+    check("crop swab accepted", s == 200, f"status {s}")
+    _, miccr = req("GET",
+                   f"/api/collections/microscopy_samples/records/{micc['id']}",
+                   T)
+    check("method is CLEARED for a crop swab", miccr.get("method") in (None, ""),
+          miccr.get("method"))
+
+    # "Ohne Befund" is an assertion about the whole sample.
+    s, micn = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case,
+        "sample": {"sample_type": "crop_swab", "no_findings": True},
+        "findings": [],
+    })
+    check("ohne Befund saves with no findings", s == 200, f"status {s}")
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case,
+        "sample": {"sample_type": "crop_swab", "no_findings": True},
+        "findings": [{"finding_type": trich, "severity": "plus"}],
+    })
+    check("ohne Befund CANNOT be combined with findings", s == 400,
+          f"status {s}")
+    # Neither set is the legitimate "result pending" state — sample sent to a
+    # lab, nobody has read it yet. Collapsing it into "ohne Befund" would
+    # assert a clean result no one has seen.
+    s, micp = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case,
+        "sample": {"sample_type": "fecal", "method": "direct_smear",
+                   "examined_by": "lab", "external_lab": "Labor Müller"},
+        "findings": [],
+    })
+    check("a pending result (no findings, no ohne-Befund) is allowed",
+          s == 200, f"status {s}")
+
+    # Malformed findings.
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case, "sample": {"sample_type": "fecal"},
+        "findings": [{"finding_type": spul, "free_text": "both",
+                      "severity": "plus"}]})
+    check("a finding with BOTH finding_type and free_text is rejected",
+          s == 400, f"status {s}")
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case, "sample": {"sample_type": "fecal"},
+        "findings": [{"severity": "plus"}]})
+    check("a finding with NEITHER is rejected", s == 400, f"status {s}")
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case, "sample": {"sample_type": "fecal"},
+        "findings": [{"finding_type": spul, "severity": "++"}]})
+    check("an unknown severity is rejected", s == 400, f"status {s}")
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case, "sample": {"sample_type": "fecal"},
+        "findings": [{"finding_type": spul}]})
+    check("a finding without a severity is rejected", s == 400, f"status {s}")
+
+    # Permission mirror: same-org outsider / read-share cannot; edit-share can.
+    s, _ = req("POST", "/api/federfall/microscopy", td,
+               {"case": mic_case, "sample": {"sample_type": "fecal"}})
+    check("same-org outsider CANNOT save microscopy via route", s == 403,
+          f"status {s}")
+    mk(T, "case_shares", {"case": mic_case, "shared_with": C, "shared_by": A,
+                          "access": "read", "org": ORG})
+    tc2 = login("c@f.local")[1]
+    s, _ = req("POST", "/api/federfall/microscopy", tc2,
+               {"id": mic1_id, "sample": {"sample_type": "fecal"}})
+    check("read-share CANNOT edit microscopy via route", s == 403, f"status {s}")
+    micseen = listf(tc2, "microscopy_samples", f'case = "{mic_case}"')
+    check("read-share CAN read the samples", len(micseen) >= 4, len(micseen))
+    micfseen = listf(tc2, "microscopy_findings", f'sample = "{mic1_id}"')
+    check("read-share CAN read the findings (grandchild traversal)",
+          len(micfseen) == 2, micfseen)
+    mk(T, "case_shares", {"case": mic_case, "shared_with": B, "shared_by": A,
+                          "access": "edit", "org": ORG})
+    s, _ = req("POST", "/api/federfall/microscopy", toks["b"], {
+        "id": mic1_id,
+        "sample": {"sample_type": "fecal", "method": "flotation"},
+        "findings": [{"finding_type": hefen, "severity": "plus"}]})
+    check("edit-share CAN edit microscopy via route", s == 200, f"status {s}")
+
+    # Edit replaces the findings as a set, and clears an omitted field.
+    mfinds = listf(T, "microscopy_findings", f'sample = "{mic1_id}"')
+    check("edit REPLACES the findings set",
+          len(mfinds) == 1 and mfinds[0]["finding_type"] == hefen, mfinds)
+    _, mic1r = req("GET",
+                   f"/api/collections/microscopy_samples/records/{mic1_id}", T)
+    check("omitted sample field is cleared on edit (full replace)",
+          mic1r.get("examined_by") in (None, ""), mic1r.get("examined_by"))
+
+    # THE point of the route: a rejected save must not eat the previous
+    # findings — the failure mode federfall-lov0 found on the exam sheet.
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "id": mic1_id, "sample": {"sample_type": "fecal"},
+        "findings": [{"finding_type": hefen, "severity": "plus"},
+                     {"finding_type": spul, "severity": "nope"}]})
+    check("an invalid finding rejects the whole save", s >= 400, f"status {s}")
+    mfinds = listf(T, "microscopy_findings", f'sample = "{mic1_id}"')
+    check("failed edit keeps the previous findings intact (atomic)",
+          len(mfinds) == 1 and mfinds[0]["finding_type"] == hefen, mfinds)
+
+    # A vocabulary entry from another org must not be reachable.
+    fmic = mk(T, "microscopy_finding_types",
+              {"label": "Fremdbefund", "org": org2, "active": True})["id"]
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": mic_case, "sample": {"sample_type": "fecal"},
+        "findings": [{"finding_type": fmic, "severity": "plus"}]})
+    check("a foreign-org finding type is rejected", s == 400, f"status {s}")
+    fmic_case = mk(T, "cases", {"animal": fanimal, "org": org2})["id"]
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "case": fmic_case, "sample": {"sample_type": "fecal"}})
+    check("microscopy CANNOT be written onto a foreign-org case", s == 400,
+          f"status {s}")
+
+    # Boundary guards (1700000043, inline from the start here): a sample cannot
+    # be re-pointed into another case, nor a finding into another sample.
+    # `>= 400` like the [immutable boundary relations] block above: a guard
+    # makes the update rule stop matching the record, and PocketBase answers a
+    # non-matching update with 404 rather than 400.
+    s, _ = req("PATCH",
+               f"/api/collections/microscopy_samples/records/{mic1_id}",
+               toks["a"], {"case": aex_case})
+    check("microscopy sample CANNOT be re-pointed at another case", s >= 400,
+          f"status {s}")
+    s, _ = req("PATCH",
+               f"/api/collections/microscopy_findings/records/{mfinds[0]['id']}",
+               toks["a"], {"sample": micc["id"]})
+    check("microscopy finding CANNOT be re-pointed at another sample",
+          s >= 400, f"status {s}")
+
+    # The code list is supervisor-managed, like every other vocabulary.
+    s, _ = req("POST", "/api/collections/microscopy_finding_types/records",
+               toks["a"], {"label": "Carer-Wunsch", "org": ORG})
+    check("a carer CANNOT add a finding type", s in (400, 403), f"status {s}")
+    s, _ = req("POST", "/api/collections/microscopy_finding_types/records",
+               toks["sup"], {"label": "Supervisor-Befund", "org": ORG,
+                           "active": True, "sample_types": ["fecal"]})
+    check("a supervisor CAN add a finding type", s == 200, f"status {s}")
+    s, gtypes = req("GET", "/api/collections/microscopy_finding_types/records",
+                    gtok)
+    check("guest CANNOT read the finding types",
+          s != 200 or not (gtypes or {}).get("items"), f"status {s}")
+
+    # Deleting a type nulls the reference and keeps the finding — the
+    # `conditions` behaviour, not `marking_types`' (finding_type is optional).
+    s, _ = req("DELETE",
+               f"/api/collections/microscopy_finding_types/records/{hefen}",
+               toks["sup"])
+    check("a supervisor CAN delete a finding type still in use", s == 204,
+          f"status {s}")
+    mfinds = listf(T, "microscopy_findings", f'sample = "{mic1_id}"')
+    check("the finding survives its type's deletion, keeping its severity",
+          len(mfinds) == 1 and mfinds[0]["finding_type"] == ""
+          and mfinds[0]["severity"] == "plus", mfinds)
+
+    # Attachments: multipart with @jsonPayload beside the files, the shape the
+    # Dart SDK sends (and /api/federfall/intake already uses). The edit path is
+    # the interesting one — `keep_attachments` lists the SURVIVORS, so a name
+    # left out is what deletes that file.
+    def multipart_microscopy(token, payload_obj, filename="slide.png"):
+        boundary = "----fedmicboundary"
+        payload = json.dumps(payload_obj)
+        mp = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="@jsonPayload"\r\n\r\n'
+            f"{payload}\r\n"
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="attachments"; filename="{filename}"\r\n'
+            "Content-Type: image/png\r\n\r\n"
+        ).encode() + _PNG_1X1 + f"\r\n--{boundary}--\r\n".encode()
+        r = urllib.request.Request(
+            BASE + "/api/federfall/microscopy", data=mp, method="POST",
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
+                     "Authorization": token})
+        try:
+            resp = urllib.request.urlopen(r)
+            return resp.status, json.loads(resp.read().decode())
+        except urllib.error.HTTPError as err:
+            return err.code, None
+
+    s, mica = multipart_microscopy(toks["a"], {
+        "case": mic_case,
+        "sample": {"sample_type": "crop_swab"},
+        "findings": [{"finding_type": trich, "severity": "plus"}]})
+    check("multipart microscopy (jsonPayload + attachment) succeeds",
+          s == 200 and bool(mica and mica.get("id")), f"{s} {mica}")
+    _, micar = req("GET",
+                   f"/api/collections/microscopy_samples/records/{mica['id']}",
+                   T)
+    check("the attachment is stored", len(micar.get("attachments") or []) == 1,
+          micar.get("attachments"))
+    check("multipart parsed the jsonPayload fields",
+          micar.get("sample_type") == "crop_swab", micar.get("sample_type"))
+    kept_name = micar["attachments"][0]
+    # A second upload that KEEPS the first: both must survive.
+    s, _ = multipart_microscopy(toks["a"], {
+        "id": mica["id"], "sample": {"sample_type": "crop_swab"},
+        "findings": [], "keep_attachments": [kept_name]}, "second.png")
+    check("a second upload keeps the named survivor", s == 200, f"status {s}")
+    _, micar = req("GET",
+                   f"/api/collections/microscopy_samples/records/{mica['id']}",
+                   T)
+    check("both attachments are present",
+          len(micar.get("attachments") or []) == 2, micar.get("attachments"))
+    # Omitting a name is what drops that file.
+    s, _ = req("POST", "/api/federfall/microscopy", toks["a"], {
+        "id": mica["id"], "sample": {"sample_type": "crop_swab"},
+        "findings": [], "keep_attachments": [kept_name]})
+    check("an omitted attachment is dropped", s == 200, f"status {s}")
+    _, micar = req("GET",
+                   f"/api/collections/microscopy_samples/records/{mica['id']}",
+                   T)
+    check("only the survivor remains",
+          micar.get("attachments") == [kept_name], micar.get("attachments"))
+    # The field is protected (1700000027's stance, born-correct here): a bare
+    # URL must not serve it. Both halves are asserted, because a rejection on
+    # its own would also be what a wrong URL looks like — the token fetch is
+    # what proves the path is right and the protection is doing the work.
+    mic_file_path = (
+        f"/api/files/microscopy_samples/{mica['id']}/{kept_name}")
+
+    def mic_file_status(path):
+        r = urllib.request.Request(BASE + path, method="GET")
+        try:
+            return urllib.request.urlopen(r).status
+        except urllib.error.HTTPError as err:
+            return err.code
+
+    check("a microscopy attachment is NOT served without a file token",
+          mic_file_status(mic_file_path) != 200,
+          mic_file_status(mic_file_path))
+    _, mtokd = req("POST", "/api/files/token", toks["a"])
+    check("the carer's file token serves the attachment",
+          mic_file_status(f"{mic_file_path}?token={mtokd['token']}") == 200,
+          mic_file_status(f"{mic_file_path}?token={mtokd['token']}"))
+    # The MIME allowlist keeps script-bearing uploads out (1700000048).
+    s, _ = multipart_microscopy(toks["a"], {
+        "case": mic_case, "sample": {"sample_type": "crop_swab"},
+        "findings": []}, "evil.svg")
+    check("an image/png part named .svg is still accepted (type, not name)",
+          s == 200, f"status {s}")
+
+    # Deleting the case takes the samples and their findings with it.
+    s, _ = req("DELETE", f"/api/collections/cases/records/{mic_case}",
+               toks["sup"])
+    check("supervisor deletes the microscopy case", s == 204, f"status {s}")
+    check("samples cascade with the case",
+          not listf(T, "microscopy_samples", f'case = "{mic_case}"'))
+    check("findings cascade with the sample",
+          not listf(T, "microscopy_findings", f'sample = "{mic1_id}"'))
+
     # ── federfall-gdp8: per-case PDF report route ────────────────────────────
     # Reuses aex_case (active carer A; C has a read-share, B an edit-share from
     # the exam block above) — its own view-rule permission mirror is the one
@@ -3484,6 +3811,53 @@ def main():
                     'subject_collection = "exam_findings"')) == n_finding_events,
           "the route's own finding writes were logged separately")
 
+    # federfall-kp7y — the same stance for microscopy: one event for the sample
+    # and the findings it replaced wholesale, correlated to its case, with the
+    # finding types NAMED rather than referenced by id (an id in an audit row
+    # is a bug unless a label sits beside it). And a finding edited directly
+    # must reach its case through `sample`, the CASE_VIA hop exam_findings
+    # needed for the same reason.
+    mic_trich = listf(toks["sup"], "microscopy_finding_types",
+                      'label = "Trichomonaden"')[0]["id"]
+    n_mfind_events = len(listf(toks["sup"], "audit_events",
+                               'subject_collection = "microscopy_findings"'))
+    s, msamp = req("POST", "/api/federfall/microscopy", toks["sup"], {
+        "case": ea_case,
+        "sample": {"sample_type": "crop_swab",
+                   "examined_at": "2026-06-22 11:00:00.000Z"},
+        "findings": [{"finding_type": mic_trich, "severity": "plus_plus"},
+                     {"free_text": "Ziliaten", "severity": "plus"}],
+    })
+    check("microscopy route succeeds", s == 200, f"{s} {msamp}")
+    mr = audit_for(msamp["id"], "microscopy.saved") if s == 200 else []
+    check("saving microscopy is ONE microscopy.saved event", len(mr) == 1, mr)
+    mev = mr[0] if mr else {}
+    mdet = mev.get("detail") or {}
+    check("...counting its findings and naming the worst grade",
+          mdet.get("findings") == 2 and mdet.get("worst_severity") == "plus_plus",
+          mdet)
+    check("...recording the probe kind",
+          mdet.get("sample_type") == "crop_swab", mdet)
+    check("...naming the findings rather than referencing ids",
+          sorted(mdet.get("finding_labels") or [])
+          == ["Trichomonaden", "Ziliaten"], mdet.get("finding_labels"))
+    check("...correlated to the case it belongs to",
+          mev.get("case_id") == ea_case, mev)
+    check("no per-finding events from the route",
+          len(listf(toks["sup"], "audit_events",
+                    'subject_collection = "microscopy_findings"'))
+          == n_mfind_events,
+          "the route's own finding writes were logged separately")
+    mic_finding = listf(toks["sup"], "microscopy_findings",
+                        f'sample = "{msamp["id"]}"')[0]
+    req("PATCH",
+        f"/api/collections/microscopy_findings/records/{mic_finding['id']}",
+        toks["sup"], {"severity": "plus_plus_plus"})
+    mfr = audit_for(mic_finding["id"], "microscopy_finding.updated")
+    check("editing a microscopy finding directly is logged", len(mfr) == 1, mfr)
+    check("...against the case its sample belongs to",
+          (mfr or [{}])[0].get("case_id") == ea_case, (mfr or [{}])[0])
+
     # federfall-01wb — a finding edited DIRECTLY (which the rules allow, and
     # which is why exam_finding.* actions exist at all) has no `case` field of
     # its own: it reaches its case only through its exam. It therefore filed
@@ -3810,8 +4184,13 @@ def main():
     # …plus an examination, which has no name to snapshot: LABEL_FIELDS could
     # only offer a date, and a label must be neutral text. A finding is located
     # by its case and its examiner.
+    # `microscopy_findings.sample`: same reason as exam_findings.exam — a
+    # sample has no name of its own (LABEL_FIELDS could only offer a date, and
+    # a label must be neutral text), so a finding is located by its case and
+    # its sample type instead.
     RELATION_UNLABELLED_BY_DESIGN = {("cases", "finder"),
-                                     ("exam_findings", "exam")}
+                                     ("exam_findings", "exam"),
+                                     ("microscopy_findings", "sample")}
 
     # Prose that IS logged verbatim, on purpose: a code list's `description` is
     # a supervisor's own definition of a diagnosis or a drug — org configuration,

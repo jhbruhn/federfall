@@ -107,6 +107,18 @@ const ACTIONS = {
   EGG_RECORD_UPDATED: "egg_record.updated",
   EGG_RECORD_DELETED: "egg_record.deleted",
 
+  // A microscopy sample and the findings it replaced wholesale, as one event —
+  // written from the route (microscopy.pb.js), the way exam.saved is. There is
+  // no microscopy_finding.* triple: a finding is never written on its own, and
+  // per-row events would bury the one fact worth reading.
+  MICROSCOPY_SAVED: "microscopy.saved",
+  MICROSCOPY_DELETED: "microscopy.deleted",
+  // As with exam findings: these fire only for a finding edited on its own
+  // through the collection API, which the rules still allow.
+  MICROSCOPY_FINDING_CREATED: "microscopy_finding.created",
+  MICROSCOPY_FINDING_UPDATED: "microscopy_finding.updated",
+  MICROSCOPY_FINDING_DELETED: "microscopy_finding.deleted",
+
   FOLLOW_UP_CREATED: "follow_up.created",
   FOLLOW_UP_UPDATED: "follow_up.updated",
   FOLLOW_UP_DELETED: "follow_up.deleted",
@@ -478,6 +490,20 @@ const COLLECTION_ACTIONS = {
     updated: ACTIONS.EGG_RECORD_UPDATED,
     deleted: ACTIONS.EGG_RECORD_DELETED,
   },
+  // `created`/`updated` normally come from the route as one microscopy.saved;
+  // these cover a sample written straight through the collection API (the Admin
+  // UI, an import, an older client), which the rules still allow. `deleted` is
+  // the ordinary path — the route does not delete, and the findings cascade.
+  microscopy_samples: {
+    created: ACTIONS.MICROSCOPY_SAVED,
+    updated: ACTIONS.MICROSCOPY_SAVED,
+    deleted: ACTIONS.MICROSCOPY_DELETED,
+  },
+  microscopy_findings: {
+    created: ACTIONS.MICROSCOPY_FINDING_CREATED,
+    updated: ACTIONS.MICROSCOPY_FINDING_UPDATED,
+    deleted: ACTIONS.MICROSCOPY_FINDING_DELETED,
+  },
   follow_ups: {
     created: ACTIONS.FOLLOW_UP_CREATED,
     updated: ACTIONS.FOLLOW_UP_UPDATED,
@@ -571,6 +597,11 @@ const COLLECTION_ACTIONS = {
     updated: ACTIONS.CODE_LIST_UPDATED,
     deleted: ACTIONS.CODE_LIST_DELETED,
   },
+  microscopy_finding_types: {
+    created: ACTIONS.CODE_LIST_CREATED,
+    updated: ACTIONS.CODE_LIST_UPDATED,
+    deleted: ACTIONS.CODE_LIST_DELETED,
+  },
 };
 
 // What a row of each collection is CALLED, for `subject_label`. First non-empty
@@ -610,6 +641,7 @@ const LABEL_FIELDS = {
   marking_types: ["label"],
   medication_routes: ["label"],
   medication_products: ["name", "label"],
+  microscopy_finding_types: ["label"],
 };
 
 // Labels that have to be READ FROM ANOTHER RECORD: `{field: collection}`, tried
@@ -623,6 +655,9 @@ const LABEL_FIELDS = {
 const LABEL_RELATIONS = {
   case_conditions: { condition: "conditions" },
   case_shares: { shared_with: "users" },
+  // A finding is named by the vocabulary entry it points at (or by its own
+  // free_text, which needs no lookup).
+  microscopy_findings: { finding_type: "microscopy_finding_types" },
   // Where the bird went, or who took it on.
   placements: { to_user: "users", aviary: "aviaries" },
   // Only reached when a marking carries no code of its own (an unnumbered
@@ -667,6 +702,7 @@ const RELATION_TARGETS = {
   carer: "users",
   case: "cases",
   condition: "conditions",
+  finding_type: "microscopy_finding_types",
   created_by: "users",
   invited_by: "users",
   current_aviary: "aviaries",
@@ -807,6 +843,17 @@ const CONTENT_FIELDS = {
   exams: ["examined_at", "body_condition", "hydration", "mentation"],
   exam_findings: ["system", "status"],
   egg_records: ["count", "laid_at", "fate"],
+  // `no_findings` is the one that matters as much as the grades: "ohne Befund"
+  // is an assertion somebody made, not an absence of data.
+  microscopy_samples: [
+    "sample_type",
+    "method",
+    "examined_at",
+    "examined_by",
+    "external_lab",
+    "no_findings",
+  ],
+  microscopy_findings: ["severity", "free_text"],
   follow_ups: ["due_at", "done_at"],
   vet_appointments: ["starts_at", "attended_at", "cancelled_at"],
   quarantine_records: ["set_at", "quarantine_until"],
@@ -818,6 +865,9 @@ const CONTENT_FIELDS = {
   marking_types: ["label", "active"],
   medication_routes: ["label", "active"],
   medication_products: ["active"],
+  // `sample_types` decides which probe offers this finding, so narrowing it is
+  // a change to what carers can record — worth reading back.
+  microscopy_finding_types: ["label", "active", "sample_types"],
   journal_entries: [],
   finders: [],
   organisations: [],
@@ -830,6 +880,7 @@ const REF_FIELDS = ["animal", "aviary", "to_user", "from_user", "shared_with"];
 // {collection: {field, collection}}. Read in emit()'s case correlation.
 const CASE_VIA = {
   exam_findings: { field: "exam", collection: "exams" },
+  microscopy_findings: { field: "sample", collection: "microscopy_samples" },
 };
 
 /**
