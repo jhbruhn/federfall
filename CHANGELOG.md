@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0](https://github.com/jhbruhn/federfall/compare/v0.18.0...v0.19.0) (2026-08-09)
+
+
+### Features
+
+* crop the animal photo before uploading it ([b06a5b6](https://github.com/jhbruhn/federfall/commit/b06a5b6831511e3f90dc846e3b629d0e5d593d72))
+* record a marking as already present when the bird was found ([239d1b3](https://github.com/jhbruhn/federfall/commit/239d1b389e226eaa92f6da699762dd4467a7f9b8))
+
 ## [0.18.0](https://github.com/jhbruhn/federfall/compare/v0.17.2...v0.18.0) (2026-08-09)
 
 
