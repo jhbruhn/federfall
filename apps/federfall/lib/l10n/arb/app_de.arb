@@ -951,6 +951,7 @@
     "microscopyDeleteTitle": "Mikroskopie löschen?",
     "microscopyDeleteConfirm": "Die Probe und alle ihre Befunde werden gelöscht.",
     "microscopySampleTypeRequired": "Bitte Probenart wählen",
+    "microscopyMethodRequired": "Bitte Art der Untersuchung wählen",
     "microscopyFindingsSection": "Befunde",
     "microscopyAddOther": "Sonstiges",
     "microscopyOtherLabel": "Sonstiger Befund",

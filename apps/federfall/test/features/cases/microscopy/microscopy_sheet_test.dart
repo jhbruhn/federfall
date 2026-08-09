@@ -139,6 +139,45 @@ void main() {
     expect(find.text('Flotation'), findsOneWidget);
   });
 
+  // A flotation concentrates worm eggs a direct smear can miss entirely, so
+  // the result is not interpretable without knowing which was done.
+  testWidgets('a faecal sample cannot be saved without its preparation', (
+    tester,
+  ) async {
+    await pump(tester, const MicroscopySheet(caseId: 'c1'));
+    await choose(tester, 'Faecal sample');
+    await save(tester);
+
+    expect(find.text('Please choose an examination method'), findsOneWidget);
+    verifyNever(
+      () => samples.saveWithFindings(
+        any(),
+        attachments: any(named: 'attachments'),
+      ),
+    );
+
+    await choose(tester, 'Direct smear');
+    expect(find.text('Please choose an examination method'), findsNothing);
+
+    final body = await tapAndCapture(tester);
+    expect(
+      (body['sample'] as Map<String, dynamic>)['method'],
+      'direct_smear',
+    );
+  });
+
+  // The question only exists for a faecal sample; a crop swab has no
+  // preparation to choose, and the route clears the column for one anyway.
+  testWidgets('a crop swab saves without one', (tester) async {
+    await pump(tester, const MicroscopySheet(caseId: 'c1'));
+    await choose(tester, 'Crop swab');
+
+    final body = await tapAndCapture(tester);
+    final sample = body['sample'] as Map<String, dynamic>;
+    expect(sample['sample_type'], 'crop_swab');
+    expect(sample.containsKey('method'), isFalse);
+  });
+
   testWidgets('the findings list follows the chosen probe', (tester) async {
     await pump(tester, const MicroscopySheet(caseId: 'c1'));
 
@@ -321,6 +360,7 @@ void main() {
         id: 'm1',
         caseId: 'c1',
         sampleType: MicroscopySampleType.fecal,
+        method: MicroscopyMethod.flotation,
       );
       const findings = [
         MicroscopyFinding(

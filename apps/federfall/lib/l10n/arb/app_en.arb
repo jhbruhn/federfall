@@ -1985,6 +1985,7 @@
     "microscopyDeleteTitle": "Delete microscopy?",
     "microscopyDeleteConfirm": "The sample and all its findings will be deleted.",
     "microscopySampleTypeRequired": "Please choose a sample type",
+    "microscopyMethodRequired": "Please choose an examination method",
     "microscopyFindingsSection": "Findings",
     "microscopyAddOther": "Other",
     "microscopyOtherLabel": "Other finding",

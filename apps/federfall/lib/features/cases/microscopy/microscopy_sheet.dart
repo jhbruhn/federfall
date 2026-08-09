@@ -95,9 +95,11 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
   late final List<String> _existingAttachments;
   final _newFiles = <XFile>[];
 
-  /// Set once the user has tried to save, so the required-probe error only
-  /// appears after they asked for something impossible.
+  /// Set once the user has tried to save, so a required-field error only
+  /// appears after they asked for something impossible — not the moment the
+  /// field is revealed.
   bool _showSampleTypeError = false;
+  bool _showMethodError = false;
 
   /// What the last probe switch dropped, while the undo is still on offer.
   _DroppedGrades? _dropped;
@@ -186,7 +188,10 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
       // Direktabstrich / Flotation is a question about a faecal sample only;
       // the route clears it for a crop swab anyway, so do not leave a stale
       // value visible in the form.
-      if (next != MicroscopySampleType.fecal) _method = null;
+      if (next != MicroscopySampleType.fecal) {
+        _method = null;
+        _showMethodError = false;
+      }
       _grades.removeWhere((id, _) => dropped.containsKey(id));
     });
     markDirty();
@@ -304,8 +309,18 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
 
   Future<void> _save() async {
     final probe = _sampleType;
-    if (probe == null) {
-      setState(() => _showSampleTypeError = true);
+    // A faecal sample was prepared one way or the other, and which one decides
+    // what the slide can show at all — a flotation concentrates worm eggs a
+    // direct smear may miss entirely. So the result is not interpretable
+    // without it, and it is required alongside the probe rather than optional
+    // like the rest. (The column stays optional server-side: rows written
+    // before this, and by an older client, remain valid.)
+    final needsMethod = probe == MicroscopySampleType.fecal && _method == null;
+    if (probe == null || needsMethod) {
+      setState(() {
+        _showSampleTypeError = probe == null;
+        _showMethodError = needsMethod;
+      });
       return;
     }
     if (!(formKey.currentState?.validate() ?? false)) return;
@@ -450,10 +465,23 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
               enabled: !isBusy,
               labelOf: (v) => microscopyMethodLabel(l10n, v),
               onChanged: (v) {
-                setState(() => _method = v);
+                setState(() {
+                  _method = v;
+                  _showMethodError = false;
+                });
                 markDirty();
               },
             ),
+            if (_showMethodError)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Text(
+                  l10n.microscopyMethodRequired,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ),
           ],
           const SizedBox(height: AppSpacing.md),
 
