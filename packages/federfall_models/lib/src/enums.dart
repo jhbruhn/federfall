@@ -275,3 +275,67 @@ enum EggAttribution {
   static EggAttribution? fromWire(Object? v) =>
       pbEnum(values, (e) => e.wire, v);
 }
+
+/// Which kind of sample was looked at under the microscope
+/// (`microscopy_samples.sample_type`): a crop swab or a faecal sample.
+enum MicroscopySampleType {
+  cropSwab('crop_swab'),
+  fecal('fecal');
+
+  const MicroscopySampleType(this.wire);
+
+  final String wire;
+
+  static MicroscopySampleType? fromWire(Object? v) =>
+      pbEnum(values, (e) => e.wire, v);
+}
+
+/// How a faecal sample was prepared (`microscopy_samples.method`).
+///
+/// Faecal only — the route clears it for a crop swab, so "Kropfabstrich,
+/// Flotation" is unstorable.
+enum MicroscopyMethod {
+  directSmear('direct_smear'),
+  flotation('flotation');
+
+  const MicroscopyMethod(this.wire);
+
+  final String wire;
+
+  static MicroscopyMethod? fromWire(Object? v) =>
+      pbEnum(values, (e) => e.wire, v);
+}
+
+/// Who did the analysis (`microscopy_samples.examined_by`) — three-valued
+/// rather than a bool, because a veterinary practice is not a laboratory.
+enum MicroscopyExaminedBy {
+  inHouse('in_house'),
+  vet('vet'),
+  lab('lab');
+
+  const MicroscopyExaminedBy(this.wire);
+
+  final String wire;
+
+  static MicroscopyExaminedBy? fromWire(Object? v) =>
+      pbEnum(values, (e) => e.wire, v);
+}
+
+/// How strongly a finding was present (`microscopy_findings.severity`),
+/// rendered `+` / `++` / `+++` and ordered weakest first.
+///
+/// The wire values spell the grade out instead of storing literal plus signs:
+/// they end up in filter expressions, CSV cells and audit rows, where a bare
+/// `+` is at best unreadable and at worst needs escaping.
+enum MicroscopySeverity {
+  plus('plus'),
+  plusPlus('plus_plus'),
+  plusPlusPlus('plus_plus_plus');
+
+  const MicroscopySeverity(this.wire);
+
+  final String wire;
+
+  static MicroscopySeverity? fromWire(Object? v) =>
+      pbEnum(values, (e) => e.wire, v);
+}

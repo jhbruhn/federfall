@@ -110,6 +110,14 @@ String auditActionTitle(
   AuditAction.examFindingCreated => l10n.auditActionExamFindingCreated,
   AuditAction.examFindingUpdated => l10n.auditActionExamFindingUpdated,
   AuditAction.examFindingDeleted => l10n.auditActionExamFindingDeleted,
+  AuditAction.microscopySaved => l10n.auditActionMicroscopySaved,
+  AuditAction.microscopyDeleted => l10n.auditActionMicroscopyDeleted,
+  AuditAction.microscopyFindingCreated =>
+    l10n.auditActionMicroscopyFindingCreated,
+  AuditAction.microscopyFindingUpdated =>
+    l10n.auditActionMicroscopyFindingUpdated,
+  AuditAction.microscopyFindingDeleted =>
+    l10n.auditActionMicroscopyFindingDeleted,
   AuditAction.eggRecordCreated => l10n.auditActionEggRecordCreated,
   AuditAction.eggRecordUpdated => l10n.auditActionEggRecordUpdated,
   AuditAction.eggRecordDeleted => l10n.auditActionEggRecordDeleted,
@@ -236,6 +244,11 @@ extension AuditActionTopic on AuditAction {
     AuditAction.examFindingCreated ||
     AuditAction.examFindingUpdated ||
     AuditAction.examFindingDeleted ||
+    AuditAction.microscopySaved ||
+    AuditAction.microscopyDeleted ||
+    AuditAction.microscopyFindingCreated ||
+    AuditAction.microscopyFindingUpdated ||
+    AuditAction.microscopyFindingDeleted ||
     AuditAction.eggRecordCreated ||
     AuditAction.eggRecordUpdated ||
     AuditAction.eggRecordDeleted ||
@@ -580,6 +593,20 @@ String auditValueLabel(
     case 'system':
       final v = BodySystem.fromWire(wire);
       return v == null ? wire : bodySystemLabel(l10n, v);
+    case 'sample_type':
+      final v = MicroscopySampleType.fromWire(wire);
+      return v == null ? wire : microscopySampleTypeLabel(l10n, v);
+    // `method` is only ever a microscopy preparation today; the arm above for
+    // a shared column name is where it moves if another collection takes it.
+    case 'method':
+      final v = MicroscopyMethod.fromWire(wire);
+      return v == null ? wire : microscopyMethodLabel(l10n, v);
+    case 'examined_by':
+      final v = MicroscopyExaminedBy.fromWire(wire);
+      return v == null ? wire : microscopyExaminedByLabel(l10n, v);
+    case 'severity':
+      final v = MicroscopySeverity.fromWire(wire);
+      return v == null ? wire : microscopySeverityLabel(v);
     default:
       // A timestamp is stored as PocketBase writes it. Shown raw it is the
       // ugliest thing on the screen and the least readable, so the schema's
@@ -654,6 +681,7 @@ IconData auditIcon(AuditEvent e) {
     'placement' => Icons.swap_horiz,
     'disposition' => Icons.flight_takeoff,
     'exam' || 'exam_finding' => Icons.medical_services_outlined,
+    'microscopy' || 'microscopy_finding' => Icons.biotech_outlined,
     'egg_record' => Icons.egg_outlined,
     'follow_up' => Icons.event_repeat,
     'vet_appointment' => Icons.local_hospital_outlined,
@@ -730,6 +758,53 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
       );
     case ExamSavedDetail(:final findings, :final abnormal):
       add(l10n.auditFactFindings(findings), l10n.auditFactAbnormal(abnormal));
+    case MicroscopySavedDetail(
+      :final findings,
+      :final sampleType,
+      :final method,
+      :final examinedBy,
+      :final worstSeverity,
+      :final noFindings,
+      :final findingLabels,
+      :final attachments,
+    ):
+      // „Kotprobe · Flotation" — the preparation only qualifies the probe, and
+      // is never set for a crop swab.
+      if (sampleType != null) {
+        final probe = [
+          microscopySampleTypeLabel(l10n, sampleType),
+          if (method != null) microscopyMethodLabel(l10n, method),
+        ].join(' · ');
+        add(l10n.microscopyFieldSampleType, probe);
+      }
+      if (examinedBy != null) {
+        add(
+          l10n.microscopyFieldExaminedBy,
+          microscopyExaminedByLabel(l10n, examinedBy),
+        );
+      }
+      // The three states the sample can be in. "Nothing found" and "nobody has
+      // looked yet" must not read the same — with a lab that is the normal
+      // state for a day or two.
+      if (noFindings) {
+        flag(l10n.microscopyFieldNoFindings);
+      } else if (findings == 0) {
+        flag(l10n.microscopyResultPending);
+      } else {
+        // The NAMES the terms had at the time, not their ids — the vocabulary
+        // is editable, so resolving one now would change what this row says
+        // about the past (federfall-qt96).
+        add(l10n.auditFactFindings(findings), findingLabels.join(', '));
+      }
+      if (worstSeverity != null) {
+        add(
+          l10n.microscopyFieldSeverity,
+          microscopySeverityLabel(worstSeverity),
+        );
+      }
+      if (attachments > 0) {
+        add(l10n.auditFieldAttachments, '$attachments');
+      }
     case ReportExportedDetail(:final format, :final year, :final rows):
       add(l10n.auditFactFormat, format.toUpperCase());
       add(l10n.auditFactPeriod, year?.toString() ?? l10n.auditFactPeriodAll);

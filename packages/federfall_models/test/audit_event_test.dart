@@ -250,6 +250,50 @@ void main() {
       expect(d.created, isTrue);
     });
 
+    test('microscopy.saved keeps the finding NAMES, not their ids', () {
+      final d =
+          AuditDetail.parse(AuditAction.microscopySaved, {
+                'created': true,
+                'sample_type': 'fecal',
+                'method': 'flotation',
+                'examined_by': 'lab',
+                'no_findings': false,
+                'findings': 2,
+                'finding_labels': ['Spulwurmeier', 'Kokzidien-Oozysten'],
+                'worst_severity': 'plus_plus',
+                'attachments': 1,
+              })
+              as MicroscopySavedDetail;
+
+      expect(d.findings, 2);
+      expect(d.sampleType, MicroscopySampleType.fecal);
+      expect(d.method, MicroscopyMethod.flotation);
+      expect(d.examinedBy, MicroscopyExaminedBy.lab);
+      expect(d.worstSeverity, MicroscopySeverity.plusPlus);
+      expect(d.findingLabels, ['Spulwurmeier', 'Kokzidien-Oozysten']);
+      expect(d.attachments, 1);
+      expect(d.noFindings, isFalse);
+      expect(d.created, isTrue);
+    });
+
+    test('microscopy.saved with nothing found has no worst grade', () {
+      final d =
+          AuditDetail.parse(AuditAction.microscopySaved, {
+                'created': false,
+                'sample_type': 'crop_swab',
+                'no_findings': true,
+                'findings': 0,
+                'worst_severity': '',
+              })
+              as MicroscopySavedDetail;
+
+      expect(d.noFindings, isTrue);
+      expect(d.worstSeverity, isNull);
+      expect(d.findingLabels, isEmpty);
+      expect(d.method, isNull);
+      expect(d.created, isFalse);
+    });
+
     test('report.exported, with an all-time report having no year', () {
       final yearly =
           AuditDetail.parse(AuditAction.reportExported, {

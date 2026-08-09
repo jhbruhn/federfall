@@ -453,6 +453,80 @@ void main() {
       );
     });
 
+    // The three states a microscopy sample can be in are the reason
+    // `no_findings` is a column at all — "nothing was found" and "nobody has
+    // looked yet" must never render the same.
+    group('a microscopy sample says which of its three states it is in', () {
+      AuditLine lineFor(AuditDetail detail) => auditLine(
+        de,
+        _event(action: AuditAction.microscopySaved, detail: detail),
+      );
+
+      test('graded findings are named, and the worst grade is shown', () {
+        final line = lineFor(
+          const AuditDetail.microscopySaved(
+            findings: 2,
+            sampleType: MicroscopySampleType.fecal,
+            method: MicroscopyMethod.flotation,
+            examinedBy: MicroscopyExaminedBy.lab,
+            worstSeverity: MicroscopySeverity.plusPlus,
+            findingLabels: ['Spulwurmeier', 'Kokzidien-Oozysten'],
+            attachments: 2,
+          ),
+        );
+
+        final probe =
+            '${de.microscopySampleTypeFecal} · '
+            '${de.microscopyMethodFlotation}';
+        expect(
+          line.facts,
+          contains(AuditFact(de.microscopyFieldSampleType, probe)),
+        );
+        expect(
+          line.facts,
+          contains(
+            AuditFact(
+              de.auditFactFindings(2),
+              'Spulwurmeier, Kokzidien-Oozysten',
+            ),
+          ),
+          reason: 'the names snapshotted at emit time, never the type ids',
+        );
+        expect(
+          line.facts,
+          contains(AuditFact(de.microscopyFieldSeverity, '++')),
+        );
+        expect(
+          line.facts,
+          contains(
+            AuditFact(de.microscopyFieldExaminedBy, de.microscopyExaminedByLab),
+          ),
+        );
+      });
+
+      test('"ohne Befund" and "not read yet" are different lines', () {
+        final clean = lineFor(
+          const AuditDetail.microscopySaved(findings: 0, noFindings: true),
+        );
+        final pending = lineFor(
+          const AuditDetail.microscopySaved(findings: 0),
+        );
+
+        expect(
+          clean.facts.map((f) => f.label),
+          contains(de.microscopyFieldNoFindings),
+        );
+        expect(
+          pending.facts.map((f) => f.label),
+          contains(de.microscopyResultPending),
+        );
+        expect(
+          clean.facts.map((f) => f.label),
+          isNot(contains(de.microscopyResultPending)),
+        );
+      });
+    });
+
     test('an all-time report reads as all-time, not as a missing year', () {
       final line = auditLine(
         de,
@@ -752,6 +826,33 @@ void main() {
         auditValueLabel(de, 'exam_findings', 'status', 'abnormal'),
         isNot('abnormal'),
         reason: 'it fell back to the raw English wire value',
+      );
+    });
+
+    test('the microscopy selects resolve through their own enums', () {
+      // They arrive as wire strings on purpose — the server has no business
+      // picking the reader's language — so every one of them has to be turned
+      // back into a label here or the log prints snake_case.
+      for (final (field, wire) in [
+        ('sample_type', 'crop_swab'),
+        ('method', 'direct_smear'),
+        ('examined_by', 'in_house'),
+      ]) {
+        expect(
+          auditValueLabel(de, 'microscopy_samples', field, wire),
+          isNot(wire),
+          reason: '$field fell back to the raw wire value',
+        );
+      }
+      expect(
+        auditValueLabel(de, 'microscopy_samples', 'sample_type', 'crop_swab'),
+        microscopySampleTypeLabel(de, MicroscopySampleType.cropSwab),
+      );
+      // The grade is a symbol, not a word: the wire value spells it out only
+      // so a bare "+" never has to survive a filter or a CSV cell.
+      expect(
+        auditValueLabel(de, 'microscopy_findings', 'severity', 'plus_plus'),
+        '++',
       );
     });
 

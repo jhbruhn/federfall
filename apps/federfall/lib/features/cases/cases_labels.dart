@@ -149,6 +149,40 @@ String eggFateLabel(AppLocalizations l10n, EggFate f) => switch (f) {
   EggFate.unknown => l10n.eggFateUnknown,
 };
 
+String microscopySampleTypeLabel(
+  AppLocalizations l10n,
+  MicroscopySampleType t,
+) => switch (t) {
+  MicroscopySampleType.cropSwab => l10n.microscopySampleTypeCropSwab,
+  MicroscopySampleType.fecal => l10n.microscopySampleTypeFecal,
+};
+
+String microscopyMethodLabel(AppLocalizations l10n, MicroscopyMethod m) =>
+    switch (m) {
+      MicroscopyMethod.directSmear => l10n.microscopyMethodDirectSmear,
+      MicroscopyMethod.flotation => l10n.microscopyMethodFlotation,
+    };
+
+String microscopyExaminedByLabel(
+  AppLocalizations l10n,
+  MicroscopyExaminedBy b,
+) => switch (b) {
+  MicroscopyExaminedBy.inHouse => l10n.microscopyExaminedByInHouse,
+  MicroscopyExaminedBy.vet => l10n.microscopyExaminedByVet,
+  MicroscopyExaminedBy.lab => l10n.microscopyExaminedByLab,
+};
+
+/// The grade as it is written on paper: `+` / `++` / `+++`.
+///
+/// Not translated and not in the ARB, because it is a symbol rather than a
+/// word — the wire values spell it out only so a bare `+` never has to survive
+/// a filter expression or a CSV cell.
+String microscopySeverityLabel(MicroscopySeverity s) => switch (s) {
+  MicroscopySeverity.plus => '+',
+  MicroscopySeverity.plusPlus => '++',
+  MicroscopySeverity.plusPlusPlus => '+++',
+};
+
 /// "2026-001 · Bella" — how a case names itself outside its own screen: in a
 /// reminder notification, a calendar entry, a worklist row. Whichever of the
 /// two parts exist, falling back to a placeholder for a case with neither.

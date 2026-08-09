@@ -122,6 +122,31 @@ void main() {
               },
             },
           ],
+          'microscopy_samples_via_case': [
+            {
+              'id': 'micr0000000001',
+              'case': 'case0000000001',
+              'sample_type': 'fecal',
+              'method': 'flotation',
+              'examined_at': '2026-06-03 09:00:00.000Z',
+              'expand': {
+                'microscopy_findings_via_sample': [
+                  {
+                    'id': 'mfnd0000000001',
+                    'sample': 'micr0000000001',
+                    'severity': 'plus_plus',
+                  },
+                ],
+              },
+            },
+            {
+              'id': 'micr0000000002',
+              'case': 'case0000000001',
+              'sample_type': 'crop_swab',
+              'examined_at': '2026-06-05 09:00:00.000Z',
+              'no_findings': true,
+            },
+          ],
           'quarantine_records_via_case': [
             {'id': 'quar0000000001', 'case': 'case0000000001'},
           ],
@@ -156,6 +181,13 @@ void main() {
       expect(b.followUps.single.id, 'flwu0000000001');
       expect(b.exams.single.id, 'exam0000000001');
       expect(b.examFindings.single.exam, 'exam0000000001');
+      // Samples newest first, and their findings flattened across them in that
+      // order — the exam shape.
+      expect(b.microscopySamples.map((s) => s.id), [
+        'micr0000000002',
+        'micr0000000001',
+      ]);
+      expect(b.microscopyFindings.single.sample, 'micr0000000001');
       expect(b.quarantines.single.id, 'quar0000000001');
       expect(b.vetAppointments.map((a) => a.vet), [null, 'Dr. Meyer']);
 
@@ -189,6 +221,8 @@ void main() {
       expect(b.followUps, isEmpty);
       expect(b.exams, isEmpty);
       expect(b.examFindings, isEmpty);
+      expect(b.microscopySamples, isEmpty);
+      expect(b.microscopyFindings, isEmpty);
       expect(b.quarantines, isEmpty);
       expect(b.vetAppointments, isEmpty);
     });

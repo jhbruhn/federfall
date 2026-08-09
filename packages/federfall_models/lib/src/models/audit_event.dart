@@ -155,6 +155,27 @@ sealed class AuditDetail with _$AuditDetail {
     @Default(true) bool created,
   }) = ExamSavedDetail;
 
+  /// `microscopy.saved` — the sample plus the findings set it replaced
+  /// wholesale, so one row says what was examined and what it showed.
+  ///
+  /// [findingLabels] are the vocabulary NAMES captured at emit time, never
+  /// ids: a term may since have been renamed or deleted, and resolving one now
+  /// would change what the row says about the past.
+  const factory AuditDetail.microscopySaved({
+    required int findings,
+    MicroscopySampleType? sampleType,
+    MicroscopyMethod? method,
+    MicroscopyExaminedBy? examinedBy,
+
+    /// The strongest grade in the set — the reason anybody reads this row
+    /// again. Null when nothing was found.
+    MicroscopySeverity? worstSeverity,
+    @Default(false) bool noFindings,
+    @Default(<String>[]) List<String> findingLabels,
+    @Default(0) int attachments,
+    @Default(true) bool created,
+  }) = MicroscopySavedDetail;
+
   /// `report.exported` — [year] is null for an all-time report.
   const factory AuditDetail.reportExported({
     required String format,
@@ -250,6 +271,17 @@ sealed class AuditDetail with _$AuditDetail {
       AuditAction.examSaved => AuditDetail.examSaved(
         findings: pbInt(json['findings']) ?? 0,
         abnormal: pbInt(json['abnormal']) ?? 0,
+        created: pbBool(json['created']),
+      ),
+      AuditAction.microscopySaved => AuditDetail.microscopySaved(
+        findings: pbInt(json['findings']) ?? 0,
+        sampleType: MicroscopySampleType.fromWire(json['sample_type']),
+        method: MicroscopyMethod.fromWire(json['method']),
+        examinedBy: MicroscopyExaminedBy.fromWire(json['examined_by']),
+        worstSeverity: MicroscopySeverity.fromWire(json['worst_severity']),
+        noFindings: pbBool(json['no_findings']),
+        findingLabels: pbStringList(json['finding_labels']),
+        attachments: pbInt(json['attachments']) ?? 0,
         created: pbBool(json['created']),
       ),
       AuditAction.reportExported => AuditDetail.reportExported(

@@ -197,7 +197,7 @@ abstract interface class CasesRepository implements Repository<Case> {
   Future<int> countAdmittedBetween(DateTime from, DateTime to);
 
   /// The case detail's whole data set in ONE request (federfall-kh0u): the
-  /// case plus its animal, finder and all twelve timeline collections via
+  /// case plus its animal, finder and every timeline collection via
   /// relation expand ([caseBundleExpand]). Expanded rows honor each
   /// collection's view rule, so this changes nothing about access control.
   Future<CaseBundle> bundle(String id);

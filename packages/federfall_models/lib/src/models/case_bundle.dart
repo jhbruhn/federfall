@@ -7,6 +7,7 @@ import 'package:federfall_models/src/models/exam.dart';
 import 'package:federfall_models/src/models/finder.dart';
 import 'package:federfall_models/src/models/marking.dart';
 import 'package:federfall_models/src/models/medical_case.dart';
+import 'package:federfall_models/src/models/microscopy.dart';
 import 'package:federfall_models/src/models/quarantine.dart';
 import 'package:federfall_models/src/models/vet_appointment.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -25,6 +26,8 @@ const String caseBundleExpand =
     'medications_via_case,medication_administrations_via_case,'
     'placements_via_case,dispositions_via_case,follow_ups_via_case,'
     'exams_via_case,exams_via_case.exam_findings_via_exam,'
+    'microscopy_samples_via_case,'
+    'microscopy_samples_via_case.microscopy_findings_via_sample,'
     'quarantine_records_via_case,vet_appointments_via_case';
 
 /// PocketBase truncates each expanded back-relation at 1000 records. A list
@@ -33,7 +36,7 @@ const String caseBundleExpand =
 const int pbExpandListCap = 1000;
 
 /// Everything the case detail shows, mapped from one expanded case record:
-/// the case itself, its animal and finder, and all thirteen timeline sources.
+/// the case itself, its animal and finder, and every timeline source.
 /// Replaces one request per collection with a single round trip, and gives
 /// realtime refreshes a single provider to invalidate.
 ///
@@ -61,6 +64,8 @@ abstract class CaseBundle with _$CaseBundle {
     @Default(<FollowUp>[]) List<FollowUp> followUps,
     @Default(<Exam>[]) List<Exam> exams,
     @Default(<ExamFinding>[]) List<ExamFinding> examFindings,
+    @Default(<MicroscopySample>[]) List<MicroscopySample> microscopySamples,
+    @Default(<MicroscopyFinding>[]) List<MicroscopyFinding> microscopyFindings,
     @Default(<Quarantine>[]) List<Quarantine> quarantines,
     @Default(<VetAppointment>[]) List<VetAppointment> vetAppointments,
   }) = _CaseBundle;
@@ -190,6 +195,28 @@ abstract class CaseBundle with _$CaseBundle {
             exam,
             'exam_findings_via_exam',
             ExamFinding.fromRecord,
+            by: (f) => f.created,
+          ),
+      ],
+      microscopySamples: rel(
+        r,
+        'microscopy_samples_via_case',
+        MicroscopySample.fromRecord,
+        by: (s) => s.examinedAt ?? s.created,
+        descending: true,
+      ),
+      // Findings arrive nested under their sample; flatten across the (already
+      // sorted) samples, insertion order within each sample — exactly the
+      // exam-findings shape above.
+      microscopyFindings: [
+        for (final sample in r.get<List<RecordModel>>(
+          'expand.microscopy_samples_via_case',
+          const [],
+        ))
+          ...rel(
+            sample,
+            'microscopy_findings_via_sample',
+            MicroscopyFinding.fromRecord,
             by: (f) => f.created,
           ),
       ],
