@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.2](https://github.com/jhbruhn/federfall/compare/v0.17.1...v0.17.2) (2026-08-09)
+
+
+### Bug Fixes
+
+* **cases:** polish the intake wizard's first two steps ([15b4756](https://github.com/jhbruhn/federfall/commit/15b47562f474d8df59a39120de5e5e79591d1b6c))
+* **dashboard:** count obligations, not rows, and quiet the workload card ([97b7270](https://github.com/jhbruhn/federfall/commit/97b727053fd36ad2fc9d4b1479ec0e5fb488013f))
+* **statistics:** draw the conditions breakdown as bars, not a lying donut ([77dc922](https://github.com/jhbruhn/federfall/commit/77dc922a8b1aa2b0f827250044ce1c8fd06113fb))
+* **statistics:** give each rate tile its own denominator ([d1a70df](https://github.com/jhbruhn/federfall/commit/d1a70dfb372e80c2cdc182f6ab70482b0e8fdd7d))
+* **statistics:** name every month on the intakes axis ([9a26e7a](https://github.com/jhbruhn/federfall/commit/9a26e7addd8461f836852619fd4cdbb5643f5e7c))
+* **statistics:** round the intakes axis up to a tick, not to tallest + step ([64861bc](https://github.com/jhbruhn/federfall/commit/64861bc236a348a6fee3f6428bfd1410ed21ad50))
+
 ## [0.17.1](https://github.com/jhbruhn/federfall/compare/v0.17.0...v0.17.1) (2026-08-07)
 
 
