@@ -396,6 +396,11 @@
     "@dashboardWorkloadTitle": { "description": "Title of the coordinator/supervisor card listing each carer's open caseload" },
     "dashboardWorkloadEmpty": "No team members",
     "@dashboardWorkloadEmpty": { "description": "Empty state of the carer workload card" },
+    "dashboardWorkloadIdle": "{count, plural, =1{1 member with no open cases} other{{count} members with no open cases}}",
+    "@dashboardWorkloadIdle": {
+      "description": "Footnote under the carer workload rows: how many members carry nothing, folded out of the list",
+      "placeholders": { "count": { "type": "int" } }
+    },
     "todayTitle": "Today",
     "@todayTitle": { "description": "Title of the Today / worklist screen and dashboard section" },
     "worklistEmpty": "Nothing due — you're all caught up.",
@@ -405,6 +410,11 @@
     "worklistDueCount": "{count, plural, =1{1 task due} other{{count} tasks due}}",
     "@worklistDueCount": {
       "description": "Subtitle on the dashboard Today card: how many worklist items are due",
+      "placeholders": { "count": { "type": "int" } }
+    },
+    "worklistQuietCount": "{count, plural, =1{1 case quiet} other{{count} cases quiet}}",
+    "@worklistQuietCount": {
+      "description": "Subtitle on the dashboard Today card: how many worklist items are inactivity notices rather than due tasks",
       "placeholders": { "count": { "type": "int" } }
     },
     "worklistGroupMeds": "Medications due",

@@ -115,12 +115,20 @@ class _ProfileBody extends StatelessWidget {
           const Divider(height: AppSpacing.lg),
           const _VersionInfo(),
           const SizedBox(height: AppSpacing.lg),
+          // Outlined, not filled: leaving is not what this screen is for, and
+          // a full-width brand-green button made it the most prominent action
+          // on it. The error colour marks it as the exit without shouting —
+          // signing out is reversible, so it gets no filled error surface
+          // either.
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             child: Consumer(
-              builder: (context, ref, _) => PrimaryButton(
-                label: l10n.authSignOutAction,
-                icon: Icons.logout,
+              builder: (context, ref, _) => OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                icon: const Icon(Icons.logout),
+                label: Text(l10n.authSignOutAction),
                 onPressed: () async {
                   if (await confirmSignOut(context)) await signOut(ref);
                 },

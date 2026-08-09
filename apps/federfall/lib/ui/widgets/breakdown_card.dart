@@ -42,6 +42,7 @@ class BreakdownCard extends StatelessWidget {
     required this.rows,
     required this.emptyMessage,
     this.chart,
+    this.footnote,
     super.key,
   });
 
@@ -56,6 +57,13 @@ class BreakdownCard extends StatelessWidget {
 
   /// Shown in place of the rows when [rows] is empty.
   final String emptyMessage;
+
+  /// Optional muted line under the rows, for what the card leaves out — a
+  /// caller that filters uninteresting rows away can still say how many
+  /// (the carer workload card's members with no open cases, federfall-06v1).
+  /// Ignored when [rows] is empty: there the empty message is the whole
+  /// answer, and the caller owns what it says.
+  final String? footnote;
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +110,21 @@ class BreakdownCard extends StatelessWidget {
             )
           else ...[
             for (final row in rows) _BreakdownTile(row),
+            if (footnote case final footnote?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.xs,
+                  AppSpacing.md,
+                  0,
+                ),
+                child: Text(
+                  footnote,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             const SizedBox(height: AppSpacing.sm),
           ],
         ],

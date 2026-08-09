@@ -194,10 +194,10 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.widgetWithText(FilledButton, 'Sign out'),
+      find.widgetWithText(OutlinedButton, 'Sign out'),
       100,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Sign out'));
     await tester.pumpAndSettle();
 
     // One accidental tap must not end the session — a confirm dialog
@@ -235,10 +235,10 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.widgetWithText(FilledButton, 'Sign out'),
+      find.widgetWithText(OutlinedButton, 'Sign out'),
       100,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Sign out'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Sign out'));
     await tester.pump();
@@ -265,10 +265,10 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.widgetWithText(FilledButton, 'Sign out'),
+      find.widgetWithText(OutlinedButton, 'Sign out'),
       100,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Sign out'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
@@ -288,10 +288,10 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.widgetWithText(FilledButton, 'Sign out'),
+      find.widgetWithText(OutlinedButton, 'Sign out'),
       100,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Sign out'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();

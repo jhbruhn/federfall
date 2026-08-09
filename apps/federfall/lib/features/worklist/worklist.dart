@@ -7,7 +7,17 @@ enum WorklistKind {
   vetAppointment,
   followUpDue,
   quarantineEnding,
-  staleCase,
+  staleCase;
+
+  /// Whether this kind is something somebody has to *do*, as opposed to a
+  /// case merely worth a look.
+  ///
+  /// A stale case is a nudge: nothing was scheduled and nothing is overdue,
+  /// the case has just been quiet. Counting it as a due task is how a carer
+  /// with one overdue dose came to read "5 tasks due" (federfall-9m9n) — so
+  /// the distinction lives here, on the kind, rather than being re-derived by
+  /// each screen that needs it.
+  bool get isDue => this != WorklistKind.staleCase;
 }
 
 /// Whether an item is already past its due moment or merely approaching it.

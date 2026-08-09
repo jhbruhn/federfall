@@ -167,6 +167,19 @@ class _WorklistPreview extends ConsumerWidget {
     final showError =
         error != null && !(items != null && isNetworkError(error));
     final due = items ?? const <WorklistItem>[];
+    // The headline counts obligations, not rows: a quiet case is worth
+    // surfacing but nobody owes it anything today (federfall-9m9n).
+    //
+    // The same split orders the preview. The worklist is sorted soonest-due
+    // first, and a case that has been quiet for 39 days carries a `dueAt` 39
+    // days old — so under a plain date sort the quiet cases took the whole
+    // preview and a dose due this afternoon fell off the end of it. Within
+    // each half the date order stands.
+    final actionable = due.where((i) => i.kind.isDue).toList();
+    final quiet = due.where((i) => !i.kind.isDue).toList();
+    final preview = [...actionable, ...quiet];
+    final dueCount = actionable.length;
+    final quietCount = quiet.length;
 
     // The narrow layout adds no chrome when nothing is due, so it must not pop
     // a card in while the first load is still in flight either.
@@ -204,7 +217,12 @@ class _WorklistPreview extends ConsumerWidget {
               // progress bar above is the whole message.
               (_, null) => null,
               _ when due.isEmpty => Text(l10n.worklistEmpty),
-              _ => Text(l10n.worklistDueCount(due.length)),
+              _ => Text(
+                [
+                  if (dueCount > 0) l10n.worklistDueCount(dueCount),
+                  if (quietCount > 0) l10n.worklistQuietCount(quietCount),
+                ].join(' · '),
+              ),
             },
             trailing: showError
                 ? TextButton(
@@ -221,7 +239,7 @@ class _WorklistPreview extends ConsumerWidget {
                   ),
           ),
           if (!showError) ...[
-            for (final item in due.take(_previewMax))
+            for (final item in preview.take(_previewMax))
               WorklistTile(item: item, now: now),
             if (due.isNotEmpty) const SizedBox(height: AppSpacing.xs),
           ],
@@ -257,25 +275,41 @@ class _CarerWorkloadCard extends ConsumerWidget {
         // here would push the caseload around on every refresh; it simply
         // appears once loaded.
         loading: const SizedBox.shrink(),
-        data: (rows) => BreakdownCard(
-          title: l10n.dashboardWorkloadTitle,
-          emptyMessage: l10n.dashboardWorkloadEmpty,
-          rows: [
-            for (final row in rows)
-              BreakdownRow(
-                memberLabel(row.user),
-                row.openCases,
-                subtitle: _subtitle(l10n, row.user),
-                // Open cases, so the target keeps the browser's "active"
-                // default — the list then holds exactly the number tapped.
-                onTap: () => showCasesFiltered(
-                  context,
-                  ref,
-                  CaseQuery(carer: row.user.id),
+        data: (rows) {
+          // A row saying somebody carries nothing is not workload, and there
+          // are usually several — they made the card longer than the fact it
+          // reports (federfall-06v1). They collapse into one line instead of
+          // vanishing: "who is on the team" is still worth knowing, it just
+          // isn't worth a row each. Filtered on the COUNT, not on activity —
+          // a deactivated member holding open cases is precisely the row that
+          // needs acting on.
+          final carrying = rows.where((r) => r.openCases > 0).toList();
+          final idle = rows.length - carrying.length;
+          return BreakdownCard(
+            title: l10n.dashboardWorkloadTitle,
+            // With nobody carrying anything, the idle count IS the answer —
+            // the stock empty message would claim there is no team at all.
+            emptyMessage: idle > 0
+                ? l10n.dashboardWorkloadIdle(idle)
+                : l10n.dashboardWorkloadEmpty,
+            footnote: idle > 0 ? l10n.dashboardWorkloadIdle(idle) : null,
+            rows: [
+              for (final row in carrying)
+                BreakdownRow(
+                  memberLabel(row.user),
+                  row.openCases,
+                  subtitle: _subtitle(l10n, row.user),
+                  // Open cases, so the target keeps the browser's "active"
+                  // default — the list then holds exactly the number tapped.
+                  onTap: () => showCasesFiltered(
+                    context,
+                    ref,
+                    CaseQuery(carer: row.user.id),
+                  ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }

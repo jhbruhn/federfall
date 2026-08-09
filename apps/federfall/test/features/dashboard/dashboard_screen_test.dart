@@ -32,6 +32,7 @@ Future<void> _pump(
   DashboardSummary summary, {
   AppUser? me,
   List<CarerWorkload>? workload,
+  List<WorklistItem>? worklist,
   Size? window,
 }) async {
   if (window != null) {
@@ -46,7 +47,7 @@ Future<void> _pump(
         dashboardSummaryProvider.overrideWith((ref) async => summary),
         currentUserProvider.overrideWith((ref) async => me),
         carerWorkloadProvider.overrideWith((ref) async => workload ?? const []),
-        worklistProvider.overrideWith((ref) async => const []),
+        worklistProvider.overrideWith((ref) async => worklist ?? const []),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -262,6 +263,72 @@ void main() {
     });
   });
 
+  group('Today headline counts obligations (federfall-9m9n)', () {
+    const summary = DashboardSummary(
+      activeCount: 4,
+      intakesThisYear: 7,
+      byStatus: {},
+    );
+
+    WorklistItem med(String id) => WorklistItem(
+      kind: WorklistKind.medicationDue,
+      caseId: id,
+      // Later than the stale items below, so a plain date sort would bury it.
+      dueAt: DateTime(2026, 6, 23, 9),
+      severity: WorklistSeverity.overdue,
+      caseNumber: id,
+      animalName: 'Lotte',
+      drug: 'Metacam',
+    );
+
+    WorklistItem stale(String id) => WorklistItem(
+      kind: WorklistKind.staleCase,
+      caseId: id,
+      dueAt: DateTime(2026, 5, 15),
+      severity: WorklistSeverity.overdue,
+      caseNumber: id,
+      animalName: 'Bruno',
+    );
+
+    // The reported shape: one overdue dose behind four staleness notices.
+    List<WorklistItem> oneDoseFourQuiet() => [
+      stale('c1'),
+      stale('c2'),
+      stale('c3'),
+      stale('c4'),
+      med('c5'),
+    ];
+
+    testWidgets('a quiet case is not a task due', (tester) async {
+      await _pump(tester, summary, worklist: oneDoseFourQuiet());
+
+      // One dose is owed; four cases have merely been quiet. Summing the
+      // list said "5 tasks due" and a carer read five obligations.
+      expect(find.text('1 task due · 4 cases quiet'), findsOneWidget);
+      expect(find.text('5 tasks due'), findsNothing);
+    });
+
+    testWidgets('nothing owed reads as quiet, not as due', (tester) async {
+      await _pump(tester, summary, worklist: [stale('c1'), stale('c2')]);
+
+      expect(find.text('2 cases quiet'), findsOneWidget);
+      expect(find.textContaining('due'), findsNothing);
+    });
+
+    testWidgets('the preview leads with what is owed', (tester) async {
+      await _pump(tester, summary, worklist: oneDoseFourQuiet());
+
+      // The worklist is sorted soonest-`dueAt` first and a long-quiet case
+      // carries an old one, so the dose sorted behind all four — and the
+      // preview shows only four rows, so the one real task fell off it
+      // entirely. It leads now, and a quiet case is what gets cut.
+      final dose = tester.getRect(find.textContaining('Metacam'));
+      final firstQuiet = tester.getRect(find.textContaining('Bruno').first);
+      expect(dose.top, lessThan(firstQuiet.top));
+      expect(find.textContaining('Bruno'), findsNWidgets(3));
+    });
+  });
+
   group('layout (federfall-773v)', () {
     const summary = DashboardSummary(
       activeCount: 4,
@@ -373,12 +440,35 @@ void main() {
       expect(find.text('Carer workload'), findsOneWidget);
       expect(inCard('Anna'), findsOneWidget);
       expect(inCard('3'), findsOneWidget);
-      // Someone with capacity is listed too — that is half the point.
-      expect(inCard('Bert'), findsOneWidget);
-      expect(inCard('0'), findsOneWidget);
+      // A member carrying nothing gets no row of its own — that is not
+      // workload, and several of them made the card longer than the fact it
+      // reports (federfall-06v1). They are not dropped either: the footnote
+      // still says how many there are.
+      expect(inCard('Bert'), findsNothing);
+      expect(inCard('0'), findsNothing);
+      expect(inCard('1 member with no open cases'), findsOneWidget);
       // Each row names the member's role, so a coordinator or supervisor
       // carrying cases doesn't read as a stray entry.
-      expect(inCard('Carer'), findsNWidgets(2));
+      expect(inCard('Carer'), findsOneWidget);
+    });
+
+    testWidgets('a team that is carrying nothing says so, not "no team"', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        summary,
+        me: _user('me', role: UserRole.coordinator),
+        workload: [
+          CarerWorkload(user: _user('anna', name: 'Anna'), openCases: 0),
+          CarerWorkload(user: _user('bert', name: 'Bert'), openCases: 0),
+        ],
+      );
+
+      // Every row filtered away must not fall through to the roster-is-empty
+      // message — there is a team, it is just idle.
+      expect(find.text('No team members'), findsNothing);
+      expect(find.text('2 members with no open cases'), findsOneWidget);
     });
 
     testWidgets('shows a supervisor an empty roster honestly', (tester) async {
