@@ -826,7 +826,7 @@ const CONTENT_FIELDS = {
   cases: ["admitted_at", "age_class", "status"],
   animals: ["species", "name", "sex"],
   weights: ["measured_at"],
-  markings: ["applied_at", "removed_at", "is_active"],
+  markings: ["applied_at", "present_at_find", "removed_at", "is_active"],
   case_conditions: ["certainty", "onset_date", "resolved_date"],
   medications: [
     "dose_rate",

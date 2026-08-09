@@ -54,6 +54,11 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet>
   /// Selected marking-type id, or null until the picker is populated / chosen.
   late String? _type;
   late DateTime _appliedAt;
+  late bool _presentAtFind;
+
+  /// The date the user had picked before ticking "present when found", so
+  /// unticking gives it back rather than leaving the find moment behind.
+  DateTime? _dateBeforeFind;
 
   bool get _isEditing => widget.marking != null;
 
@@ -68,6 +73,31 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet>
     // active code list loads (see build).
     _type = m?.type;
     _appliedAt = (m?.appliedAt ?? m?.created)?.toLocal() ?? DateTime.now();
+    _presentAtFind = m?.presentAtFind ?? false;
+  }
+
+  /// Where a marking the bird already carried belongs in time. Both intake
+  /// dates are optional on `cases`, so this falls through to the case's own
+  /// creation rather than refusing to answer.
+  DateTime? _findMoment(Case? c) =>
+      c == null ? null : (c.foundAt ?? c.admittedAt ?? c.created);
+
+  /// Ticking the box is what snapshots the find moment into [_appliedAt] —
+  /// every reader of a marking orders on that date and none of them can see
+  /// the flag, so it has to stay a real date. Re-saving an untouched marking
+  /// therefore keeps the date it was stored with, even if the case's find date
+  /// has since been corrected.
+  void _setPresentAtFind({required bool value, required DateTime? findMoment}) {
+    setState(() {
+      _presentAtFind = value;
+      if (value) {
+        _dateBeforeFind = _appliedAt;
+        if (findMoment != null) _appliedAt = findMoment.toLocal();
+      } else if (_dateBeforeFind case final previous?) {
+        _appliedAt = previous;
+      }
+    });
+    markDirty();
   }
 
   @override
@@ -98,6 +128,7 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet>
         'colour': trimToNull(_colour) ?? '',
         'scheme_org': trimToNull(_scheme) ?? '',
         'applied_at': _appliedAt.toUtc().toIso8601String(),
+        'present_at_find': _presentAtFind,
       };
 
       final marking = widget.marking;
@@ -125,6 +156,14 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet>
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+
+    // Only a case carries a find moment; the sheet also opens straight off an
+    // animal (an aviary resident with no open case), where there is nothing to
+    // anchor to and the option has no meaning.
+    final caseId = widget.caseId;
+    final findMoment = caseId == null
+        ? null
+        : _findMoment(ref.watch(caseByIdProvider(caseId)).value);
 
     return guardUnsavedChanges(
       child: SheetScaffold(
@@ -161,11 +200,29 @@ class _MarkingSheetState extends ConsumerState<MarkingSheet>
             prefixIcon: Icons.business_outlined,
             enabled: !isBusy,
           ),
+          if (caseId != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.markingFieldPresentAtFind),
+              subtitle: Text(l10n.markingFieldPresentAtFindHelp),
+              value: _presentAtFind,
+              // Until the case resolves there is no date to snapshot.
+              onChanged: isBusy || findMoment == null
+                  ? null
+                  : (v) => _setPresentAtFind(
+                      value: v ?? false,
+                      findMoment: findMoment,
+                    ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.md),
           DateField(
             label: l10n.markingFieldApplied,
             value: _appliedAt,
-            enabled: !isBusy,
+            // The find moment owns the date while the box is ticked; it still
+            // shows, so it is visible WHICH date is being recorded.
+            enabled: !isBusy && !_presentAtFind,
             onPick: _pickDate,
           ),
         ],

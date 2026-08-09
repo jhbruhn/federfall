@@ -19,6 +19,12 @@ abstract class Marking with _$Marking {
     String? schemeOrg,
     String? colour,
     DateTime? appliedAt,
+
+    /// The animal already carried this when it was found — nobody here applied
+    /// it. [appliedAt] still holds a date (the case's find moment, snapshotted
+    /// on save), because the timeline, the repository sort and the annual
+    /// report's markings column all order on it and cannot see this flag.
+    @Default(false) bool presentAtFind,
     String? appliedBy,
     String? appliedInCase,
     DateTime? removedAt,
@@ -39,6 +45,7 @@ abstract class Marking with _$Marking {
       schemeOrg: pbString(d['scheme_org']),
       colour: pbString(d['colour']),
       appliedAt: pbDate(d['applied_at']),
+      presentAtFind: pbBool(d['present_at_find']),
       appliedBy: pbString(d['applied_by']),
       appliedInCase: pbString(d['applied_in_case']),
       removedAt: pbDate(d['removed_at']),

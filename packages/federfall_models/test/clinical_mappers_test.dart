@@ -481,6 +481,7 @@ void main() {
       expect(m.appliedInCase, 'case0000000001');
       expect(m.removedAt, isNull);
       expect(m.isActive, isTrue);
+      expect(m.presentAtFind, isFalse);
     });
 
     test('maps an empty type relation to an empty id', () {
@@ -489,6 +490,27 @@ void main() {
       );
       expect(m.type, '');
       expect(m.isActive, isFalse);
+    });
+
+    test('maps present_at_find, and defaults it false on an older server', () {
+      final found = Marking.fromRecord(
+        RecordModel({
+          'id': 'm',
+          'animal': 'a',
+          'type': 't',
+          'applied_at': '2026-03-12 09:00:00.000Z',
+          'present_at_find': true,
+        }),
+      );
+      expect(found.presentAtFind, isTrue);
+      // The date is still recorded: it is what every reader sorts on.
+      expect(found.appliedAt?.day, 12);
+
+      // A server without 1700000074 sends no such column.
+      final legacy = Marking.fromRecord(
+        RecordModel({'id': 'm', 'animal': 'a', 'type': 't'}),
+      );
+      expect(legacy.presentAtFind, isFalse);
     });
   });
 

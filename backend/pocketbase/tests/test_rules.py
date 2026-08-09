@@ -3052,8 +3052,13 @@ def main():
                        "applied_at": "2019-06-20 09:00:00.000Z"})
     # (2) already on the bird at admission and still on at release → the
     # "what did it arrive wearing" case, which needs no column of its own.
+    # federfall-z9lh: this is the shape the "Bei Fund" flag produces — the
+    # flag is provenance, `applied_at` is still a real date, and the window
+    # reads the date. Set both, so a future change that starts deriving the
+    # date from the flag drops this ring out of the report and fails here.
     mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
                        "code": "DEH-A9002", "is_active": True,
+                       "present_at_find": True,
                        "applied_at": "2017-04-01 09:00:00.000Z"})
     # (3) removed DURING care → not what the bird left with.
     mk(T, "markings", {"animal": ar_animal, "org": ORG, "type": ar_type,
@@ -3171,6 +3176,11 @@ def main():
           "DEH-A9001" in row, row)
     check("a ring the bird arrived wearing is too",
           "DEH-A9002" in row, row)
+    # The flag is for the reader of the timeline; the report prints the ring
+    # the same way either way, because at release it is simply a ring the bird
+    # carried and who put it on is not what this column answers.
+    check("...and being flagged present-at-find does not change how it prints",
+          "DEH-A9002" in row and "present_at_find" not in row, row)
     check("a ring removed DURING care is not",
           "DEH-A9003" not in row, row)
     check("a ring from a LATER admission does not backdate onto this case",
@@ -3475,6 +3485,18 @@ def main():
     check("the marking is labelled by its code",
           (audit_for(ea_marking) or [{}])[0].get("subject_label") == "AB-12",
           "no label")
+
+    # federfall-z9lh — "the bird already wore this when it was found" is a
+    # claim about provenance, not a formatting choice: it has to be in
+    # CONTENT_FIELDS, or correcting it later leaves no trace of the correction.
+    req("PATCH", f"/api/collections/markings/records/{ea_marking}", toks["a"],
+        {"present_at_find": True})
+    mk_changes = [c for r in audit_for(ea_marking, "marking.updated")
+                  for c in (r.get("changes") or [])
+                  if c.get("field") == "present_at_find"]
+    check("flipping present_at_find is recorded",
+          len(mk_changes) == 1 and mk_changes[0].get("to") is True,
+          mk_changes)
 
     # federfall-by7w.1 — an event that does not say WHAT it was about is not
     # worth writing. Every audited collection has to produce a label.

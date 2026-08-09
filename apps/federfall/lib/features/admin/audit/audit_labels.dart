@@ -378,6 +378,7 @@ String auditFieldLabel(AppLocalizations l10n, String collection, String field) {
     // reusing the key the app already names that field by elsewhere so the log
     // and the screen that owns the field agree on what it is called.
     'applied_at' => l10n.markingFieldApplied,
+    'present_at_find' => l10n.markingFieldPresentAtFind,
     'removed_at' => l10n.auditFieldRemovedAt,
     'onset_date' => l10n.conditionFieldOnset,
     'resolved_date' => l10n.conditionFieldResolved,

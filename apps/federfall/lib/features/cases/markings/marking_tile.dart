@@ -109,9 +109,21 @@ class MarkingTile extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            typeLabel,
-            style: theme.textTheme.bodyLarge,
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  typeLabel,
+                  style: theme.textTheme.bodyLarge,
+                ),
+              ),
+              // The date alone would read as "we ringed it that day"; this is
+              // the one thing that says nobody here applied it.
+              if (marking.presentAtFind) ...[
+                const SizedBox(width: AppSpacing.sm),
+                TagChip(label: l10n.markingPresentAtFind),
+              ],
+            ],
           ),
           if (detail.isNotEmpty)
             Text(

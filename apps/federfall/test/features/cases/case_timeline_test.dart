@@ -1,6 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart' hide Finder;
@@ -113,6 +114,10 @@ void main() {
           (ref) async => administrations,
         ),
         markingsRepositoryProvider.overrideWith((ref) async => markings),
+        // Marking tiles resolve their type label through the code list.
+        markingTypesProvider.overrideWith(
+          (ref) async => const [MarkingType(id: 'mktp_ring', label: 'Ring')],
+        ),
         placementsRepositoryProvider.overrideWith((ref) async => placements),
         dispositionsRepositoryProvider.overrideWith(
           (ref) async => dispositions,
@@ -224,6 +229,43 @@ void main() {
     final admitted = tester.getTopLeft(find.text('Admitted')).dy;
     final weight = tester.getTopLeft(find.text('250 g')).dy;
     expect(weight, lessThan(admitted));
+  });
+
+  testWidgets('a marking present at find sits before the admission', (
+    tester,
+  ) async {
+    when(() => journal.forCase('c1')).thenAnswer((_) async => []);
+    // The sheet snapshots the case's find moment into applied_at, which is
+    // what puts the ring the bird arrived wearing at the start of the story
+    // instead of at the moment somebody typed it in.
+    when(() => markings.forAnimal('a1')).thenAnswer(
+      (_) async => [
+        Marking(
+          id: 'm1',
+          animal: 'a1',
+          type: 'mktp_ring',
+          code: 'AT-123',
+          appliedAt: DateTime.utc(2026, 6, 19),
+          presentAtFind: true,
+          isActive: true,
+        ),
+      ],
+    );
+
+    await pump(
+      tester,
+      Case(
+        id: 'c1',
+        animal: 'a1',
+        foundAt: DateTime.utc(2026, 6, 19),
+        admittedAt: DateTime.utc(2026, 6, 20),
+      ),
+    );
+
+    // Newest-first, so "older than the admission" means further down.
+    final admitted = tester.getTopLeft(find.text('Admitted')).dy;
+    final badge = tester.getTopLeft(find.text('At find')).dy;
+    expect(badge, greaterThan(admitted));
   });
 
   testWidgets('places an exam with vitals and an abnormal finding', (

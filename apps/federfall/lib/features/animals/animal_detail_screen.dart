@@ -539,7 +539,17 @@ class _MarkingsSection extends ConsumerWidget {
                     Icons.sell_outlined,
                     color: m.isActive ? null : theme.colorScheme.outline,
                   ),
-                  title: Text(_markingTitle(typesById, m)),
+                  title: Row(
+                    children: [
+                      Flexible(child: Text(_markingTitle(typesById, m))),
+                      // Same badge the case timeline shows: the bird arrived
+                      // wearing this one.
+                      if (m.presentAtFind) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        TagChip(label: l10n.markingPresentAtFind),
+                      ],
+                    ],
+                  ),
                   subtitle: m.isActive
                       ? null
                       : Text(
