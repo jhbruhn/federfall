@@ -99,7 +99,13 @@ void main() {
     expect(find.text('15.4 d'), findsOneWidget); // avg time in care
     expect(find.text('Released'), findsOneWidget);
     expect(find.text('Columba livia'), findsOneWidget);
-    expect(find.text('Trichomoniasis'), findsOneWidget);
+    // A diagnosis is named twice: once on its bar, once on the row under it.
+    expect(find.text('Trichomoniasis'), findsNWidgets(2));
+    // And the bar is a share of the INTAKES (6 of 12), which the caption above
+    // it says out loud — diagnoses overlap, so they are no share of each other
+    // (federfall-qogh).
+    expect(find.text('50%'), findsOneWidget);
+    expect(find.text('Share of intakes'), findsOneWidget);
   });
 
   testWidgets('rates are shares of the cases that ended, and say so', (
@@ -274,7 +280,8 @@ void main() {
     // doesn't, so hold a subscription open for the assertion below.
     container.listen(pendingCaseQueryProvider, (_, _) {});
 
-    await tester.tap(find.text('Katzenbiss'));
+    // The chart names it too; the tappable one is the row beneath it.
+    await tester.tap(find.text('Katzenbiss').last);
     await tester.pumpAndSettle();
 
     expect(find.text('CASES'), findsOneWidget);

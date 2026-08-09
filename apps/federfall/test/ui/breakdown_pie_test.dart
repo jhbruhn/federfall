@@ -6,8 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 Future<PieChartData?> _pump(
   WidgetTester tester,
-  List<PieEntry> entries, {
-  int? total,
+  List<ChartEntry> entries, {
   Brightness brightness = Brightness.light,
 }) async {
   await tester.pumpWidget(
@@ -17,7 +16,7 @@ Future<PieChartData?> _pump(
       supportedLocales: AppLocalizations.supportedLocales,
       theme: ThemeData(brightness: brightness),
       home: Scaffold(
-        body: BreakdownPie(entries: entries, otherLabel: 'Other', total: total),
+        body: BreakdownPie(entries: entries, otherLabel: 'Other'),
       ),
     ),
   );
@@ -35,11 +34,11 @@ void main() {
     // even a full-colour reader cannot separate. So the tail folds rather than
     // growing new colours — and the fold is one slice, not a rainbow.
     final data = await _pump(tester, const [
-      PieEntry('Stadttaube', 10),
-      PieEntry('Ringeltaube', 6),
-      PieEntry('Türkentaube', 3),
-      PieEntry('Hohltaube', 2),
-      PieEntry('Mauersegler', 1),
+      ChartEntry('Stadttaube', 10),
+      ChartEntry('Ringeltaube', 6),
+      ChartEntry('Türkentaube', 3),
+      ChartEntry('Hohltaube', 2),
+      ChartEntry('Mauersegler', 1),
     ]);
 
     expect(data!.sections, hasLength(4));
@@ -49,8 +48,8 @@ void main() {
 
   testWidgets('no fold when everything fits in its own colour', (tester) async {
     final data = await _pump(tester, const [
-      PieEntry('Released', 5),
-      PieEntry('Died', 3),
+      ChartEntry('Released', 5),
+      ChartEntry('Died', 3),
     ]);
 
     expect(data!.sections, hasLength(2));
@@ -59,8 +58,8 @@ void main() {
 
   testWidgets('slices are ranked, not left in the order given', (tester) async {
     final data = await _pump(tester, const [
-      PieEntry('Small', 1),
-      PieEntry('Big', 9),
+      ChartEntry('Small', 1),
+      ChartEntry('Big', 9),
     ]);
 
     expect(data!.sections.first.value, 9);
@@ -69,29 +68,35 @@ void main() {
   testWidgets('names every slice with its share, never colour alone', (
     tester,
   ) async {
-    await _pump(tester, const [PieEntry('Released', 3), PieEntry('Died', 1)]);
+    await _pump(tester, const [
+      ChartEntry('Released', 3),
+      ChartEntry('Died', 1),
+    ]);
 
     expect(find.text('Released · 75%'), findsOneWidget);
     expect(find.text('Died · 25%'), findsOneWidget);
   });
 
-  testWidgets('an explicit total is the denominator, not the sum of parts', (
+  testWidgets('every arc is its own label: the ring is the sum of the parts', (
     tester,
   ) async {
-    // Diagnoses: one case can carry several, so the shares are of the period's
-    // cases and would otherwise add up past what happened.
-    await _pump(
-      tester,
-      const [PieEntry('Fraktur', 3)],
-      total: 6,
-    );
+    // federfall-qogh: the conditions donut drew arcs over the counted sum while
+    // labelling them against a bigger denominator, so a half-ring read 14%.
+    // There is no denominator to pass any more — this pins that the two agree.
+    final data = await _pump(tester, const [
+      ChartEntry('Released', 3),
+      ChartEntry('Died', 1),
+    ]);
 
-    expect(find.text('Fraktur · 50%'), findsOneWidget);
+    final total = data!.sections.fold<double>(0, (s, x) => s + x.value);
+    expect(data.sections.first.value / total, 0.75);
+    expect(find.text('Released · 75%'), findsOneWidget);
+    expect(data.sections.first.title, '75%');
   });
 
   testWidgets('nothing to plot renders nothing at all', (tester) async {
     expect(await _pump(tester, const []), isNull);
-    expect(await _pump(tester, const [PieEntry('Nil', 0)]), isNull);
+    expect(await _pump(tester, const [ChartEntry('Nil', 0)]), isNull);
   });
 
   testWidgets('dark mode gets its own steps, not the light ones', (
@@ -99,10 +104,10 @@ void main() {
   ) async {
     // The two palettes were validated separately against their own surfaces;
     // an automatic flip would put the light steps on a dark card.
-    final light = await _pump(tester, const [PieEntry('A', 1)]);
+    final light = await _pump(tester, const [ChartEntry('A', 1)]);
     final dark = await _pump(
       tester,
-      const [PieEntry('A', 1)],
+      const [ChartEntry('A', 1)],
       brightness: Brightness.dark,
     );
 

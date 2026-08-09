@@ -87,6 +87,7 @@
     },
     "statsPeriodWholeYear": "Ganzes Jahr",
     "statsChartOther": "Sonstige",
+    "statsChartShareOfIntakes": "Anteil an den Aufnahmen",
     "statsSectionIntakesOverTime": "Aufnahmen im Zeitverlauf",
     "statsSectionOutcomes": "Ausgänge",
     "statsSectionSpecies": "Nach Art",

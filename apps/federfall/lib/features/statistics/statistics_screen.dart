@@ -275,7 +275,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       otherLabel: l10n.statsChartOther,
       entries: [
         for (final o in s.outcomes)
-          PieEntry(dispositionTypeLabel(l10n, o.type), o.count),
+          ChartEntry(dispositionTypeLabel(l10n, o.type), o.count),
       ],
     ),
     rows: [
@@ -298,7 +298,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         emptyMessage: l10n.statsEmpty,
         chart: BreakdownPie(
           otherLabel: l10n.statsChartOther,
-          entries: [for (final c in s.bySpecies) PieEntry(c.label, c.count)],
+          entries: [for (final c in s.bySpecies) ChartEntry(c.label, c.count)],
         ),
         rows: [
           for (final c in s.bySpecies)
@@ -317,13 +317,13 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
   ) => BreakdownCard(
     title: l10n.statsSectionConditions,
     emptyMessage: l10n.statsEmpty,
-    // The denominator is the period's INTAKES, not the sum of the diagnoses:
-    // a case can carry several, so the shares would otherwise add up past
-    // what happened.
-    chart: BreakdownPie(
-      otherLabel: l10n.statsChartOther,
+    // Bars, not a donut: a case can carry several diagnoses, so these counts
+    // overlap and share no whole to slice. Each is its own share of the
+    // period's intakes (federfall-qogh).
+    chart: BreakdownBars(
       total: s.intakes,
-      entries: [for (final c in s.byCondition) PieEntry(c.label, c.count)],
+      caption: l10n.statsChartShareOfIntakes,
+      entries: [for (final c in s.byCondition) ChartEntry(c.label, c.count)],
     ),
     rows: [
       for (final c in s.byCondition)

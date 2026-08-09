@@ -1,19 +1,20 @@
 import 'package:federfall/theme/app_spacing.dart';
+import 'package:federfall/ui/widgets/breakdown_bars.dart';
+import 'package:federfall/ui/widgets/breakdown_card.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
-/// One labelled quantity to plot. Kept structural so this widget does not
-/// depend on where the numbers came from.
-@immutable
-class PieEntry {
-  const PieEntry(this.label, this.count);
-
-  final String label;
-  final int count;
-}
-
 /// The share of a whole, as a donut: the top few categories in fixed colours
 /// plus everything else folded into one neutral slice.
+///
+/// ── Only for a set that partitions its whole ────────────────────────────────
+/// The ring IS the sum of [entries]: every slice is drawn as its share of that
+/// sum and labelled with the same fraction, so the picture and the numbers
+/// cannot disagree. There is deliberately no way to hand it a different
+/// denominator — that is what let the conditions donut fill half its ring with
+/// a slice labelled 14 % (federfall-qogh). A quantity whose categories overlap
+/// or leave a remainder is not a share of this whole and belongs in
+/// [BreakdownBars], which measures each bar against a stated total on its own.
 ///
 /// ── Why only three colours ──────────────────────────────────────────────────
 /// A pie is an "all pairs" form — every slice can end up beside every other, so
@@ -32,18 +33,13 @@ class BreakdownPie extends StatelessWidget {
   const BreakdownPie({
     required this.entries,
     required this.otherLabel,
-    this.total,
     super.key,
   });
 
-  final List<PieEntry> entries;
+  final List<ChartEntry> entries;
 
   /// Name for the folded tail (e.g. "Other").
   final String otherLabel;
-
-  /// Denominator for the percentages, defaulting to the sum of [entries] —
-  /// pass one explicitly where the whole is bigger than the parts shown.
-  final int? total;
 
   /// How many categories keep a colour of their own before the rest folds.
   static const int coloredSlices = 3;
@@ -74,7 +70,7 @@ class BreakdownPie extends StatelessWidget {
     final ranked = [...entries]..sort((a, b) => b.count.compareTo(a.count));
     final shown = ranked.take(coloredSlices).toList();
     final tail = ranked.skip(coloredSlices).fold<int>(0, (s, e) => s + e.count);
-    final sum = total ?? ranked.fold<int>(0, (s, e) => s + e.count);
+    final sum = ranked.fold<int>(0, (s, e) => s + e.count);
     if (sum <= 0) return const SizedBox.shrink();
 
     final slices = <(String, int, Color)>[

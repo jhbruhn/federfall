@@ -275,6 +275,8 @@
     "@statsPeriodWholeYear": { "description": "Month picker entry that clears the month, leaving the whole selected year" },
     "statsChartOther": "Other",
     "@statsChartOther": { "description": "Donut slice folding every category past the first few; the rows below still list them all" },
+    "statsChartShareOfIntakes": "Share of intakes",
+    "@statsChartShareOfIntakes": { "description": "Caption naming the denominator of the diagnosis bars: each bar is that condition's share of the period's intakes, not of the other conditions" },
     "statsSectionIntakesOverTime": "Intakes over time",
     "@statsSectionIntakesOverTime": { "description": "Heading: intake time series with the previous year for comparison" },
     "statsSectionOutcomes": "Outcomes",

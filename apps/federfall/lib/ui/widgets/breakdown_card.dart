@@ -1,6 +1,17 @@
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 
+/// One labelled quantity to plot in a [BreakdownCard]'s chart. Kept structural
+/// so the charts do not depend on where the numbers came from — and shared, so
+/// a card's chart and its rows speak of the same thing.
+@immutable
+class ChartEntry {
+  const ChartEntry(this.label, this.count);
+
+  final String label;
+  final int count;
+}
+
 /// One row of a [BreakdownCard]: a label, its count, and — when the records
 /// behind that number can be listed — the tap that goes and lists them.
 @immutable
@@ -39,7 +50,8 @@ class BreakdownCard extends StatelessWidget {
 
   /// Optional plot of the same numbers, drawn under the title and above the
   /// rows. The rows stay either way: a chart shows the shape, the rows answer
-  /// "how many exactly" and "which ones" — see [BreakdownPie].
+  /// "how many exactly" and "which ones" — see [BreakdownPie] and
+  /// [BreakdownBars].
   final Widget? chart;
 
   /// Shown in place of the rows when [rows] is empty.
