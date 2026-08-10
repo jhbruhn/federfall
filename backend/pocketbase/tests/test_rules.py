@@ -3581,6 +3581,222 @@ def main():
                {"intake_notes": "still editable"})
     check("case content stays editable", s == 200, f"status {s}")
 
+    # ── federfall-epkf / federfall-mpm4: taking a bird back ──────────────────
+    # `active_carer` of a DISPOSED case never expires, which since 1700000077 is
+    # write authority rather than a label. Two acts reached back through it: a
+    # direct `status` write re-opening the case (epkf, `case_status.pb.js`) and a
+    # disposition dated just-past that re-derives `current_aviary` (mpm4,
+    # `disposition_custody.pb.js`). Both are stated here as the probes that
+    # found them, and so is everything they must NOT break — the correction path
+    # is what makes this narrow rather than a blanket custody clause.
+    print("\n[custody: taking a bird back]")
+    rt_av_b = mk(T, "aviaries", {"name": "Voliere B-rt", "keeper": B,
+                                 "org": ORG})["id"]
+    rt_av_c = mk(T, "aviaries", {"name": "Voliere C-rt", "keeper": C,
+                                 "org": ORG})["id"]
+
+    # ── epkf: the case's status may not contradict its outcome ───────────────
+    rt_dead = mk(T, "animals", {"species": "Stadttaube", "name": "Wieder da",
+                                "org": ORG})["id"]
+    rt_dead_case = mk(T, "cases", {"animal": rt_dead, "active_carer": B,
+                                   "org": ORG})["id"]
+    mk(T, "dispositions", {"case": rt_dead_case, "type": "died", "org": ORG})
+    check("setup: the bird is recorded dead and its case closed",
+          animal_state(rt_dead) == ("deceased", ""), animal_state(rt_dead))
+    check("setup: B, its former carer, holds nothing",
+          not edits_animal(toks["b"], rt_dead, "rt-0"), "B could write")
+    s, d = req("PATCH", f"/api/collections/cases/records/{rt_dead_case}",
+               toks["b"], {"status": "in_care"})
+    check("a former carer cannot re-open their own closed case", s == 400,
+          f"{s} {d}")
+    _, rt_dead_c = req("GET", f"/api/collections/cases/records/{rt_dead_case}", T)
+    check("...the case is still disposed",
+          (rt_dead_c or {}).get("status") == "disposed", rt_dead_c)
+    check("...and B still holds nothing",
+          not edits_animal(toks["b"], rt_dead, "rt-1"), "B could write")
+    s, _ = req("PATCH", f"/api/collections/cases/records/{rt_dead_case}",
+               toks["b"], {"intake_notes": "Notiz nachgetragen"})
+    check("...while the rest of a closed case stays editable by its carer",
+          s == 200, f"status {s}")
+
+    # The transitions the UI actually offers are untouched, and the contradiction
+    # in the other direction is refused too: a case closed with no outcome leaves
+    # the browser's active set without ever becoming an ended case in
+    # `case_report_rows`, whose `ended_at` comes from the terminal disposition.
+    rt_open = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    rt_open_case = mk(T, "cases", {"animal": rt_open, "active_carer": A,
+                                   "org": ORG})["id"]
+    for rt_want, rt_label in (("ready_for_release", "in_care -> "
+                               "ready_for_release stays freely writable"),
+                              ("in_care", "...and back again")):
+        s, _ = req("PATCH", f"/api/collections/cases/records/{rt_open_case}",
+                   toks["a"], {"status": rt_want})
+        check(rt_label, s == 200, f"status {s}")
+    s, d = req("PATCH", f"/api/collections/cases/records/{rt_open_case}",
+               toks["a"], {"status": "disposed"})
+    check("a case cannot be closed without an outcome", s == 400, f"{s} {d}")
+    s, d = req("POST", "/api/collections/cases/records", toks["a"],
+               {"animal": rt_open, "active_carer": A, "org": ORG,
+                "status": "disposed"})
+    check("...nor be created already closed", s == 400, f"{s} {d}")
+    s, _ = req("POST", "/api/collections/cases/records", toks["a"],
+               {"animal": rt_open, "active_carer": A, "org": ORG})
+    check("...which is this hook and not the create rule refusing it", s == 200,
+          f"status {s}")
+
+    # ── mpm4: an outcome that moves a bird needs custody of it ───────────────
+    # B's case on this bird closed in 2024; A holds it now. Everything below is
+    # B, years later, still passing `childEdit` on that case's dispositions.
+    rt_x = mk(T, "animals", {"species": "Stadttaube", "name": "Fremder Vogel",
+                             "org": ORG})["id"]
+    rt_x_old = mk(T, "cases", {"animal": rt_x, "active_carer": B,
+                               "admitted_at": "2024-03-01 09:00:00.000Z",
+                               "org": ORG})["id"]
+    rt_x_disp = mk(T, "dispositions", {"case": rt_x_old, "type": "released",
+                                       "disposed_at": "2024-04-01 09:00:00.000Z",
+                                       "org": ORG})["id"]
+    mk(T, "cases", {"animal": rt_x, "active_carer": A, "org": ORG})
+    check("setup: the bird is in A's acute care and in no enclosure",
+          animal_state(rt_x) == ("in_care", ""), animal_state(rt_x))
+    s, d = req("POST", "/api/collections/dispositions/records", toks["b"],
+               {"case": rt_x_old, "type": "placed_in_aviary",
+                "aviary": rt_av_b, "disposed_at": stamp(days=-1), "org": ORG})
+    check("a stale carer cannot place another carer's bird by dating an "
+          "outcome just-past", s == 403, f"{s} {d}")
+    check("...so the bird stays where it was",
+          animal_state(rt_x) == ("in_care", ""), animal_state(rt_x))
+    check("...and B still cannot write about it",
+          not edits_animal(toks["b"], rt_x, "rt-2"), "B could write")
+    s, d = req("PATCH", f"/api/collections/dispositions/records/{rt_x_disp}",
+               toks["b"], {"type": "placed_in_aviary", "aviary": rt_av_b,
+                           "disposed_at": stamp(days=-1)})
+    check("...nor by rewriting the outcome the case already carries", s == 403,
+          f"{s} {d}")
+    s, d = req("DELETE", f"/api/collections/dispositions/records/{rt_x_disp}",
+               toks["b"])
+    check("...nor by deleting that outcome to re-open the case around it",
+          s == 403, f"{s} {d}")
+    _, rt_x_old_c = req("GET", f"/api/collections/cases/records/{rt_x_old}", T)
+    check("...which leaves the case disposed",
+          (rt_x_old_c or {}).get("status") == "disposed", rt_x_old_c)
+
+    # What the same stale carer may still do, because none of it moves the bird:
+    # the gate is about `current_aviary`, not about the row's age.
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_x_disp}",
+               toks["b"], {"reason": "Nachtrag aus dem Archiv"})
+    check("a stale carer may still correct what the outcome SAYS", s == 200,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_x_disp}",
+               toks["b"], {"disposed_at": "2024-04-02 09:00:00.000Z"})
+    check("...and re-date it, as long as that moves the bird nowhere", s == 200,
+          f"status {s}")
+
+    # A resident, so the refusal is stated against the keeper branch too and not
+    # only against somebody's open case.
+    rt_res = mk(T, "animals", {"species": "Stadttaube", "name": "Bewohnerin C",
+                               "org": ORG})["id"]
+    rt_res_old = mk(T, "cases", {"animal": rt_res, "active_carer": B,
+                                 "org": ORG})["id"]
+    mk(T, "dispositions", {"case": rt_res_old, "type": "placed_in_aviary",
+                           "aviary": rt_av_c,
+                           "disposed_at": "2024-05-01 09:00:00.000Z",
+                           "org": ORG})
+    check("setup: the bird lives in C's enclosure",
+          animal_state(rt_res) == ("in_aviary", rt_av_c), animal_state(rt_res))
+    s, d = req("POST", "/api/collections/dispositions/records", toks["b"],
+               {"case": rt_res_old, "type": "placed_in_aviary",
+                "aviary": rt_av_b, "disposed_at": stamp(days=-1), "org": ORG})
+    check("nor may they move a resident into their own enclosure", s == 403,
+          f"{s} {d}")
+    check("...it stays where it lives",
+          animal_state(rt_res) == ("in_aviary", rt_av_c), animal_state(rt_res))
+    # The same act by editing the very row that houses it — the one the "nobody
+    # else holds it without this row" branch cannot tell from an honest
+    # correction, which is why that branch also asks where the bird would END UP.
+    rt_res_disp = listf(T, "dispositions", f'case="{rt_res_old}"')[0]["id"]
+    s, d = req("PATCH", f"/api/collections/dispositions/records/{rt_res_disp}",
+               toks["b"], {"aviary": rt_av_b})
+    check("...including by re-pointing the placement that put it there",
+          s == 403, f"{s} {d}")
+    check("...still where it lives",
+          animal_state(rt_res) == ("in_aviary", rt_av_c), animal_state(rt_res))
+
+    # ── and the whole correction path, which none of it may cost ─────────────
+    # A carer records an outcome on their own case and then repairs it. Every
+    # step here would be refused by a plain "you must still hold the bird"
+    # clause: the placement closes the case and makes the bird the enclosure's,
+    # and `childEdit` binds the row to its case's carer, so a supervisor would
+    # be the only repair.
+    rt_z = mk(T, "animals", {"species": "Stadttaube", "name": "Eigener Fehler",
+                             "org": ORG})["id"]
+    rt_z_case = mk(T, "cases", {"animal": rt_z, "active_carer": A,
+                                "org": ORG})["id"]
+    rt_z_disp = mk(toks["a"], "dispositions",
+                   {"case": rt_z_case, "type": "placed_in_aviary",
+                    "aviary": rt_av_b, "org": ORG})["id"]
+    check("setup: a carer places the bird they hold into an enclosure they do "
+          "not keep", animal_state(rt_z) == ("in_aviary", rt_av_b),
+          animal_state(rt_z))
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_z_disp}",
+               toks["a"], {"aviary": rt_av_c})
+    check("they may still correct the enclosure, though the bird is now its "
+          "keeper's", s == 200, f"status {s}")
+    check("...and it moves", animal_state(rt_z) == ("in_aviary", rt_av_c),
+          animal_state(rt_z))
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_z_disp}",
+               toks["a"], {"type": "died"})
+    check("...or withdraw the placement entirely", s == 200, f"status {s}")
+    check("...leaving a deceased bird in no enclosure",
+          animal_state(rt_z) == ("deceased", ""), animal_state(rt_z))
+    s, _ = req("DELETE", f"/api/collections/dispositions/records/{rt_z_disp}",
+               toks["a"])
+    check("...and delete a wrong death record, which is the one act "
+          "requireAdmissible would refuse", s == 204, f"status {s}")
+    check("...re-opening the case and restoring the bird",
+          animal_state(rt_z) == ("in_care", ""), animal_state(rt_z))
+    # ...but a correction may not END in the writer's own care, and that is what
+    # stops the branch above from handing mpm4 back: setting a placement row
+    # aside always answers "nobody holds it" — for an honest fix and for a grab
+    # alike — so where the bird ends up is what separates the two
+    # (federfall-q11w records what that leaves open). The route this refuses is
+    # not a dead end: admitting a bird at large is what `/api/federfall/intake`
+    # is for, and `requireAdmissible` allows it.
+    rt_free = mk(T, "animals", {"species": "Stadttaube", "name": "Freigelassen",
+                                "org": ORG})["id"]
+    rt_free_case = mk(T, "cases", {"animal": rt_free, "active_carer": B,
+                                   "org": ORG})["id"]
+    mk(T, "dispositions", {"case": rt_free_case, "type": "released",
+                           "disposed_at": "2024-06-01 09:00:00.000Z",
+                           "org": ORG})
+    check("setup: a bird at large, whose only case is B's and closed",
+          animal_state(rt_free) == ("at_large_released", ""),
+          animal_state(rt_free))
+    s, d = req("POST", "/api/collections/dispositions/records", toks["b"],
+               {"case": rt_free_case, "type": "placed_in_aviary",
+                "aviary": rt_av_b, "disposed_at": stamp(days=-1), "org": ORG})
+    check("a stale carer cannot take even an UNHELD bird into their own "
+          "enclosure this way", s == 403, f"{s} {d}")
+    check("...it is still at large",
+          animal_state(rt_free) == ("at_large_released", ""),
+          animal_state(rt_free))
+    s, _ = req("POST", "/api/federfall/intake", toks["b"], {"animal": rt_free})
+    check("...while admitting it, the route that exists for that, still works",
+          s == 200, f"status {s}")
+
+    # A supervisor overrides all of it, which is what keeps archive backfill
+    # (and every repair above) possible. A coordinator does too, but rarely
+    # reaches this gate: `childEdit` admits only the case's own carer and SUP.
+    s, d = req("POST", "/api/collections/dispositions/records", toks["sup"],
+               {"case": rt_x_old, "type": "placed_in_aviary",
+                "aviary": rt_av_b, "disposed_at": stamp(days=-1), "org": ORG})
+    check("a supervisor backfilling an archive is unaffected", s == 200,
+          f"{s} {d}")
+    # And the pair this produces is legitimate, not a contradiction: the bird is
+    # in an enclosure AND in acute care, because a case decides whether a bird is
+    # in care and never where it lives (federfall-8f1m / lib_derive.js).
+    check("...the bird moves, while A's open case keeps it in_care",
+          animal_state(rt_x) == ("in_care", rt_av_b), animal_state(rt_x))
+
     # ── federfall-3ty3: intake idempotency key ───────────────────────────────
     print("\n[intake idempotency]")
     ikey = "itest-0123456789abcdef0123456789abcdef"

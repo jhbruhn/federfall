@@ -54,10 +54,11 @@
 //     and a future one could otherwise pin a bird's derived state indefinitely;
 //   * within the past, ordering stays the writer's to state, and it has to be:
 //     backfilling an archive is entering old events in whatever order they are
-//     found. A carer who dates a placement just-past on a case they still hold
-//     can still make their own enclosure the bird's current one — that is
-//     tracked as federfall-mpm4, and its fix is about WHO may write a
-//     disposition, not about this ordering.
+//     found. Dating a placement just-past therefore still makes it the bird's
+//     latest event — what is bounded is WHO may do that, not the ordering
+//     (federfall-mpm4): `disposition_custody.pb.js` asks THIS module what a
+//     pending write would derive ([prospectiveAviary]) and refuses one that
+//     would move a bird its writer does not hold.
 //
 // ── Why one module rather than four copies ──────────────────────────────────
 // It had four writers: the disposition create / update / delete hooks and
@@ -132,30 +133,30 @@ function latestAdmission(app, animalId) {
 
 /** Whether [a] beats [b] under the canonical order (see the header). */
 function isLater(a, b) {
-  const ia = instantOf(a);
-  const ib = instantOf(b);
-  if (ia !== ib) return ia > ib;
+  if (a.instant !== b.instant) return a.instant > b.instant;
   return a.id > b.id;
 }
 
 /**
- * The disposition that decides [animalId]'s state — the latest across ALL of
- * its cases, not just one — or null when it has none anywhere.
+ * Every disposition of [animalId], reduced to the four things the order and the
+ * derivation actually read: `{ id, case, instant, type, aviary }`.
  *
- * Scanned in JS rather than sorted by the server because the order is a
- * COALESCE, which `findRecordsByFilter`'s sort argument cannot express.
+ * Plain objects rather than records because [prospectiveAviary] weighs a row
+ * that has not been written yet against them, and a pending row is not a stored
+ * record: its `created` is still empty, and on a create its id is not in the
+ * table at all.
  */
-function latestDisposition(app, animalId) {
-  if (!animalId) return null;
+function dispositionEvents(app, animalId) {
+  const events = [];
+  if (!animalId) return events;
   let cases = [];
   try {
     cases = app.findRecordsByFilter(
       "cases", "animal = {:a}", "", 0, 0, { a: animalId },
     );
   } catch (_) {
-    return null;
+    return events;
   }
-  let latest = null;
   for (const c of cases) {
     let disps = [];
     try {
@@ -166,10 +167,81 @@ function latestDisposition(app, animalId) {
       continue;
     }
     for (const d of disps) {
-      if (!latest || isLater(d, latest)) latest = d;
+      events.push({
+        id: d.id,
+        case: c.id,
+        instant: instantOf(d),
+        type: d.getString("type"),
+        aviary: d.getString("aviary"),
+      });
     }
   }
+  return events;
+}
+
+/** The latest of [events] under the canonical order, or null when there is none. */
+function latestOf(events) {
+  let latest = null;
+  for (const ev of events) {
+    if (!latest || isLater(ev, latest)) latest = ev;
+  }
   return latest;
+}
+
+/** The enclosure an event implies — only a placement puts a bird in one. */
+function aviaryOf(event) {
+  if (!event) return "";
+  return event.type === "placed_in_aviary" ? event.aviary : "";
+}
+
+/**
+ * The disposition that decides [animalId]'s state — the latest across ALL of
+ * its cases, not just one — as a [dispositionEvents] entry, or null when it has
+ * none anywhere.
+ *
+ * Scanned in JS rather than sorted by the server because the order is a
+ * COALESCE, which `findRecordsByFilter`'s sort argument cannot express.
+ */
+function latestDisposition(app, animalId) {
+  return latestOf(dispositionEvents(app, animalId));
+}
+
+/**
+ * The `current_aviary` [animalId] would end up with if its dispositions were
+ * changed by [change] — a write that has not happened yet.
+ *
+ * [change] is `{ id, instant, type, aviary }` for a row being created or
+ * updated (the stored row with that id, if any, is replaced by it), or
+ * `{ id, removed: true }` for one being deleted. `null` asks the question about
+ * the history as it stands.
+ *
+ * The caller supplies `instant` rather than letting this read `disposed_at`,
+ * because a pending create has no `created` to fall back on yet: the fallback
+ * has to be the clock, and that belongs to the writer, not here.
+ *
+ * No fallback enclosure, unlike [deriveState]: an animal with no disposition
+ * left ends up with none, which is exactly what the disposition create / update
+ * / delete hooks ask for (they call `reconcileAnimal` without one). This is
+ * therefore the aviary the NEXT reconcile would write — which is what makes it
+ * answerable BEFORE the write, and the reason
+ * `disposition_custody.pb.js` can gate on it.
+ */
+function prospectiveAviary(app, animalId, change) {
+  const events = [];
+  for (const ev of dispositionEvents(app, animalId)) {
+    if (change && ev.id === change.id) continue;
+    events.push(ev);
+  }
+  if (change && !change.removed) {
+    events.push({
+      id: change.id,
+      case: change.case || "",
+      instant: change.instant,
+      type: change.type,
+      aviary: change.aviary,
+    });
+  }
+  return aviaryOf(latestOf(events));
 }
 
 /**
@@ -222,19 +294,16 @@ function latestDisposition(app, animalId) {
  */
 function deriveState(app, animalId, fallbackAviary) {
   const latest = latestDisposition(app, animalId);
-  const type = latest ? latest.getString("type") : "";
-  const aviary = latest
-    ? (type === "placed_in_aviary" ? latest.getString("aviary") : "")
-    : (fallbackAviary || "");
+  const aviary = latest ? aviaryOf(latest) : (fallbackAviary || "");
   let lifetime;
   if (latest) {
-    lifetime = LIFETIME_BY_TYPE[type] || "in_care";
+    lifetime = LIFETIME_BY_TYPE[latest.type] || "in_care";
   } else {
     lifetime = aviary ? "in_aviary" : "in_care";
   }
   if (lifetime !== "in_care") {
     const admitted = latestAdmission(app, animalId);
-    if (admitted && admitted >= (latest ? instantOf(latest) : "")) {
+    if (admitted && admitted >= (latest ? latest.instant : "")) {
       lifetime = "in_care";
     }
   }
@@ -320,6 +389,7 @@ module.exports = {
   admissionOf: admissionOf,
   latestAdmission: latestAdmission,
   latestDisposition: latestDisposition,
+  prospectiveAviary: prospectiveAviary,
   deriveState: deriveState,
   reconcileAnimal: reconcileAnimal,
   reconcileAnimalFromCase: reconcileAnimalFromCase,

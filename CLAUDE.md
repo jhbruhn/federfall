@@ -158,7 +158,21 @@ enclosure is a legitimate, reachable pair: the dashboard's aviary tile therefore
 `current_aviary`, not the label. Because that ordering decides `current_aviary`, which
 since 1700000077 is a custody pointer, `disposition_dates.pb.js` refuses a
 `disposed_at` more than a day in the future (federfall-j163) — a day, not an instant,
-because the client sends its own clock's UTC and may sit at UTC+14. Multi-record writes are atomic server-side:
+because the client sends its own clock's UTC and may sit at UTC+14. **Two guards close
+the routes back INTO a stale carer's custody**, because `active_carer` of a disposed
+case never expires: `case_status.pb.js` refuses a `status` that would contradict the
+case's outcome (a case with a disposition is disposed, one without is not — so
+re-opening means deleting the outcome, the correction path that already re-opens it,
+federfall-epkf), and `disposition_custody.pb.js` refuses a disposition write that would
+change the animal's derived `current_aviary` (or, on delete, re-open its case) unless
+the writer holds the bird — or nobody else does once that row is set aside AND the write
+does not end with the bird in the writer's own care (federfall-mpm4). That second branch
+is what keeps correcting your own outcome possible, and it asks about the DESTINATION
+because setting a placement row aside always answers "nobody holds it", for an honest fix
+and a grab alike; the predicate is `lib_custody.js`'s `requireOutcomeWrite`, and it asks
+`lib_derive.js`'s `prospectiveAviary` what the pending write would derive. Both are
+`*Request` hooks, so the server-side writers and the Admin UI stay exempt.
+Multi-record writes are atomic server-side:
 case intake goes through `POST /api/federfall/intake` (`pb_hooks/intake.pb.js`, one
 transaction for animal+finder+case+weight+quarantine; `cases.finder` is locked against
 direct client writes), and a handoff is just a placement with `to_user` — the hook derives
