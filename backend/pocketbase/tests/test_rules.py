@@ -5205,6 +5205,230 @@ def main():
     # here fail input validation (no/overlong q), so no upstream geocoder is
     # ever contacted — the rate limiter counts them regardless, because it runs
     # as middleware before the handler.
+    # ── the relation sweep (federfall-v9ap's class, enumerated) ──────────────
+    # Three separate holes of ONE shape have now been found one at a time — a
+    # relation field that no rule constrains, on a collection whose rules were
+    # written to be about something else: federfall-piu5 (`weights.case` /
+    # `markings.applied_in_case`), the `cases.animal` half of it, and
+    # federfall-v9ap (`animal` on the three record collections). Each was found by
+    # somebody probing, not by looking. This block is the looking.
+    #
+    # It reads the LIVE schema and requires every relation field on every
+    # client-writable collection to be classified below. A new collection, or a
+    # new relation on an existing one, fails this block until somebody decides
+    # what authorises its target — which is the whole point, and the same stance
+    # `[audit coverage]` takes for emitters.
+    #
+    #   frozen    an isset guard on updateRule; verified against the live rule
+    #   actor     pinned by authorship.pb.js from the authenticated caller
+    #   hook:<f>  a named hook validates the INCOMING target
+    #   mutable   changeable by design; the string says why, and by whom
+    #
+    # The `mutable` rows share one caveat worth stating once: only `animal` is
+    # checked for ORG (animal_org_scope.pb.js). Every other mutable relation can
+    # name a row in a DIFFERENT organisation. That grants no access — every rule
+    # also compares `org = @request.auth.org` — but it does let a foreign label
+    # be referenced, and it is tracked rather than silently accepted.
+    print("\n[relation guards]")
+    RELATION_GUARDS = {
+        "admission_reasons": {"org": "frozen"},
+        "animals": {"org": "frozen", "current_aviary": "frozen"},
+        "aviaries": {
+            "keeper": "mutable: reassigning a keeper is a coordinator action "
+                      "(aviaries.update is coordinator/supervisor)",
+            "org": "frozen",
+        },
+        "case_conditions": {
+            "case": "frozen",
+            "condition": "mutable: correcting a diagnosis, onto the org code list",
+            "org": "frozen",
+        },
+        "case_shares": {
+            "case": "frozen",
+            "shared_with": "frozen",
+            "shared_by": "actor",
+            "org": "frozen",
+        },
+        "cases": {
+            "animal": "frozen",
+            "admitted_by": "actor",
+            "finder": "frozen",
+            "active_carer": "mutable: THE handoff; caseEdit-gated and derived by "
+                            "the placements hook",
+            "org": "frozen",
+            "admission_reasons": "mutable: correcting intake reasons, onto the "
+                                 "org code list",
+        },
+        "conditions": {"org": "frozen"},
+        "dispositions": {
+            "case": "frozen",
+            "performed_by": "actor",
+            "aviary": "mutable: correcting which enclosure a placement named "
+                      "(feeds current_aviary — federfall-j163)",
+            "org": "frozen",
+        },
+        "egg_records": {
+            "animal": "hook:animal_custody_scope.pb.js",
+            "author": "actor",
+            "org": "frozen",
+        },
+        "exam_findings": {"exam": "frozen", "org": "frozen"},
+        "exams": {
+            "case": "frozen",
+            "animal": "frozen",
+            "examiner": "actor",
+            "org": "frozen",
+        },
+        "finders": {"org": "frozen"},
+        "follow_ups": {"case": "frozen", "created_by": "actor", "org": "frozen"},
+        "journal_entries": {
+            "case": "frozen",
+            "author": "actor",
+            "org": "frozen",
+            "aviary": "frozen",
+        },
+        "marking_types": {"org": "frozen"},
+        "markings": {
+            "animal": "frozen",
+            "applied_by": "actor",
+            "applied_in_case": "frozen",
+            "org": "frozen",
+            "type": "mutable: correcting a ring type, onto the org code list",
+        },
+        "medication_administrations": {
+            "case": "frozen",
+            "medication": "frozen",
+            "administered_by": "actor",
+            "org": "frozen",
+            "route": "mutable: correcting a route, onto the org code list",
+        },
+        "medication_products": {
+            "route": "mutable: correcting a route, onto the org code list",
+            "org": "frozen",
+        },
+        "medication_routes": {"org": "frozen"},
+        "medications": {
+            "case": "frozen",
+            "org": "frozen",
+            "route": "mutable: correcting a route, onto the org code list",
+        },
+        "microscopy_finding_types": {"org": "frozen"},
+        "microscopy_findings": {
+            "sample": "frozen",
+            "finding_type": "mutable: correcting a finding, onto the org code "
+                            "list",
+            "org": "frozen",
+        },
+        "microscopy_samples": {
+            "case": "frozen",
+            # Not authorship-pinned, and deliberately not: `examiner` names WHO
+            # READ THE SLIDE, which is routinely somebody else (the vet), and
+            # microscopy_sheet.dart sends it as an ordinary field. `author` is
+            # set by the route from the session (microscopy.pb.js:200); a direct
+            # create could spoof it, and that confers nothing, because
+            # microscopy delete is case-scoped rather than author-based — unlike
+            # weights / egg_records, where the author gets delete rights.
+            "examiner": "mutable: a recorded fact, not the actor",
+            "author": "mutable: route-owned; confers nothing (delete is "
+                      "case-scoped)",
+            "org": "frozen",
+        },
+        "placements": {
+            "case": "frozen",
+            "carer": "mutable: the placement's own subject",
+            "from_user": "mutable: the placement's own subject",
+            "to_user": "mutable: THE handoff target; the hook derives "
+                       "case.active_carer from it",
+            "org": "frozen",
+        },
+        "quarantine_records": {"case": "frozen", "set_by": "actor",
+                               "org": "frozen"},
+        "users": {
+            "org": "frozen",
+            "invited_by": "mutable: supervisor-only collection (users.update)",
+        },
+        "vet_appointments": {"case": "frozen", "created_by": "actor",
+                             "org": "frozen"},
+        "weights": {
+            "case": "frozen",
+            "author": "actor",
+            "org": "frozen",
+            "animal": "frozen",
+        },
+    }
+
+    # `actor` is not asserted from a list here — it is READ OUT of
+    # lib_authorship.js, so a field classified as pinned has to actually be the
+    # one that hook pins (same stance as [audit coverage] reading lib_audit.js).
+    auth_src = open(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "..", "pb_hooks", "lib_authorship.js"),
+        encoding="utf-8",
+    ).read()
+    actor_block = re.search(r"ACTOR_FIELDS = \{(.*?)\n\};", auth_src, re.S)
+    check("the authorship registry is readable (parse guard)",
+          actor_block is not None)
+    ACTOR_OF = dict(re.findall(r'(\w+):\s*"(\w+)"',
+                               actor_block.group(1) if actor_block else ""))
+    check("...and names a plausible number of collections",
+          len(ACTOR_OF) >= 10, ACTOR_OF)
+
+    s, all_colls = req("GET", "/api/collections?perPage=200", T)
+    check("the schema is readable (parse guard)",
+          s == 200 and len(((all_colls or {}).get("items") or [])) > 20,
+          f"status {s}")
+
+    swept = 0
+    unclassified = []
+    not_really_frozen = []
+    not_really_actor = []
+    gone = []
+    for c in (all_colls or {}).get("items", []):
+        name = c["name"]
+        if c.get("system") or name.startswith("_") or c.get("type") == "view":
+            continue
+        # Client-writable means a client can send a body at all. A collection
+        # with both rules null is hook-only (aviary_stays, audit_events,
+        # idempotency_keys) and nothing here applies to it.
+        if c.get("createRule") is None and c.get("updateRule") is None:
+            continue
+        rels = [f["name"] for f in c.get("fields", [])
+                if f.get("type") == "relation"]
+        if not rels:
+            continue
+        swept += 1
+        known = RELATION_GUARDS.get(name, {})
+        update_rule = str(c.get("updateRule") or "")
+        for field in rels:
+            how = known.get(field)
+            if how is None:
+                unclassified.append(f"{name}.{field}")
+            elif how == "frozen":
+                if f"@request.body.{field}:isset = false" not in update_rule:
+                    not_really_frozen.append(f"{name}.{field}")
+            elif how == "actor" and ACTOR_OF.get(name) != field:
+                not_really_actor.append(
+                    f"{name}.{field} (authorship pins {ACTOR_OF.get(name)!r})")
+        # Nothing classified that no longer exists — a stale entry is a claim
+        # about a field nobody checks any more.
+        gone += [f"{name}.{f}" for f in known if f not in rels]
+
+    check("the sweep saw the whole schema (parse guard)", swept >= 20,
+          f"only {swept} collections swept")
+    check("every relation on a client-writable collection is classified",
+          not unclassified,
+          "classify each as frozen / actor / hook:<file> / mutable:<why> in "
+          f"RELATION_GUARDS: {unclassified}")
+    check("every field classified `frozen` really is guarded",
+          not not_really_frozen,
+          f"classified frozen, but no isset guard: {not_really_frozen}")
+    check("every field classified `actor` really is the pinned one",
+          not not_really_actor, not_really_actor)
+    check("no classification names a field that is gone", not gone, gone)
+    stale = [n for n in RELATION_GUARDS
+             if n not in {c["name"] for c in (all_colls or {}).get("items", [])}]
+    check("no classification names a collection that is gone", not stale, stale)
+
     print("\n[geocode proxy guards]")
     # federfall-2asj: guests are walled off from all data everywhere else —
     # the geocode proxy must reject them too, or an auto-created OAuth2 guest
