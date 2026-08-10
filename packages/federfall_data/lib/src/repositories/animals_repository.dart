@@ -62,11 +62,18 @@ class PbAnimalsRepository extends PbRepository<Animal> {
   Future<List<Animal>> housed() =>
       list(filter: filterExpr('current_aviary != ""'));
 
-  /// How many animals the caller may read carry [status], counted server-side
-  /// — one row over the wire, not the whole collection to be filtered on the
-  /// device (federfall-s0wk).
-  Future<int> countWithLifetimeStatus(LifetimeStatus status) =>
-      count(filter: filterExpr('lifetime_status = {:s}', {'s': status.wire}));
+  /// How many animals the caller may read live in an enclosure, counted
+  /// server-side — one row over the wire, not the whole collection to be
+  /// filtered on the device (federfall-s0wk).
+  ///
+  /// The same predicate as [housed], deliberately: this is the dashboard's
+  /// aviary tile, which taps through to the aviary registry, and the two have
+  /// to agree. It counted `lifetime_status = in_aviary` until federfall-8f1m
+  /// made an open case win that field — a resident under treatment now reads
+  /// `in_care` while still occupying its enclosure, so the label stopped being
+  /// a census of who is in one.
+  Future<int> countHoused() =>
+      count(filter: filterExpr('current_aviary != ""'));
 
   /// Each `id = {:x}` clause adds ~30 chars to the GET query string; 100 ids
   /// per request stays a few kB — far below common 8 kB URL/proxy limits.

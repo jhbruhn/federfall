@@ -166,9 +166,7 @@ void main() {
       when(
         () => cases.countAdmittedBetween(any(), any()),
       ).thenAnswer((_) async => 7);
-      when(
-        () => animals.countWithLifetimeStatus(LifetimeStatus.inAviary),
-      ).thenAnswer((_) async => 3);
+      when(animals.countHoused).thenAnswer((_) async => 3);
       when(carerLoad.all).thenAnswer((_) async => [_load('anna', 2)]);
     });
 

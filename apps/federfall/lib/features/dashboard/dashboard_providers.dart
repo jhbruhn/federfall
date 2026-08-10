@@ -129,7 +129,7 @@ Future<DashboardSummary> dashboardSummary(Ref ref) async {
     casesRepo.count(),
     casesRepo.countWithStatus(CaseStatus.disposed),
     casesRepo.countAdmittedBetween(yearStart, nextYearStart),
-    animalsRepo.countWithLifetimeStatus(LifetimeStatus.inAviary),
+    animalsRepo.countHoused(),
     // Driven off [_activeStatuses] rather than named one by one, so the tiles
     // and this fetch cannot drift apart when a status is added.
     for (final s in _activeStatuses) casesRepo.countWithStatus(s),
