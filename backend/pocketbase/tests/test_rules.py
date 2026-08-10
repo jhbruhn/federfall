@@ -1165,6 +1165,12 @@ def main():
     print("\n[identity layer write guards]")
     g_animal = mk(T, "animals", {"species": "Stadttaube", "name": "Wächter",
                                  "org": ORG})["id"]
+    # A HOLDS this bird — an open case makes them its custodian (1700000077).
+    # That matters for what follows: driven by an outsider, every refusal below
+    # would pass for the wrong reason (no custody) and the guards themselves
+    # would go untested. A custodian isolates them as the only thing saying no.
+    g_case = mk(T, "cases", {"animal": g_animal, "active_carer": A,
+                             "org": ORG})["id"]
     g_marking = mk(T, "markings", {"animal": g_animal, "type": ti77_type,
                                    "code": "DE-GUARD", "org": ORG})["id"]
     g_weight = mk(T, "weights", {"animal": g_animal, "weight_g": 300,
@@ -1174,42 +1180,43 @@ def main():
 
     for coll, rec in (("animals", g_animal), ("markings", g_marking),
                       ("weights", g_weight), ("egg_records", g_egg)):
-        s, _ = req("PATCH", f"/api/collections/{coll}/records/{rec}", toks["b"],
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{rec}", toks["a"],
                    {"org": org2})
         check(f"{coll} cannot be pushed into another org", s >= 400, f"status {s}")
-    _, still = req("GET", f"/api/collections/animals/records/{g_animal}", toks["b"])
+    _, still = req("GET", f"/api/collections/animals/records/{g_animal}", toks["a"])
     check("...and the bird is still where it was",
           (still or {}).get("org") == ORG, still)
     # Not even a supervisor: this is a tenant boundary, not a permission level.
+    # (A supervisor also clears custody outright, so the guard is the only thing
+    # left that can refuse them.)
     s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}",
                toks["sup"], {"org": org2})
     check("a supervisor cannot either", s >= 400, f"status {s}")
 
     for field, value in (("current_aviary", av), ("lifetime_status", "deceased")):
         s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}",
-                   toks["b"], {field: value})
-        check(f"a client cannot write the derived {field}", s >= 400,
+                   toks["a"], {field: value})
+        check(f"the bird's own carer cannot write the derived {field}", s >= 400,
               f"status {s}")
         s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}",
                    toks["sup"], {field: value})
-        check(f"...not even a supervisor ({field})", s >= 400, f"status {s}")
+        check(f"...nor a supervisor ({field})", s >= 400, f"status {s}")
 
     # The guards must not have cost the real edit paths anything: this is the
     # whole app-facing surface of these three collections.
-    s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}", toks["b"],
+    s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}", toks["a"],
                {"name": "Umbenannt", "species": "Ringeltaube", "sex": "female"})
-    check("editing a bird's identity still works", s == 200, f"status {s}")
+    check("the custodian can still edit the bird's identity", s == 200,
+          f"status {s}")
     s, _ = req("PATCH", f"/api/collections/markings/records/{g_marking}",
-               toks["b"], {"code": "DE-NEU", "present_at_find": True})
+               toks["a"], {"code": "DE-NEU", "present_at_find": True})
     check("editing a marking still works", s == 200, f"status {s}")
-    s, _ = req("PATCH", f"/api/collections/weights/records/{g_weight}", toks["b"],
+    s, _ = req("PATCH", f"/api/collections/weights/records/{g_weight}", toks["a"],
                {"weight_g": 305})
     check("editing a weight still works", s == 200, f"status {s}")
 
     # And the hooks that OWN the derived fields still write them: `app.save()`
     # bypasses API rules, so a disposition remains the one way into an aviary.
-    g_case = mk(T, "cases", {"animal": g_animal, "active_carer": A,
-                             "org": ORG})["id"]
     mk(toks["a"], "dispositions", {"case": g_case, "type": "placed_in_aviary",
                                    "aviary": av, "org": ORG})
     _, housed = req("GET", f"/api/collections/animals/records/{g_animal}", toks["b"])
@@ -1220,6 +1227,114 @@ def main():
                        f'animal = "{g_animal}" && ended_at = ""')
     check("...and the residency ledger recorded exactly one open stay",
           len(open_stays) == 1 and open_stays[0]["aviary"] == av, open_stays)
+
+    # ── custody: writing about a bird requires holding it (q7ks.2) ───────────
+    # 1700000077. Reads stay org-wide (re-identification needs them); WRITES
+    # follow whoever currently holds the animal — the active carer of a
+    # non-disposed case plus its edit-share holders, or the keeper of the
+    # enclosure it lives in. Coordinator/supervisor override throughout.
+    print("\n[custody: animals]")
+    # An enclosure kept by a plain CARER, so the keeper branch is
+    # distinguishable from the coordinator/supervisor override.
+    cu_av = mk(T, "aviaries", {"name": "Voliere B", "keeper": B, "org": ORG})["id"]
+    cu_resident = mk(T, "animals", {
+        "species": "Stadttaube", "name": "Bewohnerin", "org": ORG,
+        "current_aviary": cu_av, "lifetime_status": "in_aviary",
+    })["id"]
+    # A bird in A's acute care, shared with D at edit and with C read-only.
+    cu_incare = mk(T, "animals", {"species": "Stadttaube", "name": "Patient",
+                                  "org": ORG})["id"]
+    cu_case = mk(T, "cases", {"animal": cu_incare, "active_carer": A,
+                              "org": ORG})["id"]
+    mk(T, "case_shares", {"case": cu_case, "shared_with": D, "shared_by": A,
+                          "access": "edit", "org": ORG})
+    mk(T, "case_shares", {"case": cu_case, "shared_with": C, "shared_by": A,
+                          "access": "read", "org": ORG})
+    # A bird at large: its only case is closed, so nobody holds it.
+    cu_gone = mk(T, "animals", {"species": "Stadttaube", "name": "Frei",
+                                "org": ORG})["id"]
+    cu_gone_case = mk(T, "cases", {"animal": cu_gone, "active_carer": A,
+                                   "org": ORG})["id"]
+    mk(T, "dispositions", {"case": cu_gone_case, "type": "released", "org": ORG})
+
+    def edits_animal(tok, animal, value):
+        s, _ = req("PATCH", f"/api/collections/animals/records/{animal}", tok,
+                   {"name": value})
+        return s == 200
+
+    for i, (who, target, want, label) in enumerate([
+        ("a", cu_incare, True, "the active carer edits the bird in their care"),
+        ("d", cu_incare, True, "an EDIT-share holder on that case edits it"),
+        ("c", cu_incare, False, "a READ-share holder cannot"),
+        ("b", cu_incare, False, "an unrelated carer cannot"),
+        ("b", cu_resident, True, "the aviary's keeper edits its resident"),
+        ("a", cu_resident, False, "...but a carer who is not the keeper cannot"),
+        ("a", cu_gone, False, "nobody holds a released bird — not even its "
+                              "former carer"),
+        ("coord", cu_gone, True, "a coordinator overrides"),
+        ("sup", cu_gone, True, "a supervisor overrides"),
+    ]):
+        got = edits_animal(toks[who], target, f"custody-{i}")
+        check(label, got == want, f"got {'allowed' if got else 'refused'}")
+
+    # ready_for_release is still custody: the bird is in the carer's hands until
+    # it actually leaves. Same status set the case browser calls active
+    # (federfall-jt5u), named rather than negated so the two cannot drift.
+    s, _ = req("PATCH", f"/api/collections/cases/records/{cu_case}", T,
+               {"status": "ready_for_release"})
+    check("setup: the case moves to ready_for_release", s == 200, f"status {s}")
+    check("a carer keeps custody through ready_for_release",
+          edits_animal(toks["a"], cu_incare, "bereit"), "refused")
+
+    # ── the one fact the whole design rests on ──────────────────────────────
+    # Two `?=` clauses on the same back-relation must bind to the SAME joined
+    # row. B is the carer of a CLOSED case on a bird that ALSO carries A's open
+    # one: evaluated independently, `active_carer` would match on B's row and
+    # `status` on A's, and B would be let through. That correlation is why there
+    # is no denormalized `custodian` column (1700000077's header). If a
+    # PocketBase upgrade changes it, THIS is the check that must fail — the fix
+    # is a denormalized column, not a widened rule.
+    cu_two = mk(T, "animals", {"species": "Stadttaube", "name": "Zwei Fälle",
+                               "org": ORG})["id"]
+    cu_closed = mk(T, "cases", {"animal": cu_two, "active_carer": B,
+                                "org": ORG})["id"]
+    mk(T, "cases", {"animal": cu_two, "active_carer": A, "org": ORG})
+    mk(T, "dispositions", {"case": cu_closed, "type": "released", "org": ORG})
+    check("a FORMER carer is refused while the bird carries someone else's "
+          "open case (the ?= clauses correlate)",
+          not edits_animal(toks["b"], cu_two, "korr-b"), "B got through")
+    check("...while the current carer is unaffected",
+          edits_animal(toks["a"], cu_two, "korr-a"), "A was refused")
+    # The same trap one hop deeper, through the share chain.
+    mk(T, "case_shares", {"case": cu_closed, "shared_with": C, "shared_by": B,
+                          "access": "edit", "org": ORG})
+    check("an EDIT share on a DISPOSED case grants nothing either "
+          "(the 2-hop chain correlates)",
+          not edits_animal(toks["c"], cu_two, "korr-c"), "C got through")
+
+    # ── create: placing a bird into an enclosure is the keeper's call ────────
+    # CREATE resolves plain field references against the SUBMITTED record, so
+    # `current_aviary.keeper` reads the INCOMING aviary — the opposite of the
+    # UPDATE behaviour this schema keeps tripping over, and what makes this
+    # expressible as a rule at all. Supersedes federfall-ftm2, where the UI
+    # gated its "add resident" FAB behind canManageAviaries and the server let
+    # anyone through.
+    def adds_resident(tok, aviary):
+        s, _ = req("POST", "/api/collections/animals/records", tok, {
+            "species": "Stadttaube", "org": ORG,
+            "current_aviary": aviary, "lifetime_status": "in_aviary",
+        })
+        return s == 200
+
+    check("the keeper can add a resident to their own aviary",
+          adds_resident(toks["b"], cu_av), "refused")
+    check("a carer cannot add one to someone else's aviary",
+          not adds_resident(toks["a"], cu_av), "allowed")
+    check("a coordinator can", adds_resident(toks["coord"], cu_av), "refused")
+    s, _ = req("POST", "/api/collections/animals/records", toks["a"],
+               {"species": "Stadttaube", "org": ORG})
+    check("a bird created into NO enclosure stays open to any member",
+          s == 200, f"status {s}")
 
     # ── supervisor deletion + animal cascade (federfall-vfl7) ────────────────
     # `animals.delete` and `cases.delete` have been supervisor-only since
