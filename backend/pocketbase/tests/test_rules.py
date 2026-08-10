@@ -1324,6 +1324,10 @@ def main():
         ("a", cu_resident, False, "...but a carer who is not the keeper cannot"),
         ("a", cu_gone, False, "nobody holds a released bird — not even its "
                               "former carer"),
+        # Keeping an enclosure is authority over THAT enclosure, not a standing
+        # rank: B keeps cu_av and still holds nothing outside it.
+        ("b", cu_gone, False, "...nor a keeper whose enclosure the bird is "
+                              "not in"),
         ("coord", cu_gone, True, "a coordinator overrides"),
         ("sup", cu_gone, True, "a supervisor overrides"),
     ]):
@@ -1399,23 +1403,43 @@ def main():
     # difference appears to be `?=` any-of vs the `=`/`~` all-of forms in that
     # comment), so this is the pin. Reads stay org-wide throughout.
     print("\n[custody: animal-scoped records]")
-    for coll, payload in (
-        ("weights", {"weight_g": 300}),
-        ("markings", {"type": ti77_type, "code": "KEEP-1"}),
-        ("egg_records", {"count": 1}),
+    for coll, payload, patch in (
+        ("weights", {"weight_g": 300}, {"notes": "korrigiert"}),
+        ("markings", {"type": ti77_type, "code": "KEEP-1"}, {"colour": "blau"}),
+        ("egg_records", {"count": 1}, {"notes": "korrigiert"}),
     ):
         # The keeper branch: B keeps cu_av, where cu_resident lives, and that
         # bird has no case at all — so nothing but the enclosure can grant this.
-        s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
-                   {"animal": cu_resident, "org": ORG, **payload})
+        s, kept = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                      {"animal": cu_resident, "org": ORG, **payload})
         check(f"the keeper can record a {coll[:-1]} on their resident",
               s == 200, f"status {s}")
+        kept_id = (kept or {}).get("id", "")
         s, _ = req("POST", f"/api/collections/{coll}/records", toks["a"],
                    {"animal": cu_resident, "org": ORG, **payload})
         check(f"a non-keeper carer cannot ({coll})", s >= 400, f"status {s}")
         # Org-wide READ is untouched: re-identification depends on it.
         rows = listf(toks["a"], coll, f'animal = "{cu_resident}"')
         check(f"...but can still READ that {coll[:-1]}", len(rows) >= 1, rows)
+        # UPDATE runs the same predicate, and needs its own row: an update rule
+        # resolves `animal.` against the STORED record (1700000043's finding),
+        # which is a different evaluation path from create's submitted one.
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{kept_id}",
+                   toks["b"], patch)
+        check(f"the keeper can edit that {coll[:-1]}", s == 200, f"status {s}")
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{kept_id}",
+                   toks["a"], patch)
+        check(f"a non-keeper carer cannot edit it ({coll})", s >= 400,
+              f"status {s}")
+        # The share branch reaches these rows too, and only at `edit`: D holds
+        # an edit share on cu_case, C only a read one.
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["d"],
+                   {"animal": cu_incare, "org": ORG, **payload})
+        check(f"an EDIT-share holder can record a {coll[:-1]}", s == 200,
+              f"status {s}")
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["c"],
+                   {"animal": cu_incare, "org": ORG, **payload})
+        check(f"a READ-share holder cannot ({coll})", s >= 400, f"status {s}")
         # The trap: B is the carer of a CLOSED case on cu_two, which also
         # carries A's OPEN one.
         s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
@@ -1426,6 +1450,29 @@ def main():
                    {"animal": cu_two, "org": ORG, **payload})
         check(f"...while the current carer can ({coll})", s == 200,
               f"status {s}")
+
+    # DELETE keeps whatever was already NARROWER — custody is a floor, not a
+    # widening. `weights` and `egg_records` stay author-or-supervisor with
+    # custody under them ([weights delete guard] / [egg_records] pin both
+    # halves), and `markings.delete` was already supervisor-only in 1700000010,
+    # so 1700000079 left it untouched. Nothing was checking that last one, and
+    # the app leans on it: the timeline tile and the animal detail both offer the
+    # delete only to a supervisor (federfall-q7ks.6). B here is the row's own
+    # author AND the keeper of the bird's enclosure, so custody and authorship
+    # are both satisfied and the role is the only thing left saying no.
+    s, mk_del = req("POST", "/api/collections/markings/records", toks["b"],
+                    {"animal": cu_resident, "type": ti77_type,
+                     "code": "DEL-1", "org": ORG})
+    check("setup: the keeper applies a marking", s == 200, f"{s} {mk_del}")
+    s, _ = req("DELETE",
+               f"/api/collections/markings/records/{(mk_del or {}).get('id')}",
+               toks["b"])
+    check("its own author, holding the bird, still CANNOT delete a marking",
+          s != 204, f"status {s}")
+    s, _ = req("DELETE",
+               f"/api/collections/markings/records/{(mk_del or {}).get('id')}",
+               toks["sup"])
+    check("...only a supervisor can", s == 204, f"status {s}")
 
     # ── supervisor deletion + animal cascade (federfall-vfl7) ────────────────
     # `animals.delete` and `cases.delete` have been supervisor-only since
@@ -1554,6 +1601,21 @@ def main():
     check("the duplicate starts with one open stay",
           len(mg_stay) == 1 and mg_stay[0]["ended_at"] == "", mg_stay)
     mg_stay = mg_stay[0]["id"] if mg_stay else ""
+
+    # Supervisor-only end to end, and that role gate is also what stands in for
+    # a custody check on this route (merge_animals.pb.js): a supervisor holds
+    # every bird in the org, so requireCustody would be a literal no-op. The gate
+    # itself was going unchecked — and it is load-bearing twice over, because a
+    # merge rewrites the survivor's identity and DESTROYS the duplicate. If this
+    # route is ever widened below supervisor, custody has to arrive in the same
+    # change, and this is where that has to be noticed.
+    for who, label in (("a", "a carer"), ("coord", "a coordinator")):
+        s, d = req("POST", "/api/federfall/merge-animals", toks[who],
+                   {"survivor": mg_keep, "duplicate": mg_gone, "fields": {}})
+        check(f"{label} cannot merge two animals", s == 403, f"{s} {d}")
+    _, mg_intact = req("GET", f"/api/collections/animals/records/{mg_gone}", T)
+    check("...and the duplicate is still there",
+          (mg_intact or {}).get("id") == mg_gone, mg_intact)
 
     s, _ = req("POST", "/api/federfall/merge-animals", toks["sup"],
                {"survivor": mg_keep, "duplicate": mg_gone, "fields": {}})
@@ -2697,6 +2759,21 @@ def main():
     s, _ = req("POST", "/api/collections/cases/records", toks["b"],
                {"animal": ad_free, "active_carer": B, "org": ORG})
     check("...and allows one on a bird at large", s == 200, f"status {s}")
+    # The rule's OTHER half (1700000078): `animal.lifetime_status != "deceased"`
+    # unless coordinator/supervisor. A rule is allowed to trust that field in
+    # this ONE direction — it lags toward the PAST (federfall-sinp), so it can
+    # read stale-alive but never falsely dead, and a refusal on "deceased" can
+    # therefore never refuse a living bird. Note ad_dead still reads deceased
+    # even though the supervisor's intake above opened a case on it: intake's
+    # re-identification branch deliberately does not touch lifetime_status.
+    s, _ = req("POST", "/api/collections/cases/records", toks["b"],
+               {"animal": ad_dead, "active_carer": B, "org": ORG})
+    check("the cases create rule refuses a case on a deceased bird",
+          s >= 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/cases/records", toks["coord"],
+               {"animal": ad_dead, "active_carer": COORD, "org": ORG})
+    check("...unless a coordinator is correcting the record", s == 200,
+          f"status {s}")
 
     # cases.finder is locked for direct writes (federfall-9hy): linking is
     # exclusively the intake route's job.
@@ -2952,6 +3029,29 @@ def main():
                {"case": aex_case, "animal": fanimal})
     check("exam save CANNOT denormalize a foreign-org animal", s == 400,
           f"status {s}")
+
+    # Deliberately NOT also custody-gated (exam.pb.js, federfall-q7ks.5). An
+    # exam is a CASE timeline record whose `animal` is only denormalized for the
+    # lifetime view, and cross-org re-pointing is already blocked above — so a
+    # carer writing up a late exam on their OWN closed case must still get
+    # through, even though the bird has moved on and they no longer hold it.
+    # That is a correction the model has no reason to forbid. If requireCustody
+    # is ever added to this route, THIS is the check that must fail.
+    aex_gone_animal = mk(T, "animals", {"species": "Stadttaube",
+                                        "name": "Nachtrag", "org": ORG})["id"]
+    aex_gone_case = mk(T, "cases", {"animal": aex_gone_animal,
+                                    "active_carer": A, "org": ORG})["id"]
+    mk(T, "dispositions", {"case": aex_gone_case, "type": "released",
+                           "org": ORG})
+    check("setup: the bird really has left A's custody",
+          not edits_animal(toks["a"], aex_gone_animal, "nicht mehr meins"),
+          "A can still edit it")
+    s, d = req("POST", "/api/federfall/exam", toks["a"], {
+        "case": aex_gone_case, "animal": aex_gone_animal,
+        "exam": {"notes": "late write-up", "body_condition": 3},
+    })
+    check("a carer can still write a late exam on their own CLOSED case",
+          s == 200, f"{s} {d}")
 
     # ── federfall-vl7g / kp7y: microscopy ────────────────────────────────────
     # Kropfabstrich / Kotprobe with per-finding grades, written through
