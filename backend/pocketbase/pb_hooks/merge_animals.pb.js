@@ -181,69 +181,31 @@ routerAdd(
       }
 
       // Re-derive lifetime_status/current_aviary from the survivor's merged
-      // case history — same rule as the dispositions after-update/delete
-      // reconcile in main.pb.js: the latest disposition (by `created`) across
-      // ALL of the animal's cases now decides its lifetime state.
-      const cases = tx.findRecordsByFilter(
-        "cases",
-        "animal = {:a}",
-        "",
-        0,
-        0,
-        { a: survivorId },
+      // case history — lib_derive.js, the same answer the disposition hooks
+      // reconcile to. This used to be a fourth transcription of that scan, and
+      // like the other two it compared `created`, so a merged history whose
+      // dispositions were entered out of order settled on the wrong state
+      // (federfall-sinp).
+      //
+      // deriveState rather than reconcileAnimal because the survivor is saved
+      // exactly ONCE here: the after-success hooks are deferred to the commit
+      // and re-read the same record object, so two saves deliver two transitions
+      // off one stale original() — which is how one aviary move opened two
+      // residencies (federfall-0ua6).
+      //
+      // The fallback covers a merged history with no disposition anywhere while
+      // one of the two records documented a CASE-LESS residency
+      // (add_animal_sheet.dart puts a bird straight into an enclosure). That
+      // residency exists only on the animal record, so the "in_care" default
+      // would silently evict the bird and close its stay. Survivor first.
+      const derived = require(`${__hooks}/lib_derive.js`).deriveState(
+        tx,
+        survivorId,
+        survivor.getString("current_aviary") ||
+          duplicate.getString("current_aviary"),
       );
-      let latest = null;
-      for (const c of cases) {
-        for (const d of tx.findRecordsByFilter(
-          "dispositions",
-          "case = {:c}",
-          "-created",
-          0,
-          0,
-          { c: c.id },
-        )) {
-          if (!latest || d.getString("created") > latest.getString("created")) {
-            latest = d;
-          }
-        }
-      }
-      let lifetime = "in_care";
-      let aviary = "";
-      if (latest) {
-        switch (latest.getString("type")) {
-          case "died":
-          case "euthanized":
-            lifetime = "deceased";
-            break;
-          case "placed_in_aviary":
-            lifetime = "in_aviary";
-            aviary = latest.get("aviary");
-            break;
-          case "released":
-          case "returned_to_owner":
-          case "transferred":
-            lifetime = "at_large_released";
-            break;
-        }
-      } else {
-        // No disposition anywhere in the merged history, so nothing has
-        // decided this bird's lifetime state — don't let the "in_care"
-        // default overwrite a case-less aviary residency. add_animal_sheet
-        // .dart adds a resident straight to an enclosure with no case at all
-        // (1700000052 lists it as one of the five current_aviary writers), so
-        // that residency exists only on the animal record. Keep whichever
-        // side documents one, the survivor first: dropping it here would
-        // silently evict the bird and close its stay (federfall-0ua6).
-        const housed =
-          survivor.getString("current_aviary") ||
-          duplicate.getString("current_aviary");
-        if (housed) {
-          lifetime = "in_aviary";
-          aviary = housed;
-        }
-      }
-      survivor.set("lifetime_status", lifetime);
-      survivor.set("current_aviary", aviary);
+      survivor.set("lifetime_status", derived.lifetime);
+      survivor.set("current_aviary", derived.aviary);
       tx.save(survivor);
 
       // federfall-qt96.4 — emitted BEFORE the delete, while the duplicate can

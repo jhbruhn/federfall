@@ -118,13 +118,19 @@ routerAdd(
         if (str(body.name)) animal.set("name", str(body.name));
         // A bird being admitted is in care — otherwise `lifetime_status` stays
         // empty until the first disposition and the registry shows no status
-        // chip at all. Set ONLY on this branch: a brand-new record has no
-        // history to overwrite, so it is safe whatever order cases are entered
-        // in. The re-identification branch above deliberately does NOT get
-        // this — the derivation hooks order dispositions by `created` rather
-        // than `disposed_at`, so writing a lifetime state there would clobber
-        // an existing aviary residency when archived cases are backfilled
-        // (federfall-sinp).
+        // chip at all.
+        //
+        // Set ONLY on this branch, and the reason is no longer the ordering bug
+        // this comment used to cite (fixed in lib_derive.js, federfall-sinp).
+        // It is that `lifetime_status` is DERIVED from dispositions, and "has an
+        // open case" is not a disposition. A brand-new record has no disposition
+        // anywhere, so `in_care` is exactly what deriveState() would compute for
+        // it — this write agrees with the derivation rather than racing it.
+        // A re-identified bird has a history by definition, so writing `in_care`
+        // there would be a value no reconcile can reproduce: the next disposition
+        // edit on that animal would silently flip it back while the new case is
+        // still open. Making it stick means teaching the derivation about open
+        // cases, which is federfall-8f1m, not a line here.
         animal.set("lifetime_status", "in_care");
         animal.set("org", org);
         tx.save(animal);

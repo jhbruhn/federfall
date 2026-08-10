@@ -118,45 +118,31 @@ onRecordAfterCreateSuccess((e) => {
 
 // ── 2. dispositions: maintain case.status + animal.lifetime_status ─────────────
 onRecordAfterCreateSuccess((e) => {
-  const disp = e.record;
-  const type = disp.getString("type");
-  const caseId = disp.get("case");
+  const caseId = e.record.get("case");
 
   if (caseId) {
     const caseRec = e.app.findRecordById("cases", caseId);
 
     // Every disposition — including placed_in_aviary — closes (disposes) the
-    // case: the animal is well enough to leave acute care. Aviary placement
-    // additionally makes the animal a resident (lifetime_status=in_aviary,
-    // current_aviary set below); a resident that later falls ill gets a NEW
-    // case rather than reopening this one.
+    // case: the animal is well enough to leave acute care. Unlike the animal's
+    // lifetime state below, this is order-INDEPENDENT — whichever disposition
+    // was entered last, the bird has left acute care — so it stays a plain set.
+    // A resident that later falls ill gets a NEW case rather than reopening
+    // this one.
     caseRec.set("status", "disposed");
     e.app.save(caseRec);
 
-    const animalId = caseRec.get("animal");
-    if (animalId) {
-      const animal = e.app.findRecordById("animals", animalId);
-      let lifetime = "";
-      switch (type) {
-        case "died":
-        case "euthanized":
-          lifetime = "deceased";
-          break;
-        case "placed_in_aviary":
-          lifetime = "in_aviary";
-          break;
-        case "released":
-        case "returned_to_owner":
-        case "transferred":
-          // No longer in our care, presumed alive (the 4-state lifetime model
-          // folds these into "at large").
-          lifetime = "at_large_released";
-          break;
-      }
-      if (lifetime) animal.set("lifetime_status", lifetime);
-      animal.set("current_aviary", type === "placed_in_aviary" ? disp.get("aviary") : "");
-      e.app.save(animal);
-    }
+    // The ANIMAL's state, unlike the case's, is decided by the LATEST
+    // disposition — which is not necessarily the one just entered. This used to
+    // apply the new row blindly, so backfilling an archived `released` for a
+    // bird that is currently an aviary resident evicted it: `current_aviary`
+    // emptied, its open `aviary_stays` row closed with a present-dated
+    // `ended_at`, and since 1700000077 the keeper's write authority gone with
+    // it. Reconciling across the whole history instead makes an out-of-order
+    // entry a no-op on these fields, which is also what keeps aviary_stays.pb.js
+    // from seeing a transition that did not happen (federfall-sinp).
+    require(`${__hooks}/lib_derive.js`)
+      .reconcileAnimal(e.app, caseRec.getString("animal"));
   }
 
   e.next();
@@ -166,129 +152,28 @@ onRecordAfterCreateSuccess((e) => {
 // Editing or deleting a disposition (UX Phase B correction path) must keep the
 // derived state honest: a deleted terminal disposition re-opens the case, and
 // the animal's lifetime is recomputed from its latest REMAINING disposition
-// across all its cases (so a returning bird falls back correctly). The helper
-// is defined inside each callback because pb_hooks callbacks run in isolated
-// JSVMs — file-level functions are not in scope. `created` is an ISO-ish
-// string, so its lexicographic max is the latest disposition.
+// across all its cases (so a returning bird falls back correctly).
+//
+// Both callbacks used to carry their own transcription of that scan — and both
+// compared `created`, i.e. "the most recently INSERTED disposition wins" rather
+// than the latest EVENT. lib_derive.js is now the single answer, ordered the way
+// `case_summaries` and `case_report_rows` have always ordered (federfall-sinp).
+// It is required INSIDE each callback because pb_hooks callbacks run in isolated
+// JSVMs — a file-level require is not in scope in either of them.
 onRecordAfterUpdateSuccess((e) => {
-  function reconcile(app, caseId) {
-    if (!caseId) return;
-    const caseRec = app.findRecordById("cases", caseId);
-    const remaining = app.findRecordsByFilter(
-      "dispositions", "case = {:c}", "-created", 200, 0, { c: caseId },
-    );
-    caseRec.set("status", remaining.length > 0 ? "disposed" : "in_care");
-    app.save(caseRec);
-    const animalId = caseRec.get("animal");
-    if (!animalId) return;
-    const cases = app.findRecordsByFilter(
-      "cases", "animal = {:a}", "", 200, 0, { a: animalId },
-    );
-    let latest = null;
-    for (const c of cases) {
-      const disps = app.findRecordsByFilter(
-        "dispositions", "case = {:c}", "-created", 200, 0, { c: c.id },
-      );
-      for (const d of disps) {
-        if (!latest || d.getString("created") > latest.getString("created")) {
-          latest = d;
-        }
-      }
-    }
-    const animal = app.findRecordById("animals", animalId);
-    let lifetime = "in_care";
-    let aviary = "";
-    if (latest) {
-      switch (latest.getString("type")) {
-        case "died":
-        case "euthanized":
-          lifetime = "deceased";
-          break;
-        case "placed_in_aviary":
-          lifetime = "in_aviary";
-          aviary = latest.get("aviary");
-          break;
-        case "released":
-        case "returned_to_owner":
-        case "transferred":
-          lifetime = "at_large_released";
-          break;
-      }
-    }
-    animal.set("lifetime_status", lifetime);
-    animal.set("current_aviary", aviary);
-    app.save(animal);
-  }
-  reconcile(e.app, e.record.get("case"));
+  const derive = require(`${__hooks}/lib_derive.js`);
+  derive.reconcileAnimal(e.app, derive.reconcileCase(e.app, e.record.get("case")));
   e.next();
 }, "dispositions");
 
 onRecordAfterDeleteSuccess((e) => {
-  function reconcile(app, caseId) {
-    if (!caseId) return;
-    // The parent may be gone: deleting a case (or, since 1700000057, an animal)
-    // cascades its dispositions, firing this hook with nothing left to
-    // reconcile. Because this runs AFTER a successful delete, letting the
-    // lookup throw does not roll anything back — it just turns a completed
-    // delete into a 400 for the client (federfall-vfl7).
-    let caseRec;
-    try {
-      caseRec = app.findRecordById("cases", caseId);
-    } catch (_) {
-      return;
-    }
-    const remaining = app.findRecordsByFilter(
-      "dispositions", "case = {:c}", "-created", 200, 0, { c: caseId },
-    );
-    caseRec.set("status", remaining.length > 0 ? "disposed" : "in_care");
-    app.save(caseRec);
-    const animalId = caseRec.get("animal");
-    if (!animalId) return;
-    const cases = app.findRecordsByFilter(
-      "cases", "animal = {:a}", "", 200, 0, { a: animalId },
-    );
-    let latest = null;
-    for (const c of cases) {
-      const disps = app.findRecordsByFilter(
-        "dispositions", "case = {:c}", "-created", 200, 0, { c: c.id },
-      );
-      for (const d of disps) {
-        if (!latest || d.getString("created") > latest.getString("created")) {
-          latest = d;
-        }
-      }
-    }
-    // Likewise gone when the delete started at the animal.
-    let animal;
-    try {
-      animal = app.findRecordById("animals", animalId);
-    } catch (_) {
-      return;
-    }
-    let lifetime = "in_care";
-    let aviary = "";
-    if (latest) {
-      switch (latest.getString("type")) {
-        case "died":
-        case "euthanized":
-          lifetime = "deceased";
-          break;
-        case "placed_in_aviary":
-          lifetime = "in_aviary";
-          aviary = latest.get("aviary");
-          break;
-        case "released":
-        case "returned_to_owner":
-        case "transferred":
-          lifetime = "at_large_released";
-          break;
-      }
-    }
-    animal.set("lifetime_status", lifetime);
-    animal.set("current_aviary", aviary);
-    app.save(animal);
-  }
-  reconcile(e.app, e.record.get("case"));
+  // Both halves tolerate their subject being gone: deleting a case (or, since
+  // 1700000057, an animal) cascades its dispositions and fires this hook with
+  // nothing left to reconcile. Because it runs AFTER a successful delete,
+  // letting a lookup throw would not roll anything back — it would just turn a
+  // completed delete into a 400 for the client (federfall-vfl7).
+  const derive = require(`${__hooks}/lib_derive.js`);
+  derive.reconcileAnimal(e.app, derive.reconcileCase(e.app, e.record.get("case")));
   e.next();
 }, "dispositions");
 

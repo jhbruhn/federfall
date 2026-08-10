@@ -1474,6 +1474,182 @@ def main():
                toks["sup"])
     check("...only a supervisor can", s == 204, f"status {s}")
 
+    # ── disposition ordering (federfall-sinp) ────────────────────────────────
+    # `animals.lifetime_status` / `current_aviary` are derived from the LATEST
+    # disposition, and "latest" used to mean the most recently INSERTED row —
+    # every scan compared `created`, the autodate, while `dispositions` carries a
+    # real event date in `disposed_at`. Live use enters things in order and never
+    # noticed; archive work does not, and since 1700000077 `current_aviary` is a
+    # CUSTODY pointer, so getting this wrong revokes a keeper's authority over a
+    # live resident.
+    #
+    # lib_derive.js is now the single answer for all four writers (disposition
+    # create / update / delete and merge_animals.pb.js), ordered by
+    # COALESCE(NULLIF(disposed_at,''), created) DESC, id DESC — the expression
+    # `case_summaries` and `case_report_rows` have always used. Until now a bird's
+    # own record could disagree with the case browser and both reports about which
+    # disposition ended its story.
+    print("\n[disposition ordering]")
+
+    def animal_state(animal_id):
+        _, d = req("GET", f"/api/collections/animals/records/{animal_id}", T)
+        return ((d or {}).get("lifetime_status"), (d or {}).get("current_aviary"))
+
+    # ── THE headline: an archived disposition must not evict a live resident ──
+    so_res = mk(T, "animals", {"species": "Stadttaube", "name": "Bestandsvogel",
+                               "org": ORG})["id"]
+    so_home = mk(T, "cases", {"animal": so_res, "active_carer": A,
+                              "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_home, "type": "placed_in_aviary",
+                           "aviary": cu_av,
+                           "disposed_at": "2026-01-15 10:00:00.000Z",
+                           "org": ORG})
+    check("setup: the bird is a resident of B's enclosure",
+          animal_state(so_res) == ("in_aviary", cu_av), animal_state(so_res))
+    check("setup: ...and B holds it through that enclosure",
+          edits_animal(toks["b"], so_res, "bestand"), "B was refused")
+    so_stays = [x for x in listf(T, "aviary_stays", f'animal = "{so_res}"')
+                if x["ended_at"] == ""]
+    check("setup: with one open residency", len(so_stays) == 1, so_stays)
+
+    # Now backfill an ARCHIVED release from BEFORE it moved in. This is the
+    # data-entry action that used to empty current_aviary, close the running stay
+    # with a present-dated ended_at, and take B's write access with it.
+    so_old = mk(T, "cases", {"animal": so_res, "active_carer": A,
+                             "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_old, "type": "released",
+                           "disposed_at": "2025-06-01 10:00:00.000Z",
+                           "org": ORG})
+    check("an archived release does NOT evict a current resident",
+          animal_state(so_res) == ("in_aviary", cu_av), animal_state(so_res))
+    so_after = listf(T, "aviary_stays", f'animal = "{so_res}"')
+    check("...and leaves the running residency alone — no false ended_at",
+          len(so_after) == 1 and so_after[0]["ended_at"] == "", so_after)
+    check("...so its keeper still holds it (1700000077 reads current_aviary)",
+          edits_animal(toks["b"], so_res, "immer noch bestand"), "B was refused")
+    # The order-INDEPENDENT half is untouched: any disposition closes its own
+    # case, whichever one happens to be latest for the animal.
+    _, so_old_rec = req("GET", f"/api/collections/cases/records/{so_old}", T)
+    check("...while the archived case is still closed by its own disposition",
+          (so_old_rec or {}).get("status") == "disposed", so_old_rec)
+
+    # ── the ordering itself: enter the NEWER event first, then an older one ───
+    # Insertion order and event order disagree here, which is the whole point:
+    # by `created` the `died` row wins and the bird reads deceased; by
+    # `disposed_at` the release does.
+    # Three dispositions in strictly DESCENDING event order, so insertion order
+    # and event order disagree at every step — including after a delete, which is
+    # why there are three rather than two.
+    so_rev = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    so_rev_disp = []
+    for kind, when in (("released", "2026-01-01"), ("transferred", "2025-09-01"),
+                       ("died", "2025-01-01")):
+        so_rev_case = mk(T, "cases", {"animal": so_rev, "active_carer": A,
+                                      "org": ORG})["id"]
+        so_rev_disp.append(mk(T, "dispositions", {
+            "case": so_rev_case, "type": kind,
+            "disposed_at": f"{when} 10:00:00.000Z", "org": ORG,
+        })["id"])
+    # By `created` the `died` row is last and the bird reads deceased; by
+    # `disposed_at` the 2026 release is what ended its story.
+    check("the LATEST EVENT decides, not the last row entered",
+          animal_state(so_rev)[0] == "at_large_released", animal_state(so_rev))
+
+    # Deleting the winner falls back to the next latest BY EVENT DATE — with the
+    # two survivors again in the opposite order from how they were entered, so a
+    # `created` comparison would answer deceased here.
+    s, _ = req("DELETE",
+               f"/api/collections/dispositions/records/{so_rev_disp[0]}", T)
+    check("setup: the later disposition is deleted", s == 204, f"status {s}")
+    check("deleting it falls back to the next latest event, not the next row",
+          animal_state(so_rev)[0] == "at_large_released", animal_state(so_rev))
+
+    # ── the after-UPDATE path: moving an event date moves the answer ──────────
+    # The placement is entered FIRST and dated EARLIER, so both orders agree that
+    # the release ends the story — and then the placement is re-dated past it.
+    # Only an event-ordered reconcile changes its answer.
+    so_upd = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    so_upd_av = mk(T, "cases", {"animal": so_upd, "active_carer": A,
+                                "org": ORG})["id"]
+    so_upd_disp = mk(T, "dispositions", {
+        "case": so_upd_av, "type": "placed_in_aviary", "aviary": cu_av,
+        "disposed_at": "2026-01-01 10:00:00.000Z", "org": ORG,
+    })["id"]
+    so_upd_rel = mk(T, "cases", {"animal": so_upd, "active_carer": A,
+                                 "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_upd_rel, "type": "released",
+                           "disposed_at": "2026-05-01 10:00:00.000Z",
+                           "org": ORG})
+    check("setup: the release is the later event, so the bird is at large",
+          animal_state(so_upd) == ("at_large_released", ""),
+          animal_state(so_upd))
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{so_upd_disp}",
+               T, {"disposed_at": "2026-09-01 10:00:00.000Z"})
+    check("setup: the placement is corrected to a later date", s == 200,
+          f"status {s}")
+    check("re-dating a disposition re-derives the state from the new order",
+          animal_state(so_upd) == ("in_aviary", cu_av), animal_state(so_upd))
+    so_upd_stays = [x for x in listf(T, "aviary_stays", f'animal = "{so_upd}"')
+                    if x["ended_at"] == ""]
+    check("...and the ledger opens exactly one residency for it",
+          len(so_upd_stays) == 1 and so_upd_stays[0]["aviary"] == cu_av,
+          so_upd_stays)
+
+    # ── no disposed_at: insertion order still decides ────────────────────────
+    # An Admin-UI or imported row can carry no event date at all. `disposed_at`
+    # unset is "", which would sort before every real date, so the fallback to
+    # `created` is what keeps such a history from reading backwards.
+    so_bare = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    so_bare_1 = mk(T, "cases", {"animal": so_bare, "active_carer": A,
+                                "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_bare_1, "type": "released", "org": ORG})
+    so_bare_2 = mk(T, "cases", {"animal": so_bare, "active_carer": A,
+                                "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_bare_2, "type": "died", "org": ORG})
+    # Both orders agree here by construction, so this is a regression guard on
+    # the fallback rather than a pin on the ordering fix.
+    check("with no event dates at all, the last row entered still decides",
+          animal_state(so_bare)[0] == "deceased", animal_state(so_bare))
+    # And a dated row beats an undated one entered after it: the undated one
+    # falls back to its own `created`, which is NOW, so this also pins that the
+    # fallback is per-row rather than "all or nothing".
+    so_mix = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    so_mix_1 = mk(T, "cases", {"animal": so_mix, "active_carer": A,
+                               "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_mix_1, "type": "released",
+                           "disposed_at": "2020-01-01 10:00:00.000Z",
+                           "org": ORG})
+    so_mix_2 = mk(T, "cases", {"animal": so_mix, "active_carer": A,
+                               "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_mix_2, "type": "died", "org": ORG})
+    check("an undated row falls back to its own created, so today beats 2020",
+          animal_state(so_mix)[0] == "deceased", animal_state(so_mix))
+
+    # ── the merge route reconciles by the same order (the fourth writer) ──────
+    # merge_animals.pb.js held its own copy of the scan and compared `created`
+    # too. The duplicate's release is the later EVENT but the earlier ROW, so the
+    # two answers differ.
+    so_mg_keep = mk(T, "animals", {"species": "Stadttaube", "name": "Sieger",
+                                   "org": ORG})["id"]
+    so_mg_gone = mk(T, "animals", {"species": "Stadttaube", "name": "Dublette2",
+                                   "org": ORG})["id"]
+    so_mg_gone_case = mk(T, "cases", {"animal": so_mg_gone, "active_carer": A,
+                                      "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_mg_gone_case, "type": "released",
+                           "disposed_at": "2026-07-01 10:00:00.000Z",
+                           "org": ORG})
+    so_mg_keep_case = mk(T, "cases", {"animal": so_mg_keep, "active_carer": A,
+                                      "org": ORG})["id"]
+    mk(T, "dispositions", {"case": so_mg_keep_case, "type": "died",
+                           "disposed_at": "2024-02-01 10:00:00.000Z",
+                           "org": ORG})
+    s, _ = req("POST", "/api/federfall/merge-animals", toks["sup"],
+               {"survivor": so_mg_keep, "duplicate": so_mg_gone, "fields": {}})
+    check("setup: the merge succeeds", s == 200, f"status {s}")
+    check("the merged history settles on the latest EVENT across both records",
+          animal_state(so_mg_keep)[0] == "at_large_released",
+          animal_state(so_mg_keep))
+
     # ── supervisor deletion + animal cascade (federfall-vfl7) ────────────────
     # `animals.delete` and `cases.delete` have been supervisor-only since
     # 1700000010; 1700000057 makes `cases.animal` cascade so deleting a bird
