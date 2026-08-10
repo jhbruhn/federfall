@@ -114,10 +114,17 @@ committed) and hooks (`pb_hooks/*.pb.js`). Schema changes = new migration, never
 Hooks own case-number/quarantine defaults, share-on-handoff, and disposition side-effects
 (case `status`, animal `lifetime_status`). They also enforce the invariants rules
 *cannot* express, because a plain field reference in an UPDATE rule resolves against
-the STORED record (1700000043's finding): `animal_org_scope.pb.js` rejects any
-`animal` relation naming another org's bird (cases / weights / markings / exams /
-egg_records — it only fires when the field actually changes, so pre-existing rows
-pointing at a hard-deleted animal stay saveable). **Deletion is supervisor-only
+the STORED record (1700000043's finding): `org_scope.pb.js` + `lib_org_scope.js`
+reject ANY relation naming a row in another org (federfall-jo1l — it folded in the
+`animal`-only `animal_org_scope.pb.js`, is registered for every collection rather
+than a list, and asks the SCHEMA which relations are org-scoped: a target
+collection carrying an `org`. Hook-only collections — both rules null, e.g.
+`aviary_stays` — are out of scope, a record whose own `org` is unset falls back to
+its parent case's (`exams`), and it only fires when a field actually changes, so
+pre-existing rows pointing at a hard-deleted animal stay saveable). Its scope is
+restated in `test_rules.py`'s `[relation guards]` registry, which fails BOTH ways:
+a `hook:org_scope.pb.js` classification naming a target the hook does not look at,
+and a plain `mutable:` one naming a target it does. **Deletion is supervisor-only
 and cascades:** `animals.delete` / `cases.delete` are `SUP`-gated in
 1700000010, `cases.animal` cascades since 1700000057, and every `case` relation
 already did — so deleting an animal takes its cases and their whole timeline
@@ -135,7 +142,23 @@ destroyed inside the merge transaction and answered with a 200 (federfall-0ua6
 own moves summary lists the same collections. Note also that the survivor is
 saved ONCE there: after-success hooks are deferred to the commit and re-read the
 same record object, so two saves deliver two transitions off one stale
-`original()` — which is how one aviary move opened two residencies. Multi-record writes are atomic server-side:
+`original()` — which is how one aviary move opened two residencies.
+**A bird's state has ONE derivation** (`pb_hooks/lib_derive.js`), shared by every
+writer — the disposition create/update/delete hooks, `merge_animals.pb.js`, and the
+three case events in `main.pb.js` §2c. It is the LATEST EVENT across two kinds:
+dispositions ordered by `COALESCE(NULLIF(disposed_at,''), created)` (federfall-sinp,
+the expression `case_summaries` and `case_report_rows` always used) weighed against
+the latest admission of a still-OPEN case, `COALESCE(NULLIF(admitted_at,''), created)`
+(federfall-8f1m). A later admission means `in_care` — that is what stops a returning
+bird reading "Released" through its whole second stay — while an open case dated
+EARLIER changes nothing, or one case somebody forgot to close would pin a bird to
+`in_care` forever. `current_aviary` never follows a case event (a case decides whether
+the bird is in care, never where it lives), so `lifetime_status = in_care` WITH an
+enclosure is a legitimate, reachable pair: the dashboard's aviary tile therefore counts
+`current_aviary`, not the label. Because that ordering decides `current_aviary`, which
+since 1700000077 is a custody pointer, `disposition_dates.pb.js` refuses a
+`disposed_at` more than a day in the future (federfall-j163) — a day, not an instant,
+because the client sends its own clock's UTC and may sit at UTC+14. Multi-record writes are atomic server-side:
 case intake goes through `POST /api/federfall/intake` (`pb_hooks/intake.pb.js`, one
 transaction for animal+finder+case+weight+quarantine; `cases.finder` is locked against
 direct client writes), and a handoff is just a placement with `to_user` — the hook derives
