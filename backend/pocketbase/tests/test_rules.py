@@ -360,8 +360,12 @@ def main():
     # though this org already minted that number above.
     xorg = mk(T, "organisations", {"name": "Index-Orga"})["id"]
     xanimal = mk(T, "animals", {"species": "Stadttaube", "org": xorg})["id"]
+    # A carer OF that org: this case used to name A, who is a member of the
+    # default one, and org_scope.pb.js refuses that now (federfall-jo1l). The
+    # fixture was quietly standing on the hole it closes.
+    xcarer = mkuser(T, "x@f.local", "carer", org=xorg)["id"]
     s, x1 = req("POST", "/api/collections/cases/records", T,
-                {"animal": xanimal, "active_carer": A, "org": xorg,
+                {"animal": xanimal, "active_carer": xcarer, "org": xorg,
                  "admitted_at": "2026-03-15 09:00:00.000Z"})
     check("second org can mint the same per-year number (org-scoped index)",
           s == 200 and x1.get("case_number") == "2026-001",
@@ -1225,6 +1229,123 @@ def main():
     check("...but a re-point across orgs is still rejected", s >= 400,
           f"status {s}")
     req("DELETE", f"/api/collections/animals/records/{ti77_doomed}", T)
+
+    # ── every OTHER relation, too (federfall-jo1l) ──────────────────────────
+    # `animal` was checked and nothing else was, so eleven relations could name
+    # a row in another organisation — found by the `[relation guards]` sweep
+    # below, not by anyone probing. org_scope.pb.js now asks the SCHEMA which
+    # relations are org-scoped rather than being handed a list, which is why
+    # animal_org_scope.pb.js is gone and the block above passes unchanged.
+    #
+    # Driven with T for the same reason as ti77's: a superuser bypasses
+    # collection rules, so a refusal here can only be this hook. Under a user
+    # token most of these would be refused by `org = @request.auth.org` first
+    # and the guard itself would go untested.
+    #
+    # Both directions on every field: an in-org value must still go through, or
+    # a hook that refused everything would pass this block just as well.
+    print("\n[relation org scope]")
+    jo_av = mk(T, "aviaries", {"name": "Fremde Voliere", "keeper": E,
+                               "org": org2})["id"]
+    jo_type = mk(T, "marking_types", {"label": "Fremdring", "active": True,
+                                      "org": org2})["id"]
+    jo_reason = mk(T, "admission_reasons", {"label": "Fremdgrund",
+                                            "active": True, "org": org2})["id"]
+    jo_own_reason = mk(T, "admission_reasons", {"label": "jo1l Grund",
+                                                "active": True,
+                                                "org": ORG})["id"]
+    jo_own_av = mk(T, "aviaries", {"name": "Eigene Voliere jo1l",
+                                   "keeper": SUP, "org": ORG})["id"]
+
+    # A user of another org as an enclosure's keeper. This one is worth more
+    # than a label: `current_aviary.keeper` is a custody branch (1700000077), so
+    # a foreign keeper is a foreign name in an authority position — it still
+    # grants nothing, because the rule ALSO compares orgs, but the enclosure
+    # would list somebody its org cannot see.
+    s, _ = req("POST", "/api/collections/aviaries/records", T,
+               {"name": "Fremdbetreut", "keeper": E, "org": ORG})
+    check("an aviary cannot be kept by another org's user", s == 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/aviaries/records/{jo_own_av}", T,
+               {"keeper": E})
+    check("...nor re-assigned to one", s == 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/aviaries/records/{jo_own_av}", T,
+               {"keeper": B})
+    check("...while a keeper change within the org still works", s == 200,
+          f"status {s}")
+
+    # The handoff target. `active_carer` is THE mutable relation on cases.
+    jo_case = mk(T, "cases", {"animal": animal, "active_carer": A,
+                              "org": ORG})["id"]
+    s, _ = req("POST", "/api/collections/cases/records", T,
+               {"animal": animal, "active_carer": E, "org": ORG})
+    check("a case cannot be opened by another org's carer", s == 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/cases/records/{jo_case}", T,
+               {"active_carer": E})
+    check("...nor handed to one", s == 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/cases/records/{jo_case}", T,
+               {"active_carer": B})
+    check("...while a handoff inside the org still works", s == 200,
+          f"status {s}")
+
+    # A code list is the realisable half of this bug: expanding the relation
+    # renders another org's vocabulary inside this one's UI.
+    jo_marking = mk(T, "markings", {"animal": animal, "type": ti77_type,
+                                    "org": ORG})["id"]
+    s, _ = req("POST", "/api/collections/markings/records", T,
+               {"animal": animal, "type": jo_type, "org": ORG})
+    check("a marking cannot use another org's ring type", s == 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/markings/records/{jo_marking}", T,
+               {"type": jo_type})
+    check("...nor be corrected onto one", s == 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/markings/records/{jo_marking}", T,
+               {"type": ti77_type})
+    check("...while the org's own list still works", s == 200, f"status {s}")
+
+    # A MULTI-valued relation: every element is checked, not just the first —
+    # which is the half a single-value implementation gets wrong silently.
+    s, _ = req("PATCH", f"/api/collections/cases/records/{jo_case}", T,
+               {"admission_reasons": [jo_reason]})
+    check("a case cannot cite another org's admission reason", s == 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/cases/records/{jo_case}", T,
+               {"admission_reasons": [jo_own_reason, jo_reason]})
+    check("...not even smuggled in behind one of its own", s == 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/cases/records/{jo_case}", T,
+               {"admission_reasons": [jo_own_reason]})
+    check("...while its own reasons still apply", s == 200, f"status {s}")
+
+    # `dispositions.aviary` feeds `current_aviary`, i.e. the custody pointer.
+    jo_animal = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    jo_disp_case = mk(T, "cases", {"animal": jo_animal, "active_carer": A,
+                                   "org": ORG})["id"]
+    s, _ = req("POST", "/api/collections/dispositions/records", T,
+               {"case": jo_disp_case, "type": "placed_in_aviary",
+                "aviary": jo_av, "org": ORG})
+    check("a bird cannot be placed into another org's enclosure", s == 400,
+          f"status {s}")
+    _, jo_animal_rec = req("GET",
+                           f"/api/collections/animals/records/{jo_animal}", T)
+    check("...so nothing pointed its custody at one",
+          (jo_animal_rec or {}).get("current_aviary") == "", jo_animal_rec)
+    s, _ = req("POST", "/api/collections/dispositions/records", T,
+               {"case": jo_disp_case, "type": "placed_in_aviary",
+                "aviary": jo_own_av, "org": ORG})
+    check("...while its own enclosure still houses it", s == 200, f"status {s}")
+
+    # The identity collection points at itself, and that relation was as open
+    # as the rest.
+    jo_user = mkuser(T, "jo1l@f.local", "carer")["id"]
+    s, _ = req("PATCH", f"/api/collections/users/records/{jo_user}", T,
+               {"invited_by": E})
+    check("a user cannot be invited by another org's supervisor", s == 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/users/records/{jo_user}", T,
+               {"invited_by": SUP})
+    check("...while their own supervisor still works", s == 200, f"status {s}")
 
     # ── identity-layer write guards (federfall-1hgp + federfall-7no9) ────────
     # 1700000075. Everything here is driven with USER tokens on purpose: a
@@ -5486,23 +5607,28 @@ def main():
     #   hook:<f>  a named hook validates the INCOMING target
     #   mutable   changeable by design; the string says why, and by whom
     #
-    # The `mutable` rows share one caveat worth stating once: only `animal` is
-    # checked for ORG (animal_org_scope.pb.js). Every other mutable relation can
-    # name a row in a DIFFERENT organisation. That grants no access — every rule
-    # also compares `org = @request.auth.org` — but it does let a foreign label
-    # be referenced, and it is tracked rather than silently accepted.
+    # The caveat the `mutable` rows used to share — only `animal` was checked
+    # for ORG, so every other one could name a row in a DIFFERENT organisation —
+    # is closed (federfall-jo1l): org_scope.pb.js checks EVERY relation whose
+    # target collection carries an `org`. That is asserted from the schema below
+    # rather than believed, in both directions: a classification claiming the
+    # hook must name a target the hook actually looks at, and a plain `mutable`
+    # must name one it does not — otherwise the registry has drifted away from
+    # the guard, which is the failure this whole block exists to prevent.
     print("\n[relation guards]")
     RELATION_GUARDS = {
         "admission_reasons": {"org": "frozen"},
         "animals": {"org": "frozen", "current_aviary": "frozen"},
         "aviaries": {
-            "keeper": "mutable: reassigning a keeper is a coordinator action "
-                      "(aviaries.update is coordinator/supervisor)",
+            "keeper": "hook:org_scope.pb.js — mutable: reassigning a keeper is "
+                      "a coordinator action (aviaries.update is "
+                      "coordinator/supervisor)",
             "org": "frozen",
         },
         "case_conditions": {
             "case": "frozen",
-            "condition": "mutable: correcting a diagnosis, onto the org code list",
+            "condition": "hook:org_scope.pb.js — mutable: correcting a "
+                         "diagnosis, onto the org code list",
             "org": "frozen",
         },
         "case_shares": {
@@ -5515,22 +5641,23 @@ def main():
             "animal": "frozen",
             "admitted_by": "actor",
             "finder": "frozen",
-            "active_carer": "mutable: THE handoff; caseEdit-gated and derived by "
-                            "the placements hook",
+            "active_carer": "hook:org_scope.pb.js — mutable: THE handoff; "
+                            "caseEdit-gated and derived by the placements hook",
             "org": "frozen",
-            "admission_reasons": "mutable: correcting intake reasons, onto the "
-                                 "org code list",
+            "admission_reasons": "hook:org_scope.pb.js — mutable: correcting "
+                                 "intake reasons, onto the org code list",
         },
         "conditions": {"org": "frozen"},
         "dispositions": {
             "case": "frozen",
             "performed_by": "actor",
-            "aviary": "mutable: correcting which enclosure a placement named "
-                      "(feeds current_aviary — federfall-j163)",
+            "aviary": "hook:org_scope.pb.js — mutable: correcting which "
+                      "enclosure a placement named (feeds current_aviary — "
+                      "federfall-j163 / federfall-mpm4)",
             "org": "frozen",
         },
         "egg_records": {
-            "animal": "hook:animal_custody_scope.pb.js",
+            "animal": "hook:org_scope.pb.js + hook:animal_custody_scope.pb.js",
             "author": "actor",
             "org": "frozen",
         },
@@ -5555,30 +5682,34 @@ def main():
             "applied_by": "actor",
             "applied_in_case": "frozen",
             "org": "frozen",
-            "type": "mutable: correcting a ring type, onto the org code list",
+            "type": "hook:org_scope.pb.js — mutable: correcting a ring type, "
+                    "onto the org code list",
         },
         "medication_administrations": {
             "case": "frozen",
             "medication": "frozen",
             "administered_by": "actor",
             "org": "frozen",
-            "route": "mutable: correcting a route, onto the org code list",
+            "route": "hook:org_scope.pb.js — mutable: correcting a route, "
+                     "onto the org code list",
         },
         "medication_products": {
-            "route": "mutable: correcting a route, onto the org code list",
+            "route": "hook:org_scope.pb.js — mutable: correcting a route, "
+                     "onto the org code list",
             "org": "frozen",
         },
         "medication_routes": {"org": "frozen"},
         "medications": {
             "case": "frozen",
             "org": "frozen",
-            "route": "mutable: correcting a route, onto the org code list",
+            "route": "hook:org_scope.pb.js — mutable: correcting a route, "
+                     "onto the org code list",
         },
         "microscopy_finding_types": {"org": "frozen"},
         "microscopy_findings": {
             "sample": "frozen",
-            "finding_type": "mutable: correcting a finding, onto the org code "
-                            "list",
+            "finding_type": "hook:org_scope.pb.js — mutable: correcting a "
+                            "finding, onto the org code list",
             "org": "frozen",
         },
         "microscopy_samples": {
@@ -5590,24 +5721,28 @@ def main():
             # create could spoof it, and that confers nothing, because
             # microscopy delete is case-scoped rather than author-based — unlike
             # weights / egg_records, where the author gets delete rights.
-            "examiner": "mutable: a recorded fact, not the actor",
-            "author": "mutable: route-owned; confers nothing (delete is "
-                      "case-scoped)",
+            "examiner": "hook:org_scope.pb.js — mutable: a recorded fact, not "
+                        "the actor",
+            "author": "hook:org_scope.pb.js — mutable: route-owned; confers "
+                      "nothing (delete is case-scoped)",
             "org": "frozen",
         },
         "placements": {
             "case": "frozen",
-            "carer": "mutable: the placement's own subject",
-            "from_user": "mutable: the placement's own subject",
-            "to_user": "mutable: THE handoff target; the hook derives "
-                       "case.active_carer from it",
+            "carer": "hook:org_scope.pb.js — mutable: the placement's own "
+                     "subject",
+            "from_user": "hook:org_scope.pb.js — mutable: the placement's own "
+                         "subject",
+            "to_user": "hook:org_scope.pb.js — mutable: THE handoff target; "
+                       "the placements hook derives case.active_carer from it",
             "org": "frozen",
         },
         "quarantine_records": {"case": "frozen", "set_by": "actor",
                                "org": "frozen"},
         "users": {
             "org": "frozen",
-            "invited_by": "mutable: supervisor-only collection (users.update)",
+            "invited_by": "hook:org_scope.pb.js — mutable: supervisor-only "
+                          "collection (users.update)",
         },
         "vet_appointments": {"case": "frozen", "created_by": "actor",
                              "org": "frozen"},
@@ -5635,15 +5770,48 @@ def main():
     check("...and names a plausible number of collections",
           len(ACTOR_OF) >= 10, ACTOR_OF)
 
+    # ...and `hook:org_scope.pb.js` is read out of the hook the same way — the
+    # classification is a claim about a file, so the file has to exist and still
+    # be registered for EVERY collection. A tag list added there later would
+    # quietly narrow the scope every row below asserts, and nothing else would
+    # notice: the hook would simply stop firing.
+    # Read defensively: a DELETED hook is the failure mode this is here to
+    # catch, and it should be one loud red line rather than a traceback that
+    # takes the rest of the suite with it.
+    try:
+        org_src = open(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "..", "pb_hooks", "org_scope.pb.js"),
+            encoding="utf-8",
+        ).read()
+    except OSError:
+        org_src = ""
+    check("org_scope.pb.js is there and calls the shared check",
+          "foreignRelation" in org_src, "not found")
+    check("...on create and on update, for every collection",
+          len(re.findall(r"onRecord(?:Create|Update)\(\(e\) => \{", org_src)) == 2
+          and not re.search(r"\}\)\s*,\s*\"", org_src), org_src[:0])
+
     s, all_colls = req("GET", "/api/collections?perPage=200", T)
     check("the schema is readable (parse guard)",
           s == 200 and len(((all_colls or {}).get("items") or [])) > 20,
           f"status {s}")
 
+    # org_scope.pb.js's own scope, read the way the hook reads it: a relation is
+    # checked exactly when its TARGET collection carries an `org`. Knowing that
+    # here is what lets a classification be verified instead of believed.
+    org_scoped = {c["name"] for c in (all_colls or {}).get("items", [])
+                  if any(f["name"] == "org" for f in c.get("fields", []))}
+    by_id = {c["id"]: c["name"] for c in (all_colls or {}).get("items", [])}
+    check("the schema names org-scoped collections (parse guard)",
+          len(org_scoped) >= 15, sorted(org_scoped))
+
     swept = 0
     unclassified = []
     not_really_frozen = []
     not_really_actor = []
+    not_really_hooked = []
+    silently_covered = []
     gone = []
     for c in (all_colls or {}).get("items", []):
         name = c["name"]
@@ -5654,14 +5822,14 @@ def main():
         # idempotency_keys) and nothing here applies to it.
         if c.get("createRule") is None and c.get("updateRule") is None:
             continue
-        rels = [f["name"] for f in c.get("fields", [])
-                if f.get("type") == "relation"]
+        rels = {f["name"]: by_id.get(f.get("collectionId"), "")
+                for f in c.get("fields", []) if f.get("type") == "relation"}
         if not rels:
             continue
         swept += 1
         known = RELATION_GUARDS.get(name, {})
         update_rule = str(c.get("updateRule") or "")
-        for field in rels:
+        for field, target in rels.items():
             how = known.get(field)
             if how is None:
                 unclassified.append(f"{name}.{field}")
@@ -5671,6 +5839,16 @@ def main():
             elif how == "actor" and ACTOR_OF.get(name) != field:
                 not_really_actor.append(
                     f"{name}.{field} (authorship pins {ACTOR_OF.get(name)!r})")
+            # Both directions of the org-scope claim (federfall-jo1l). Naming
+            # the hook for a field it does not look at is a false assurance;
+            # NOT naming it for one it does look at means the registry has gone
+            # stale against a guard that is silently doing the work.
+            if "hook:org_scope.pb.js" in str(how) and target not in org_scoped:
+                not_really_hooked.append(f"{name}.{field} → {target or '?'}")
+            elif ("hook:org_scope.pb.js" not in str(how)
+                    and str(how).startswith("mutable")
+                    and target in org_scoped):
+                silently_covered.append(f"{name}.{field} → {target}")
         # Nothing classified that no longer exists — a stale entry is a claim
         # about a field nobody checks any more.
         gone += [f"{name}.{f}" for f in known if f not in rels]
@@ -5686,6 +5864,14 @@ def main():
           f"classified frozen, but no isset guard: {not_really_frozen}")
     check("every field classified `actor` really is the pinned one",
           not not_really_actor, not_really_actor)
+    check("every field classified `hook:org_scope.pb.js` is in that hook's scope",
+          not not_really_hooked,
+          "the hook only checks relations whose target carries an `org`, so "
+          f"this claims a guard nothing performs: {not_really_hooked}")
+    check("every mutable relation into an org-scoped collection says so",
+          not silently_covered,
+          "org_scope.pb.js already checks these; classify them "
+          f"`hook:org_scope.pb.js — mutable: <why>`: {silently_covered}")
     check("no classification names a field that is gone", not gone, gone)
     stale = [n for n in RELATION_GUARDS
              if n not in {c["name"] for c in (all_colls or {}).get("items", [])}]
