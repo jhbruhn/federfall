@@ -33,6 +33,13 @@
 // Supervisor-only end to end: the UI gates the action, the animals delete
 // rule already requires a supervisor, and this route re-checks the role
 // itself since a custom route bypasses collection API rules entirely.
+//
+// That role gate also stands in for a custody check here (lib_custody.js,
+// federfall-q7ks.5): a supervisor holds every bird in the org by definition, so
+// requireCustody would be a literal no-op. If this route is ever widened below
+// supervisor, custody has to be added in the same change — a merge rewrites the
+// survivor's identity and destroys the duplicate, which makes it the most
+// authority-hungry operation in the schema.
 routerAdd(
   "POST",
   "/api/federfall/merge-animals",

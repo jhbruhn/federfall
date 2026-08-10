@@ -102,6 +102,16 @@ routerAdd(
         if (animal.getString("org") !== org) {
           throw new BadRequestError("Unknown animal.");
         }
+        // federfall-q7ks.4/.5 — admitting an EXISTING bird needs standing:
+        // hold it, or nobody does. A bird at large is anyone's to admit (that
+        // is what re-identification is for), a resident is its keeper's, and a
+        // bird already in someone's acute care is not a stranger's to take on.
+        // This route bypasses collection rules, so 1700000077's custody rules
+        // do not reach it — without this line the whole model has a front door
+        // standing open. The rule on `cases` is only the coarser backstop; see
+        // lib_custody.js for why it cannot express "nobody holds it".
+        require(`${__hooks}/lib_custody.js`)
+          .requireAdmissible(tx, auth, animalId);
       } else {
         animal = new Record(tx.findCollectionByNameOrId("animals"));
         animal.set("species", species);

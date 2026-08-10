@@ -45,6 +45,13 @@ routerAdd(
     // Mirrors the exams create/update rule: `case.org = @request.auth.org &&
     // (case.active_carer = @request.auth.id || supervisor || edit-share)`.
     // The route bypasses collection rules, so it must enforce this itself.
+    //
+    // This is deliberately NOT also an animal-custody check (lib_custody.js,
+    // federfall-q7ks.5): an exam is a CASE timeline record, and its `animal` is
+    // only denormalized for the lifetime view — cross-org re-pointing is already
+    // blocked by animal_org_scope.pb.js. Requiring custody of the bird here
+    // would refuse a carer entering a late exam on their OWN closed case, which
+    // is a correction the model has no reason to forbid.
     const assertCanEditCase = (tx, caseRec) => {
       if (caseRec.getString("org") !== org) {
         throw new BadRequestError("Unknown case.");

@@ -2526,7 +2526,11 @@ def main():
     # here would evict a resident whose archived case is being backfilled —
     # clearing current_aviary and closing the open aviary_stays row with a
     # present-dated `ended_at`. Only the new-animal branch sets the field.
-    ri_av = mk(T, "aviaries", {"name": "Voliere Reident", "keeper": SUP,
+    # A keeps this enclosure, so A may admit its residents (q7ks.4/.5 —
+    # asserted just below); the keeper is a plain carer rather than the
+    # supervisor so that this exercises the keeper branch and not the role
+    # override.
+    ri_av = mk(T, "aviaries", {"name": "Voliere Reident", "keeper": A,
                                "org": ORG})["id"]
     ri_animal = mk(T, "animals", {
         "species": "Stadttaube", "org": ORG,
@@ -2542,6 +2546,66 @@ def main():
     ri_stays = listf(T, "aviary_stays", f'animal = "{ri_animal}" && ended_at = ""')
     check("re-identification does not close the open aviary stay",
           len(ri_stays) == 1, ri_stays)
+
+    # ── admitting an existing bird follows custody (q7ks.4/.5) ───────────────
+    # This route bypasses collection rules, so 1700000077's custody rules do not
+    # reach it: the check lives in lib_custody.js's requireAdmissible(), called
+    # from intake.pb.js. Without it the model has a front door standing open —
+    # a stranger could take on another keeper's resident by "re-identifying" it.
+    #
+    # The `cases` create rule (1700000078) is only the coarser backstop: it can
+    # check the enclosure and "not deceased", but not "nobody holds it" — that
+    # needs a negative existential, and `?!=` means "any of them differs".
+    print("\n[custody: admitting an existing bird]")
+    s, d = req("POST", "/api/federfall/intake", toks["b"],
+               {"animal": ri_animal})
+    check("a stranger cannot admit another keeper's resident", s == 403,
+          f"{s} {d}")
+    s, _ = req("POST", "/api/federfall/intake", toks["coord"],
+               {"animal": ri_animal})
+    check("...a coordinator can", s == 200, f"status {s}")
+
+    # A bird at large is anyone's to find — the whole point of re-identification.
+    ad_free = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    ad_free_case = mk(T, "cases", {"animal": ad_free, "active_carer": A,
+                                   "org": ORG})["id"]
+    mk(T, "dispositions", {"case": ad_free_case, "type": "released",
+                           "org": ORG})
+    s, _ = req("POST", "/api/federfall/intake", toks["b"], {"animal": ad_free})
+    check("anyone may admit a bird at large", s == 200, f"status {s}")
+
+    # ...but not one already in somebody's acute care. This is the branch the
+    # rule cannot express, so it is the one that proves the hook is doing the
+    # work rather than the backstop.
+    ad_busy = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    mk(T, "cases", {"animal": ad_busy, "active_carer": A, "org": ORG})
+    s, d = req("POST", "/api/federfall/intake", toks["b"], {"animal": ad_busy})
+    check("a stranger cannot admit a bird already in another carer's care",
+          s == 403, f"{s} {d}")
+    s, _ = req("POST", "/api/federfall/intake", toks["a"], {"animal": ad_busy})
+    check("...while the carer holding it can", s == 200, f"status {s}")
+
+    # A deceased bird is a correction, not an admission.
+    ad_dead = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    ad_dead_case = mk(T, "cases", {"animal": ad_dead, "active_carer": A,
+                                   "org": ORG})["id"]
+    mk(T, "dispositions", {"case": ad_dead_case, "type": "died", "org": ORG})
+    s, d = req("POST", "/api/federfall/intake", toks["b"], {"animal": ad_dead})
+    check("a deceased bird cannot be admitted by a carer", s == 403, f"{s} {d}")
+    s, _ = req("POST", "/api/federfall/intake", toks["sup"],
+               {"animal": ad_dead})
+    check("...but a supervisor can, to correct the record", s == 200,
+          f"status {s}")
+
+    # The backstop rule stands on its own for anything that reaches `cases`
+    # directly (no client does, but a script or a future route might).
+    s, _ = req("POST", "/api/collections/cases/records", toks["b"],
+               {"animal": ri_animal, "active_carer": B, "org": ORG})
+    check("the cases create rule also refuses a stranger's case on a resident",
+          s >= 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/cases/records", toks["b"],
+               {"animal": ad_free, "active_carer": B, "org": ORG})
+    check("...and allows one on a bird at large", s == 200, f"status {s}")
 
     # cases.finder is locked for direct writes (federfall-9hy): linking is
     # exclusively the intake route's job.
