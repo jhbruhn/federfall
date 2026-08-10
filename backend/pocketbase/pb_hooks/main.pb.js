@@ -177,6 +177,51 @@ onRecordAfterDeleteSuccess((e) => {
   e.next();
 }, "dispositions");
 
+// ── 2c. cases: an admission is an event the bird's lifetime state follows ──────
+// federfall-8f1m. Since lib_derive.js weighs open cases against dispositions, a
+// case event can change the answer — and nothing else would ever ask it to.
+// Without these three, a re-admitted bird would keep reading `at_large_released`
+// until its NEXT disposition, which is the bug, only later.
+//
+// `reconcileAnimalFromCase` rather than `reconcileAnimal`: a case decides
+// whether the bird is in care, never which enclosure it lives in (see that
+// function's note — the plain default would evict a case-less resident).
+//
+// The update leg fires only when a field the derivation actually reads moves.
+// `status` closes and re-opens a case; `admitted_at` is what an admission is
+// ordered by. `animal` cannot change — it is isset-guarded on `cases.update`
+// (1700000081, and [relation guards] pins it); the one writer that does
+// re-point a case, merge_animals.pb.js, re-derives the survivor itself.
+onRecordAfterCreateSuccess((e) => {
+  require(`${__hooks}/lib_derive.js`)
+    .reconcileAnimalFromCase(e.app, e.record.getString("animal"));
+  e.next();
+}, "cases");
+
+onRecordAfterUpdateSuccess((e) => {
+  const rec = e.record;
+  const was = rec.original();
+  if (
+    rec.getString("status") !== was.getString("status") ||
+    rec.getString("admitted_at") !== was.getString("admitted_at")
+  ) {
+    require(`${__hooks}/lib_derive.js`)
+      .reconcileAnimalFromCase(e.app, rec.getString("animal"));
+  }
+  e.next();
+}, "cases");
+
+// Deleting a case removes an admission from the history. Tolerates the animal
+// being gone for the same reason the disposition leg does: `cases.animal`
+// cascades (1700000057), so an animal delete reaches here with nothing left to
+// reconcile, and throwing after a successful delete would turn it into a 400
+// rather than roll anything back (federfall-vfl7).
+onRecordAfterDeleteSuccess((e) => {
+  require(`${__hooks}/lib_derive.js`)
+    .reconcileAnimalFromCase(e.app, e.record.getString("animal"));
+  e.next();
+}, "cases");
+
 // ── 3. cases: share-on-handoff (previous carer keeps read) ─────────────────────
 onRecordUpdate((e) => {
   const rec = e.record;

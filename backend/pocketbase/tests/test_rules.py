@@ -393,6 +393,19 @@ def main():
     check("placed_in_aviary -> case disposed", c2f["status"] == "disposed", c2f["status"])
     check("placed_in_aviary -> animal in_aviary", an2["lifetime_status"] == "in_aviary", an2["lifetime_status"])
     check("placed_in_aviary -> current_aviary set", an2["current_aviary"] == av, an2["current_aviary"])
+    # Both answers above are stated with a THIRD case, c3, still open on this
+    # same bird — and they are still `at_large_released` / `in_aviary` rather
+    # than `in_care`. That is federfall-8f1m's modelling decision showing its
+    # other side: an open case only decides the lifetime state when it is the
+    # LATEST event (c3 was admitted 2025-12-01, both dispositions were entered
+    # just now). "Any open case wins" would make one case somebody forgot to
+    # close pin the bird to `in_care` forever, which no disposition could repair
+    # — the same bug in the other direction. Asserted rather than assumed,
+    # because a c3 that had quietly become disposed would make the two checks
+    # above pass for a reason that has nothing to do with this.
+    _, c3f = req("GET", f"/api/collections/cases/records/{c3['id']}", T)
+    check("...with a stale case still open, which is what makes that a choice",
+          c3f["status"] == "in_care", c3f["status"])
 
     # ── hooks: aviary_stays residency ledger (federfall-d5co.1) ─────────────
     # The centralized `animals` hook (not the dispositions hook itself) must
@@ -1773,12 +1786,21 @@ def main():
     # Three dispositions in strictly DESCENDING event order, so insertion order
     # and event order disagree at every step — including after a delete, which is
     # why there are three rather than two.
+    #
+    # Each case carries an `admitted_at` well before all three events, and that
+    # is load-bearing for the delete below rather than decoration: deleting a
+    # case's only disposition RE-OPENS it (reconcileCase), and since
+    # federfall-8f1m an open case is an event too — one with no admission date
+    # would fall back to its `created`, i.e. now, and out-date every survivor.
+    # What is under test here is which DISPOSITION wins, so the admission is
+    # dated where it belongs, in 2024.
     so_rev = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
     so_rev_disp = []
     for kind, when in (("released", "2026-01-01"), ("transferred", "2025-09-01"),
                        ("died", "2025-01-01")):
         so_rev_case = mk(T, "cases", {"animal": so_rev, "active_carer": A,
-                                      "org": ORG})["id"]
+                                      "org": ORG,
+                                      "admitted_at": "2024-01-01 09:00:00.000Z"})["id"]
         so_rev_disp.append(mk(T, "dispositions", {
             "case": so_rev_case, "type": kind,
             "disposed_at": f"{when} 10:00:00.000Z", "org": ORG,
@@ -1801,6 +1823,7 @@ def main():
     # The placement is entered FIRST and dated EARLIER, so both orders agree that
     # the release ends the story — and then the placement is re-dated past it.
     # Only an event-ordered reconcile changes its answer.
+
     so_upd = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
     so_upd_av = mk(T, "cases", {"animal": so_upd, "active_carer": A,
                                 "org": ORG})["id"]
@@ -1882,6 +1905,146 @@ def main():
     check("the merged history settles on the latest EVENT across both records",
           animal_state(so_mg_keep)[0] == "at_large_released",
           animal_state(so_mg_keep))
+
+    # ── an open case is an event too (federfall-8f1m) ────────────────────────
+    # `lifetime_status` was derived from dispositions alone, and "this bird has
+    # an open case" is not a disposition — so a returning bird read `Released`
+    # through the whole of its second stay, and a resident under treatment read
+    # `In Voliere`. The derivation now weighs the latest admission against the
+    # latest disposition; `current_aviary` deliberately does NOT follow, because
+    # since 1700000077 it is a custody pointer and emptying it on admission is
+    # the eviction federfall-sinp just fixed.
+    print("\n[open cases in the derivation]")
+
+    # THE headline: released, then found again.
+    oc_back = mk(T, "animals", {"species": "Stadttaube", "name": "Rückkehrerin",
+                                "org": ORG})["id"]
+    oc_first = mk(T, "cases", {"animal": oc_back, "active_carer": A,
+                               "org": ORG,
+                               "admitted_at": "2026-02-01 09:00:00.000Z"})["id"]
+    mk(T, "dispositions", {"case": oc_first, "type": "released",
+                           "disposed_at": "2026-03-01 10:00:00.000Z",
+                           "org": ORG})
+    check("setup: the bird was released in March",
+          animal_state(oc_back) == ("at_large_released", ""),
+          animal_state(oc_back))
+    oc_second = mk(T, "cases", {"animal": oc_back, "active_carer": A,
+                                "org": ORG,
+                                "admitted_at": "2026-06-15 08:00:00.000Z"})["id"]
+    check("a returning bird reads in_care for its whole second stay",
+          animal_state(oc_back) == ("in_care", ""), animal_state(oc_back))
+    # ...and hands the label back to the disposition once that stay ends.
+    mk(T, "dispositions", {"case": oc_second, "type": "died",
+                           "disposed_at": "2026-06-20 10:00:00.000Z",
+                           "org": ORG})
+    check("...and falls back to the latest disposition when it ends",
+          animal_state(oc_back) == ("deceased", ""), animal_state(oc_back))
+
+    # A resident under treatment: the enclosure and its keeper's custody must
+    # both survive the admission. B keeps cu_av.
+    oc_res = mk(T, "animals", {"species": "Stadttaube", "name": "Kranke Bewohnerin",
+                               "org": ORG})["id"]
+    oc_res_home = mk(T, "cases", {"animal": oc_res, "active_carer": A,
+                                  "org": ORG,
+                                  "admitted_at": "2026-01-05 09:00:00.000Z"})["id"]
+    mk(T, "dispositions", {"case": oc_res_home, "type": "placed_in_aviary",
+                           "aviary": cu_av,
+                           "disposed_at": "2026-01-20 10:00:00.000Z",
+                           "org": ORG})
+    check("setup: the bird lives in B's enclosure",
+          animal_state(oc_res) == ("in_aviary", cu_av), animal_state(oc_res))
+    mk(T, "cases", {"animal": oc_res, "active_carer": A, "org": ORG,
+                    "admitted_at": "2026-04-01 09:00:00.000Z"})
+    check("a resident that falls ill reads in_care",
+          animal_state(oc_res)[0] == "in_care", animal_state(oc_res))
+    check("...without being evicted from its enclosure",
+          animal_state(oc_res)[1] == cu_av, animal_state(oc_res))
+    check("...so its keeper still holds it (1700000077 reads current_aviary)",
+          edits_animal(toks["b"], oc_res, "krank"), "B was refused")
+    oc_res_stays = [x for x in listf(T, "aviary_stays", f'animal = "{oc_res}"')
+                    if x["ended_at"] == ""]
+    check("...and the residency ledger sees no move at all",
+          len(oc_res_stays) == 1 and oc_res_stays[0]["aviary"] == cu_av,
+          oc_res_stays)
+
+    # A case-less resident (add_animal_sheet.dart) has no disposition ANYWHERE,
+    # so the enclosure lives only on the animal record. Opening a case on it is
+    # the path where a plain reconcile would answer `aviary: ""` and evict it.
+    oc_bare = mk(T, "animals", {
+        "species": "Stadttaube", "name": "Direkt eingesetzt", "org": ORG,
+        "current_aviary": cu_av, "lifetime_status": "in_aviary",
+    })["id"]
+    mk(T, "cases", {"animal": oc_bare, "active_carer": A, "org": ORG})
+    check("admitting a case-less resident does not evict it",
+          animal_state(oc_bare) == ("in_care", cu_av), animal_state(oc_bare))
+    oc_bare_stays = listf(T, "aviary_stays", f'animal = "{oc_bare}"')
+    check("...and opens no second residency, closes no first one",
+          len(oc_bare_stays) == 1 and oc_bare_stays[0]["ended_at"] == "",
+          oc_bare_stays)
+
+    # The other direction, stated on purpose (see [hooks: dispositions]): an
+    # open case OLDER than the latest disposition does not override it.
+    oc_stale = mk(T, "animals", {"species": "Stadttaube", "name": "Alter Fall",
+                                 "org": ORG})["id"]
+    oc_stale_open = mk(T, "cases", {
+        "animal": oc_stale, "active_carer": A, "org": ORG,
+        "admitted_at": "2025-02-01 09:00:00.000Z",
+    })["id"]
+    oc_stale_later = mk(T, "cases", {
+        "animal": oc_stale, "active_carer": A, "org": ORG,
+        "admitted_at": "2026-01-01 09:00:00.000Z",
+    })["id"]
+    mk(T, "dispositions", {"case": oc_stale_later, "type": "released",
+                           "disposed_at": "2026-01-10 10:00:00.000Z",
+                           "org": ORG})
+    check("a case left open BEFORE the last disposition does not override it",
+          animal_state(oc_stale)[0] == "at_large_released",
+          animal_state(oc_stale))
+    # ...and correcting that admission date to after the release does. This is
+    # the `admitted_at` half of main.pb.js's update trigger: the answer has to
+    # move with no disposition touched at all.
+    s, _ = req("PATCH", f"/api/collections/cases/records/{oc_stale_open}", T,
+               {"admitted_at": "2026-06-01 09:00:00.000Z"})
+    check("setup: the stale case turns out to be the later admission", s == 200,
+          f"status {s}")
+    check("re-dating an admission re-derives from the new order",
+          animal_state(oc_stale)[0] == "in_care", animal_state(oc_stale))
+    s, _ = req("PATCH", f"/api/collections/cases/records/{oc_stale_open}", T,
+               {"admitted_at": "2025-02-01 09:00:00.000Z"})
+    check("setup: ...and back to where it was", s == 200, f"status {s}")
+    check("...both ways", animal_state(oc_stale)[0] == "at_large_released",
+          animal_state(oc_stale))
+
+    # Closing and re-opening the case is the `status` half of the same trigger,
+    # and deleting it is the third leg. Case delete is supervisor-only.
+    oc_del = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    oc_del_first = mk(T, "cases", {"animal": oc_del, "active_carer": A,
+                                   "org": ORG,
+                                   "admitted_at": "2026-02-01 09:00:00.000Z"})["id"]
+    mk(T, "dispositions", {"case": oc_del_first, "type": "released",
+                           "disposed_at": "2026-03-01 10:00:00.000Z",
+                           "org": ORG})
+    oc_del_open = mk(T, "cases", {"animal": oc_del, "active_carer": A,
+                                  "org": ORG,
+                                  "admitted_at": "2026-07-01 09:00:00.000Z"})["id"]
+    check("setup: the second admission makes it in_care",
+          animal_state(oc_del)[0] == "in_care", animal_state(oc_del))
+    s, _ = req("PATCH", f"/api/collections/cases/records/{oc_del_open}", T,
+               {"status": "disposed"})
+    check("setup: that case is closed", s == 200, f"status {s}")
+    check("a closed case stops speaking for the bird",
+          animal_state(oc_del)[0] == "at_large_released", animal_state(oc_del))
+    s, _ = req("PATCH", f"/api/collections/cases/records/{oc_del_open}", T,
+               {"status": "ready_for_release"})
+    check("setup: and is re-opened, at ready_for_release", s == 200,
+          f"status {s}")
+    check("ready_for_release is still an open case (the same active set)",
+          animal_state(oc_del)[0] == "in_care", animal_state(oc_del))
+    s, _ = req("DELETE", f"/api/collections/cases/records/{oc_del_open}",
+               toks["sup"])
+    check("setup: the open case is deleted", s == 204, f"status {s}")
+    check("deleting the open case hands the answer back to the disposition",
+          animal_state(oc_del)[0] == "at_large_released", animal_state(oc_del))
 
     # ── supervisor deletion + animal cascade (federfall-vfl7) ────────────────
     # `animals.delete` and `cases.delete` have been supervisor-only since
@@ -2050,9 +2213,14 @@ def main():
           mg_stays)
     s, mg_survivor = req("GET", f"/api/collections/animals/records/{mg_keep}", T)
     check("the survivor keeps its own enclosure",
-          (mg_survivor or {}).get("current_aviary") == mg_av_a
-          and (mg_survivor or {}).get("lifetime_status") == "in_aviary",
-          mg_survivor)
+          (mg_survivor or {}).get("current_aviary") == mg_av_a, mg_survivor)
+    # ...and reads `in_care` rather than `in_aviary`, because the duplicate's
+    # OPEN case came across with everything else and is now the survivor's
+    # latest event (federfall-8f1m). The enclosure not following is the whole
+    # point: `current_aviary` is a custody pointer, and the merged bird is a
+    # resident under treatment — the legitimate, reachable pair.
+    check("...while the case it inherited says it is in care",
+          (mg_survivor or {}).get("lifetime_status") == "in_care", mg_survivor)
 
     # A case-less residency (add_animal_sheet.dart adds a resident straight to
     # an enclosure, no case and therefore no disposition) lives ONLY on the
@@ -3083,11 +3251,14 @@ def main():
     check("intake CANNOT reuse a foreign-org animal", s == 400, f"status {s}")
 
     # ...and re-identifying an EXISTING animal must not write its lifetime
-    # state at all. The derivation hooks order dispositions by `created` rather
-    # than `disposed_at` (federfall-sinp), so an intake that stamped "in_care"
-    # here would evict a resident whose archived case is being backfilled —
-    # clearing current_aviary and closing the open aviary_stays row with a
-    # present-dated `ended_at`. Only the new-animal branch sets the field.
+    # state itself. Only the new-animal branch sets the field: a value written
+    # here would be one no reconcile can reproduce, and the next disposition
+    # edit on that bird would silently flip it back. What DOES move it is the
+    # derivation, through the case this route just opened — a resident under
+    # treatment reads `in_care` since federfall-8f1m — and the enclosure must
+    # survive that untouched, since clearing it would close the open
+    # aviary_stays row with a present-dated `ended_at` and revoke the keeper's
+    # write access with it (federfall-sinp).
     # A keeps this enclosure, so A may admit its residents (q7ks.4/.5 —
     # asserted just below); the keeper is a plain carer rather than the
     # supervisor so that this exercises the keeper branch and not the role
@@ -3101,8 +3272,8 @@ def main():
     s, _ = req("POST", "/api/federfall/intake", toks["a"], {"animal": ri_animal})
     check("re-identification intake succeeds", s == 200, f"status {s}")
     _, ri = req("GET", f"/api/collections/animals/records/{ri_animal}", T)
-    check("re-identification leaves an existing lifetime_status alone",
-          ri.get("lifetime_status") == "in_aviary", ri.get("lifetime_status"))
+    check("re-identifying a resident makes it read in_care, by derivation",
+          ri.get("lifetime_status") == "in_care", ri.get("lifetime_status"))
     check("re-identification leaves the residency intact",
           ri.get("current_aviary") == ri_av, ri.get("current_aviary"))
     ri_stays = listf(T, "aviary_stays", f'animal = "{ri_animal}" && ended_at = ""')
@@ -3172,17 +3343,39 @@ def main():
     # unless coordinator/supervisor. A rule is allowed to trust that field in
     # this ONE direction — it lags toward the PAST (federfall-sinp), so it can
     # read stale-alive but never falsely dead, and a refusal on "deceased" can
-    # therefore never refuse a living bird. Note ad_dead still reads deceased
-    # even though the supervisor's intake above opened a case on it: intake's
-    # re-identification branch deliberately does not touch lifetime_status.
+    # therefore never refuse a living bird. federfall-8f1m only widened that
+    # margin: an open case admitted after the death record now reads `in_care`,
+    # which is stale-alive again, never the reverse.
+    #
+    # A FRESH deceased bird, because ad_dead is no longer one: the supervisor's
+    # corrective intake above opened a case on it, so it reads `in_care` — and B
+    # would then be refused below by CUSTODY (somebody holds it) rather than by
+    # the deceased clause, which would leave that clause untested while the
+    # check still passed.
+    ad_dead2 = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    ad_dead2_case = mk(T, "cases", {"animal": ad_dead2, "active_carer": A,
+                                    "org": ORG})["id"]
+    mk(T, "dispositions", {"case": ad_dead2_case, "type": "died", "org": ORG})
+    _, ad_dead2_rec = req("GET", f"/api/collections/animals/records/{ad_dead2}", T)
+    check("setup: a bird whose only case is closed, and closed by a death",
+          (ad_dead2_rec or {}).get("lifetime_status") == "deceased",
+          ad_dead2_rec)
     s, _ = req("POST", "/api/collections/cases/records", toks["b"],
-               {"animal": ad_dead, "active_carer": B, "org": ORG})
+               {"animal": ad_dead2, "active_carer": B, "org": ORG})
     check("the cases create rule refuses a case on a deceased bird",
           s >= 400, f"status {s}")
     s, _ = req("POST", "/api/collections/cases/records", toks["coord"],
-               {"animal": ad_dead, "active_carer": COORD, "org": ORG})
+               {"animal": ad_dead2, "active_carer": COORD, "org": ORG})
     check("...unless a coordinator is correcting the record", s == 200,
           f"status {s}")
+    # And that correction is visible immediately: the new case is the animal's
+    # latest event, so the bird stops reading deceased (federfall-8f1m). Which
+    # is what makes the refusal above a statement about the DEAD bird rather
+    # than about B.
+    _, ad_dead2_rec = req("GET", f"/api/collections/animals/records/{ad_dead2}", T)
+    check("...after which it reads in_care, not deceased",
+          (ad_dead2_rec or {}).get("lifetime_status") == "in_care",
+          ad_dead2_rec)
 
     # cases.finder is locked for direct writes (federfall-9hy): linking is
     # exclusively the intake route's job.

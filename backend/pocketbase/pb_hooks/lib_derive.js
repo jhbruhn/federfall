@@ -76,6 +76,45 @@ function instantOf(disp) {
   return disp.getString("disposed_at") || disp.getString("created");
 }
 
+/**
+ * The instant a case says the bird came in — the same shape and the same
+ * fallback as [instantOf], so an admission and a disposition compare directly.
+ */
+function admissionOf(caseRec) {
+  return caseRec.getString("admitted_at") || caseRec.getString("created");
+}
+
+/**
+ * The latest admission among [animalId]'s still-OPEN cases, or `""` when it has
+ * none.
+ *
+ * "Open" is the explicit status set the case browser calls active
+ * (federfall-jt5u) and 1700000077's custody rule names verbatim — spelled out
+ * rather than `!= "disposed"` so the three cannot drift. `""` is in it because a
+ * row imported through the Admin UI can carry no status at all, and such a case
+ * is open.
+ */
+function latestAdmission(app, animalId) {
+  if (!animalId) return "";
+  let cases = [];
+  try {
+    cases = app.findRecordsByFilter(
+      "cases",
+      'animal = {:a} && (status = "in_care" || status = "ready_for_release"' +
+        ' || status = "")',
+      "", 0, 0, { a: animalId },
+    );
+  } catch (_) {
+    return "";
+  }
+  let latest = "";
+  for (const c of cases) {
+    const at = admissionOf(c);
+    if (at > latest) latest = at;
+  }
+  return latest;
+}
+
 /** Whether [a] beats [b] under the canonical order (see the header). */
 function isLater(a, b) {
   const ia = instantOf(a);
@@ -137,20 +176,54 @@ function latestDisposition(app, animalId) {
  * evict the bird. It is deliberately NOT the default: everywhere else, no
  * disposition means the reconcile is running because the last one was deleted,
  * and the enclosure it had set must go with it.
+ *
+ * ── An open case is an event too (federfall-8f1m) ───────────────────────────
+ * A disposition describes a PAST episode; an open case describes now. Derived
+ * from dispositions alone, a re-admitted bird kept reading `at_large_released`
+ * and a resident under treatment `in_aviary` for the whole of its new stay,
+ * because "has an open case" is not a disposition. So the LATEST EVENT decides
+ * across both kinds: an admission later than every disposition means `in_care`.
+ *
+ * Later, not merely present. "Any open case wins" would be the same bug in the
+ * other direction — one case somebody forgot to close would pin a bird to
+ * `in_care` forever, and no disposition could ever repair it (which is exactly
+ * the shape of `[hooks: dispositions]`'s c3: a stale open case alongside a
+ * placement entered afterwards, where `in_aviary` is the true answer). Ties go
+ * to the open case: a same-instant admission and disposition is a same-day
+ * re-admission, and the failure mode of the other choice is the bug being fixed.
+ *
+ * Two things deliberately do NOT follow:
+ *
+ *   * `current_aviary`. A resident under treatment is still that enclosure's
+ *     bird, and since 1700000077 the field is a CUSTODY pointer — emptying it on
+ *     admission would revoke the keeper's authority over a live resident, the
+ *     same failure federfall-sinp fixed. So `lifetime_status = in_care` WITH
+ *     `current_aviary` set is a legitimate, reachable pair.
+ *   * the direction lib_custody.js depends on. `requireAdmissible` reads
+ *     `lifetime_status` for one thing only — refusing to admit a bird recorded
+ *     deceased — on the stated grounds that it can read stale-alive but never
+ *     falsely deceased. This override only ever produces `in_care`, so it can
+ *     make a state stale-alive and never the reverse.
  */
 function deriveState(app, animalId, fallbackAviary) {
   const latest = latestDisposition(app, animalId);
-  if (!latest) {
-    const housed = fallbackAviary || "";
-    return housed
-      ? { lifetime: "in_aviary", aviary: housed }
-      : { lifetime: "in_care", aviary: "" };
+  const type = latest ? latest.getString("type") : "";
+  const aviary = latest
+    ? (type === "placed_in_aviary" ? latest.getString("aviary") : "")
+    : (fallbackAviary || "");
+  let lifetime;
+  if (latest) {
+    lifetime = LIFETIME_BY_TYPE[type] || "in_care";
+  } else {
+    lifetime = aviary ? "in_aviary" : "in_care";
   }
-  const type = latest.getString("type");
-  return {
-    lifetime: LIFETIME_BY_TYPE[type] || "in_care",
-    aviary: type === "placed_in_aviary" ? latest.getString("aviary") : "",
-  };
+  if (lifetime !== "in_care") {
+    const admitted = latestAdmission(app, animalId);
+    if (admitted && admitted >= (latest ? instantOf(latest) : "")) {
+      lifetime = "in_care";
+    }
+  }
+  return { lifetime: lifetime, aviary: aviary };
 }
 
 /**
@@ -173,6 +246,29 @@ function reconcileAnimal(app, animalId, fallbackAviary) {
   animal.set("current_aviary", state.aviary);
   app.save(animal);
   return true;
+}
+
+/**
+ * Re-derives [animalId] after a CASE event — an admission, a status change, a
+ * deleted case (main.pb.js section 2c).
+ *
+ * The animal's own `current_aviary` is the fallback here, and that is the whole
+ * difference from [reconcileAnimal]: a case never decides WHERE a bird lives.
+ * For a case-less resident (add_animal_sheet.dart puts a bird straight into an
+ * enclosure — no case, therefore no disposition to re-derive the enclosure from)
+ * the plain default would answer `aviary: ""` and evict it, closing a running
+ * residency and taking its keeper's write access with it. Opening a case on a
+ * resident must leave the enclosure exactly as it was.
+ */
+function reconcileAnimalFromCase(app, animalId) {
+  if (!animalId) return false;
+  let animal;
+  try {
+    animal = app.findRecordById("animals", animalId);
+  } catch (_) {
+    return false;
+  }
+  return reconcileAnimal(app, animalId, animal.getString("current_aviary"));
 }
 
 /**
@@ -206,8 +302,11 @@ function reconcileCase(app, caseId) {
 
 module.exports = {
   instantOf: instantOf,
+  admissionOf: admissionOf,
+  latestAdmission: latestAdmission,
   latestDisposition: latestDisposition,
   deriveState: deriveState,
   reconcileAnimal: reconcileAnimal,
+  reconcileAnimalFromCase: reconcileAnimalFromCase,
   reconcileCase: reconcileCase,
 };

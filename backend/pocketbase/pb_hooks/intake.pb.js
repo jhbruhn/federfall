@@ -126,11 +126,14 @@ routerAdd(
         // open case" is not a disposition. A brand-new record has no disposition
         // anywhere, so `in_care` is exactly what deriveState() would compute for
         // it — this write agrees with the derivation rather than racing it.
-        // A re-identified bird has a history by definition, so writing `in_care`
-        // there would be a value no reconcile can reproduce: the next disposition
-        // edit on that animal would silently flip it back while the new case is
-        // still open. Making it stick means teaching the derivation about open
-        // cases, which is federfall-8f1m, not a line here.
+        // The re-identification branch above still writes nothing, and now it
+        // does not have to: since federfall-8f1m the derivation weighs open
+        // cases against dispositions, and the case this route is about to create
+        // fires main.pb.js section 2c — so a re-admitted bird reaches `in_care`
+        // by reconcile rather than by a line here that no reconcile could
+        // reproduce. This one stays because it agrees with deriveState() for a
+        // record with no history, and it spares the brand-new animal a second
+        // save on the way to the same value.
         animal.set("lifetime_status", "in_care");
         animal.set("org", org);
         tx.save(animal);
