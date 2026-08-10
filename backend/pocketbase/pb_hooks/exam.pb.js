@@ -121,6 +121,20 @@ routerAdd(
         if (animalRec.getString("org") !== org) {
           throw new BadRequestError("Unknown animal.");
         }
+        // ...nor at a DIFFERENT bird in the same org (federfall-v9ap). An exam
+        // is about its case's animal by construction, and `exam_sheet.dart`
+        // always sends the two together — but this route bypasses collection
+        // rules, so 1700000079's custody predicate on the `weights` row it
+        // writes below does not apply, and 1700000082's freeze cannot reach a
+        // `tx.save()`. Without this line the route laundered a weight onto any
+        // bird in the org: refused as a direct POST, accepted here.
+        //
+        // A consistency check rather than a custody one, deliberately: the
+        // no-custody stance above is what lets a carer write up a late exam on
+        // their OWN closed case, and this keeps that intact.
+        if (animalId !== caseRec.getString("animal")) {
+          throw new BadRequestError("That animal does not belong to this case.");
+        }
         rec = new Record(tx.findCollectionByNameOrId("exams"));
         rec.set("case", caseId);
         rec.set("animal", animalId);

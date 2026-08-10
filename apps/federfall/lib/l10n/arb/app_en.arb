@@ -1405,6 +1405,8 @@
     "@reidSearchHint": { "description": "Hint for the re-identification search field" },
     "reidNoMatches": "No matching animal found.",
     "@reidNoMatches": { "description": "Shown when re-id search returns nothing" },
+    "eggReassignNotHeld": "This bird is not in your care — only whoever holds it can have a clutch attributed to it.",
+    "@eggReassignNotHeld": { "description": "Shown when a re-attribution target is picked but custody refuses it" },
     "reidNotAdmissible": "This bird cannot be admitted here — it is in someone else's care, or recorded as deceased. A coordinator can resolve that.",
     "@reidNotAdmissible": { "description": "Shown when a re-identified bird is picked at intake but custody (or a death record) refuses a new case on it" },
     "reidNoMarkings": "No active markings",

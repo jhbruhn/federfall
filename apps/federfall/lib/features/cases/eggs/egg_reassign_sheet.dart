@@ -1,7 +1,11 @@
+import 'dart:async';
+
+import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animal_search_picker.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -178,7 +182,7 @@ class _EggReassignSheetState extends ConsumerState<EggReassignSheet>
               animalId: widget.egg.animal,
               at: _laidAt,
               enabled: !isBusy,
-              onPick: _pick,
+              onPick: (a) => unawaited(_pick(a)),
             ),
             const SizedBox(height: AppSpacing.md),
             AnimalSearchPicker(
@@ -188,7 +192,7 @@ class _EggReassignSheetState extends ConsumerState<EggReassignSheet>
               excludeAnimalId: widget.egg.animal,
               enabled: !isBusy,
               onSearch: (q) => setState(() => _query = q),
-              onPick: _pick,
+              onPick: (a) => unawaited(_pick(a)),
             ),
           ] else ...[
             Text(
@@ -255,7 +259,33 @@ class _EggReassignSheetState extends ConsumerState<EggReassignSheet>
     );
   }
 
-  void _pick(Animal animal) {
+  /// Selects [animal] as the target — once custody allows it to receive the
+  /// record (federfall-v9ap).
+  ///
+  /// `animal_custody_scope.pb.js` requires custody of the INCOMING bird for a
+  /// re-attribution, so the picker must not offer one the server will refuse.
+  /// Checked at PICK time rather than per search result, for the reason
+  /// `new_case_screen.dart`'s `_linkAnimal` gives: the picker is a result list,
+  /// and resolving custody per row would put one request per candidate into it
+  /// (federfall-trep). One bird, one check.
+  Future<void> _pick(Animal animal) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    String? failure;
+    try {
+      final holds = await ref.read(canWriteAnimalProvider(animal.id).future);
+      if (!holds) failure = l10n.eggReassignNotHeld;
+    } on Object catch (e, stackTrace) {
+      // Fail closed: an unreachable server would refuse the save a moment
+      // later anyway, with the target already chosen.
+      reportCaughtError(e, stackTrace);
+      failure = errorMessage(l10n, e);
+    }
+    if (!mounted) return;
+    if (failure != null) {
+      messenger.showSnackBar(SnackBar(content: Text(failure)));
+      return;
+    }
     setState(() => _target = animal);
     markDirty();
   }

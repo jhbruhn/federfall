@@ -560,7 +560,14 @@ void main() {
       when(() => animals.searchByName(any())).thenAnswer((_) async => const []);
     });
 
-    Future<void> pump(WidgetTester tester, EggRecord egg) async {
+    // Re-attribution needs custody of the TARGET bird since federfall-v9ap
+    // (animal_custody_scope.pb.js), so the picker checks it before selecting —
+    // stated family-wide because the target's id varies per test.
+    Future<void> pump(
+      WidgetTester tester,
+      EggRecord egg, {
+      bool holdsTarget = true,
+    }) async {
       final container = ProviderContainer(
         overrides: [
           currentUserProvider.overrideWith(
@@ -572,7 +579,9 @@ void main() {
           animalsRepositoryProvider.overrideWith((ref) async => animals),
           markingsRepositoryProvider.overrideWith((ref) async => markings),
           eggsForAnimalProvider('anml1').overrideWith((ref) async => clutch),
-          canWriteAnimalProvider('anml1').overrideWith((ref) async => true),
+          canWriteAnimalProvider.overrideWith(
+            (ref, animalId) async => animalId == 'anml1' || holdsTarget,
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -712,6 +721,41 @@ void main() {
       verify(() => eggs.update('e2', any())).called(1);
       // e3 is three weeks later: a different clutch.
       verifyNever(() => eggs.update('e3', any()));
+    });
+
+    // The other direction: the picker must not offer a bird the server will
+    // refuse. animal_custody_scope.pb.js requires custody of the INCOMING bird,
+    // so a target the user does not hold is declined at the pick with a reason,
+    // rather than 403-ing on save (federfall-v9ap).
+    testWidgets('a target the user does not hold is declined at the pick', (
+      tester,
+    ) async {
+      when(() => stays.forAnimalAt('anml1', any())).thenAnswer(
+        (_) async => [
+          const AviaryStay(id: 's1', animal: 'anml1', aviary: 'avir1'),
+        ],
+      );
+      when(() => stays.residentsAt('avir1', any())).thenAnswer(
+        (_) async => [
+          const AviaryStay(id: 's2', animal: 'anml2', aviary: 'avir1'),
+        ],
+      );
+      when(() => animals.getOne('anml2')).thenAnswer(
+        (_) async => const Animal(id: 'anml2', species: 'Stadttaube'),
+      );
+
+      await pump(tester, clutch.first, holdsTarget: false);
+      await tester.tap(find.text('Stadttaube'));
+      await tester.pumpAndSettle();
+
+      // Not selected, and the reason is on screen rather than arriving as a
+      // 403 once Re-attribute is pressed.
+      expect(find.textContaining('not in your care'), findsOneWidget);
+      // No target was selected, so the sheet cannot write anything — the
+      // Re-attribute button stays there but has nothing to act on.
+      await tester.tap(find.widgetWithText(FilledButton, 'Re-attribute'));
+      await tester.pumpAndSettle();
+      verifyNever(() => eggs.update(any(), any()));
     });
 
     testWidgets('reports how many moved when one row fails', (tester) async {

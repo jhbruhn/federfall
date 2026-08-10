@@ -1595,6 +1595,118 @@ def main():
     # bypasses API rules, so the guard must not have broken it. Pinned in
     # [animal merge]; asserted here as the reason this guard is safe.
 
+    # ── the animal relation cannot be re-pointed (federfall-v9ap) ────────────
+    # 1700000079's custody predicate is reached through `animal.`, so on UPDATE it
+    # resolves against the STORED record (1700000043's finding) and authorises the
+    # bird the row is moving AWAY FROM. Two calls sidestepped the whole control:
+    # create a row on a bird you hold, then PATCH its `animal` to anyone else's.
+    # These collections are org-wide READABLE, so the victim then sees the row.
+    #
+    # 1700000082 freezes the field for weights/markings/exams; egg_records keeps
+    # it mutable (re-attribution is a shipped feature) and gets a destination-side
+    # custody check in animal_custody_scope.pb.js instead.
+    print("\n[animal relation is not re-pointable]")
+    rp_mine = mk(T, "animals", {"species": "Stadttaube", "name": "Meiner",
+                                "org": ORG})["id"]
+    rp_case = mk(T, "cases", {"animal": rp_mine, "active_carer": A,
+                              "org": ORG})["id"]
+    # A holds rp_mine through their own open case; they hold NOTHING on cu_resident,
+    # which carries another carer's open case.
+    check("setup: A holds their own bird", edits_animal(toks["a"], rp_mine, "mein"),
+          "A was refused")
+    # cu_resident lives in B's enclosure and has no case at all, so A holds
+    # nothing on it. NOT cu_two, which carries A's own open case — using that
+    # would have made the egg-reassignment check below pass for the wrong reason
+    # (custody satisfied), which is exactly what this setup assertion caught.
+    check("setup: ...and holds nothing on the other one",
+          not edits_animal(toks["a"], cu_resident, "nicht mein"), "A got through")
+
+    for coll, payload in (
+        ("weights", {"weight_g": 222}),
+        ("markings", {"type": ti77_type, "code": "RP-1"}),
+    ):
+        s, row = req("POST", f"/api/collections/{coll}/records", toks["a"],
+                     {"animal": rp_mine, "org": ORG, **payload})
+        check(f"setup: A records a {coll[:-1]} on their own bird", s == 200,
+              f"status {s}")
+        row_id = (row or {}).get("id", "")
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{row_id}",
+                   toks["a"], {"animal": cu_resident})
+        check(f"a {coll[:-1]} cannot be moved onto a bird its writer does not "
+              f"hold", s >= 400, f"status {s}")
+        # Frozen, not checked: even the bird it already names is refused, which
+        # is what an isset guard means and what keeps the guard cheap.
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{row_id}",
+                   toks["a"], {"animal": rp_mine}) 
+        check(f"...not even onto the bird it already names ({coll})", s >= 400,
+              f"status {s}")
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{row_id}",
+                   toks["a"], {"notes": "inhalt"} if coll == "weights"
+                   else {"colour": "rot"})
+        check(f"...while its content stays editable ({coll})", s == 200,
+              f"status {s}")
+        # And the victim's bird never acquired the row.
+        rows = listf(toks["b"], coll, f'animal = "{cu_resident}"')
+        check(f"the other bird carries no injected {coll[:-1]}",
+              all(x["id"] != row_id for x in rows), rows)
+
+    # exams: case-scoped rather than custody-scoped, but its `animal` is
+    # denormalized onto the lifetime view, so re-pointing files an exam onto a
+    # bird the writer has no relationship with. 1700000043 already froze `case`
+    # and `org`; this is the third of the three.
+    s, rp_exam = req("POST", "/api/federfall/exam", toks["a"],
+                     {"case": rp_case, "animal": rp_mine,
+                      "exam": {"notes": "eigen"}})
+    check("setup: A saves an exam on their own case", s == 200, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/exams/records/{(rp_exam or {}).get('id')}",
+               toks["a"], {"animal": cu_resident})
+    check("an exam cannot be re-pointed onto another bird", s >= 400,
+          f"status {s}")
+
+    # egg_records stay re-attributable — that is egg_reassign_sheet.dart — but
+    # only onto a bird the writer holds.
+    s, rp_egg = req("POST", "/api/collections/egg_records/records", toks["a"],
+                    {"animal": rp_mine, "count": 1, "org": ORG})
+    check("setup: A logs an egg record on their own bird", s == 200,
+          f"status {s}")
+    rp_egg_id = (rp_egg or {}).get("id", "")
+    s, _ = req("PATCH", f"/api/collections/egg_records/records/{rp_egg_id}",
+               toks["a"], {"animal": cu_resident})
+    check("an egg record cannot be re-attributed to a bird its writer does not "
+          "hold", s >= 400, f"status {s}")
+    # The feature itself still works: A holds cu_incare through nothing, but D
+    # holds it through an edit share — so use a bird A really does hold. A second
+    # bird of A's own.
+    rp_mine2 = mk(T, "animals", {"species": "Stadttaube", "name": "Meiner2",
+                                 "org": ORG})["id"]
+    mk(T, "cases", {"animal": rp_mine2, "active_carer": A, "org": ORG})
+    s, moved = req("PATCH", f"/api/collections/egg_records/records/{rp_egg_id}",
+                   toks["a"], {"animal": rp_mine2, "attribution": "confirmed"})
+    check("...but re-attribution to a bird they DO hold still works",
+          s == 200 and (moved or {}).get("animal") == rp_mine2, f"{s} {moved}")
+
+    # ── the exam route wrote a weights row for any animal (federfall-v9ap) ───
+    # The route bypasses collection rules, so 1700000079's custody predicate on
+    # `weights.create` never applied to the row it writes — and 1700000082's
+    # freeze cannot reach a tx.save() either. It validated only that the body's
+    # `animal` existed and was same-org, so a weight could be laundered onto any
+    # bird in the org: refused as a direct POST, accepted through here.
+    s, d = req("POST", "/api/federfall/exam", toks["a"], {
+        "case": rp_case, "animal": cu_resident,
+        "exam": {"notes": "geschmuggelt"}, "weight_g": 42,
+    })
+    check("the exam route refuses an animal that is not its case's", s == 400,
+          f"{s} {d}")
+    smuggled = [x for x in listf(T, "weights", f'animal = "{cu_resident}"')
+                if x.get("weight_g") == 42]
+    check("...so no weight was laundered onto the other bird",
+          len(smuggled) == 0, smuggled)
+    # The same call as a direct write is what the route must not be a way around.
+    s, _ = req("POST", "/api/collections/weights/records", toks["a"],
+               {"animal": cu_resident, "weight_g": 42, "org": ORG})
+    check("...which is exactly what the direct write refuses too", s >= 400,
+          f"status {s}")
+
     # ── disposition ordering (federfall-sinp) ────────────────────────────────
     # `animals.lifetime_status` / `current_aviary` are derived from the LATEST
     # disposition, and "latest" used to mean the most recently INSERTED row —

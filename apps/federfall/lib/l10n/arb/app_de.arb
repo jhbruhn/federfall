@@ -665,6 +665,7 @@
     "reidSearchLabel": "Rückkehrer? Suchen",
     "reidSearchHint": "Ringcode oder Name",
     "reidNoMatches": "Kein passendes Tier gefunden.",
+    "eggReassignNotHeld": "Dieser Vogel ist nicht in deiner Obhut — nur wer ihn hält, kann ihm ein Gelege zuordnen.",
     "reidNotAdmissible": "Dieser Vogel kann hier nicht aufgenommen werden — er ist in der Obhut einer anderen Person oder als verstorben erfasst. Die Koordination kann das klären.",
     "reidNoMarkings": "Keine aktiven Kennzeichnungen",
     "reidUnlink": "Trennen",
