@@ -213,6 +213,13 @@ void main() {
               as Map<String, dynamic>;
       expect(body['present_at_find'], false);
       expect(appliedAtOf(body), DateTime(2026, 3, 5));
+      // 1700000081 FREEZES `applied_in_case` on update rather than checking it:
+      // on update a rule's field reference resolves against the STORED record,
+      // so it would authorise against the case the row is being moved away
+      // from. That guard is only safe while no client sends the field — sending
+      // it here would turn every marking edit into a 403 (federfall-piu5).
+      expect(body.containsKey('applied_in_case'), isFalse);
+      expect(body.containsKey('animal'), isFalse);
     });
   });
 

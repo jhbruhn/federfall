@@ -1474,6 +1474,127 @@ def main():
                toks["sup"])
     check("...only a supervisor can", s == 204, f"status {s}")
 
+    # ── case-scoped writes (federfall-piu5) ──────────────────────────────────
+    # Custody says WHICH BIRD you may write about; it says nothing about which
+    # CASE you may file the row into. `weights.case` and
+    # `markings.applied_in_case` were unconstrained, so a carer who legitimately
+    # holds a bird could attach a weight or a ring to a DIFFERENT, older case of
+    # that same bird — one belonging to another carer, which they cannot even
+    # read — and it would surface in that carer's timeline, in case_report_rows
+    # and in the annual report. Private-by-default held for reads and not for
+    # writes. 1700000081 closes it with 1700000010's own `childEdit`, reached
+    # through the row's relation field.
+    print("\n[case-scoped writes]")
+    # One bird, two cases with DIFFERENT carers, both open — so custody of the
+    # animal is satisfied for each of them and the case is the only thing left
+    # that can refuse. A's case is private to A; B's is private to B.
+    cs_animal = mk(T, "animals", {"species": "Stadttaube", "name": "Zweigeteilt",
+                                  "org": ORG})["id"]
+    cs_a = mk(T, "cases", {"animal": cs_animal, "active_carer": A,
+                           "org": ORG})["id"]
+    cs_b = mk(T, "cases", {"animal": cs_animal, "active_carer": B,
+                           "org": ORG})["id"]
+    check("setup: B cannot even read A's case on the shared bird",
+          req("GET", f"/api/collections/cases/records/{cs_a}", toks["b"])[0]
+          != 200, "B could read it")
+    check("setup: ...yet B holds the bird through their own open case",
+          edits_animal(toks["b"], cs_animal, "geteilt"), "B was refused")
+
+    for coll, field, payload in (
+        ("weights", "case", {"weight_g": 404}),
+        ("markings", "applied_in_case", {"type": ti77_type, "code": "PIU5"}),
+    ):
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                   {"animal": cs_animal, "org": ORG, field: cs_a, **payload})
+        check(f"a {coll[:-1]} CANNOT be filed into a case its writer cannot "
+              f"read", s >= 400, f"status {s}")
+        s, own = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                     {"animal": cs_animal, "org": ORG, field: cs_b, **payload})
+        check(f"...but can be filed into their own ({coll})", s == 200,
+              f"status {s}")
+        # The case-less path is the aviary one and stays open to whoever holds
+        # the bird — this is what keeps the identity-layer stance intact.
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                   {"animal": cs_animal, "org": ORG, **payload})
+        check(f"...and a case-less {coll[:-1]} needs only custody", s == 200,
+              f"status {s}")
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                   {"animal": cs_animal, "org": ORG, field: "", **payload})
+        check(f"...an explicitly EMPTY case reads as none, not as a refusal "
+              f"({coll})", s == 200, f"status {s}")
+        # An EDIT share on the foreign case is the way in — same predicate every
+        # other case child uses (1700000010's childEdit).
+        cs_share = mk(T, "case_shares", {"case": cs_a, "shared_with": B,
+                                         "shared_by": A, "access": "edit",
+                                         "org": ORG})["id"]
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                   {"animal": cs_animal, "org": ORG, field: cs_a, **payload})
+        check(f"an EDIT share on that case opens it ({coll})", s == 200,
+              f"status {s}")
+        s, _ = req("DELETE", f"/api/collections/case_shares/records/{cs_share}",
+                   T)
+        check(f"setup: the share is revoked ({coll})", s == 204, f"status {s}")
+        # A read share is not enough, for the same reason it is not enough
+        # anywhere else.
+        cs_share = mk(T, "case_shares", {"case": cs_a, "shared_with": B,
+                                         "shared_by": A, "access": "read",
+                                         "org": ORG})["id"]
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                   {"animal": cs_animal, "org": ORG, field: cs_a, **payload})
+        check(f"a READ share does not ({coll})", s >= 400, f"status {s}")
+        s, _ = req("DELETE", f"/api/collections/case_shares/records/{cs_share}",
+                   T)
+        check(f"setup: the read share is revoked ({coll})", s == 204,
+              f"status {s}")
+
+        # UPDATE freezes the field rather than checking it: on update the same
+        # reference resolves against the STORED record (1700000043), i.e. against
+        # the case the row is being moved AWAY from. No client path sends it —
+        # both sheets put it in their create branch only.
+        own_id = (own or {}).get("id", "")
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{own_id}",
+                   toks["b"], {field: cs_a})
+        check(f"an existing {coll[:-1]} cannot be RE-FILED into a foreign case",
+              s >= 400, f"status {s}")
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{own_id}",
+                   toks["b"], {field: cs_b})
+        check(f"...not even into the one it already names ({coll})", s >= 400,
+              f"status {s}")
+        # The rest of the row stays editable — the guard must not have cost the
+        # ordinary correction path anything.
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{own_id}",
+                   toks["b"], {"notes": "korrigiert"}
+                   if coll == "weights" else {"colour": "gruen"})
+        check(f"...while its content is still editable ({coll})", s == 200,
+              f"status {s}")
+
+    # ── cases.animal, the same hole one level up ─────────────────────────────
+    # Re-pointing your OWN case onto somebody else's bird is a way to rewrite
+    # THAT bird's derived state: a disposition on the case then decides its
+    # `lifetime_status` and `current_aviary`, and since 1700000077 the latter is
+    # a custody pointer — so it evicts another keeper's resident and takes their
+    # write access with it. Exactly what federfall-sinp caused by accident.
+    cs_target = mk(T, "animals", {"species": "Stadttaube", "name": "Fremd",
+                                  "org": ORG, "current_aviary": cu_av,
+                                  "lifetime_status": "in_aviary"})["id"]
+    s, _ = req("PATCH", f"/api/collections/cases/records/{cs_b}", toks["b"],
+               {"animal": cs_target})
+    check("a carer cannot re-point their own case onto another keeper's bird",
+          s >= 400, f"status {s}")
+    _, cs_still = req("GET", f"/api/collections/cases/records/{cs_b}", T)
+    check("...and the case still names the bird it was opened for",
+          (cs_still or {}).get("animal") == cs_animal, cs_still)
+    s, _ = req("PATCH", f"/api/collections/cases/records/{cs_b}", toks["b"],
+               {"animal": cs_animal})
+    check("...not even a no-op re-point of the bird it already names", s >= 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/cases/records/{cs_b}", toks["b"],
+               {"intake_notes": "weiterhin bearbeitbar"})
+    check("...while the case itself stays editable", s == 200, f"status {s}")
+    # The merge route re-points it legitimately, through tx.save() — which
+    # bypasses API rules, so the guard must not have broken it. Pinned in
+    # [animal merge]; asserted here as the reason this guard is safe.
+
     # ── disposition ordering (federfall-sinp) ────────────────────────────────
     # `animals.lifetime_status` / `current_aviary` are derived from the LATEST
     # disposition, and "latest" used to mean the most recently INSERTED row —

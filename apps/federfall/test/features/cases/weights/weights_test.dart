@@ -78,6 +78,40 @@ void main() {
       expect(body['org'], 'org1');
     });
 
+    // 1700000081 FREEZES `weights.case` on update rather than checking it: on
+    // update a rule's field reference resolves against the STORED record, so it
+    // would authorise against the case the row is being moved away from. That
+    // guard is only safe while no client sends the field — sending it here
+    // would turn every weight edit into a 403 (federfall-piu5).
+    testWidgets('an edit sends content only, never the case it hangs off', (
+      tester,
+    ) async {
+      when(() => weights.update('w1', any())).thenAnswer(
+        (_) async =>
+            const Weight(id: 'w1', animal: 'a1', caseId: 'c1', weightG: 250),
+      );
+
+      await pump(
+        tester,
+        const WeightEntrySheet(
+          animalId: 'a1',
+          caseId: 'c1',
+          weight: Weight(id: 'w1', animal: 'a1', caseId: 'c1', weightG: 248),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField).first, '250');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      final body =
+          verify(() => weights.update('w1', captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['weight_g'], 250);
+      expect(body.containsKey('case'), isFalse);
+      expect(body.containsKey('animal'), isFalse);
+    });
+
     testWidgets('rejects a non-positive weight', (tester) async {
       await pump(tester, const WeightEntrySheet(animalId: 'a1', caseId: 'c1'));
 
