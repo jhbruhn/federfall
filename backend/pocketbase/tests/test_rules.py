@@ -11,6 +11,7 @@ gating, handoff visibility, deactivated-auth, field-guard). Exits non-zero on
 any failure.
 """
 import base64
+import datetime
 import json
 import os
 import re
@@ -144,6 +145,17 @@ def mkuser(token, email, role, org=ORG, active=True):
 def listf(token, coll, flt):
     s, d = req("GET", f"/api/collections/{coll}/records?filter=" + urllib.parse.quote(flt), token)
     return d["items"] if s == 200 else []
+
+
+def stamp(**delta):
+    """A PocketBase-shaped UTC timestamp [delta] from NOW, e.g. `stamp(days=2)`.
+
+    Relative rather than hard-coded, because the thing under test
+    (disposition_dates.pb.js, federfall-j163) is a window around the server's
+    own clock: a literal would stop meaning "the future" the day it passes.
+    """
+    when = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(**delta)
+    return when.strftime("%Y-%m-%d %H:%M:%S.000Z")
 
 
 def main():
@@ -1823,7 +1835,11 @@ def main():
     # The placement is entered FIRST and dated EARLIER, so both orders agree that
     # the release ends the story — and then the placement is re-dated past it.
     # Only an event-ordered reconcile changes its answer.
-
+    #
+    # "Past it" has to stay in the PAST: since federfall-j163 a disposition
+    # cannot be dated more than a day ahead, so the correction moves it to
+    # 2026-06-01 rather than to a date that would have been rejected outright
+    # (which is a 400 the [disposition dates] block asserts on purpose).
     so_upd = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
     so_upd_av = mk(T, "cases", {"animal": so_upd, "active_carer": A,
                                 "org": ORG})["id"]
@@ -1840,7 +1856,7 @@ def main():
           animal_state(so_upd) == ("at_large_released", ""),
           animal_state(so_upd))
     s, _ = req("PATCH", f"/api/collections/dispositions/records/{so_upd_disp}",
-               T, {"disposed_at": "2026-09-01 10:00:00.000Z"})
+               T, {"disposed_at": "2026-06-01 10:00:00.000Z"})
     check("setup: the placement is corrected to a later date", s == 200,
           f"status {s}")
     check("re-dating a disposition re-derives the state from the new order",
@@ -2045,6 +2061,59 @@ def main():
     check("setup: the open case is deleted", s == 204, f"status {s}")
     check("deleting the open case hands the answer back to the disposition",
           animal_state(oc_del)[0] == "at_large_released", animal_state(oc_del))
+
+    # ── a disposition cannot have happened tomorrow (federfall-j163) ─────────
+    # `disposed_at` is the order key, and since 1700000077 the latest event also
+    # decides `current_aviary`, i.e. who may write about the bird. A row dated
+    # 2099 would stay "latest" against everything that actually happens
+    # afterwards. The app cannot produce one (disposition_sheet.dart picks
+    # through `pickDate`, whose lastDate is today), so this refuses hand-crafted
+    # requests only — but it refuses them for every writer, superuser included,
+    # which is why this block drives it with T.
+    print("\n[disposition dates]")
+    dd_animal = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    dd_case = mk(T, "cases", {"animal": dd_animal, "active_carer": A,
+                              "org": ORG,
+                              "admitted_at": "2026-01-02 09:00:00.000Z"})["id"]
+    s, _ = req("POST", "/api/collections/dispositions/records", T,
+               {"case": dd_case, "type": "released", "org": ORG,
+                "disposed_at": stamp(days=2)})
+    check("a disposition dated two days out is refused", s == 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/dispositions/records", T,
+               {"case": dd_case, "type": "placed_in_aviary", "aviary": cu_av,
+                "org": ORG, "disposed_at": "2099-01-01 10:00:00.000Z"})
+    check("...and one dated 2099 too", s == 400, f"status {s}")
+    check("...so nothing pinned the bird's derived state",
+          animal_state(dd_animal) == ("in_care", ""), animal_state(dd_animal))
+    # A date-only value normalises to midnight UTC, which is still outside the
+    # window — the guard reads the STORED value, not the string sent.
+    s, _ = req("POST", "/api/collections/dispositions/records", T,
+               {"case": dd_case, "type": "released", "org": ORG,
+                "disposed_at": stamp(days=3)[:10]})
+    check("a date-only future value is refused as well", s == 400, f"status {s}")
+    # It is a window, not "any instant after now": a client clock running ahead,
+    # or a device as far east as UTC+14, must still be able to record a release.
+    s, dd_ok = req("POST", "/api/collections/dispositions/records", T,
+                   {"case": dd_case, "type": "released", "org": ORG,
+                    "disposed_at": stamp(hours=1)})
+    check("a disposition an hour ahead still goes through (clock skew)",
+          s == 200, f"status {s}")
+    check("...and decides the bird's state as usual",
+          animal_state(dd_animal)[0] == "at_large_released",
+          animal_state(dd_animal))
+    # The update leg fires only on a CHANGED date, so correcting anything else
+    # on an existing row is untouched.
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{dd_ok['id']}",
+               T, {"disposed_at": stamp(days=2)})
+    check("re-dating an existing disposition into the future is refused",
+          s == 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{dd_ok['id']}",
+               T, {"reason": "Wildbahn, unauffällig"})
+    check("...while editing the rest of it still works", s == 200, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{dd_ok['id']}",
+               T, {"disposed_at": "2026-04-04 10:00:00.000Z"})
+    check("...and re-dating it into the past still works", s == 200,
+          f"status {s}")
 
     # ── supervisor deletion + animal cascade (federfall-vfl7) ────────────────
     # `animals.delete` and `cases.delete` have been supervisor-only since

@@ -41,8 +41,23 @@
 // `disposed_at` is client-writable (finder_retention.pb.js says so out loud, and
 // that is why the retention window does NOT use it), so a carer can order their
 // own dispositions as they like. That is not an escalation — they can already
-// record any disposition on a case they hold, which decides the same state — but
-// it is the reason nothing security-relevant may key off this ordering.
+// record any disposition on a case they hold, which decides the same state.
+//
+// This file used to end that paragraph with "which is the reason nothing
+// security-relevant may key off this ordering", written in the same line that
+// made 1700000077 key off `current_aviary` — i.e. off exactly this output. The
+// sentence was wrong, not the code, so it is gone (federfall-j163). What is true:
+//
+//   * an ORDER a client picks does decide a custody pointer, so the dates it can
+//     pick are bounded — `disposition_dates.pb.js` refuses a `disposed_at` more
+//     than a day in the future, because a disposition is a thing that HAPPENED
+//     and a future one could otherwise pin a bird's derived state indefinitely;
+//   * within the past, ordering stays the writer's to state, and it has to be:
+//     backfilling an archive is entering old events in whatever order they are
+//     found. A carer who dates a placement just-past on a case they still hold
+//     can still make their own enclosure the bird's current one — that is
+//     tracked as federfall-mpm4, and its fix is about WHO may write a
+//     disposition, not about this ordering.
 //
 // ── Why one module rather than four copies ──────────────────────────────────
 // It had four writers: the disposition create / update / delete hooks and
