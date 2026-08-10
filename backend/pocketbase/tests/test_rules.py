@@ -1123,6 +1123,79 @@ def main():
           f"status {s}")
     req("DELETE", f"/api/collections/animals/records/{ti77_doomed}", T)
 
+    # ── identity-layer write guards (federfall-1hgp + federfall-7no9) ────────
+    # 1700000075. Everything here is driven with USER tokens on purpose: a
+    # superuser bypasses collection rules entirely, so the ti77 block above
+    # (which uses T) could not have caught any of this.
+    #
+    # 1hgp: `org` is the scope everything hangs on. An UPDATE rule resolves a
+    # plain field reference against the STORED record, so `org = @request.auth.org`
+    # passes on the row's OLD org while the body moves it to another tenant —
+    # and since the children keep pointing at it, a supervisor in the target org
+    # deleting that bird cascades away the first org's history.
+    #
+    # 7no9: `current_aviary` / `lifetime_status` are derived from the case's
+    # dispositions. A client that can set them directly can relocate a bird with
+    # no disposition to explain it, or declare it dead.
+    print("\n[identity layer write guards]")
+    g_animal = mk(T, "animals", {"species": "Stadttaube", "name": "Wächter",
+                                 "org": ORG})["id"]
+    g_marking = mk(T, "markings", {"animal": g_animal, "type": ti77_type,
+                                   "code": "DE-GUARD", "org": ORG})["id"]
+    g_weight = mk(T, "weights", {"animal": g_animal, "weight_g": 300,
+                                 "org": ORG})["id"]
+    g_egg = mk(T, "egg_records", {"animal": g_animal, "count": 1,
+                                  "org": ORG})["id"]
+
+    for coll, rec in (("animals", g_animal), ("markings", g_marking),
+                      ("weights", g_weight), ("egg_records", g_egg)):
+        s, _ = req("PATCH", f"/api/collections/{coll}/records/{rec}", toks["b"],
+                   {"org": org2})
+        check(f"{coll} cannot be pushed into another org", s >= 400, f"status {s}")
+    _, still = req("GET", f"/api/collections/animals/records/{g_animal}", toks["b"])
+    check("...and the bird is still where it was",
+          (still or {}).get("org") == ORG, still)
+    # Not even a supervisor: this is a tenant boundary, not a permission level.
+    s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}",
+               toks["sup"], {"org": org2})
+    check("a supervisor cannot either", s >= 400, f"status {s}")
+
+    for field, value in (("current_aviary", av), ("lifetime_status", "deceased")):
+        s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}",
+                   toks["b"], {field: value})
+        check(f"a client cannot write the derived {field}", s >= 400,
+              f"status {s}")
+        s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}",
+                   toks["sup"], {field: value})
+        check(f"...not even a supervisor ({field})", s >= 400, f"status {s}")
+
+    # The guards must not have cost the real edit paths anything: this is the
+    # whole app-facing surface of these three collections.
+    s, _ = req("PATCH", f"/api/collections/animals/records/{g_animal}", toks["b"],
+               {"name": "Umbenannt", "species": "Ringeltaube", "sex": "female"})
+    check("editing a bird's identity still works", s == 200, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/markings/records/{g_marking}",
+               toks["b"], {"code": "DE-NEU", "present_at_find": True})
+    check("editing a marking still works", s == 200, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/weights/records/{g_weight}", toks["b"],
+               {"weight_g": 305})
+    check("editing a weight still works", s == 200, f"status {s}")
+
+    # And the hooks that OWN the derived fields still write them: `app.save()`
+    # bypasses API rules, so a disposition remains the one way into an aviary.
+    g_case = mk(T, "cases", {"animal": g_animal, "active_carer": A,
+                             "org": ORG})["id"]
+    mk(toks["a"], "dispositions", {"case": g_case, "type": "placed_in_aviary",
+                                   "aviary": av, "org": ORG})
+    _, housed = req("GET", f"/api/collections/animals/records/{g_animal}", toks["b"])
+    check("a disposition still houses the bird the client could not",
+          (housed or {}).get("current_aviary") == av
+          and (housed or {}).get("lifetime_status") == "in_aviary", housed)
+    open_stays = listf(T, "aviary_stays",
+                       f'animal = "{g_animal}" && ended_at = ""')
+    check("...and the residency ledger recorded exactly one open stay",
+          len(open_stays) == 1 and open_stays[0]["aviary"] == av, open_stays)
+
     # ── supervisor deletion + animal cascade (federfall-vfl7) ────────────────
     # `animals.delete` and `cases.delete` have been supervisor-only since
     # 1700000010; 1700000057 makes `cases.animal` cascade so deleting a bird
@@ -3739,25 +3812,49 @@ def main():
           "Geheim" not in json.dumps(audit_for(ea_finder))
           and "4711" not in json.dumps(audit_for(ea_finder)), "PII leaked")
 
-    # Moving a bird between aviaries is an animal.updated. aviary_stays is a
-    # ledger aviary_stays.pb.js derives from it, so it is deliberately not a
-    # second event (and could not be one: the collection is superuser-only).
+    # Where a bird went is recorded on the DISPOSITION that sent it there, and
+    # nowhere else. `animals.current_aviary` is written by main.pb.js's reconcile
+    # through `app.save()`, and the emitters are onRecord*Request hooks — a
+    # derived write is not a request and emits nothing (the same property that
+    # keeps a cascade delete from writing a row per timeline child).
+    #
+    # This block used to move the bird with a direct PATCH and assert the
+    # resulting animal.updated. That path was the federfall-7no9 bug: a client
+    # relocating a resident with no disposition to explain it. 1700000075 closes
+    # it, which leaves the disposition as the ONLY witness — so `aviary` had to
+    # join CONTENT_FIELDS, or closing the hole would have blinded the log to
+    # every aviary placement.
     ea_aviary = mk(toks["sup"], "aviaries", {"name": "Voliere Audit",
                                              "org": ORG})["id"]
     check("creating an aviary is logged",
           len(audit_for(ea_aviary, "aviary.created")) == 1, "missing")
-    req("PATCH", f"/api/collections/animals/records/{ea_animal}", toks["sup"],
-        {"current_aviary": ea_aviary})
-    moved = (audit_for(ea_animal, "animal.updated") or [{}])[0].get("changes") or []
-    check("moving a bird is one animal.updated carrying the aviary",
-          any(c["field"] == "current_aviary" and c["to"] == ea_aviary
-              for c in moved), moved)
+    # A dedicated bird: disposing `ea_case` would close the case that the exam,
+    # microscopy, share and report checks below still need open.
+    ea_resident = mk(toks["a"], "animals", {"species": "Stadttaube",
+                                            "name": "Bewohner", "org": ORG})["id"]
+    ea_res_case = mk(toks["a"], "cases", {"animal": ea_resident,
+                                          "active_carer": A, "org": ORG})["id"]
+    ea_placed = mk(toks["a"], "dispositions",
+                   {"case": ea_res_case, "aviary": ea_aviary,
+                    "type": "placed_in_aviary", "org": ORG})["id"]
+    placed = (audit_for(ea_placed, "disposition.created") or [{}])[0]
+    pc = placed.get("changes") or []
+    check("placing a bird names the enclosure it went into",
+          any(c["field"] == "aviary" and c["to"] == ea_aviary for c in pc), pc)
     # federfall-ybua.2: a relation's value is an id, so the change also carries
-    # what it pointed AT. Without this the most interesting animal.updated in
-    # the log read "Voliere: 8k2m4p7q1w3e5r9".
+    # what it pointed AT. Without this the most interesting disposition in the
+    # log read "Voliere: 8k2m4p7q1w3e5r9".
     check("...and what that aviary is CALLED",
-          any(c["field"] == "current_aviary" and c.get("to_label")
-              == "Voliere Audit" for c in moved), moved)
+          any(c["field"] == "aviary" and c.get("to_label") == "Voliere Audit"
+              for c in pc), pc)
+    check("...attributed to the human who filed it",
+          placed.get("actor_id") == A, placed)
+    # The derived writes are deliberately silent: neither the animal's own
+    # current_aviary/lifetime_status change nor the residency ledger row is a
+    # second event. The disposition stands for all three.
+    check("the derived animal write is not a second event",
+          len(audit_for(ea_resident, "animal.updated")) == 0,
+          audit_for(ea_resident, "animal.updated"))
     check("the derived residency ledger is not a second event",
           len(listf(toks["sup"], "audit_events",
                     'subject_collection = "aviary_stays"')) == 0, "leaked")

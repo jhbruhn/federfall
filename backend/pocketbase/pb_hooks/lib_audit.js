@@ -839,7 +839,15 @@ const CONTENT_FIELDS = {
   medication_administrations: ["dose", "dose_unit", "administered_at"],
   placements: ["moved_in_at", "where_holding"],
   // `type` is the one that matters: released, died, euthanised, transferred.
-  dispositions: ["type", "disposed_at", "release_type", "transfer_type"],
+  // `aviary` matters as much as the type: since 1700000075 a client cannot
+  // write `animals.current_aviary` at all, and the reconcile that does write it
+  // runs through `app.save()` — which fires no request hook and so emits
+  // nothing. This disposition is therefore the ONLY record of which enclosure
+  // the bird went into. relationTarget() already knows `aviary` names an
+  // aviary, so the label comes for free (federfall-7no9).
+  dispositions: [
+    "type", "disposed_at", "aviary", "release_type", "transfer_type",
+  ],
   exams: ["examined_at", "body_condition", "hydration", "mentation"],
   exam_findings: ["system", "status"],
   egg_records: ["count", "laid_at", "fate"],
