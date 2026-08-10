@@ -527,10 +527,19 @@ def main():
     check("edit-share can view case", can_view(toks["c"]))
     check("edit-share can edit case", can_edit(toks["c"]))
     check("edit-share can log administration", can_create_admin(toks["c"]))
-    # weights are an animal-level layer (5yg.4): org-wide, not case-private —
-    # so any active org member may add one, with or without a case.
-    check("any org member can add a weight", can_create_weight(toks["d"]))
-    s, _ = req("POST", "/api/collections/weights/records", toks["d"],
+    # Weights are animal-level (5yg.4) and READABLE org-wide, but since
+    # 1700000079 recording one follows CUSTODY (federfall-q7ks.3): the bird's
+    # carer and its edit-share holders, not the whole org. `animal` is held by A
+    # through this open case, and by C through the edit share on it.
+    check("the bird's carer can add a weight", can_create_weight(toks["a"]))
+    check("so can an edit-share holder", can_create_weight(toks["c"]))
+    check("a read-share holder CANNOT add a weight",
+          not can_create_weight(toks["b"]))
+    check("an outsider CANNOT add a weight", not can_create_weight(toks["d"]))
+    # Case-less weights are still the point of the animal-level layer — an
+    # aviary resident gets weighed without any case at all. Custody, not a case,
+    # is what is required.
+    s, _ = req("POST", "/api/collections/weights/records", toks["a"],
                {"animal": animal, "weight_g": 305, "org": ORG})
     check("a weight can be recorded with no case", s == 200, f"status {s}")
     # coordinator: all-read, no edit
@@ -659,15 +668,39 @@ def main():
     s, wA = req("POST", "/api/collections/weights/records", toks["a"],
                 {"animal": animal, "weight_g": 321, "org": ORG, "author": A})
     check("setup: A logs a weight", s == 200, f"{s} {wA}")
-    s, _ = req("DELETE", f"/api/collections/weights/records/{wA['id']}", toks["b"])
-    check("another member CANNOT delete A's weight", s != 204, f"status {s}")
+    # C, not B: since 1700000079 deleting also requires custody, so the actor
+    # here has to HOLD the bird — otherwise this passes on missing custody and
+    # stops testing the author guard it exists for. C holds `animal` through the
+    # edit share on `case`; B has only a read share.
+    s, _ = req("DELETE", f"/api/collections/weights/records/{wA['id']}", toks["c"])
+    check("another member who holds the bird still CANNOT delete A's weight",
+          s != 204, f"status {s}")
     s, _ = req("DELETE", f"/api/collections/weights/records/{wA['id']}", toks["a"])
     check("the author can delete their own weight", s == 204, f"status {s}")
-    s, wB = req("POST", "/api/collections/weights/records", toks["b"],
-                {"animal": animal, "weight_g": 322, "org": ORG, "author": B})
-    check("setup: B logs a weight", s == 200, f"{s} {wB}")
-    s, _ = req("DELETE", f"/api/collections/weights/records/{wB['id']}", toks["sup"])
+    s, wC = req("POST", "/api/collections/weights/records", toks["c"],
+                {"animal": animal, "weight_g": 322, "org": ORG, "author": C})
+    check("setup: C logs a weight", s == 200, f"{s} {wC}")
+    s, _ = req("DELETE", f"/api/collections/weights/records/{wC['id']}", toks["sup"])
     check("a supervisor can delete any weight", s == 204, f"status {s}")
+    # And custody is a floor under the author rule, not a replacement for it:
+    # once the bird has left your care its history is not yours to erase.
+    s, wOwn = req("POST", "/api/collections/weights/records", toks["a"],
+                  {"animal": animal, "weight_g": 323, "org": ORG})
+    check("setup: A logs another weight", s == 200, f"{s} {wOwn}")
+    gone_animal = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    gone_case = mk(T, "cases", {"animal": gone_animal, "active_carer": A,
+                                "org": ORG})["id"]
+    s, wGone = req("POST", "/api/collections/weights/records", toks["a"],
+                   {"animal": gone_animal, "weight_g": 324, "org": ORG})
+    check("setup: A logs a weight on a second bird", s == 200, f"{s} {wGone}")
+    mk(T, "dispositions", {"case": gone_case, "type": "released", "org": ORG})
+    s, _ = req("DELETE", f"/api/collections/weights/records/{wGone['id']}",
+               toks["a"])
+    check("the author CANNOT delete it once the bird has left their care",
+          s != 204, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/weights/records/{wGone['id']}",
+               toks["sup"])
+    check("...but a supervisor still can", s == 204, f"status {s}")
 
     # ── authorship is the server's to state (federfall-vfry) ────────────────
     # `author` / `created_by` / `applied_by` and the rest of the actor fields
@@ -678,16 +711,20 @@ def main():
     # weight's own author rights over it, so a spoofed author is also a way to
     # hand someone else the power to erase the row.
     print("\n[authorship pinning]")
-    s, spoof = req("POST", "/api/collections/weights/records", toks["d"],
+    # C rather than D: recording a weight needs custody since 1700000079, and C
+    # holds `animal` through the edit share on `case`. The point is unchanged —
+    # someone with legitimate write access still cannot attribute the entry to a
+    # colleague.
+    s, spoof = req("POST", "/api/collections/weights/records", toks["c"],
                    {"animal": animal, "weight_g": 333, "org": ORG, "author": A})
-    check("D can log a weight naming A as author", s == 200, f"{s} {spoof}")
-    check("...but the stored author is D, not A",
-          spoof.get("author") == D, f"{spoof.get('author')} (A={A}, D={D})")
+    check("C can log a weight naming A as author", s == 200, f"{s} {spoof}")
+    check("...but the stored author is C, not A",
+          spoof.get("author") == C, f"{spoof.get('author')} (A={A}, C={C})")
     s, patched = req("PATCH",
                      f"/api/collections/weights/records/{spoof['id']}",
-                     toks["d"], {"author": A, "weight_g": 334})
+                     toks["c"], {"author": A, "weight_g": 334})
     check("an update cannot rewrite authorship either",
-          s == 200 and patched.get("author") == D, f"{s} {patched.get('author')}")
+          s == 200 and patched.get("author") == C, f"{s} {patched.get('author')}")
     check("...while the rest of the update still lands",
           patched.get("weight_g") == 334, patched.get("weight_g"))
     # A carer with edit rights on the case cannot forge a colleague's clinical
@@ -977,6 +1014,14 @@ def main():
     print("\n[egg_records]")
     animal2 = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
     animal_org2 = mk(T, "animals", {"species": "Stadttaube", "org": org2})["id"]
+    # A holds animal2 as well, and C through an edit share — the egg record gets
+    # reassigned onto it below, and since 1700000079 writing an animal-scoped row
+    # needs custody of the bird it hangs off. Without this the reassignment would
+    # strand the record where its own author can no longer touch it.
+    animal2_case = mk(T, "cases", {"animal": animal2, "active_carer": A,
+                                   "org": ORG})["id"]
+    mk(T, "case_shares", {"case": animal2_case, "shared_with": C,
+                          "shared_by": A, "access": "edit", "org": ORG})
     s, egg = req("POST", "/api/collections/egg_records/records", toks["a"], {
         "animal": animal, "laid_at": "2026-06-01 07:00:00.000Z", "count": 2,
         "fertility": "unknown", "fate": "in_nest", "attribution": "presumed",
@@ -990,9 +1035,13 @@ def main():
     check("any org member can view an egg record", s == 200, f"status {s}")
     check("egg records are org-scoped readable",
           len(listf(toks["d"], "egg_records", f"id = \"{egg['id']}\"")) == 1)
+    # Reading is org-wide; WRITING follows custody since 1700000079 (q7ks.3).
     s, _ = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}",
                toks["d"], {"notes": "Windei"})
-    check("any org member can edit an egg record", s == 200, f"status {s}")
+    check("an outsider CANNOT edit an egg record", s >= 400, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}",
+               toks["a"], {"notes": "Windei"})
+    check("the bird's carer can", s == 200, f"status {s}")
     # Cross-org: neither readable nor writable.
     s, _ = req("GET", f"/api/collections/egg_records/records/{egg['id']}", te)
     check("other-org member CANNOT view an egg record", s != 200, f"status {s}")
@@ -1005,7 +1054,7 @@ def main():
 
     # Reassignment: `animal` IS mutable (the 1700000043 exemption), `org` is not.
     s, moved = req("PATCH", f"/api/collections/egg_records/records/{egg['id']}",
-                   toks["b"], {"animal": animal2, "attribution": "confirmed"})
+                   toks["a"], {"animal": animal2, "attribution": "confirmed"})
     check("egg.animal IS mutable (reassignment)",
           s == 200 and moved.get("animal") == animal2
           and moved.get("attribution") == "confirmed", f"{s} {moved}")
@@ -1049,17 +1098,21 @@ def main():
           file_status(f"{egg_file}?thumb=200x200&token={file_token(toks['d'])}")
           == 200)
 
-    # delete: author or supervisor only (1700000047's stance).
+    # delete: author or supervisor only (1700000047's stance), now with custody
+    # as a floor under it (1700000079). C is used rather than an outsider so the
+    # refusal is the AUTHOR guard talking and not a missing custody — the record
+    # sits on animal2, which both A and C hold.
     s, _ = req("DELETE", f"/api/collections/egg_records/records/{egg['id']}",
-               toks["b"])
-    check("another member CANNOT delete A's egg record", s != 204, f"status {s}")
+               toks["c"])
+    check("another member who holds the bird CANNOT delete A's egg record",
+          s != 204, f"status {s}")
     s, _ = req("DELETE", f"/api/collections/egg_records/records/{egg['id']}",
                toks["a"])
     check("the author can delete their own egg record", s == 204, f"status {s}")
-    s, eggB = req("POST", "/api/collections/egg_records/records", toks["b"],
-                  {"animal": animal, "count": 1, "author": B, "org": ORG})
-    check("setup: B logs an egg record", s == 200, f"{s} {eggB}")
-    s, _ = req("DELETE", f"/api/collections/egg_records/records/{eggB['id']}",
+    s, eggC = req("POST", "/api/collections/egg_records/records", toks["c"],
+                  {"animal": animal2, "count": 1, "author": C, "org": ORG})
+    check("setup: C logs an egg record", s == 200, f"{s} {eggC}")
+    s, _ = req("DELETE", f"/api/collections/egg_records/records/{eggC['id']}",
                toks["sup"])
     check("a supervisor can delete any egg record", s == 204, f"status {s}")
     # Leave one row behind so the guest sweep's member check stays non-vacuous.
@@ -1335,6 +1388,44 @@ def main():
                {"species": "Stadttaube", "org": ORG})
     check("a bird created into NO enclosure stays open to any member",
           s == 200, f"status {s}")
+
+    # ── custody reaches the animal-scoped records too (q7ks.3) ──────────────
+    # 1700000079. Same predicate as above, one hop further through `animal.` —
+    # and that hop is the risky one: cases_repository.dart:301 documents a
+    # forward-then-back path (`animal.markings_via_animal`) where a second clause
+    # on the same back-relation is satisfied INDEPENDENTLY. If that applied here,
+    # the trap row below would let a former carer through whenever the bird also
+    # carried somebody else's open case. It does not (probed on 0.39.8; the
+    # difference appears to be `?=` any-of vs the `=`/`~` all-of forms in that
+    # comment), so this is the pin. Reads stay org-wide throughout.
+    print("\n[custody: animal-scoped records]")
+    for coll, payload in (
+        ("weights", {"weight_g": 300}),
+        ("markings", {"type": ti77_type, "code": "KEEP-1"}),
+        ("egg_records", {"count": 1}),
+    ):
+        # The keeper branch: B keeps cu_av, where cu_resident lives, and that
+        # bird has no case at all — so nothing but the enclosure can grant this.
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                   {"animal": cu_resident, "org": ORG, **payload})
+        check(f"the keeper can record a {coll[:-1]} on their resident",
+              s == 200, f"status {s}")
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["a"],
+                   {"animal": cu_resident, "org": ORG, **payload})
+        check(f"a non-keeper carer cannot ({coll})", s >= 400, f"status {s}")
+        # Org-wide READ is untouched: re-identification depends on it.
+        rows = listf(toks["a"], coll, f'animal = "{cu_resident}"')
+        check(f"...but can still READ that {coll[:-1]}", len(rows) >= 1, rows)
+        # The trap: B is the carer of a CLOSED case on cu_two, which also
+        # carries A's OPEN one.
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["b"],
+                   {"animal": cu_two, "org": ORG, **payload})
+        check(f"a former carer cannot record a {coll[:-1]} while the bird "
+              f"carries another's open case", s >= 400, f"status {s}")
+        s, _ = req("POST", f"/api/collections/{coll}/records", toks["a"],
+                   {"animal": cu_two, "org": ORG, **payload})
+        check(f"...while the current carer can ({coll})", s == 200,
+              f"status {s}")
 
     # ── supervisor deletion + animal cascade (federfall-vfl7) ────────────────
     # `animals.delete` and `cases.delete` have been supervisor-only since
@@ -3749,9 +3840,30 @@ def main():
     ea_adm = mk(toks["a"], "medication_administrations",
                 {"case": ea_case, "medication": ea_med, "drug": "Meloxicam",
                  "administered_at": "2026-06-20 08:00:00.000Z", "org": ORG})["id"]
+    # federfall-z9lh — "the bird already wore this when it was found" is a
+    # claim about provenance, not a formatting choice: it has to be in
+    # CONTENT_FIELDS, or correcting it later leaves no trace of the correction.
+    #
+    # Corrected BEFORE the disposition below, because since 1700000079 rewriting
+    # a marking needs custody of the bird and releasing it ends that — an
+    # ex-carer does not get to revise what a bird was wearing after it has gone.
+    req("PATCH", f"/api/collections/markings/records/{ea_marking}", toks["a"],
+        {"present_at_find": True})
+    mk_changes = [c for r in audit_for(ea_marking, "marking.updated")
+                  for c in (r.get("changes") or [])
+                  if c.get("field") == "present_at_find"]
+    check("flipping present_at_find is recorded",
+          len(mk_changes) == 1 and mk_changes[0].get("to") is True,
+          mk_changes)
+
     ea_disp = mk(toks["a"], "dispositions",
                  {"case": ea_case, "type": "released",
                   "disposed_at": "2026-06-21 09:00:00.000Z", "org": ORG})["id"]
+    # ...and once it has: the same edit is now refused.
+    s, _ = req("PATCH", f"/api/collections/markings/records/{ea_marking}",
+               toks["a"], {"present_at_find": False})
+    check("an ex-carer cannot revise a released bird's marking", s >= 400,
+          f"status {s}")
     for what, sid, action in (
         ("journal", ea_journal, "journal.created"),
         ("marking", ea_marking, "marking.created"),
@@ -3765,18 +3877,6 @@ def main():
     check("the marking is labelled by its code",
           (audit_for(ea_marking) or [{}])[0].get("subject_label") == "AB-12",
           "no label")
-
-    # federfall-z9lh — "the bird already wore this when it was found" is a
-    # claim about provenance, not a formatting choice: it has to be in
-    # CONTENT_FIELDS, or correcting it later leaves no trace of the correction.
-    req("PATCH", f"/api/collections/markings/records/{ea_marking}", toks["a"],
-        {"present_at_find": True})
-    mk_changes = [c for r in audit_for(ea_marking, "marking.updated")
-                  for c in (r.get("changes") or [])
-                  if c.get("field") == "present_at_find"]
-    check("flipping present_at_find is recorded",
-          len(mk_changes) == 1 and mk_changes[0].get("to") is True,
-          mk_changes)
 
     # federfall-by7w.1 — an event that does not say WHAT it was about is not
     # worth writing. Every audited collection has to produce a label.

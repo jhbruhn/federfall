@@ -41,8 +41,13 @@ bool caseEditableBy(Case medicalCase, AppUser? me, List<CaseShare> shares) {
 
 /// Whether [me] may delete [weight]. Mirrors the server delete rule
 /// (1700000047): a weight is shared clinical history, so destroying one is
-/// reserved for its author (correct-a-typo path) or a supervisor. Recording
-/// and editing stay open to the whole org like the rest of the identity layer.
+/// reserved for its author (correct-a-typo path) or a supervisor.
+///
+/// Since 1700000079 (federfall-q7ks.3) that author rule sits on top of CUSTODY
+/// rather than of org-wide access: recording, editing and deleting all require
+/// holding the bird, so an author who no longer does cannot delete either.
+/// This predicate therefore answers only "is the author guard satisfied" —
+/// combine it with the custody check before offering the control.
 bool weightDeletableBy(Weight weight, AppUser? me) =>
     me != null &&
     (me.role == UserRole.supervisor ||
@@ -51,8 +56,11 @@ bool weightDeletableBy(Weight weight, AppUser? me) =>
 /// Whether [me] may delete [egg]. Mirrors the server delete rule
 /// (1700000056, which copies 1700000047's stance for weights): a laying record
 /// is shared history of the animal, so destroying one is reserved for its
-/// author or a supervisor. Logging, editing and re-attributing stay open to the
-/// whole org like the rest of the identity layer.
+/// author or a supervisor.
+///
+/// As with [weightDeletableBy], since 1700000079 logging, editing,
+/// re-attributing and deleting all require CUSTODY of the bird — this answers
+/// the author half only.
 bool eggDeletableBy(EggRecord egg, AppUser? me) =>
     me != null &&
     (me.role == UserRole.supervisor ||
