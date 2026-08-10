@@ -112,6 +112,56 @@ void main() {
     expect(find.byTooltip('Edit aviary'), findsNothing);
   });
 
+  // The keeper holds every bird in their enclosure, so placing one there is
+  // theirs to do — `animals.createRule` has said so since 1700000077 while the
+  // FAB was still gated on coordinator+ (federfall-q7ks.6). Editing the
+  // enclosure itself is a different rule and stays coordinator+.
+  group('add-resident FAB', () {
+    testWidgets("the enclosure's keeper may add a resident", (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
+        user: const AppUser(id: 'u1', email: 'k@x.org', role: UserRole.carer),
+      );
+
+      expect(find.text('Add resident'), findsOneWidget);
+      expect(find.byTooltip('Edit aviary'), findsNothing);
+    });
+
+    testWidgets('another carer may not', (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+        user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+      );
+
+      expect(find.text('Add resident'), findsNothing);
+    });
+
+    testWidgets('a coordinator may, whoever keeps it', (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+        user: const AppUser(
+          id: 'u1',
+          email: 'c@x.org',
+          role: UserRole.coordinator,
+        ),
+      );
+
+      expect(find.text('Add resident'), findsOneWidget);
+    });
+
+    testWidgets('a signed-out session may not', (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+      );
+
+      expect(find.text('Add resident'), findsNothing);
+    });
+  });
+
   testWidgets('narrow pane keeps Bestand/Pflege behind tabs', (tester) async {
     await _pump(
       tester,

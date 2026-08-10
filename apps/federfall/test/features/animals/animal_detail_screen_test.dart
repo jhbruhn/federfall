@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
@@ -25,6 +26,8 @@ Future<void> _pump(
   List<Exam> exams = const [],
   UserRole? role,
   PbAnimalsRepository? animals,
+  bool canWrite = true,
+  bool canOpenCase = true,
 }) async {
   // The detail is a lazy ListView of cards; the default 600x800 test viewport
   // stops building at the weight card, so later sections would never mount.
@@ -53,6 +56,14 @@ Future<void> _pump(
             MarkingType(id: 'mktp_assoc', label: 'Association ring'),
           ],
         ),
+        // Custody, stated explicitly. Every write control on this screen is
+        // gated on it (1700000077/79), so a fixture that left it unresolved
+        // would render no controls and each assertion below would pass for the
+        // wrong reason. The predicate itself is covered in roles_test.dart.
+        canWriteAnimalProvider('a1').overrideWith((ref) async => canWrite),
+        canOpenCaseOnAnimalProvider(
+          'a1',
+        ).overrideWith((ref) async => canOpenCase),
         if (animals != null)
           animalsRepositoryProvider.overrideWith((ref) async => animals),
       ],
@@ -432,5 +443,80 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Merge duplicate…'), findsOneWidget);
     expect(find.text('Delete animal'), findsOneWidget);
+  });
+
+  // Custody gating, both directions (federfall-q7ks.6). One role per test for
+  // the const-MaterialApp reason noted above.
+  const heldLifetime = AnimalLifetime(
+    animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
+    markings: [
+      Marking(id: 'm1', animal: 'a1', type: 'mktp_assoc', isActive: true),
+    ],
+    cases: [],
+    accessibleCaseIds: {},
+  );
+
+  testWidgets('a holder gets every write control and no read-only badge', (
+    tester,
+  ) async {
+    await _pump(tester, heldLifetime, role: UserRole.carer);
+
+    expect(find.byTooltip('Edit animal'), findsOneWidget);
+    expect(find.byTooltip('Add weight'), findsOneWidget);
+    expect(find.byTooltip('Add egg laid'), findsOneWidget);
+    expect(find.byTooltip('Apply marking'), findsOneWidget);
+    expect(find.byTooltip('New case'), findsOneWidget);
+    expect(find.byTooltip('Options'), findsOneWidget);
+    expect(find.text('Read-only'), findsNothing);
+  });
+
+  testWidgets('a non-holder gets none of them, and is told why', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      heldLifetime,
+      role: UserRole.carer,
+      canWrite: false,
+      canOpenCase: false,
+    );
+
+    expect(find.byTooltip('Edit animal'), findsNothing);
+    expect(find.byTooltip('Add weight'), findsNothing);
+    expect(find.byTooltip('Add egg laid'), findsNothing);
+    expect(find.byTooltip('Apply marking'), findsNothing);
+    expect(find.byTooltip('New case'), findsNothing);
+    expect(find.byTooltip('Options'), findsNothing);
+    // The record itself still reads — org-wide, for re-identification.
+    expect(find.text('Pip'), findsWidgets);
+    // The absence is explained rather than mysterious.
+    expect(find.text('Read-only'), findsOneWidget);
+  });
+
+  // A bird at large is anyone's to admit even though nobody may write about
+  // it: that asymmetry is `animalAdmissibleBy` vs `animalWritableBy`, and the
+  // screen has to keep the two apart.
+  testWidgets('a bird nobody holds can still be admitted', (tester) async {
+    await _pump(
+      tester,
+      heldLifetime,
+      role: UserRole.carer,
+      canWrite: false,
+    );
+
+    expect(find.byTooltip('New case'), findsOneWidget);
+    expect(find.byTooltip('Edit animal'), findsNothing);
+  });
+
+  testWidgets('a carer holding the bird is still not offered marking delete', (
+    tester,
+  ) async {
+    await _pump(tester, heldLifetime, role: UserRole.carer);
+    await tester.tap(find.byTooltip('Options'));
+    await tester.pumpAndSettle();
+
+    // `markings.delete` is supervisor-only (1700000010).
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Delete'), findsNothing);
   });
 }

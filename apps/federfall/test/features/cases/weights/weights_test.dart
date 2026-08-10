@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
 import 'package:federfall/features/cases/weights/weight_entry_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -22,15 +23,20 @@ void main() {
     weights = MockWeightsRepo();
   });
 
+  // A weight follows CUSTODY of the bird since 1700000079, so the fixture has
+  // to grant it: without this the menu simply never renders and every
+  // author-rule assertion below would pass for the wrong reason.
   Future<void> pump(
     WidgetTester tester,
     Widget child, {
     AppUser me = const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+    bool holdsBird = true,
   }) async {
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith((ref) async => me),
         weightsRepositoryProvider.overrideWith((ref) async => weights),
+        canWriteAnimalProvider('a1').overrideWith((ref) async => holdsBird),
       ],
     );
     addTearDown(container.dispose);
@@ -146,6 +152,30 @@ void main() {
 
       expect(find.text('Edit'), findsOneWidget);
       expect(find.text('Delete'), findsNothing);
+    });
+
+    testWidgets('no edit menu at all on a bird the author no longer holds', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const WeightEntryTile(
+          weight: Weight(
+            id: 'w1',
+            animal: 'a1',
+            caseId: 'c1',
+            weightG: 248,
+            author: 'u1',
+          ),
+          caseId: 'c1',
+        ),
+        holdsBird: false,
+      );
+
+      // Their own measurement, and still nothing: custody is a floor under the
+      // author rule, not an alternative to it (1700000079).
+      expect(find.text('248 g'), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
     });
 
     testWidgets("a supervisor may delete anyone's weight", (tester) async {

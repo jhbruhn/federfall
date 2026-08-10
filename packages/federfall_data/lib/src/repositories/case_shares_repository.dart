@@ -16,4 +16,20 @@ class PbCaseSharesRepository extends PbRepository<CaseShare> {
     filter: filterExpr('case = {:c}', {'c': caseId}),
     expand: 'shared_with',
   );
+
+  /// Every `edit` share held by [userId], across all cases — the share branch
+  /// of the custody predicate (1700000077), in ONE request.
+  ///
+  /// Asked user-wide rather than per case on purpose: custody has to be
+  /// answered for a bird whose cases the asker may not be able to read at all,
+  /// and a per-case lookup would put one request per case into a screen that
+  /// already has the animal's whole history (federfall-trep). The read rule
+  /// scopes this to the user's own shares, so it stays as small as their
+  /// caseload.
+  Future<List<CaseShare>> editSharedWith(String userId) => list(
+    filter: filterExpr('shared_with = {:u} && access = {:a}', {
+      'u': userId,
+      'a': ShareAccess.edit.wire,
+    }),
+  );
 }

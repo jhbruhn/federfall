@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
@@ -16,6 +17,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// showing the measured weight, its date, an optional note and an edit/delete
 /// menu. Delete only appears for the weight's author or a supervisor,
 /// mirroring the server rule (federfall-tha).
+///
+/// Since 1700000079 a weight is only writable by whoever holds the BIRD, which
+/// is not the same question as [canEdit]: the active carer of a *disposed* case
+/// may still write its journal while the bird has moved on, so the menu needs
+/// both. [weightDeletableBy] answers only the author half and is ANDed with
+/// custody here for the same reason.
 class WeightEntryTile extends ConsumerWidget {
   const WeightEntryTile({
     required this.weight,
@@ -60,13 +67,15 @@ class WeightEntryTile extends ConsumerWidget {
     final date = weight.measuredAt ?? weight.created;
     final notes = weight.notes;
     final me = ref.watch(currentUserProvider).value;
-    final canDelete = weightDeletableBy(weight, me);
+    final holdsBird =
+        ref.watch(canWriteAnimalProvider(weight.animal)).value ?? false;
+    final canDelete = holdsBird && weightDeletableBy(weight, me);
 
     return TimelineItem(
       icon: Icons.monitor_weight_outlined,
       date: formatLocalDate(materialL10n, date),
       isLast: isLast,
-      trailing: canEdit
+      trailing: canEdit && holdsBird
           ? TimelineEntryMenu(
               editLabel: l10n.weightEditAction,
               onEdit: () => _edit(context),

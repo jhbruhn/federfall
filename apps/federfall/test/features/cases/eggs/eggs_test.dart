@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/eggs/egg_entry_sheet.dart';
 import 'package:federfall/features/cases/eggs/egg_entry_tile.dart';
 import 'package:federfall/features/cases/eggs/egg_month_chart.dart';
@@ -207,16 +208,23 @@ void main() {
       ).thenReturn(Uri.parse('http://localhost/egg.jpg'));
     });
 
+    // An egg record follows CUSTODY of the bird since 1700000079, so the
+    // fixture has to grant it: without this the tile's menu never renders and
+    // the author-rule assertions below would pass for the wrong reason.
     Future<void> pump(
       WidgetTester tester,
       Widget child, {
       AppUser me = const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+      bool holdsBird = true,
     }) async {
       final container = ProviderContainer(
         overrides: [
           currentUserProvider.overrideWith((ref) async => me),
           eggRecordsRepositoryProvider.overrideWith((ref) async => eggs),
           imagePickerProvider.overrideWithValue(picker),
+          canWriteAnimalProvider(
+            'anml1',
+          ).overrideWith((ref) async => holdsBird),
         ],
       );
       addTearDown(container.dispose);
@@ -428,24 +436,40 @@ void main() {
       expect(find.text('1 egg'), findsOneWidget);
     });
 
-    testWidgets('only the author or a supervisor may delete', (tester) async {
+    // One pump per test: pumping twice leaves the first container's providers
+    // unmounting into a dispose timer that outlives the test body.
+    testWidgets("no delete on another member's record", (tester) async {
       await pump(
         tester,
         EggEntryTile(egg: _egg('e1', author: 'someone-else')),
       );
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
-      expect(find.text('Delete'), findsNothing);
-      await tester.tapAt(const Offset(5, 5));
-      await tester.pumpAndSettle();
 
-      await pump(
-        tester,
-        EggEntryTile(egg: _egg('e1', author: 'u1')),
-      );
+      expect(find.text('Edit'), findsOneWidget);
+      expect(find.text('Delete'), findsNothing);
+    });
+
+    testWidgets('the author may delete their own record', (tester) async {
+      await pump(tester, EggEntryTile(egg: _egg('e1', author: 'u1')));
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
+
       expect(find.text('Delete'), findsOneWidget);
+    });
+
+    testWidgets('the whole menu is gone on a bird the viewer does not hold', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        EggEntryTile(egg: _egg('e1', count: 2, author: 'u1')),
+        holdsBird: false,
+      );
+
+      // The record still reads; only writing it needs custody (1700000079).
+      expect(find.text('2 eggs'), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
     });
 
     testWidgets("a supervisor may delete another carer's record", (
@@ -548,6 +572,7 @@ void main() {
           animalsRepositoryProvider.overrideWith((ref) async => animals),
           markingsRepositoryProvider.overrideWith((ref) async => markings),
           eggsForAnimalProvider('anml1').overrideWith((ref) async => clutch),
+          canWriteAnimalProvider('anml1').overrideWith((ref) async => true),
         ],
       );
       addTearDown(container.dispose);

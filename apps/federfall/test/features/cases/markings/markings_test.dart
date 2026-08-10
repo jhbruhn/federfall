@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_tile.dart';
@@ -24,16 +25,24 @@ void main() {
     markings = MockMarkingsRepo();
   });
 
+  // A marking follows CUSTODY of the bird since 1700000079, and
+  // `markings.delete` stays supervisor-only (1700000010) — so the fixture
+  // states both explicitly.
+  // Without [holdsBird] the tile's menu never renders at all and every
+  // assertion below would pass for the wrong reason.
   Future<void> pump(
     WidgetTester tester,
     Widget child, {
     Case medicalCase = const Case(id: 'c1', animal: 'a1'),
+    UserRole role = UserRole.carer,
+    bool holdsBird = true,
   }) async {
     final container = ProviderContainer(
       overrides: [
+        canWriteAnimalProvider('a1').overrideWith((ref) async => holdsBird),
         currentUserProvider.overrideWith(
           (ref) async =>
-              const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+              AppUser(id: 'u1', email: 'me@x.org', org: 'org1', role: role),
         ),
         // The sheet reads the case's find moment to date a marking the bird
         // already carried.
@@ -274,6 +283,9 @@ void main() {
     expect(find.text('At find'), findsOneWidget);
   });
 
+  // Supervisor, because that is what the rule says: `markings.delete` has been
+  // supervisor-only since 1700000010 and 1700000079 left it that way. The tile
+  // used to offer it to every editor, which was a 403 waiting to happen.
   testWidgets('shows when and deletes after confirming', (tester) async {
     when(() => markings.delete('m1')).thenAnswer((_) async {});
 
@@ -288,6 +300,7 @@ void main() {
         ),
         caseId: 'c1',
       ),
+      role: UserRole.supervisor,
     );
 
     expect(find.textContaining('Removed'), findsOneWidget);
@@ -302,5 +315,44 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => markings.delete('m1')).called(1);
+  });
+  testWidgets('a carer is not offered the supervisor-only delete', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const MarkingTile(
+        marking: Marking(id: 'm1', animal: 'a1', type: 'mktp_finder'),
+        caseId: 'c1',
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Delete'), findsNothing);
+  });
+
+  testWidgets('no menu at all on a bird the viewer does not hold', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const MarkingTile(
+        marking: Marking(
+          id: 'm1',
+          animal: 'a1',
+          type: 'mktp_finder',
+          isActive: true,
+        ),
+        caseId: 'c1',
+      ),
+      holdsBird: false,
+    );
+
+    // The marking still reads — org-wide, because re-identification needs it.
+    expect(find.text("Finder's ring"), findsOneWidget);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
   });
 }

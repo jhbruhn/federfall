@@ -1,3 +1,4 @@
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/conditions/condition_entry_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
@@ -118,6 +119,13 @@ class _AddEntrySheet extends ConsumerWidget {
         .watch(dispositionsForCaseProvider(medicalCase.id))
         .value;
     final isDisposed = dispositions != null && dispositions.isNotEmpty;
+    // Weight, egg and marking are ANIMAL-scoped and follow custody since
+    // 1700000079, which `canEditCase` (the gate on the FAB that opens this
+    // sheet) does not imply: the carer of a disposed case may still write its
+    // journal after the bird has moved on. Disabled rather than hidden, like
+    // the outcome action above.
+    final holdsBird =
+        ref.watch(canWriteAnimalProvider(medicalCase.animal)).value ?? false;
 
     final groups = <(String, List<_Entry>)>[
       (
@@ -132,6 +140,7 @@ class _AddEntrySheet extends ConsumerWidget {
             _AddKind.weight,
             Icons.monitor_weight_outlined,
             l10n.timelineAddWeight,
+            enabled: holdsBird,
           ),
           _Entry(
             _AddKind.exam,
@@ -146,7 +155,12 @@ class _AddEntrySheet extends ConsumerWidget {
           // Enabled whatever the animal's recorded sex says: pigeon sex is
           // often unknown or wrong at intake, and a bird recorded as male that
           // lays an egg is exactly the case worth logging.
-          _Entry(_AddKind.egg, Icons.egg_outlined, l10n.timelineAddEgg),
+          _Entry(
+            _AddKind.egg,
+            Icons.egg_outlined,
+            l10n.timelineAddEgg,
+            enabled: holdsBird,
+          ),
           _Entry(
             _AddKind.condition,
             Icons.coronavirus_outlined,
@@ -177,6 +191,7 @@ class _AddEntrySheet extends ConsumerWidget {
             _AddKind.marking,
             Icons.sell_outlined,
             l10n.timelineAddMarking,
+            enabled: holdsBird,
           ),
           _Entry(
             _AddKind.placement,

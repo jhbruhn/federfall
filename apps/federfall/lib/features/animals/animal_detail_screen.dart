@@ -5,8 +5,10 @@ import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/animals/delete_record_dialogs.dart';
 import 'package:federfall/features/animals/edit_animal_sheet.dart';
+import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -32,6 +34,11 @@ import 'package:go_router/go_router.dart';
 /// Animal lifetime detail (FED-7.6): one animal's full record — identity,
 /// markings (active + historic) and every case newest-first. Cases the user
 /// cannot open render as a non-tappable stub (number / status / dates only).
+///
+/// Every write control here is gated on CUSTODY (`canWriteAnimal`, the mirror
+/// of 1700000077/79) rather than on a role: the record is org-wide readable, but
+/// writing about a bird requires holding it. A viewer who does not gets the
+/// read-only badge in the header instead of controls that would 403.
 ///
 /// State-restoration note (federfall-7ev8): the route's restoration id is
 /// pattern-scoped (`/animals/:id`), not per-[animalId]. If this screen ever
@@ -64,6 +71,9 @@ class AnimalDetailScreen extends ConsumerWidget {
         // A case shared with the signed-in user joins this animal's history
         // without changing the case record itself — only case_shares fires.
         'case_shares',
+        // Reassigning an enclosure's keeper moves custody of every resident at
+        // once, and nothing about the animal changes when it does.
+        'aviaries',
         'markings',
         'weights',
         'egg_records',
@@ -75,18 +85,34 @@ class AnimalDetailScreen extends ConsumerWidget {
         // animalLifetime watches these via .future, so invalidating it alone
         // would re-read their still-cached values. Touching the leaves cascades
         // up to animalLifetime, refreshing the case history + accessibility.
+        //
+        // Custody has leaves of its own for the same reason: its enclosure and
+        // its share branch, neither of which is reachable from this animal's
+        // record. The enclosure is invalidated by id — invalidating custody
+        // alone would re-read the cached aviary and learn nothing.
+        final aviaryId = ref
+            .read(animalByIdProvider(animalId))
+            .value
+            ?.currentAviary;
         ref
           ..invalidate(animalByIdProvider(animalId))
+          ..invalidate(myEditSharedCaseIdsProvider)
           ..invalidate(casesForAnimalProvider(animalId))
           ..invalidate(caseSummariesForAnimalProvider(animalId))
           ..invalidate(markingsForAnimalProvider(animalId))
           ..invalidate(weightsForAnimalProvider(animalId))
           ..invalidate(eggsForAnimalProvider(animalId))
           ..invalidate(examsForAnimalProvider(animalId));
+        if (aviaryId != null && aviaryId.isNotEmpty) {
+          ref.invalidate(aviaryByIdProvider(aviaryId));
+        }
       },
     );
     final lifetime = ref.watch(animalLifetimeProvider(animalId));
     final role = ref.watch(currentUserProvider).value?.role;
+    // One source of truth for every write control on this screen, exactly as
+    // `canEditCase` is on the case detail.
+    final canWrite = ref.watch(canWriteAnimalProvider(animalId)).value ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -94,7 +120,7 @@ class AnimalDetailScreen extends ConsumerWidget {
         automaticallyImplyLeading: !context.isExpanded,
         title: Text(l10n.animalDetailTitle),
         actions: [
-          if (lifetime.value case final data?)
+          if (lifetime.value case final data? when canWrite)
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: l10n.animalEditTitle,
@@ -134,17 +160,18 @@ class AnimalDetailScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
-              _Identity(data.animal),
+              _Identity(data.animal, canWrite: canWrite),
               const SizedBox(height: AppSpacing.md),
-              _WeightSection(animalId: data.animal.id),
+              _WeightSection(animalId: data.animal.id, canWrite: canWrite),
               const SizedBox(height: AppSpacing.md),
-              _EggSection(animalId: data.animal.id),
+              _EggSection(animalId: data.animal.id, canWrite: canWrite),
               const SizedBox(height: AppSpacing.md),
               _ExamsSection(animalId: data.animal.id),
               const SizedBox(height: AppSpacing.md),
               _MarkingsSection(
                 animalId: data.animal.id,
                 markings: data.markings,
+                canWrite: canWrite,
               ),
               const SizedBox(height: AppSpacing.md),
               _CasesSection(
@@ -164,9 +191,14 @@ class AnimalDetailScreen extends ConsumerWidget {
 /// name + species/sex + lifetime-status chip) the case detail screen uses, so
 /// the two headers look identical.
 class _Identity extends StatelessWidget {
-  const _Identity(this.animal);
+  const _Identity(this.animal, {required this.canWrite});
 
   final Animal animal;
+
+  /// Whether the viewer holds this bird. False turns the avatar's photo edit
+  /// off and adds the read-only badge, the same way the case header explains
+  /// its own missing controls rather than leaving their absence a mystery.
+  final bool canWrite;
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +215,17 @@ class _Identity extends StatelessWidget {
       title: hasName ? name : animal.species,
       subtitle: sub,
       chipLabel: status == null ? null : lifetimeStatusLabel(l10n, status),
-      leading: AnimalAvatar(animalId: animal.id, editable: true),
+      leading: AnimalAvatar(animalId: animal.id, editable: canWrite),
+      trailing: canWrite
+          ? null
+          : Tooltip(
+              message: l10n.animalReadOnlyTooltip,
+              child: Chip(
+                avatar: const Icon(Icons.lock_outline, size: 16),
+                label: Text(l10n.animalReadOnly),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
     );
   }
 }
@@ -191,9 +233,12 @@ class _Identity extends StatelessWidget {
 /// Life-long weight: the latest reading, a record action (no case needed), and
 /// the whole-life trend (5yg.5).
 class _WeightSection extends ConsumerWidget {
-  const _WeightSection({required this.animalId});
+  const _WeightSection({required this.animalId, required this.canWrite});
 
   final String animalId;
+
+  /// A weight is animal-scoped and follows custody since 1700000079.
+  final bool canWrite;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -216,12 +261,13 @@ class _WeightSection extends ConsumerWidget {
                     style: theme.textTheme.titleMedium,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: l10n.timelineAddWeight,
-                  onPressed: () =>
-                      showWeightEntrySheet(context, animalId: animalId),
-                ),
+                if (canWrite)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: l10n.timelineAddWeight,
+                    onPressed: () =>
+                        showWeightEntrySheet(context, animalId: animalId),
+                  ),
               ],
             ),
             // A load failure must not render as "no weight recorded" — route
@@ -272,9 +318,14 @@ class _WeightSection extends ConsumerWidget {
 /// laying is the input to calcium-depletion / egg-binding risk, and the history
 /// belongs to the bird as it moves between carers and aviaries.
 class _EggSection extends ConsumerWidget {
-  const _EggSection({required this.animalId});
+  const _EggSection({required this.animalId, required this.canWrite});
 
   final String animalId;
+
+  /// An egg record is animal-scoped and follows custody since 1700000079. The
+  /// per-record menu gates itself (see `EggEntryMenu`), so this is only the
+  /// card's own "log eggs" action.
+  final bool canWrite;
 
   /// How many clutches the card lists before it stops; the rest stay in the
   /// counts and the chart.
@@ -314,12 +365,13 @@ class _EggSection extends ConsumerWidget {
                         showEggHistorySheet(context, animalId: animalId),
                     child: Text(l10n.eggShowAllAction(all.length)),
                   ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: l10n.timelineAddEgg,
-                  onPressed: () =>
-                      showEggEntrySheet(context, animalId: animalId),
-                ),
+                if (canWrite)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: l10n.timelineAddEgg,
+                    onPressed: () =>
+                        showEggEntrySheet(context, animalId: animalId),
+                  ),
               ],
             ),
             // A load failure must not render as "no eggs" — route through the
@@ -453,10 +505,18 @@ class _ExamsSection extends ConsumerWidget {
 }
 
 class _MarkingsSection extends ConsumerWidget {
-  const _MarkingsSection({required this.animalId, required this.markings});
+  const _MarkingsSection({
+    required this.animalId,
+    required this.markings,
+    required this.canWrite,
+  });
 
   final String animalId;
   final List<Marking> markings;
+
+  /// A marking is animal-scoped and follows custody since 1700000079 — applying
+  /// a ring to a bird you do not hold is somebody else's business.
+  final bool canWrite;
 
   Future<void> _remove(BuildContext context, WidgetRef ref, Marking m) =>
       runQuickAction(context, () async {
@@ -501,6 +561,10 @@ class _MarkingsSection extends ConsumerWidget {
     final theme = Theme.of(context);
     final materialL10n = MaterialLocalizations.of(context);
     final typesById = ref.watch(markingTypesByIdProvider).value ?? const {};
+    // `markings.delete` is supervisor-only (1700000010) and 1700000079 left it
+    // exactly as it was, so custody alone is not enough to offer it.
+    final role = ref.watch(currentUserProvider).value?.role;
+    final canDelete = canWrite && canDeleteRecords(role);
 
     return Card(
       child: Padding(
@@ -516,12 +580,13 @@ class _MarkingsSection extends ConsumerWidget {
                     style: theme.textTheme.titleMedium,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: l10n.markingNewTitle,
-                  onPressed: () =>
-                      showMarkingSheet(context, animalId: animalId),
-                ),
+                if (canWrite)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: l10n.markingNewTitle,
+                    onPressed: () =>
+                        showMarkingSheet(context, animalId: animalId),
+                  ),
               ],
             ),
             if (markings.isEmpty)
@@ -559,34 +624,38 @@ class _MarkingsSection extends ConsumerWidget {
                                   formatLocalDate(materialL10n, m.removedAt),
                                 ),
                         ),
-                  trailing: PopupMenuButton<void>(
-                    icon: const Icon(Icons.more_vert),
-                    tooltip: l10n.markingMenuTooltip,
-                    itemBuilder: (_) => buildMenuItems([
-                      MenuAction(
-                        icon: Icons.edit_outlined,
-                        label: l10n.markingEditAction,
-                        onTap: () => showMarkingSheet(
-                          context,
-                          animalId: animalId,
-                          marking: m,
-                        ),
-                      ),
-                      // Recording that the ring came off — the record stays.
-                      if (m.isActive)
-                        MenuAction(
-                          icon: Icons.remove_circle_outline,
-                          label: l10n.markingRemoveAction,
-                          onTap: () => _remove(context, ref, m),
-                        ),
-                      MenuAction(
-                        icon: Icons.delete_outline,
-                        label: l10n.markingDeleteAction,
-                        onTap: () => _delete(context, ref, m),
-                        destructive: true,
-                      ),
-                    ]),
-                  ),
+                  trailing: canWrite
+                      ? PopupMenuButton<void>(
+                          icon: const Icon(Icons.more_vert),
+                          tooltip: l10n.markingMenuTooltip,
+                          itemBuilder: (_) => buildMenuItems([
+                            MenuAction(
+                              icon: Icons.edit_outlined,
+                              label: l10n.markingEditAction,
+                              onTap: () => showMarkingSheet(
+                                context,
+                                animalId: animalId,
+                                marking: m,
+                              ),
+                            ),
+                            // Recording that the ring came off — the record
+                            // stays.
+                            if (m.isActive)
+                              MenuAction(
+                                icon: Icons.remove_circle_outline,
+                                label: l10n.markingRemoveAction,
+                                onTap: () => _remove(context, ref, m),
+                              ),
+                            if (canDelete)
+                              MenuAction(
+                                icon: Icons.delete_outline,
+                                label: l10n.markingDeleteAction,
+                                onTap: () => _delete(context, ref, m),
+                                destructive: true,
+                              ),
+                          ]),
+                        )
+                      : null,
                 ),
           ],
         ),
@@ -601,7 +670,7 @@ class _MarkingsSection extends ConsumerWidget {
   }
 }
 
-class _CasesSection extends StatelessWidget {
+class _CasesSection extends ConsumerWidget {
   const _CasesSection({
     required this.animalId,
     required this.cases,
@@ -613,9 +682,15 @@ class _CasesSection extends StatelessWidget {
   final Set<String> accessibleIds;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    // Admissibility, not write custody: a bird nobody holds is anyone's to
+    // admit, while one in another carer's care is not — mirrors
+    // `lib_custody.js`'s requireAdmissible(), which is what
+    // `POST /api/federfall/intake` actually enforces.
+    final canOpenCase =
+        ref.watch(canOpenCaseOnAnimalProvider(animalId)).value ?? false;
 
     return Card(
       child: Padding(
@@ -631,13 +706,14 @@ class _CasesSection extends StatelessWidget {
                     style: theme.textTheme.titleMedium,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: l10n.animalNewCase,
-                  onPressed: () => context.push(
-                    AppRoutes.newCaseForAnimal(animalId),
+                if (canOpenCase)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: l10n.animalNewCase,
+                    onPressed: () => context.push(
+                      AppRoutes.newCaseForAnimal(animalId),
+                    ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),

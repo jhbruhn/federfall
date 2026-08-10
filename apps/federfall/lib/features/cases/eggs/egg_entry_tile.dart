@@ -4,6 +4,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/eggs/egg_entry_sheet.dart';
@@ -95,6 +96,11 @@ class EggEntryTile extends ConsumerWidget {
 ///
 /// Delete only appears for the record's author or a supervisor, mirroring the
 /// server rule (1700000056).
+///
+/// Every one of its actions writes the record, and since 1700000079 that
+/// requires holding the BIRD — so the whole menu is custody-gated here rather
+/// than at each call site: the animal card and the history sheet render these
+/// rows with no `canEdit` of their own, and one gate covers all three.
 class EggEntryMenu extends ConsumerWidget {
   const EggEntryMenu({required this.egg, this.caseId, super.key});
 
@@ -140,6 +146,9 @@ class EggEntryMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final me = ref.watch(currentUserProvider).value;
+    if (!(ref.watch(canWriteAnimalProvider(egg.animal)).value ?? false)) {
+      return const SizedBox.shrink();
+    }
 
     return TimelineEntryMenu(
       editLabel: l10n.eggEditAction,

@@ -8,6 +8,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/audit/audit_screen.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/animals/delete_record_dialogs.dart';
 import 'package:federfall/features/cases/add_entry_sheet.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
@@ -337,6 +338,15 @@ class _CaseDetail extends ConsumerWidget {
     // menus, and the read-only badge all derive from this.
     final canEdit =
         ref.watch(canEditCaseProvider(medicalCase.id)).value ?? false;
+    // The portrait is an ANIMAL write, so it follows custody (1700000077)
+    // rather than case access — the two diverge on a disposed case, whose carer
+    // may still edit the case but no longer holds the bird. ANDed with canEdit
+    // so a read-only viewer is not handed the one control the badge beside it
+    // denies; the animal's own screen is where a keeper or coordinator edits
+    // the photo.
+    final canEditPhoto =
+        canEdit &&
+        (ref.watch(canWriteAnimalProvider(medicalCase.animal)).value ?? false);
     ref
       // Live-sync: re-fetch the timeline when a teammate changes this case.
       ..watch(caseLiveProvider(medicalCase.id, medicalCase.animal))
@@ -349,7 +359,10 @@ class _CaseDetail extends ConsumerWidget {
       ..liveRefresh(const ['cases', 'case_shares'], () {
         ref
           ..invalidate(casesForAnimalProvider(medicalCase.animal))
-          ..invalidate(caseSummariesForAnimalProvider(medicalCase.animal));
+          ..invalidate(caseSummariesForAnimalProvider(medicalCase.animal))
+          // An edit share arriving on any case of this bird hands custody over,
+          // and the share branch is not reachable from the case record either.
+          ..invalidate(myEditSharedCaseIdsProvider);
       });
 
     final overview = _OverviewTab(
@@ -376,6 +389,7 @@ class _CaseDetail extends ConsumerWidget {
             medicalCase: medicalCase,
             animal: animal,
             readOnly: !canEdit,
+            photoEditable: canEditPhoto,
           ),
         ),
         // Wide detail panes show Overview and History side-by-side; narrow
@@ -665,6 +679,7 @@ class _Header extends StatelessWidget {
     required this.medicalCase,
     required this.animal,
     this.readOnly = false,
+    this.photoEditable = false,
   });
 
   final Case medicalCase;
@@ -673,6 +688,10 @@ class _Header extends StatelessWidget {
   /// When true the user can only view this case; surfaced as a header badge so
   /// the absence of write controls is explained rather than mysterious.
   final bool readOnly;
+
+  /// Whether tapping the avatar opens the photo flow — an animal write, gated
+  /// on custody rather than on case access (see the call site).
+  final bool photoEditable;
 
   @override
   Widget build(BuildContext context) {
@@ -698,7 +717,10 @@ class _Header extends StatelessWidget {
       // The avatar only needs the animal id, which the case always carries —
       // rendering it unconditionally keeps the header left-aligned instead of
       // briefly centring while the Animal record loads.
-      leading: AnimalAvatar(animalId: medicalCase.animal, editable: !readOnly),
+      leading: AnimalAvatar(
+        animalId: medicalCase.animal,
+        editable: photoEditable,
+      ),
       // The name links to the animal's own lifetime record — replaces the
       // app bar's old dedicated pets_outlined action.
       onTitleTap: () => context.go(AppRoutes.animalDetail(medicalCase.animal)),

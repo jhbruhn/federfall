@@ -1,5 +1,8 @@
+import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
@@ -14,6 +17,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// A marking (ring/marker/chip) as a chronology event (FED-4.10): its type,
 /// code/colour, active-or-removed status, and a menu to edit, mark it removed
 /// or delete it.
+///
+/// The menu needs custody of the bird as well as [canEdit] (1700000079 — see
+/// `WeightEntryTile`), and `markings.delete` stays supervisor-only: 1700000010
+/// set it that way and 1700000079 deliberately left it alone, since a
+/// supervisor holds every bird anyway.
 class MarkingTile extends ConsumerWidget {
   const MarkingTile({
     required this.marking,
@@ -72,6 +80,11 @@ class MarkingTile extends ConsumerWidget {
     final date = marking.appliedAt ?? marking.created;
     final typeLabel =
         ref.watch(markingTypesByIdProvider).value?[marking.type]?.label ?? '';
+    final holdsBird =
+        ref.watch(canWriteAnimalProvider(marking.animal)).value ?? false;
+    final canDelete =
+        holdsBird &&
+        canDeleteRecords(ref.watch(currentUserProvider).value?.role);
 
     final detail = [
       if (marking.colour case final c? when c.isNotEmpty) c,
@@ -83,7 +96,7 @@ class MarkingTile extends ConsumerWidget {
       icon: Icons.sell_outlined,
       date: formatLocalDate(materialL10n, date),
       isLast: isLast,
-      trailing: canEdit
+      trailing: canEdit && holdsBird
           ? TimelineEntryMenu(
               editLabel: l10n.markingEditAction,
               tooltip: l10n.markingMenuTooltip,
@@ -103,7 +116,7 @@ class MarkingTile extends ConsumerWidget {
                   ),
               ],
               deleteLabel: l10n.markingDeleteAction,
-              onDelete: () => _delete(context, ref),
+              onDelete: canDelete ? () => _delete(context, ref) : null,
             )
           : null,
       child: Column(

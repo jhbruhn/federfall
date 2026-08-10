@@ -4,6 +4,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/realtime/collection_events.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/features/printing/printer_service.dart';
@@ -160,6 +161,7 @@ void main() {
     bool settle = true,
     PbCaseReportRepository? caseReport,
     FakePrinterService? printerService,
+    bool? holdsBird,
   }) async {
     // A tall surface so the whole scroll view (incl. the timeline) is built.
     // [width] defaults narrow so the case detail renders its compact, tabbed
@@ -233,6 +235,11 @@ void main() {
           caseReportRepositoryProvider.overrideWith((ref) async => caseReport),
         if (printerService != null)
           printerServiceProvider.overrideWithValue(printerService),
+        // Custody of the BIRD, which is not the same question as case access
+        // (1700000077). Left unset it resolves from the role like anywhere
+        // else — a supervisor holds every bird.
+        if (holdsBird != null)
+          canWriteAnimalProvider('a1').overrideWith((ref) async => holdsBird),
       ],
     );
     addTearDown(container.dispose);
@@ -722,5 +729,37 @@ void main() {
 
     expect(printer.receiptsPrinted, isEmpty);
     expect(printer.disconnectCalls, 1);
+  });
+
+  // The portrait is an ANIMAL write: editable on the case header only while the
+  // viewer also holds the bird (1700000077). The two diverge on a disposed
+  // case, whose carer may still edit the case after the bird has moved on —
+  // which is exactly the 403 this gating removes.
+  group('the header avatar follows custody, not case access', () {
+    const supervisor = AppUser(
+      id: 'sup',
+      email: 'sup@x.org',
+      org: 'org1',
+      role: UserRole.supervisor,
+    );
+
+    testWidgets('a holder who can edit the case may change the photo', (
+      tester,
+    ) async {
+      await pump(tester, currentUser: supervisor);
+
+      expect(find.byTooltip('Animal photo'), findsOneWidget);
+    });
+
+    testWidgets('an editor who no longer holds the bird may not', (
+      tester,
+    ) async {
+      await pump(tester, currentUser: supervisor, holdsBird: false);
+
+      // The case itself is still editable — the badge is absent — but the one
+      // control that writes the ANIMAL is gone.
+      expect(find.text('Read-only'), findsNothing);
+      expect(find.byTooltip('Animal photo'), findsNothing);
+    });
   });
 }

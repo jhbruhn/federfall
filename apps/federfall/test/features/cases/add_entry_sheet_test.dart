@@ -1,3 +1,4 @@
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/add_entry_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -12,6 +13,7 @@ void main() {
   Future<void> open(
     WidgetTester tester, {
     List<Disposition> dispositions = const [],
+    bool holdsBird = true,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -19,6 +21,10 @@ void main() {
           dispositionsForCaseProvider('c1').overrideWith(
             (ref) async => dispositions,
           ),
+          // Weight, egg and marking are animal-scoped and follow custody
+          // (1700000079), which case access does not imply — stated here so the
+          // assertions below are not silently checking disabled entries.
+          canWriteAnimalProvider('a1').overrideWith((ref) async => holdsBird),
         ],
         child: MaterialApp(
           locale: const Locale('en'),
@@ -95,5 +101,31 @@ void main() {
     expect(outcomeTile(tester).enabled, isFalse);
     // The rest of the sheet still works.
     expect(find.text('Add note'), findsOneWidget);
+  });
+
+  ListTile kindTile(WidgetTester tester, String label) =>
+      tester.widget<ListTile>(find.widgetWithText(ListTile, label));
+
+  testWidgets("the animal-scoped kinds are enabled for the bird's holder", (
+    tester,
+  ) async {
+    await open(tester);
+
+    expect(kindTile(tester, 'Add weight').enabled, isTrue);
+    expect(kindTile(tester, 'Add egg laid').enabled, isTrue);
+    expect(kindTile(tester, 'Add marking').enabled, isTrue);
+  });
+
+  // The divergence this gating exists for: the carer of a DISPOSED case may
+  // still write its journal, but the bird has moved on, so a weight or a ring
+  // on it would 403. Case-scoped kinds beside them stay live.
+  testWidgets('they go inert once the bird is no longer held', (tester) async {
+    await open(tester, holdsBird: false);
+
+    expect(kindTile(tester, 'Add weight').enabled, isFalse);
+    expect(kindTile(tester, 'Add egg laid').enabled, isFalse);
+    expect(kindTile(tester, 'Add marking').enabled, isFalse);
+    expect(kindTile(tester, 'Add note').enabled, isTrue);
+    expect(kindTile(tester, 'Exam').enabled, isTrue);
   });
 }

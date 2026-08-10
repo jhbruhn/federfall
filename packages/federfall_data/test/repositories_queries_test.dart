@@ -201,6 +201,18 @@ void main() {
       verify(() => pb.filter('case = {:c}', {'c': 'case1'})).called(1);
       expect(capturedQuery()[2], 'shared_with');
     });
+
+    // The share branch of custody (1700000077): user-wide and edit-only, so
+    // the read shares that grant no custody never reach the predicate.
+    test('editSharedWith asks user-wide, for edit access only', () async {
+      await PbCaseSharesRepository(pb).editSharedWith('u1');
+      verify(
+        () => pb.filter('shared_with = {:u} && access = {:a}', {
+          'u': 'u1',
+          'a': 'edit',
+        }),
+      ).called(1);
+    });
   });
 
   group('PbCaseSummariesRepository', () {

@@ -23,8 +23,10 @@ import 'package:go_router/go_router.dart';
 /// Aviary detail (FED-6.2 + federfall-d5co.3): the aviary's identity over two
 /// tabs — **Bestand** (occupancy: current residents) and **Pflege** (the
 /// flock-care chronology: aviary journal entries + a health rollup).
-/// Coordinators/supervisors can edit the aviary, add residents and write
-/// journal entries.
+/// Coordinators/supervisors can edit the aviary and write journal entries;
+/// placing a bird into it is the KEEPER's call as well as theirs, which is what
+/// `animals.createRule` says since 1700000077 (federfall-q7ks.6) and what the
+/// FAB was refusing while the server allowed it.
 ///
 /// State-restoration note (federfall-7ev8): the route's restoration id is
 /// pattern-scoped (`/aviaries/:id`), not per-[aviaryId]. If this screen ever
@@ -165,10 +167,16 @@ class _BestandTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final residents = ref.watch(aviaryResidentsProvider(aviaryId));
+    // Wider than [canManage] on purpose: the enclosure's keeper holds every
+    // bird in it, so putting one there is theirs to do.
+    final canAddResident = aviaryStockableBy(
+      aviary,
+      ref.watch(currentUserProvider).value,
+    );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: canManage
+      floatingActionButton: canAddResident
           ? FloatingActionButton.extended(
               onPressed: () => showAddAnimalSheet(context, aviaryId: aviaryId),
               icon: const Icon(Icons.add),

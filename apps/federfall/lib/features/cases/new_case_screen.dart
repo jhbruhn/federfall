@@ -4,6 +4,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/org_settings_providers.dart';
 import 'package:federfall/features/animals/animal_search_picker.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/features/cases/case_intake_draft.dart';
@@ -779,6 +780,45 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
     );
   }
 
+  /// Links a re-identified bird to this intake — once custody says it may be
+  /// admitted (federfall-q7ks.6).
+  ///
+  /// `POST /api/federfall/intake` runs `lib_custody.js`'s requireAdmissible()
+  /// on an existing animal, so a bird in another carer's care or recorded as
+  /// deceased is refused there. Checked at PICK time rather than per search
+  /// result: the picker is a result list, and resolving custody per row would
+  /// put one request per candidate into it (federfall-trep). One bird, one
+  /// check, and the refusal arrives before the form is filled in rather than as
+  /// a 403 on save.
+  Future<void> _linkAnimal(Animal animal) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    String? failure;
+    try {
+      final admissible = await ref.read(
+        canOpenCaseOnAnimalProvider(animal.id).future,
+      );
+      if (!admissible) failure = l10n.reidNotAdmissible;
+    } on Object catch (e, stackTrace) {
+      // Fail closed rather than linking a bird the server may refuse: the same
+      // unreachable server would fail the intake POST a few steps later, with
+      // the form already filled in.
+      reportCaughtError(e, stackTrace);
+      failure = errorMessage(l10n, e);
+    }
+    if (!mounted) return;
+    if (failure != null) {
+      messenger.showSnackBar(SnackBar(content: Text(failure)));
+      return;
+    }
+    _touch();
+    setState(() {
+      _linkedAnimal = animal;
+      _reidQuery = '';
+      _reidController.clear();
+    });
+  }
+
   /// Step 0 — the animal identity: species, name and the re-id search.
   ///
   /// Species leads because it is the field this step is really about: it is
@@ -821,14 +861,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             hintText: l10n.reidSearchHint,
             enabled: !_busy,
             onSearch: (q) => setState(() => _reidQuery = q),
-            onPick: (a) {
-              _touch();
-              setState(() {
-                _linkedAnimal = a;
-                _reidQuery = '';
-                _reidController.clear();
-              });
-            },
+            onPick: (a) => unawaited(_linkAnimal(a)),
           ),
         ],
       ],

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/case_intake_draft.dart';
 import 'package:federfall/features/cases/case_intake_draft_store.dart';
@@ -94,7 +95,15 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> pump(WidgetTester tester, {String? animalId}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    String? animalId,
+    // Admissibility of a re-identified bird (federfall-q7ks.6): the intake
+    // route runs the same check server-side, so picking a bird somebody else
+    // holds is refused before the form is filled in. Family-wide, since the
+    // ids under test vary.
+    bool admissible = true,
+  }) async {
     // A tall surface so each wizard step lays out without scrolling.
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -106,6 +115,9 @@ void main() {
         currentUserProvider.overrideWith(
           (ref) async =>
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+        ),
+        canOpenCaseOnAnimalProvider.overrideWith(
+          (ref, animalId) async => admissible,
         ),
         animalsRepositoryProvider.overrideWith((ref) async => animals),
         admissionReasonsProvider.overrideWith(
@@ -437,6 +449,30 @@ void main() {
     final payload = capturedPayload();
     expect(payload['animal'], 'a9');
     expect(payload.containsKey('species'), isFalse);
+  });
+
+  // The other side of the same gate: no 403 on save, a refusal at the pick.
+  testWidgets('a bird somebody else holds is refused at the pick', (
+    tester,
+  ) async {
+    when(() => animals.searchByName('Pauli')).thenAnswer(
+      (_) async => const [
+        Animal(id: 'a9', species: 'Stadttaube', name: 'Pauli'),
+      ],
+    );
+
+    await pump(tester, admissible: false);
+
+    await enterByLabel(tester, 'Returning bird? Search', 'Pauli');
+    await tester.tap(find.byIcon(Icons.search).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pauli · Stadttaube'));
+    await tester.pumpAndSettle();
+
+    // Not linked, and the reason is on screen rather than arriving as a 403
+    // once the whole wizard has been filled in.
+    expect(find.byIcon(Icons.link), findsNothing);
+    expect(find.textContaining("in someone else's care"), findsOneWidget);
   });
 
   testWidgets('pre-links the case when opened for an existing animal', (
