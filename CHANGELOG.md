@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.0.0](https://github.com/jhbruhn/federfall/compare/v0.19.0...v1.0.0) (2026-08-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* recording, editing or deleting a weight, marking or egg record requires custody of the animal. An older client offers all three to any member and will draw 403s for birds the user does not hold.
+* admitting an existing animal now requires holding it or nobody holding it, and a deceased animal cannot be admitted below coordinator. An older client offers the re-identification picker for any bird in the org and will draw 403s for those it may no longer take on.
+* editing an animal, or adding a resident to an aviary, now requires custody of that bird. An older client still offers both to any member and will draw 403s until the matching UI gating lands (federfall-q7ks.6).
+* `aviaries.keeper` is required, so a client that omits it can no longer create or save an aviary. An app older than this refuses nothing locally and sends no keeper, drawing a validation error from the server instead.
+
+### Features
+
+* admitting an existing bird follows custody ([7691f85](https://github.com/jhbruhn/federfall/commit/7691f85ce971ee0d547d8d9c6f6d80f70b36b567))
+* every aviary has a keeper ([ffaec3d](https://github.com/jhbruhn/federfall/commit/ffaec3db160ecd48a8ef5e7898398ba9fb94e0b7))
+* the app only offers what custody allows ([5e5f8fe](https://github.com/jhbruhn/federfall/commit/5e5f8fedc7f391b6f501decdb5e8619a63521486))
+* weights, markings and egg records follow custody ([a568699](https://github.com/jhbruhn/federfall/commit/a568699f515aebe9c138adf968b05136a01eaf6b))
+* writing about a bird requires holding it ([780aa5b](https://github.com/jhbruhn/federfall/commit/780aa5b8a35fc0bf171b42e386d60b2c23803adb))
+
+
+### Bug Fixes
+
+* **app:** the aviary tile counts residents, not the lifetime label ([f9cfade](https://github.com/jhbruhn/federfall/commit/f9cfade2059049effe683c22c2b633732ff40e85))
+* **backend:** a disposition cannot have happened tomorrow ([cdd50f2](https://github.com/jhbruhn/federfall/commit/cdd50f2fb0d2db55f8fb9492042170b4f05e9afe))
+* **backend:** a row may not be filed into a case its writer cannot read ([b60971a](https://github.com/jhbruhn/federfall/commit/b60971abe89d1e18d06fc67baa834611c80b9d86))
+* **backend:** an open case decides a bird's lifetime state ([1fcfce9](https://github.com/jhbruhn/federfall/commit/1fcfce9e19f862c019463ef1c26b340cd83b0fe1))
+* **backend:** close the two routes back into a stale carer's custody ([505dad1](https://github.com/jhbruhn/federfall/commit/505dad166fd27b21b2d7670d1f2b6cb76fab0424))
+* **backend:** close the two write paths that reached around custody ([11228f1](https://github.com/jhbruhn/federfall/commit/11228f1880605f398b89ab6fce8bc4050756b78d))
+* **backend:** every relation must live in the writer's own organisation ([3787006](https://github.com/jhbruhn/federfall/commit/3787006819290c89379fea0cc5e5bf64cf8e8518))
+* **backend:** moving a bird needs custody of it, with no correction exemption ([1c43001](https://github.com/jhbruhn/federfall/commit/1c4300177f89a240e8182cce66c0032d67578aa5))
+* **security:** lock org and the derived residency fields on the identity layer ([f5b65fe](https://github.com/jhbruhn/federfall/commit/f5b65fe04fd3c7c8723d740856bf2d43e44f5388))
+
 ## [0.19.0](https://github.com/jhbruhn/federfall/compare/v0.18.0...v0.19.0) (2026-08-09)
 
 
