@@ -214,7 +214,9 @@ void main() {
       await pump(
         tester,
         const DispositionSheet(caseId: 'c1'),
-        aviaries: const [Aviary(id: 'av1', name: 'Garden aviary')],
+        aviaries: const [
+          Aviary(id: 'av1', keeper: 'u1', name: 'Garden aviary'),
+        ],
       );
 
       await tester.tap(find.text('Released'));

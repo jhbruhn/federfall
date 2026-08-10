@@ -348,6 +348,11 @@ void main() {
       expect(a.locationGeo, isNull);
       expect(a.active, isFalse);
       expect(a.capacity, isNull);
+      // federfall-q7ks.1: `keeper` is required by the schema from 1700000076,
+      // so it is non-nullable here — a row from an older server (or an unset
+      // relation) maps to empty rather than throwing, which resolves to no
+      // member and simply renders as an absent keeper.
+      expect(a.keeper, isEmpty);
     });
   });
 

@@ -92,9 +92,9 @@ class _AviaryTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final keeper = aviary.keeper == null
-        ? null
-        : ref.watch(orgMembersByIdProvider).value?[aviary.keeper];
+    // An empty keeper only reaches here from a pre-1700000076 server; the
+    // lookup misses and the subtitle simply omits it.
+    final keeper = ref.watch(orgMembersByIdProvider).value?[aviary.keeper];
     // Occupancy alongside capacity ("3 / 10") so a full aviary is visible in
     // the list (federfall-kml); plain capacity while counts are still loading.
     final counts = ref.watch(aviaryOccupancyCountsProvider).value;

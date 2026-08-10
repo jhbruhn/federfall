@@ -40,8 +40,8 @@ void main() {
     await _pump(
       tester,
       aviaries: const [
-        Aviary(id: 'av1', name: 'Garden aviary', capacity: 8),
-        Aviary(id: 'av2', name: 'Quarantine pen', active: false),
+        Aviary(id: 'av1', keeper: 'u1', name: 'Garden aviary', capacity: 8),
+        Aviary(id: 'av2', keeper: 'u1', name: 'Quarantine pen', active: false),
       ],
       occupancy: const {'av1': 3},
     );
@@ -55,7 +55,9 @@ void main() {
   testWidgets('an over-capacity aviary is flagged in the list', (tester) async {
     await _pump(
       tester,
-      aviaries: const [Aviary(id: 'av1', name: 'Garden aviary', capacity: 8)],
+      aviaries: const [
+        Aviary(id: 'av1', keeper: 'u1', name: 'Garden aviary', capacity: 8),
+      ],
       occupancy: const {'av1': 9},
     );
 
@@ -71,7 +73,7 @@ void main() {
   testWidgets('a carer does not see the create FAB', (tester) async {
     await _pump(
       tester,
-      aviaries: const [Aviary(id: 'av1', name: 'Garden aviary')],
+      aviaries: const [Aviary(id: 'av1', keeper: 'u1', name: 'Garden aviary')],
       user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
     );
     expect(find.byType(FloatingActionButton), findsNothing);
@@ -82,7 +84,7 @@ void main() {
   ) async {
     await _pump(
       tester,
-      aviaries: const [Aviary(id: 'av1', name: 'Garden aviary')],
+      aviaries: const [Aviary(id: 'av1', keeper: 'u1', name: 'Garden aviary')],
       user: const AppUser(
         id: 'u2',
         email: 's@x.org',

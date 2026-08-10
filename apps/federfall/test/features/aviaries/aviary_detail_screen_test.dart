@@ -56,7 +56,12 @@ void main() {
   ) async {
     await _pump(
       tester,
-      aviary: const Aviary(id: 'av1', name: 'Garden aviary', capacity: 8),
+      aviary: const Aviary(
+        id: 'av1',
+        keeper: 'u1',
+        name: 'Garden aviary',
+        capacity: 8,
+      ),
       residents: const [
         Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
         Animal(id: 'a2', species: 'Columba livia'),
@@ -72,7 +77,12 @@ void main() {
   testWidgets('over-capacity occupancy chip is highlighted', (tester) async {
     await _pump(
       tester,
-      aviary: const Aviary(id: 'av1', name: 'Garden aviary', capacity: 1),
+      aviary: const Aviary(
+        id: 'av1',
+        keeper: 'u1',
+        name: 'Garden aviary',
+        capacity: 1,
+      ),
       residents: const [
         Animal(id: 'a1', species: 'Columba livia'),
         Animal(id: 'a2', species: 'Columba livia'),
@@ -88,7 +98,7 @@ void main() {
   testWidgets('empty residents state', (tester) async {
     await _pump(
       tester,
-      aviary: const Aviary(id: 'av1', name: 'Quarantine'),
+      aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Quarantine'),
     );
     expect(find.text('No residents'), findsOneWidget);
   });
@@ -96,7 +106,7 @@ void main() {
   testWidgets('edit action only for coordinators/supervisors', (tester) async {
     await _pump(
       tester,
-      aviary: const Aviary(id: 'av1', name: 'Garden'),
+      aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
       user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
     );
     expect(find.byTooltip('Edit aviary'), findsNothing);
@@ -105,7 +115,7 @@ void main() {
   testWidgets('narrow pane keeps Bestand/Pflege behind tabs', (tester) async {
     await _pump(
       tester,
-      aviary: const Aviary(id: 'av1', name: 'Garden'),
+      aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
       journal: const [
         JournalEntry(id: 'j1', aviary: 'av1', text: 'Cleaned the aviary'),
       ],
@@ -129,7 +139,7 @@ void main() {
   ) async {
     await _pump(
       tester,
-      aviary: const Aviary(id: 'av1', name: 'Garden'),
+      aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
       residents: const [
         Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
       ],
@@ -149,7 +159,7 @@ void main() {
   ) async {
     await _pump(
       tester,
-      aviary: const Aviary(id: 'av1', name: 'Garden'),
+      aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
       rollup: const [
         (
           condition: CaseCondition(

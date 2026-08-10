@@ -30,27 +30,33 @@ void main() {
   test('aviaries lists all aviaries name-sorted', () async {
     when(
       () => aviaries.list(sort: 'name'),
-    ).thenAnswer((_) async => const [Aviary(id: 'av1', name: 'Voliere 1')]);
+    ).thenAnswer(
+      (_) async => const [Aviary(id: 'av1', keeper: 'u1', name: 'Voliere 1')],
+    );
 
     final result = await container.read(aviariesProvider.future);
 
-    expect(result, [const Aviary(id: 'av1', name: 'Voliere 1')]);
+    expect(result, [const Aviary(id: 'av1', keeper: 'u1', name: 'Voliere 1')]);
   });
 
   test('activeAviaries delegates to the repository', () async {
     when(
       () => aviaries.active(),
-    ).thenAnswer((_) async => const [Aviary(id: 'av1', name: 'Voliere 1')]);
+    ).thenAnswer(
+      (_) async => const [Aviary(id: 'av1', keeper: 'u1', name: 'Voliere 1')],
+    );
 
     final result = await container.read(activeAviariesProvider.future);
 
-    expect(result, [const Aviary(id: 'av1', name: 'Voliere 1')]);
+    expect(result, [const Aviary(id: 'av1', keeper: 'u1', name: 'Voliere 1')]);
   });
 
   test('aviaryById fetches a single aviary', () async {
     when(
       () => aviaries.getOne('av1'),
-    ).thenAnswer((_) async => const Aviary(id: 'av1', name: 'Voliere 1'));
+    ).thenAnswer(
+      (_) async => const Aviary(id: 'av1', keeper: 'u1', name: 'Voliere 1'),
+    );
 
     final result = await container.read(aviaryByIdProvider('av1').future);
 

@@ -355,6 +355,29 @@ def main():
           s == 200 and x1.get("case_number") == "2026-001",
           f"{s} {x1.get('case_number') if x1 else x1}")
 
+    # ── aviaries always have a keeper (federfall-q7ks.1) ────────────────────
+    # 1700000076. The custody model resolves a resident's write authority
+    # through `current_aviary.keeper`, so a keeperless enclosure would hold
+    # birds nobody but a coordinator/supervisor could write about. Required is
+    # what turns the display-only label from 1700000008 into that actor.
+    #
+    # The backfill (org's oldest active supervisor) cannot be exercised here:
+    # migrations run against an empty database, so there is no legacy aviary to
+    # adopt. What is checkable is the constraint it exists to enable.
+    print("\n[aviary keeper]")
+    s, d = req("POST", "/api/collections/aviaries/records", T,
+               {"name": "Ohne Betreuer", "org": ORG})
+    check("an aviary cannot be created without a keeper", s >= 400, f"{s} {d}")
+    s, kept = req("POST", "/api/collections/aviaries/records", T,
+                  {"name": "Mit Betreuer", "keeper": SUP, "org": ORG})
+    check("...and is created once one is named", s == 200, f"{s} {kept}")
+    # Required means required on every save, not only the first: clearing it
+    # later would strand the residents just as thoroughly.
+    s, _ = req("PATCH", f"/api/collections/aviaries/records/{kept['id']}", T,
+               {"keeper": ""})
+    check("an existing aviary cannot have its keeper cleared", s >= 400,
+          f"status {s}")
+
     # ── hooks: dispositions ─────────────────────────────────────────────────
     print("\n[hooks: dispositions]")
     mk(T, "dispositions", {"case": c1["id"], "type": "released", "org": ORG})
@@ -362,7 +385,8 @@ def main():
     _, anf = req("GET", f"/api/collections/animals/records/{animal}", T)
     check("released -> case disposed", c1f["status"] == "disposed", c1f["status"])
     check("released -> animal at_large_released", anf["lifetime_status"] == "at_large_released", anf["lifetime_status"])
-    av = mk(T, "aviaries", {"name": "Voliere 1", "org": ORG})["id"]
+    av = mk(T, "aviaries", {"name": "Voliere 1", "keeper": SUP,
+                            "org": ORG})["id"]
     mk(T, "dispositions", {"case": c2["id"], "type": "placed_in_aviary", "aviary": av, "org": ORG})
     _, c2f = req("GET", f"/api/collections/cases/records/{c2['id']}", T)
     _, an2 = req("GET", f"/api/collections/animals/records/{animal}", T)
@@ -382,7 +406,8 @@ def main():
     # Move the same animal to a second aviary via a fresh case's disposition —
     # the old stay must close and a new one must open, without touching the
     # dispositions hook itself (it only ever sets current_aviary).
-    av2 = mk(T, "aviaries", {"name": "Voliere 2", "org": ORG})["id"]
+    av2 = mk(T, "aviaries", {"name": "Voliere 2", "keeper": SUP,
+                             "org": ORG})["id"]
     c2b = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
     mk(T, "dispositions", {"case": c2b, "type": "placed_in_aviary", "aviary": av2, "org": ORG})
     stays = listf(T, "aviary_stays", f'animal="{animal}"')
@@ -1292,8 +1317,10 @@ def main():
     # every merge. This block is the guard for the whole list, so add a case
     # here whenever a new collection points at `animals`.
     print("\n[animal merge]")
-    mg_av_a = mk(T, "aviaries", {"name": "Merge-Voliere A", "org": ORG})["id"]
-    mg_av_b = mk(T, "aviaries", {"name": "Merge-Voliere B", "org": ORG})["id"]
+    mg_av_a = mk(T, "aviaries", {"name": "Merge-Voliere A", "keeper": SUP,
+                                 "org": ORG})["id"]
+    mg_av_b = mk(T, "aviaries", {"name": "Merge-Voliere B", "keeper": SUP,
+                                 "org": ORG})["id"]
     # Both records are aviary residents, in DIFFERENT enclosures — the case
     # that produces two open stays on one animal if the ledger is re-pointed
     # without reconciling it.
@@ -2384,7 +2411,8 @@ def main():
     # here would evict a resident whose archived case is being backfilled —
     # clearing current_aviary and closing the open aviary_stays row with a
     # present-dated `ended_at`. Only the new-animal branch sets the field.
-    ri_av = mk(T, "aviaries", {"name": "Voliere Reident", "org": ORG})["id"]
+    ri_av = mk(T, "aviaries", {"name": "Voliere Reident", "keeper": SUP,
+                               "org": ORG})["id"]
     ri_animal = mk(T, "animals", {
         "species": "Stadttaube", "org": ORG,
         "lifetime_status": "in_aviary", "current_aviary": ri_av,
@@ -3825,6 +3853,7 @@ def main():
     # join CONTENT_FIELDS, or closing the hole would have blinded the log to
     # every aviary placement.
     ea_aviary = mk(toks["sup"], "aviaries", {"name": "Voliere Audit",
+                                             "keeper": SUP,
                                              "org": ORG})["id"]
     check("creating an aviary is logged",
           len(audit_for(ea_aviary, "aviary.created")) == 1, "missing")

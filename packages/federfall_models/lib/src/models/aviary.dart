@@ -7,12 +7,20 @@ part 'aviary.freezed.dart';
 
 /// A named permanent-care enclosure (Voliere) where non-releasable birds live
 /// as residents.
+///
+/// [keeper] is the member responsible for the enclosure, and is required by the
+/// schema since 1700000076 (federfall-q7ks.1): the custody model resolves a
+/// resident's write authority through it, so an enclosure without one would
+/// hold birds nobody could write about. It stays a plain `String` rather than a
+/// nullable one for that reason — empty is not a state the server offers. A row
+/// from a pre-1700000076 server maps to `''`, which resolves to no member and
+/// renders as an absent keeper rather than throwing.
 @freezed
 abstract class Aviary with _$Aviary {
   const factory Aviary({
     required String id,
     required String name,
-    String? keeper,
+    required String keeper,
     String? location,
     GeoPoint? locationGeo,
     int? capacity,
@@ -28,7 +36,7 @@ abstract class Aviary with _$Aviary {
     return Aviary(
       id: r.id,
       name: pbString(d['name']) ?? '',
-      keeper: pbString(d['keeper']),
+      keeper: pbString(d['keeper']) ?? '',
       location: pbString(d['location']),
       locationGeo: GeoPoint.fromPb(d['location_geo']),
       capacity: pbInt(d['capacity']),

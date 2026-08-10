@@ -60,9 +60,38 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('creating an aviary requires a name', (tester) async {
-    await pump(tester);
+  // federfall-q7ks.1: the keeper is required too, so an empty form reports
+  // BOTH fields — an aviary with nobody answering for it is not a saveable
+  // thing any more.
+  testWidgets('creating an aviary requires a name and a keeper', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      members: const [
+        AppUser(id: 'u2', email: 'keeper@x.org', name: 'Keeper Kim'),
+      ],
+    );
 
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('This field is required'), findsNWidgets(2));
+    verifyNever(() => aviaries.create(any()));
+  });
+
+  testWidgets('naming a keeper is what unblocks the save', (tester) async {
+    await pump(
+      tester,
+      members: const [
+        AppUser(id: 'u2', email: 'keeper@x.org', name: 'Keeper Kim'),
+      ],
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Voliere 1',
+    );
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -72,7 +101,7 @@ void main() {
 
   testWidgets('creates an active aviary with a keeper', (tester) async {
     when(() => aviaries.create(any())).thenAnswer(
-      (_) async => const Aviary(id: 'av1', name: 'Voliere 1'),
+      (_) async => const Aviary(id: 'av1', name: 'Voliere 1', keeper: 'u2'),
     );
 
     await pump(
@@ -86,9 +115,11 @@ void main() {
       find.widgetWithText(TextFormField, 'Name'),
       'Voliere 1',
     );
-    await tester.tap(find.text('No keeper'));
+    // Nothing is preselected, so the dropdown is opened by its own field
+    // rather than by tapping a "none" entry that no longer exists.
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Keeper Kim'));
+    await tester.tap(find.text('Keeper Kim').last);
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Capacity'),
@@ -111,19 +142,27 @@ void main() {
     tester,
   ) async {
     when(() => aviaries.update('av1', any())).thenAnswer(
-      (_) async => const Aviary(id: 'av1', name: 'Voliere 1'),
+      (_) async => const Aviary(id: 'av1', name: 'Voliere 1', keeper: 'u2'),
     );
 
     await pump(
       tester,
+      // The keeper must be among the members: a dropdown whose selection names
+      // nobody in its item list is a framework assertion, not a blank field.
+      members: const [
+        AppUser(id: 'u2', email: 'keeper@x.org', name: 'Keeper Kim'),
+      ],
       aviary: const Aviary(
         id: 'av1',
         name: 'Voliere 1',
+        keeper: 'u2',
         location: 'Nordflügel',
         capacity: 8,
         active: false,
       ),
     );
+
+    expect(find.text('Keeper Kim'), findsOneWidget);
 
     expect(find.text('Voliere 1'), findsOneWidget);
     expect(find.text('Nordflügel'), findsOneWidget);

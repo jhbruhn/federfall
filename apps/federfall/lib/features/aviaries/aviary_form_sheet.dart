@@ -66,7 +66,9 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
       final capacity = int.tryParse(_capacity.text.trim());
       final body = <String, dynamic>{
         'name': _name.text.trim(),
-        'keeper': _keeperId ?? '',
+        // Non-null once validate() has passed; sending it unset anyway draws
+        // the server's own required-field error rather than skipping silently.
+        'keeper': _keeperId,
         'location': _location.text.trim(),
         'capacity': capacity,
         'active': _active,
@@ -112,7 +114,10 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
                 (v == null || v.trim().isEmpty) ? l10n.fieldRequired : null,
           ),
           const SizedBox(height: AppSpacing.md),
-          DropdownButtonFormField<String?>(
+          // Required since 1700000076 (federfall-q7ks.1): the keeper is who
+          // answers for this enclosure's residents, so there is no "none"
+          // option to pick any more.
+          DropdownButtonFormField<String>(
             initialValue: _keeperId,
             isExpanded: true,
             decoration: InputDecoration(
@@ -121,10 +126,10 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
               isDense: true,
             ),
             items: [
-              DropdownMenuItem(child: Text(l10n.aviaryKeeperNone)),
               for (final m in members)
                 DropdownMenuItem(value: m.id, child: Text(memberLabel(m))),
             ],
+            validator: (v) => v == null ? l10n.fieldRequired : null,
             onChanged: (id) => setState(() => _keeperId = id),
           ),
           const SizedBox(height: AppSpacing.md),

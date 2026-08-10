@@ -251,9 +251,8 @@ class _Header extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final keeper = aviary.keeper == null
-        ? null
-        : ref.watch(orgMembersByIdProvider).value?[aviary.keeper];
+    // As in the registry: an empty keeper predates 1700000076 and just misses.
+    final keeper = ref.watch(orgMembersByIdProvider).value?[aviary.keeper];
     final subtitle = [
       if (keeper != null) memberLabel(keeper),
       ?aviary.location,
