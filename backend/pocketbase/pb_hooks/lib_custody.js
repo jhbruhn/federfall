@@ -117,23 +117,28 @@ function keeps(app, auth, aviaryId) {
 }
 
 /**
- * Whether anybody OTHER than [auth] would hold [animalId] if [aviary] were its
- * enclosure.
+ * Whether anybody OTHER than [auth] holds [animalId].
  *
- * The hypothetical enclosure is for [requireOutcomeWrite], which has to ask this
- * with the row it is judging taken back out of the bird's history. "Other than
- * [auth]" rather than "nobody" because the writer's own hold is not an obstacle
- * to their own write — and because the alternative over-refuses: a carer
- * correcting their release back into a placement would be turned away by the
- * enclosure the correction takes the bird OUT of, one they keep themselves.
+ * Not the negation of [heldByNobody], deliberately: that one answers "is this
+ * bird anyone's" for an ADMISSION, where an open case with no carer at all still
+ * counts as held (an imported row, and refusing is the safe direction). This one
+ * asks whether a writer would be taking a bird from somebody, so a case with
+ * nobody on it takes nothing from anyone.
  *
  * An open case grants custody to its carer AND to its edit-share holders, but
- * this only has to name a holder, not enumerate them: a case whose carer is
- * [auth] cannot reach here (holds() would have answered first), so any open case
- * left is somebody else's.
+ * this only has to NAME a holder, not enumerate them: a case whose carer is
+ * [auth] cannot reach here (holds() answers first), so any open case left is
+ * somebody else's.
  */
-function heldByOthersWith(app, auth, animalId, aviary) {
+function heldByOthers(app, auth, animalId) {
   const id = auth ? auth.id : "";
+  let animal;
+  try {
+    animal = app.findRecordById("animals", animalId);
+  } catch (_) {
+    return false;
+  }
+  const aviary = animal.getString("current_aviary");
   if (aviary && !keeps(app, auth, aviary)) {
     try {
       app.findRecordById("aviaries", aviary);
@@ -207,7 +212,8 @@ function requireAdmissible(app, auth, animalId) {
 }
 
 /**
- * Gate for a disposition write that would MOVE a bird — federfall-mpm4.
+ * Gate for a disposition write that would MOVE a bird — federfall-mpm4, then
+ * federfall-q11w for the shape it settled on.
  *
  * [disp] is the pending row (`e.record`), [removing] true on the delete leg.
  * Throws ForbiddenError when the act would re-take a bird somebody else holds.
@@ -240,36 +246,34 @@ function requireAdmissible(app, auth, animalId) {
  * name, a date that does not reorder anything — stays editable by whoever may
  * edit the case, because none of it decides who holds the bird.
  *
- * ── The predicate, and why it is not plain custody ──────────────────────────
- * Allowed when the writer holds the bird now, OR when both of these hold:
+ * ── The predicate: one sentence per leg ─────────────────────────────────────
+ *   moving the bird    the writer must HOLD it — plain [holds], no exceptions.
+ *   re-opening a case  the writer must hold it, or nobody else may.
  *
- *   a. nobody ELSE holds it once this row is set aside
- *      ([heldByOthersWith] against [prospectiveAviary]'s answer without it), and
- *   b. the write does not hand the bird to the writer — the enclosure it would
- *      end up in is not one they keep.
+ * Moving is plain custody because nothing weaker survives contact with
+ * federfall-q11w. The tempting weaker form is "…or nobody else holds it once
+ * this row is set aside", which would let a carer repair the placement they just
+ * recorded — but a placement row IS the reason the bird is where it is, so
+ * setting THAT row aside always answers "nobody holds it": for the honest repair
+ * and equally for a stale carer re-pointing or withdrawing the placement that
+ * houses somebody else's resident. State alone cannot separate those two (the
+ * only discriminator is elapsed time), so the weaker form was tried, measured
+ * against q11w, and dropped.
  *
- * (a) is what keeps the correction path open, and it is the sentence
- * `requireAdmissible` already lives by — a bird nobody holds is anyone's to
- * take:
+ * What that costs is real and was accepted on purpose: once a carer has placed a
+ * bird, they can no longer change WHERE it went, withdraw the placement, or
+ * delete it — the bird is the enclosure's now. Handing a bird over is not
+ * reversible by the person who handed it over. The repairs are the keeper's (who
+ * holds the bird, and can admit it on a fresh case and place it correctly) or a
+ * supervisor's.
  *
- *   * A carer records `placed_in_aviary`, then notices the wrong enclosure. The
- *     placement closed their case and made the bird the enclosure's, so plain
- *     custody would refuse them their own correction and only a supervisor could
- *     repair it (the keeper cannot: `childEdit` binds a disposition to its
- *     case's carer). Without their row the bird is unheld, so they may fix it.
- *   * A carer records `died` by mistake and deletes it. Evaluated on the state
- *     as it stands, the animal reads `deceased`; there is deliberately NO
- *     deceased refusal here (unlike [requireAdmissible]), because correcting a
- *     wrong death record is exactly what this branch must allow.
- *
- * (b) is what stops (a) from handing mpm4 back. A row is the reason the bird is
- * where it is, so setting THAT row aside always answers "nobody holds it" — for
- * the honest correction above and equally for a stale carer re-pointing the
- * placement that houses somebody else's resident at their own enclosure. State
- * alone cannot separate those two, so the second condition is about the
- * DESTINATION rather than the history: whatever else a correction does, it may
- * not end with the bird in the writer's own care. That is the escalation
- * federfall-mpm4 is, and losing custody is never one.
+ * Re-opening keeps the weaker form because the same argument does not apply: a
+ * released or deceased bird is in nobody's enclosure, so "nobody else holds it"
+ * is a statement about the world rather than about the row being deleted. That is
+ * what keeps the ordinary correction — "I recorded the wrong outcome, delete it"
+ * — working for its carer. There is deliberately no deceased refusal here
+ * (unlike [requireAdmissible]): deleting a wrong death record is exactly the act
+ * that must stay possible.
  *
  * A supervisor overrides throughout ([holds]), which is what keeps archive
  * backfill — entering an old history in whatever order it is found — a supported
@@ -277,19 +281,13 @@ function requireAdmissible(app, auth, animalId) {
  * this gate too but rarely reaches it: `childEdit` only lets a case's own carer
  * (or a supervisor) at its dispositions in the first place.
  *
- * ── What it deliberately does NOT close ─────────────────────────────────────
- * By (b)'s logic the same stale carer may still EVICT another keeper's resident
- * — correcting their old placement to a release ends with the bird at large, in
- * nobody's care, so it is not an escalation and (b) does not fire. It is still
- * somebody else's flock changing under them, tracked separately (federfall-q11w)
- * because the answer trades against the same correction path: the bird's state
- * is visible in the registry, the enclosure's `aviary_stays` row closes, and
- * `lib_audit.js` records who did it.
- *
- * Nor does it ask whether the DESTINATION agreed. This is custody of the animal;
- * whether a placement may name an enclosure the writer does not keep — which
- * 1700000077 already answers "no" for the `animals.create` path — is
- * federfall-ehzz.
+ * ── What it deliberately does NOT ask ───────────────────────────────────────
+ * Whether the DESTINATION agreed. This is custody of the animal; a placement may
+ * still name an enclosure the writer does not keep, even though 1700000077
+ * answers "no" to the same question on the `animals.create` path. That asymmetry
+ * is deliberate (federfall-ehzz): the keeper is not stuck with the bird — they
+ * hold it the moment it lands, and can admit it on a fresh case and place it
+ * elsewhere. Recourse after the fact rather than consent before it.
  *
  * ── Scope ───────────────────────────────────────────────────────────────────
  * Registered as the *Request variants only (see animal_custody_scope.pb.js):
@@ -298,11 +296,12 @@ function requireAdmissible(app, auth, animalId) {
  * and `intake.pb.js` writes none. Superuser is exempt for the same reason it is
  * everywhere else: it bypasses collection rules anyway.
  *
- * The app is NOT gated to match, and that is deliberate: the second branch above
- * depends on a counterfactual the client cannot compute without the bird's whole
- * history, and the affordance it would hide is the correction path this exists to
- * protect. A refusal here surfaces as the generic "not permitted" message on a
- * path no shipped screen can reach except by editing a stale case.
+ * The app is NOT gated to match. `canWriteAnimal` (custody_providers.dart) is the
+ * predicate for the moving leg and could hide the disposition sheet's aviary
+ * picker behind it, but the re-opening leg needs "nobody ELSE holds it", which a
+ * client cannot answer without reading cases it has no right to see. So a refusal
+ * surfaces as the generic "not permitted" message, on paths a carer reaches only
+ * by revisiting an outcome they can no longer change.
  */
 function requireOutcomeWrite(app, auth, disp, removing) {
   const caseId = disp.getString("case");
@@ -328,12 +327,13 @@ function requireOutcomeWrite(app, auth, disp, removing) {
   if (holds(app, auth, animalId)) return;
 
   const derive = require(`${__hooks}/lib_derive.js`);
-  const withoutIt = derive.prospectiveAviary(app, animalId, {
-    id: disp.id,
-    removed: true,
-  });
-  let after = withoutIt;
-  if (!removing) {
+  let after;
+  if (removing) {
+    after = derive.prospectiveAviary(app, animalId, {
+      id: disp.id,
+      removed: true,
+    });
+  } else {
     // The pending row's own instant. `disposed_at` when it carries one, else the
     // `created` it already has (an update), else the clock — which is what
     // PocketBase is about to autodate `created` to (a create). Same lexical
@@ -351,38 +351,37 @@ function requireOutcomeWrite(app, auth, disp, removing) {
     });
   }
 
-  let reopensCase = false;
-  if (removing) {
-    let siblings = [];
-    try {
-      siblings = app.findRecordsByFilter(
-        "dispositions", "case = {:c}", "", 0, 0, { c: caseId },
-      );
-    } catch (_) {
-      siblings = [];
-    }
-    reopensCase = true;
-    for (const d of siblings) {
-      if (d.id !== disp.id) reopensCase = false;
-    }
+  // The moving leg. Compared against the STORED field rather than against a
+  // second derivation, because that field is what the reconcile after this write
+  // would overwrite — including for a case-less resident placed straight into an
+  // enclosure (add_animal_sheet.dart), whose enclosure no disposition explains.
+  if (after !== animal.getString("current_aviary")) {
+    throw new ForbiddenError("This animal is in someone else's care.");
   }
 
-  if (after === animal.getString("current_aviary") && !reopensCase) return;
-  if (
-    !heldByOthersWith(app, auth, animalId, withoutIt) &&
-    !keeps(app, auth, after)
-  ) {
-    return;
+  // The re-opening leg: only a delete can reach it, and only by taking away the
+  // case's last disposition — `reconcileCase` then sets the case back to
+  // `in_care`, and its `active_carer` holds the bird again.
+  if (!removing) return;
+  let siblings = [];
+  try {
+    siblings = app.findRecordsByFilter(
+      "dispositions", "case = {:c}", "", 0, 0, { c: caseId },
+    );
+  } catch (_) {
+    siblings = [];
   }
-  throw new ForbiddenError("This animal is in someone else's care.");
+  for (const d of siblings) {
+    if (d.id !== disp.id) return; // Another outcome keeps the case closed.
+  }
+  if (heldByOthers(app, auth, animalId)) {
+    throw new ForbiddenError("This animal is in someone else's care.");
+  }
 }
 
 module.exports = {
   holds: holds,
-  keeps: keeps,
-  hasOpenCase: hasOpenCase,
   heldByNobody: heldByNobody,
-  heldByOthersWith: heldByOthersWith,
   requireCustody: requireCustody,
   requireAdmissible: requireAdmissible,
   requireOutcomeWrite: requireOutcomeWrite,

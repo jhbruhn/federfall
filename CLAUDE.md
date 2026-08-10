@@ -163,15 +163,22 @@ the routes back INTO a stale carer's custody**, because `active_carer` of a disp
 case never expires: `case_status.pb.js` refuses a `status` that would contradict the
 case's outcome (a case with a disposition is disposed, one without is not — so
 re-opening means deleting the outcome, the correction path that already re-opens it,
-federfall-epkf), and `disposition_custody.pb.js` refuses a disposition write that would
-change the animal's derived `current_aviary` (or, on delete, re-open its case) unless
-the writer holds the bird — or nobody else does once that row is set aside AND the write
-does not end with the bird in the writer's own care (federfall-mpm4). That second branch
-is what keeps correcting your own outcome possible, and it asks about the DESTINATION
-because setting a placement row aside always answers "nobody holds it", for an honest fix
-and a grab alike; the predicate is `lib_custody.js`'s `requireOutcomeWrite`, and it asks
-`lib_derive.js`'s `prospectiveAviary` what the pending write would derive. Both are
-`*Request` hooks, so the server-side writers and the Admin UI stay exempt.
+federfall-epkf), and `disposition_custody.pb.js` gates a disposition write on what it
+would derive — `lib_custody.js`'s `requireOutcomeWrite` asking `lib_derive.js`'s
+`prospectiveAviary`, one sentence per leg: **moving** the bird (the write would change
+`current_aviary`) needs plain custody of it, **re-opening** its case (a delete taking the
+case's last outcome) needs that or that nobody else holds it (federfall-mpm4). So
+**handing a bird over is not reversible by whoever handed it over**: once a placement
+stands the bird is the enclosure's, and only the keeper (who can admit it on a case of
+their own — 1700000078's keeper branch) or a supervisor can say where it went. That
+asymmetry is deliberate, not an oversight: the weaker "…or nobody else holds it once this
+row is set aside" would let a carer repair their own fresh placement, but a placement row
+IS the reason the bird is where it is, so it equally lets a stale carer re-point or evict
+somebody else's resident — including closing an `aviary_stays` row on a day the residency
+did not end, which nothing but the Admin UI can repair (federfall-q11w). What a carer
+keeps is every outcome that moves the bird nowhere, including deleting a wrong death
+record. Both hooks are `*Request` variants, so the server-side writers and the Admin UI
+stay exempt.
 Multi-record writes are atomic server-side:
 case intake goes through `POST /api/federfall/intake` (`pb_hooks/intake.pb.js`, one
 transaction for animal+finder+case+weight+quarantine; `cases.finder` is locked against

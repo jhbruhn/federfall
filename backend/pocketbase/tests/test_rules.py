@@ -3710,23 +3710,38 @@ def main():
           f"{s} {d}")
     check("...it stays where it lives",
           animal_state(rt_res) == ("in_aviary", rt_av_c), animal_state(rt_res))
-    # The same act by editing the very row that houses it — the one the "nobody
-    # else holds it without this row" branch cannot tell from an honest
-    # correction, which is why that branch also asks where the bird would END UP.
+    # The same act by editing the very row that houses it, and the EVICTION that
+    # made the moving leg plain custody (federfall-q11w): a placement row is the
+    # reason the bird is where it is, so "nobody else holds it once this row is
+    # set aside" answers yes for both of these and for an honest correction
+    # alike. Nothing in the state tells them apart, so nothing tries.
     rt_res_disp = listf(T, "dispositions", f'case="{rt_res_old}"')[0]["id"]
     s, d = req("PATCH", f"/api/collections/dispositions/records/{rt_res_disp}",
                toks["b"], {"aviary": rt_av_b})
     check("...including by re-pointing the placement that put it there",
           s == 403, f"{s} {d}")
+    s, d = req("PATCH", f"/api/collections/dispositions/records/{rt_res_disp}",
+               toks["b"], {"type": "released"})
+    check("...and they cannot evict it either, which is not an escalation but "
+          "is somebody else's flock", s == 403, f"{s} {d}")
+    s, d = req("DELETE", f"/api/collections/dispositions/records/{rt_res_disp}",
+               toks["b"])
+    check("...nor by deleting the placement outright", s == 403, f"{s} {d}")
     check("...still where it lives",
           animal_state(rt_res) == ("in_aviary", rt_av_c), animal_state(rt_res))
+    rt_res_stays = [x for x in listf(T, "aviary_stays", f'animal="{rt_res}"')
+                    if x["ended_at"] == ""]
+    check("...with its residency ledger intact, which is the part no UI could "
+          "repair", len(rt_res_stays) == 1 and rt_res_stays[0]["aviary"] ==
+          rt_av_c, rt_res_stays)
 
-    # ── and the whole correction path, which none of it may cost ─────────────
-    # A carer records an outcome on their own case and then repairs it. Every
-    # step here would be refused by a plain "you must still hold the bird"
-    # clause: the placement closes the case and makes the bird the enclosure's,
-    # and `childEdit` binds the row to its case's carer, so a supervisor would
-    # be the only repair.
+    # ── handing a bird over is not reversible by whoever handed it over ──────
+    # federfall-q11w's price, accepted on purpose: a carer may place the bird
+    # they hold into any enclosure, and from that moment the bird is the
+    # enclosure's — they can no longer say where it went, withdraw the placement
+    # or delete it. The repairs are the keeper's and the supervisor's, and both
+    # are exercised below, because a gate whose only repair is a supervisor is a
+    # gate that gets worked around.
     rt_z = mk(T, "animals", {"species": "Stadttaube", "name": "Eigener Fehler",
                              "org": ORG})["id"]
     rt_z_case = mk(T, "cases", {"animal": rt_z, "active_carer": A,
@@ -3737,30 +3752,69 @@ def main():
     check("setup: a carer places the bird they hold into an enclosure they do "
           "not keep", animal_state(rt_z) == ("in_aviary", rt_av_b),
           animal_state(rt_z))
-    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_z_disp}",
-               toks["a"], {"aviary": rt_av_c})
-    check("they may still correct the enclosure, though the bird is now its "
-          "keeper's", s == 200, f"status {s}")
-    check("...and it moves", animal_state(rt_z) == ("in_aviary", rt_av_c),
-          animal_state(rt_z))
-    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_z_disp}",
-               toks["a"], {"type": "died"})
-    check("...or withdraw the placement entirely", s == 200, f"status {s}")
-    check("...leaving a deceased bird in no enclosure",
-          animal_state(rt_z) == ("deceased", ""), animal_state(rt_z))
-    s, _ = req("DELETE", f"/api/collections/dispositions/records/{rt_z_disp}",
+    for rt_body, rt_label in (
+        ({"aviary": rt_av_c}, "...and cannot then change which enclosure it "
+                              "went to"),
+        ({"type": "died"}, "...nor withdraw the placement"),
+    ):
+        s, d = req("PATCH", f"/api/collections/dispositions/records/{rt_z_disp}",
+                   toks["a"], rt_body)
+        check(rt_label, s == 403, f"{s} {d}")
+    s, d = req("DELETE", f"/api/collections/dispositions/records/{rt_z_disp}",
                toks["a"])
-    check("...and delete a wrong death record, which is the one act "
-          "requireAdmissible would refuse", s == 204, f"status {s}")
-    check("...re-opening the case and restoring the bird",
-          animal_state(rt_z) == ("in_care", ""), animal_state(rt_z))
-    # ...but a correction may not END in the writer's own care, and that is what
-    # stops the branch above from handing mpm4 back: setting a placement row
-    # aside always answers "nobody holds it" — for an honest fix and for a grab
-    # alike — so where the bird ends up is what separates the two
-    # (federfall-q11w records what that leaves open). The route this refuses is
-    # not a dead end: admitting a bird at large is what `/api/federfall/intake`
-    # is for, and `requireAdmissible` allows it.
+    check("...nor delete it", s == 403, f"{s} {d}")
+    check("...the bird stays the enclosure's",
+          animal_state(rt_z) == ("in_aviary", rt_av_b), animal_state(rt_z))
+    # Repair 1: a supervisor, who overrides every branch.
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_z_disp}",
+               toks["sup"], {"aviary": rt_av_c})
+    check("a supervisor can correct where it went", s == 200, f"status {s}")
+    check("...which moves it", animal_state(rt_z) == ("in_aviary", rt_av_c),
+          animal_state(rt_z))
+    # Repair 2, and the one that keeps this workable: the KEEPER holds the bird,
+    # so 1700000078's keeper branch lets them admit it on a case of their own and
+    # place it correctly from there — no supervisor involved.
+    s, rt_z_c_case = req("POST", "/api/collections/cases/records", toks["c"],
+                         {"animal": rt_z, "active_carer": C, "org": ORG})
+    check("the keeper of the enclosure it landed in can admit it themselves",
+          s == 200, f"status {s}")
+    s, _ = req("POST", "/api/collections/dispositions/records", toks["c"],
+               {"case": (rt_z_c_case or {}).get("id"),
+                "type": "placed_in_aviary", "aviary": rt_av_b, "org": ORG})
+    check("...and place it where it belongs", s == 200, f"status {s}")
+    check("...which moves it and closes their case",
+          animal_state(rt_z) == ("in_aviary", rt_av_b), animal_state(rt_z))
+
+    # What a carer keeps, because none of it moves a bird anywhere: correcting an
+    # outcome that names no enclosure, and deleting the wrong outcome outright —
+    # the ordinary "I recorded the wrong thing" repair. The delete is the one act
+    # `requireAdmissible` would refuse (the animal reads `deceased` at that
+    # moment), and it must not be refused here.
+    rt_undo = mk(T, "animals", {"species": "Stadttaube", "name": "Vertippt",
+                                "org": ORG})["id"]
+    rt_undo_case = mk(T, "cases", {"animal": rt_undo, "active_carer": A,
+                                   "org": ORG})["id"]
+    rt_undo_disp = mk(toks["a"], "dispositions",
+                      {"case": rt_undo_case, "type": "died", "org": ORG})["id"]
+    check("setup: a carer records the wrong outcome on their own case",
+          animal_state(rt_undo) == ("deceased", ""), animal_state(rt_undo))
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_undo_disp}",
+               toks["a"], {"type": "released"})
+    check("they may correct an outcome that moves the bird nowhere", s == 200,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/dispositions/records/{rt_undo_disp}",
+               toks["a"], {"type": "died"})
+    check("setup: back to the death record", s == 200, f"status {s}")
+    s, d = req("DELETE", f"/api/collections/dispositions/records/{rt_undo_disp}",
+               toks["a"])
+    check("...and delete it, deceased or not, while nobody else holds the bird",
+          s == 204, f"{s} {d}")
+    check("...which re-opens their case and restores the bird",
+          animal_state(rt_undo) == ("in_care", ""), animal_state(rt_undo))
+
+    # The route the moving leg refuses is not a dead end: admitting a bird at
+    # large is what `/api/federfall/intake` is for, and `requireAdmissible`
+    # allows it.
     rt_free = mk(T, "animals", {"species": "Stadttaube", "name": "Freigelassen",
                                 "org": ORG})["id"]
     rt_free_case = mk(T, "cases", {"animal": rt_free, "active_carer": B,
@@ -3774,8 +3828,8 @@ def main():
     s, d = req("POST", "/api/collections/dispositions/records", toks["b"],
                {"case": rt_free_case, "type": "placed_in_aviary",
                 "aviary": rt_av_b, "disposed_at": stamp(days=-1), "org": ORG})
-    check("a stale carer cannot take even an UNHELD bird into their own "
-          "enclosure this way", s == 403, f"{s} {d}")
+    check("a stale carer cannot take even an UNHELD bird into an enclosure "
+          "this way", s == 403, f"{s} {d}")
     check("...it is still at large",
           animal_state(rt_free) == ("at_large_released", ""),
           animal_state(rt_free))

@@ -22,6 +22,12 @@
 // last disposition re-opens the case and hands custody back to its carer, which
 // is the same act `case_status.pb.js` refuses through the `status` field.
 //
+// federfall-q11w is why the moving leg is plain custody with no correction
+// exemption: the weaker predicate that would have let a carer repair the
+// placement they just recorded equally let a stale one evict somebody else's
+// resident, and no reading of the state can tell those apart. Once a bird is
+// handed over it is the enclosure's; repairs are the keeper's or a supervisor's.
+//
 // Why the *Request variants: `e.auth` lives only on RecordRequestEvent (see
 // animal_custody_scope.pb.js / authorship.pb.js), and the server-side writers
 // must stay exempt — merge_animals.pb.js re-points a duplicate's dispositions
