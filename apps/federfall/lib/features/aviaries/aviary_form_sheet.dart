@@ -73,11 +73,13 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
         'capacity': capacity,
         'active': _active,
         'notes': _notes.text.trim(),
-        'org': org,
       };
       final existing = widget.aviary;
       if (existing == null) {
-        await repo.create(body);
+        // `org` on create only: 1700000083 froze it, and its update rule
+        // refuses a body that so much as mentions the field (federfall-t7ad —
+        // resending the unchanged value 404s the whole edit).
+        await repo.create({...body, 'org': org});
       } else {
         await repo.update(existing.id, body);
         ref.invalidate(aviaryByIdProvider(existing.id));

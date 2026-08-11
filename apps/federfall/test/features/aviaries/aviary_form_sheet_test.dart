@@ -138,7 +138,11 @@ void main() {
     expect(body['org'], 'org1');
   });
 
-  testWidgets('editing an aviary prefills fields and updates it', (
+  // federfall-t7ad: `aviaries.org` is frozen (1700000083) and its update rule
+  // refuses a body that so much as MENTIONS the field — resending the unchanged
+  // value made every edit 404 ("not found" on the record being edited). So the
+  // assertion is about the key's absence, not its value.
+  testWidgets('editing an aviary does not resend the frozen org', (
     tester,
   ) async {
     when(() => aviaries.update('av1', any())).thenAnswer(
@@ -175,5 +179,6 @@ void main() {
             as Map<String, dynamic>;
     expect(body['name'], 'Voliere 1');
     expect(body['active'], false);
+    expect(body.containsKey('org'), isFalse);
   });
 }

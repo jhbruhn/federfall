@@ -146,14 +146,12 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
       // (e.g. released -> transferred) must clear the old type's leftovers.
       final geo = _isRelease ? _releaseGeo : null;
       final body = <String, dynamic>{
-        'case': widget.caseId,
         'type': _type!.wire,
         'disposed_at': _disposedAt.toUtc().toIso8601String(),
         'reason': trimToNull(_reason) ?? '',
         'performed_by': user.id,
         'vet_signed_off': _showVetSignoff && _vetSignedOff,
         'vet': _isEuthanized ? (trimToNull(_vet) ?? '') : '',
-        'org': org,
         'release_location': _isRelease
             ? (trimToNull(_releaseLocation) ?? '')
             : '',
@@ -170,7 +168,10 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
 
       final existing = widget.disposition;
       if (existing == null) {
-        await repo.create(body);
+        // `case` and `org` on create only: 1700000043 froze both, and the
+        // update rule refuses a body that so much as mentions them
+        // (federfall-t7ad — resending the unchanged values 404s the edit).
+        await repo.create({...body, 'case': widget.caseId, 'org': org});
       } else {
         await repo.update(existing.id, body);
       }

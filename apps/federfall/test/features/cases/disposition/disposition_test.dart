@@ -167,6 +167,12 @@ void main() {
       expect(body['release_geo'], {'lon': 0, 'lat': 0});
       expect(body['aviary'], '');
       expect(body['vet'], '');
+      // ...but `case` and `org` are frozen (1700000043) and their update rule
+      // refuses a body that so much as MENTIONS them, so resending the
+      // unchanged values 404s the whole edit (federfall-t7ad). They belong in
+      // the create branch only — hence absence, not a value.
+      expect(body.containsKey('case'), isFalse);
+      expect(body.containsKey('org'), isFalse);
     });
 
     testWidgets('deleting an outcome confirms and calls delete', (

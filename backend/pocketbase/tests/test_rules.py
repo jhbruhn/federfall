@@ -6513,6 +6513,90 @@ def main():
              if n not in {c["name"] for c in (all_colls or {}).get("items", [])}]
     check("no classification names a collection that is gone", not stale, stale)
 
+    # ── the other half of a freeze: the CLIENT (federfall-t7ad) ─────────────
+    # An `:isset = false` guard refuses a body that so much as MENTIONS the
+    # field — resending its unchanged value is refused exactly like re-pointing
+    # it. And a failed UPDATE rule is a 404, not a 403, so the symptom is "not
+    # found" on the record the user is looking at, which reads as data loss
+    # rather than as a permission answer.
+    #
+    # Every block above tests a freeze from the attacker's side (a re-point is
+    # refused). None tested it from the app's: `aviary_form_sheet.dart` and
+    # `disposition_sheet.dart` each built ONE body for create and update, so
+    # every aviary edit and every outcome correction 404'd for coordinators and
+    # supervisors alike, from 1700000083 and 1700000043 respectively. The suite
+    # missed it because every aviary PATCH here uses the SUPERUSER token, and a
+    # superuser bypasses access rules entirely — so the guard was never on.
+    #
+    # Hence: these PATCH as ordinary members, and assert the SHAPE the client
+    # sends (frozen fields on create only) rather than any single field's value.
+    print("\n[frozen fields vs. the client]")
+
+    # A freeze the registry above does not describe: it only classifies
+    # RELATIONS, and `animals.lifetime_status` (1700000077) is an enum. Listed
+    # rather than derived, so a new non-relation freeze fails here until
+    # somebody states it and checks the client for it.
+    NON_RELATION_FROZEN = {
+        "animals": {"lifetime_status": "derived by lib_derive.js; the client "
+                                       "never writes it"},
+    }
+    unstated = []
+    for c in (all_colls or {}).get("items", []):
+        name = c["name"]
+        if c.get("system") or name.startswith("_") or c.get("type") == "view":
+            continue
+        frozen = set(re.findall(r"@request\.body\.(\w+):isset = false",
+                                str(c.get("updateRule") or "")))
+        stated = {f for f, how in RELATION_GUARDS.get(name, {}).items()
+                  if how == "frozen"} | set(NON_RELATION_FROZEN.get(name, {}))
+        unstated += [f"{name}.{f}" for f in sorted(frozen - stated)]
+    check("every isset-guarded field is a stated freeze",
+          not unstated,
+          "a new guard nothing describes — state it, and check no client "
+          f"update body sends it: {unstated}")
+
+    # 1. aviaries — the reported bug. Coordinator AND supervisor: both may edit.
+    fz_av = mk(T, "aviaries", {"name": "Voliere Frozen", "keeper": SUP,
+                               "org": ORG, "capacity": 4})["id"]
+    fz_body = {"name": "Voliere Frozen", "keeper": SUP, "location": "",
+               "capacity": 9, "active": True, "notes": ""}
+    s, _ = req("PATCH", f"/api/collections/aviaries/records/{fz_av}",
+               toks["coord"], fz_body)
+    check("coordinator can change an aviary's capacity", s == 200,
+          f"status {s} — the client body must not carry `org`")
+    s, _ = req("PATCH", f"/api/collections/aviaries/records/{fz_av}",
+               toks["sup"], dict(fz_body, capacity=10))
+    check("supervisor can change an aviary's capacity", s == 200, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/aviaries/records/{fz_av}",
+               toks["sup"], dict(fz_body, org=ORG))
+    check("...and mentioning `org` at all is still refused (404, not 403)",
+          s == 404, f"status {s}")
+
+    # 2. dispositions — the same defect, found alongside it. The carer of the
+    # case corrects an outcome that moves the bird nowhere, so custody is not
+    # what is being tested here (disposition_custody.pb.js has its own block).
+    fz_animal = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+    fz_case = mk(T, "cases", {"animal": fz_animal, "active_carer": A,
+                              "org": ORG, "admitted_at": stamp(days=-3)})["id"]
+    fz_disp = mk(T, "dispositions", {
+        "case": fz_case, "org": ORG, "type": "released", "performed_by": A,
+        "disposed_at": stamp(days=-1), "release_location": "Wald"})["id"]
+    fz_dpath = f"/api/collections/dispositions/records/{fz_disp}"
+    fz_dbody = {"type": "released", "performed_by": A,
+                "disposed_at": stamp(days=-1), "reason": "",
+                "release_location": "Waldrand", "release_type": "",
+                "transfer_type": "", "transfer_destination": "", "aviary": "",
+                "vet": "", "vet_signed_off": False}
+    s, _ = req("PATCH", fz_dpath, toks["a"], fz_dbody)
+    check("the carer can correct an outcome's release location", s == 200,
+          f"status {s} — the client body must not carry `case` or `org`")
+    s, _ = req("PATCH", fz_dpath, toks["a"], dict(fz_dbody, case=fz_case))
+    check("...and mentioning `case` at all is still refused", s == 404,
+          f"status {s}")
+    s, _ = req("PATCH", fz_dpath, toks["a"], dict(fz_dbody, org=ORG))
+    check("...and mentioning `org` at all is still refused", s == 404,
+          f"status {s}")
+
     print("\n[geocode proxy guards]")
     # federfall-2asj: guests are walled off from all data everywhere else —
     # the geocode proxy must reject them too, or an auto-created OAuth2 guest
