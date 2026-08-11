@@ -83,6 +83,64 @@ class IntakeSeries {
   final List<IntakePoint> previousPoints;
 }
 
+/// What the org's Patenschaften currently come to (federfall-ys7z).
+///
+/// The one block of [OrgStatistics] that is NOT period-scoped: it answers "what
+/// is being given right now", which the selected year has no bearing on. Render
+/// it as a standing figure — putting it inside a period's card would describe
+/// it as something it is not.
+///
+/// Money is integer CENTS throughout, and the three sums are deliberately
+/// separate rather than one total: a `one_time` donation divided into a month
+/// is an invented number, and an amount whose interval was never recorded has
+/// no rhythm to normalise. They are reported instead of dropped, so a reader
+/// adding them up is not quietly short.
+@immutable
+class SponsorshipTotals {
+  const SponsorshipTotals({
+    this.total = 0,
+    this.active = 0,
+    this.monthlyCents = 0,
+    this.oneTimeCents = 0,
+    this.noIntervalCents = 0,
+  });
+
+  factory SponsorshipTotals.fromJson(Map<String, dynamic> json) =>
+      SponsorshipTotals(
+        total: OrgStatistics._int(json['total']),
+        active: OrgStatistics._int(json['active']),
+        monthlyCents: OrgStatistics._int(json['monthlyCents']),
+        oneTimeCents: OrgStatistics._int(json['oneTimeCents']),
+        noIntervalCents: OrgStatistics._int(json['noIntervalCents']),
+      );
+
+  /// Every patronage on record, running or over.
+  ///
+  /// What tells "this org has an archive" from "this org has never had a
+  /// patronage": an org whose patronages have all ended reports [active] 0 and
+  /// no sums, and hiding the way in on that would hide the very rows a
+  /// Zuwendungsbestätigung is written from.
+  final int total;
+
+  /// Patronages still running — an unset end date, or one in the future.
+  final int active;
+
+  /// The recurring ones normalised to a month (quarterly ÷ 3, yearly ÷ 12),
+  /// rounded once server-side over the summed parts.
+  final int monthlyCents;
+
+  /// Active `one_time` amounts, NOT divided into a month.
+  final int oneTimeCents;
+
+  /// Active amounts with no interval recorded — a figure that exists but has no
+  /// rhythm. Usually zero; shown only when it is not.
+  final int noIntervalCents;
+
+  /// Whether the org has no patronage at all — the one case where there is
+  /// nothing to show and nothing to open.
+  bool get isEmpty => total == 0;
+}
+
 /// The org's reporting figures for one period, as computed by
 /// `GET /api/federfall/stats` (`pb_hooks/stats.pb.js`).
 ///
@@ -107,6 +165,7 @@ class OrgStatistics {
     this.bySpecies = const [],
     this.byCondition = const [],
     this.intakeYears = const [],
+    this.sponsorships = const SponsorshipTotals(),
   });
 
   /// Parses the route's body. Every field is defaulted rather than required:
@@ -152,6 +211,12 @@ class OrgStatistics {
                 : const <Object?>[])
           ?_intOrNull(e),
       ],
+      sponsorships: switch (json['sponsorships']) {
+        final Map<String, dynamic> raw => SponsorshipTotals.fromJson(raw),
+        // A server one minor version older simply does not send the block; the
+        // zeroed default then hides the teaser rather than claiming zero euros.
+        _ => const SponsorshipTotals(),
+      },
     );
   }
 
@@ -234,6 +299,11 @@ class OrgStatistics {
   /// a case admitted at 00:30 on New Year's Day belongs to the year the carer
   /// was living in.
   final List<int> intakeYears;
+
+  /// What the org's Patenschaften currently come to — a STANDING figure, not a
+  /// figure for [year] / [month] (federfall-ys7z). Zeroed when the server did
+  /// not send the block.
+  final SponsorshipTotals sponsorships;
 }
 
 /// Reads the org's reporting figures off `GET /api/federfall/stats`

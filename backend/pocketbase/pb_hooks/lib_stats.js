@@ -370,6 +370,95 @@ function conditionCounts(app, org, rows) {
   return ranked(counts);
 }
 
+/**
+ * The org's Patenschaften as they stand right now: how many are running, and
+ * what they come to (federfall-ys7z).
+ *
+ * ── Deliberately NOT period-scoped ──────────────────────────────────────────
+ * Every other figure in this module answers a question about a period. This one
+ * cannot: "what is currently being given" has nothing to do with `?year=` /
+ * `?month=`, and narrowing it to the selected period would put a number on
+ * screen that changes every time the reader picks a different year while
+ * describing something that did not change at all. Callers must present it as a
+ * standing figure, never inside a period's card.
+ *
+ * ── ACTIVE means the same thing it means in the app ─────────────────────────
+ * An unset `ended_at` is running, and so is one in the FUTURE — „läuft bis
+ * Dezember" is a running patronage, not an ended one. That is exactly what
+ * `SponsorshipState.isActive` (federfall_models) resolves, so a keeper's card
+ * and this total cannot disagree about which rows they are talking about.
+ *
+ * ── `one_time` is not a monthly figure ──────────────────────────────────────
+ * A single donation divided into a month is an invented number, so it is
+ * reported on its own line. Same for an amount whose `interval` was never set
+ * (the field is optional on purpose — a patronage agreed in conversation may
+ * have no rhythm yet): it cannot be normalised, and folding it into either of
+ * the other two would claim a rhythm nobody recorded. Dropping it silently is
+ * the one thing that is not allowed, because then the totals are quietly short.
+ *
+ * Cents are integers throughout, and `monthlyCents` is rounded ONCE — at the
+ * very end, over the summed quarterly/yearly parts. Rounding each row on the
+ * way in would accumulate a cent of error per quarterly patronage, which is
+ * precisely what somebody reconciling this against a bank statement notices.
+ */
+function sponsorshipTotals(app, org, t, nowMs) {
+  const rows = app.findRecordsByFilter(
+    "sponsorships",
+    "org = {:org}",
+    "",
+    0,
+    0,
+    { org: org },
+  );
+  const now = nowMs === null || nowMs === undefined ? Date.now() : nowMs;
+
+  let active = 0;
+  let monthly = 0;
+  let quarterly = 0;
+  let yearly = 0;
+  let oneTime = 0;
+  let noInterval = 0;
+  for (const r of rows) {
+    const endedMs = t.parseMs(r.getString("ended_at"));
+    if (endedMs !== null && endedMs <= now) continue;
+    active++;
+    // `amount_cents` is optional and stored as onlyInt; getFloat is how the
+    // JSVM hands back a number field, so it is rounded before it is summed.
+    const cents = Math.round(r.getFloat("amount_cents") || 0);
+    if (cents <= 0) continue;
+    switch (r.getString("interval")) {
+      case "monthly":
+        monthly += cents;
+        break;
+      case "quarterly":
+        quarterly += cents;
+        break;
+      case "yearly":
+        yearly += cents;
+        break;
+      case "one_time":
+        oneTime += cents;
+        break;
+      default:
+        // No interval — or one this build does not know. Either way it has no
+        // rhythm that can be normalised, and it is reported rather than lost.
+        noInterval += cents;
+    }
+  }
+
+  return {
+    // Every patronage on record, running or over. Not decoration: an org whose
+    // patronages have all ended has `active: 0` and no sums, and without this
+    // the app cannot tell that from an org that never had one — and would hide
+    // the way to the archive that a Zuwendungsbestätigung is written from.
+    total: rows.length,
+    active: active,
+    monthlyCents: Math.round(monthly + quarterly / 3 + yearly / 12),
+    oneTimeCents: oneTime,
+    noIntervalCents: noInterval,
+  };
+}
+
 module.exports = {
   parsePeriod: parsePeriod,
   periodBounds: periodBounds,
@@ -378,4 +467,5 @@ module.exports = {
   ranked: ranked,
   aggregate: aggregate,
   conditionCounts: conditionCounts,
+  sponsorshipTotals: sponsorshipTotals,
 };

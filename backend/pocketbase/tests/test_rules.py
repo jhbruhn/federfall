@@ -4066,6 +4066,137 @@ def main():
           any(c.get("field") == "amount_cents"
               for r in rows for c in (r.get("changes") or [])), rows)
 
+    # ── federfall-ys7z: the patronage overview ───────────────────────────────
+    # One coord/sup screen over every patronage in the org. Two halves are
+    # asserted here, because both live on the server: the standing totals the
+    # dashboard teaser reads off GET /api/federfall/stats, and the exact filter
+    # expressions the list pages with (`sponsorships_repository.dart`'s
+    # filterFor) — a facet that a live PocketBase parses differently than the
+    # Dart test's string comparison assumes would fail nowhere else.
+    print("\n[patronage overview]")
+
+    def sp_totals(tok, query="?tzOffsetMinutes=0"):
+        s, d = req("GET", "/api/federfall/stats" + query, tok)
+        return s, ((d or {}).get("sponsorships") or {})
+
+    s, sp_before = sp_totals(toks["coord"])
+    check("the stats route carries a sponsorships block", s == 200
+          and "monthlyCents" in sp_before, f"{s} {sp_before}")
+
+    # A cohort exercising every rhythm, on a bird in A's enclosure so its keeper
+    # may record them. Deltas rather than absolutes: earlier blocks left
+    # patronages in this org, and a test that pinned the org's total would break
+    # every time one of them changed.
+    sp_ov_bird = mk(T, "animals", {"species": "Stadttaube", "name": "Patenmix",
+                                   "current_aviary": sp_av_a, "org": ORG})["id"]
+
+    def sp_mk(name, cents, interval, ended=None):
+        s, d = req("POST", "/api/collections/sponsorships/records", toks["a"], {
+            "animal": sp_ov_bird, "sponsor_name": name, "org": ORG,
+            "amount_cents": cents, "interval": interval,
+            "ended_at": ended or "",
+        })
+        if s != 200:
+            print(f"FATAL: sponsorship create failed: {s} {d}")
+            sys.exit(2)
+        return d["id"]
+
+    sp_mk("ys7z Monat", 1000, "monthly")
+    sp_mk("ys7z Quartal", 3000, "quarterly")
+    sp_mk("ys7z Jahr", 12000, "yearly")
+    sp_mk("ys7z Einmal", 5000, "one_time")
+    # „läuft bis Dezember" — a FUTURE end date is a running patronage.
+    sp_future = sp_mk("ys7z Bis Morgen", 500, "monthly", stamp(days=1))
+    # Over, and therefore in none of the sums.
+    sp_over = sp_mk("ys7z Beendet", 9999, "monthly", stamp(days=-1))
+
+    s, sp_after = sp_totals(toks["coord"])
+    check("total counts every patronage, running or over",
+          sp_after.get("total", 0) - sp_before.get("total", 0) == 6,
+          f'{sp_before.get("total")} → {sp_after.get("total")}')
+    check("active counts the running ones, a future end date included",
+          sp_after.get("active", 0) - sp_before.get("active", 0) == 5,
+          f'{sp_before.get("active")} → {sp_after.get("active")}')
+    # 1000 + 3000/3 + 12000/12 + 500 = 3500. The ended one contributes nothing,
+    # and the one-off is NOT divided into a month.
+    check("recurring amounts are normalised to a month",
+          sp_after.get("monthlyCents", 0)
+          - sp_before.get("monthlyCents", 0) == 3500,
+          f'{sp_before.get("monthlyCents")} → {sp_after.get("monthlyCents")}')
+    check("a one-off donation is reported separately, never divided",
+          sp_after.get("oneTimeCents", 0)
+          - sp_before.get("oneTimeCents", 0) == 5000,
+          f'{sp_before.get("oneTimeCents")} → {sp_after.get("oneTimeCents")}')
+
+    # An amount with no rhythm cannot be normalised — and must not be dropped,
+    # or the totals are quietly short of money somebody recorded.
+    sp_mk("ys7z Ohne Rhythmus", 700, "")
+    s, sp_free = sp_totals(toks["coord"])
+    check("an amount with no interval is reported on its own line",
+          sp_free.get("noIntervalCents", 0)
+          - sp_after.get("noIntervalCents", 0) == 700
+          and sp_free.get("monthlyCents") == sp_after.get("monthlyCents"),
+          f"{sp_after} → {sp_free}")
+
+    # The one thing that must NOT move with the reporting period: 1999 has no
+    # cases at all, and what is being given right now has nothing to do with it.
+    s, sp_1999 = sp_totals(toks["coord"], "?year=1999&tzOffsetMinutes=0")
+    check("the block is period-independent",
+          sp_1999 == sp_free, f"{sp_free} vs {sp_1999}")
+    check("...while the period itself really did narrow to nothing",
+          req("GET", "/api/federfall/stats?year=1999&tzOffsetMinutes=0",
+              toks["coord"])[1]["totals"]["intakes"] == 0)
+
+    # ── the facets, as the app actually sends them ───────────────────────────
+    sp_now = stamp()
+    sp_mine = 'sponsor_name ~ "ys7z"'
+
+    def sp_facet(flt):
+        return {r["sponsor_name"]
+                for r in listf(toks["coord"], "sponsorships",
+                               f'{sp_mine} && ({flt})')}
+
+    active = sp_facet(f'ended_at = "" || ended_at > "{sp_now}"')
+    ended = sp_facet(f'ended_at != "" && ended_at <= "{sp_now}"')
+    check("the active facet keeps unset AND future end dates",
+          "ys7z Monat" in active and "ys7z Bis Morgen" in active
+          and "ys7z Beendet" not in active, active)
+    check("the ended facet is its exact complement",
+          ended == {"ys7z Beendet"}, ended)
+    check("...and the two partition the cohort, with no row in both",
+          not (active & ended) and len(active) + len(ended) == 7,
+          f"{active} | {ended}")
+    check("the interval facet matches the stored wire value",
+          sp_facet('interval = "quarterly"') == {"ys7z Quartal"},
+          sp_facet('interval = "quarterly"'))
+    # The search is the sponsor and the town, and deliberately nothing else.
+    check("search matches the sponsor's name",
+          "ys7z Monat" in sp_facet('sponsor_name ~ "Monat" || city ~ "Monat"'),
+          "no match")
+    check("...and their town",
+          {r["sponsor_name"] for r in
+           listf(toks["coord"], "sponsorships",
+                 'sponsor_name ~ "Oldenburg" || city ~ "Oldenburg"')}
+          == {"Marlene Wolf"}, "town search")
+
+    # A carer's widened view of this screen is still nothing: the route gate is
+    # defence in depth, the list rule is the boundary.
+    check("a carer cannot list the org's patronages, filter or no filter",
+          not listf(toks["c"], "sponsorships", sp_mine), "visible to a carer")
+    check("...nor can a keeper of another enclosure",
+          not listf(toks["b"], "sponsorships", sp_mine), "visible to B")
+
+    # The rows the app pages through are ordered by sponsor_name, which is the
+    # key its cursor is built from — a different sort would page nonsense.
+    s, sp_page = req("GET", "/api/collections/sponsorships/records"
+                     "?perPage=3&sort=sponsor_name,id&filter="
+                     + urllib.parse.quote(sp_mine), toks["coord"])
+    names = [r["sponsor_name"] for r in (sp_page or {}).get("items", [])]
+    check("the list pages in sponsor_name order", names == sorted(names),
+          names)
+    check("setup: the overview cohort is reachable at all",
+          bool(names) and sp_future and sp_over, names)
+
     # ── federfall-3ty3: intake idempotency key ───────────────────────────────
     print("\n[intake idempotency]")
     ikey = "itest-0123456789abcdef0123456789abcdef"

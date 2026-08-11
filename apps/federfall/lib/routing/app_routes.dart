@@ -140,6 +140,13 @@ abstract final class AppRoutes {
   /// `audit` — audit log, child of the management hub.
   static const auditSegment = 'audit';
 
+  /// Patronage overview, for coordinators/supervisors (federfall-ys7z).
+  ///
+  /// NOT under [admin]: that hub is gated on `canManageTeam` (supervisor only),
+  /// while patronages are readable by coordinators too — a section there would
+  /// be unreachable for half its audience. Reached from the dashboard teaser.
+  static const sponsorships = '/sponsorships';
+
   /// Reporting statistics, for coordinators/supervisors (FED-7.2).
   static const statistics = '/statistics';
 

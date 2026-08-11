@@ -8,6 +8,7 @@ import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/features/home/account_menu.dart';
+import 'package:federfall/features/sponsorships/sponsorship_teaser_card.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/features/worklist/worklist_tile.dart';
@@ -96,7 +97,11 @@ class DashboardScreen extends ConsumerWidget {
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [caseload, const _CarerWorkloadCard()],
+                              children: [
+                                caseload,
+                                const _CarerWorkloadCard(),
+                                const SponsorshipTeaserCard(),
+                              ],
                             ),
                           ),
                         ],
@@ -107,6 +112,7 @@ class DashboardScreen extends ConsumerWidget {
                           const _WorklistPreview(showEmptyState: true),
                           caseload,
                           const _CarerWorkloadCard(),
+                          const SponsorshipTeaserCard(),
                         ],
                       );
 

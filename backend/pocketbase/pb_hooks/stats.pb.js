@@ -27,7 +27,9 @@
 //   "outcomes":   [{ "type": "released" | "", "count": n }],
 //   "species":    [{ "label": "Stadttaube", "count": n }],
 //   "conditions": [{ "label": "Trichomoniasis", "count": n }],
-//   "intakeYears": [2026, 2025, 2024]
+//   "intakeYears": [2026, 2025, 2024],
+//   "sponsorships": { "total", "active", "monthlyCents",
+//                     "oneTimeCents", "noIntervalCents" }
 // }
 //
 // `series.kind` follows the period: "day" for a selected month (keys 1..28-31),
@@ -37,6 +39,13 @@
 // the SAME period one year earlier — last March for March, not February — and
 // is omitted when that period had no intakes at all, since an all-zero
 // comparison series is noise rather than a comparison.
+//
+// `sponsorships` is the ONE block here that is not period-scoped
+// (federfall-ys7z): it is what is being given right now, which `?year=` has no
+// bearing on. It is served from this route rather than from a count view because
+// the route is already `canViewReports`-gated and already the app's one place
+// for org-wide figures — and because a patronage total cannot be summed on the
+// device (federfall-trep: no screen reads a collection to aggregate it locally).
 //
 // `outcomes` counts ENDED cases only; `""` is a disposition type the reader's
 // build cannot name. Still-open cases are reported as `totals.inCare`, not as
@@ -132,6 +141,8 @@ routerAdd(
       // period would not add up against the outcomes beside it.
       conditions: stats.conditionCounts(e.app, org, periodRows),
       intakeYears: intakeYears,
+      // Standing figure, unaffected by `period` above — see the header.
+      sponsorships: stats.sponsorshipTotals(e.app, org, t),
     });
   },
   $apis.requireAuth(),

@@ -240,6 +240,25 @@ a Zuwendungsbestätigung falls under §147 AO / §257 HGB and the receipt is wor
 donor's name and address, so here the identity is the part that must be kept — the mirror image
 of the finder scrub. `sponsorship_retention.pb.js` therefore has exactly one deletion path, the
 orphan whose bird is gone; the absence of a scrub is a decision, not an omission.
+The **patronage overview** (federfall-ys7z, `/sponsorships`) is the coord/sup
+screen over all of them and the only place the rows NO keeper can reach are
+visible — a bird that left aviary care, or an orphan. It is its own route, not an
+admin section (`/admin` is `canManageTeam`, i.e. supervisor-only, while
+patronages are readable by coordinators too), gated on `canViewReports` and
+reached from a dashboard teaser on `_CarerWorkloadCard`'s pattern. It pages by
+`sponsor_name` per federfall-trep (facets: an `ended_at` split resolved against
+*now* so a FUTURE end date still reads as running — the same answer
+`SponsorshipState.isActive` gives; interval; a debounced search over
+`sponsor_name` + `city` and deliberately nothing else). No export and no audit
+row: reading is not an audited act here, and logging it would put sponsor names
+into a table nothing can delete from. Its figures come from a `sponsorships`
+block on `GET /api/federfall/stats` (`lib_stats.js`'s `sponsorshipTotals`), which
+is **the one block in that payload that is NOT period-scoped** — what is being
+given right now has nothing to do with `?year=` — and which keeps `one_time` and
+"amount with no interval" on their own lines rather than dividing either into a
+month; `monthlyCents` is rounded once, at the end. `total` is there so an org
+whose patronages have all ENDED is distinguishable from one that never had any,
+which is what keeps the archive a Zuwendungsbestätigung is written from reachable.
 
 **Case timeline pattern:** every clinical record (weight, condition, medication +
 administration, journal, marking, placement, disposition) is one unified chronology. Each

@@ -216,6 +216,54 @@ void main() {
     expect(stats.series.previousYear, isNull);
   });
 
+  group('sponsorships block (federfall-ys7z)', () {
+    test('parses the standing patronage figures', () {
+      final stats = OrgStatistics.fromJson({
+        ..._body(),
+        'sponsorships': {
+          'total': 9,
+          'active': 7,
+          'monthlyCents': 4250,
+          'oneTimeCents': 10000,
+          'noIntervalCents': 500,
+        },
+      });
+
+      expect(stats.sponsorships.total, 9);
+      expect(stats.sponsorships.active, 7);
+      expect(stats.sponsorships.monthlyCents, 4250);
+      // The three sums stay separate: a one-off donation divided into a month
+      // is an invented number, and an amount with no interval has no rhythm to
+      // normalise. Neither may be folded into the monthly figure.
+      expect(stats.sponsorships.oneTimeCents, 10000);
+      expect(stats.sponsorships.noIntervalCents, 500);
+      expect(stats.sponsorships.isEmpty, isFalse);
+    });
+
+    test('a server that does not send the block zeroes it', () {
+      // Minor-version skew in either direction: the app must render nothing
+      // rather than throw, and „no patronages" is the safe reading.
+      final stats = OrgStatistics.fromJson(_body());
+
+      expect(stats.sponsorships.total, 0);
+      expect(stats.sponsorships.isEmpty, isTrue);
+    });
+
+    test('an org whose patronages have all ENDED is not empty', () {
+      // This is why `total` exists at all: without it the app could not tell
+      // an archive worth opening from an org that never had a patronage, and
+      // would hide the rows a Zuwendungsbestätigung is written from.
+      final stats = OrgStatistics.fromJson({
+        ..._body(),
+        'sponsorships': {'total': 4, 'active': 0},
+      });
+
+      expect(stats.sponsorships.isEmpty, isFalse);
+      expect(stats.sponsorships.active, 0);
+      expect(stats.sponsorships.monthlyCents, 0);
+    });
+  });
+
   test('a transport failure arrives as a RepositoryException', () async {
     when(
       () => pb.send<Map<String, dynamic>>(any(), query: any(named: 'query')),

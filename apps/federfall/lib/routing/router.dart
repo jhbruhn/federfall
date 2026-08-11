@@ -22,6 +22,7 @@ import 'package:federfall/features/dashboard/dashboard_screen.dart';
 import 'package:federfall/features/home/nav_shell.dart';
 import 'package:federfall/features/profile/profile_screen.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
+import 'package:federfall/features/sponsorships/sponsorship_overview_screen.dart';
 import 'package:federfall/features/startup/splash_screen.dart';
 import 'package:federfall/features/statistics/intake_map_screen.dart';
 import 'package:federfall/features/statistics/statistics_screen.dart';
@@ -350,6 +351,14 @@ GoRouter router(Ref ref) {
             ),
         ],
       ),
+      // The patronage overview (federfall-ys7z): its own route over the shell
+      // rather than an admin section, because /admin is supervisor-only while
+      // patronages are readable by coordinators too. Reached from the
+      // dashboard.
+      GoRoute(
+        path: AppRoutes.sponsorships,
+        builder: (_, _) => const SponsorshipOverviewScreen(),
+      ),
       GoRoute(
         path: AppRoutes.statistics,
         builder: (_, _) => const StatisticsScreen(),
@@ -456,7 +465,14 @@ String? _gate(Ref ref, Uri uri) {
   final isAdminPath =
       location == AppRoutes.admin || location.startsWith('${AppRoutes.admin}/');
   if (isAdminPath && !canManageTeam(role)) return AppRoutes.home;
-  if (location == AppRoutes.statistics && !canViewReports(role)) {
+  // Both reporting surfaces are the same audience as their server rules: the
+  // statistics route and the patronage overview are `canViewReports`, i.e.
+  // exactly coordinator || supervisor (1700000085's COORD_SUP branch for the
+  // patronages). Without this a carer deep-linking to /sponsorships would reach
+  // a heading about data they may not read, then an empty list.
+  if ((location == AppRoutes.statistics ||
+          location == AppRoutes.sponsorships) &&
+      !canViewReports(role)) {
     return AppRoutes.home;
   }
 
