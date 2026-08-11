@@ -220,7 +220,7 @@ void main() {
     test('parses the standing patronage figures', () {
       final stats = OrgStatistics.fromJson({
         ..._body(),
-        'sponsorships': {
+        'sponsorships': const {
           'total': 9,
           'active': 7,
           'monthlyCents': 4250,
@@ -255,7 +255,7 @@ void main() {
       // would hide the rows a Zuwendungsbestätigung is written from.
       final stats = OrgStatistics.fromJson({
         ..._body(),
-        'sponsorships': {'total': 4, 'active': 0},
+        'sponsorships': const {'total': 4, 'active': 0},
       });
 
       expect(stats.sponsorships.isEmpty, isFalse);

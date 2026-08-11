@@ -15,6 +15,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'sponsorship_providers.g.dart';
@@ -70,6 +71,36 @@ Future<SponsorshipAccess> sponsorshipAccess(Ref ref, String animalId) async {
 Future<bool> canReadSponsorships(Ref ref, String animalId) async {
   final access = await ref.watch(sponsorshipAccessProvider(animalId).future);
   return access.canRead;
+}
+
+/// Ends [sponsorship] now: writes this instant as its `ended_at`.
+///
+/// The one-tap counterpart to the edit form's date field, which stays the way
+/// to record an end that was NOT today (or to take one back — clearing the date
+/// makes the patronage run again, which is why this needs no undo of its own).
+///
+/// Nothing else changes, and that is the point: an ended patronage is never
+/// scrubbed (federfall-5s5j.4). A donation that produced a
+/// Zuwendungsbestätigung falls under §147 AO / §257 HGB and the receipt is
+/// worthless without the donor's name and address — so ending a patronage is a
+/// date, never a deletion.
+///
+/// The instant rather than local midnight, matching what the form writes for a
+/// patronage started today: midnight in CEST is the previous day in UTC, and
+/// `formatLocalDate` would then print yesterday.
+Future<void> endSponsorship(WidgetRef ref, Sponsorship sponsorship) async {
+  final repo = await ref.read(sponsorshipsRepositoryProvider.future);
+  await repo.update(sponsorship.id, {
+    'ended_at': DateTime.now().toUtc().toIso8601String(),
+  });
+  // The animal-scoped reads only. The overview's own feed and totals are
+  // refreshed by the screen that opened the sheet, which keeps this file clear
+  // of an import back into the feature that imports it.
+  final animalId = sponsorship.animal;
+  if (animalId.isEmpty) return;
+  ref
+    ..invalidate(sponsorshipsForAnimalProvider(animalId))
+    ..invalidate(sponsorshipCountForAnimalProvider(animalId));
 }
 
 /// Read and write access to one bird's patronages.

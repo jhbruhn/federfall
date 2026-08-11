@@ -207,8 +207,8 @@ void main() {
     });
 
     testWidgets('renders nothing at all for a carer', (tester) async {
-      // Not an empty card: a keeper reads their own residents' patronages on the
-      // bird, and an org-wide figure would be a misleading fragment.
+      // Not an empty card: a keeper reads their own residents' patronages on
+      // the bird, and an org-wide figure would be a misleading fragment.
       await pump(
         tester,
         const Scaffold(body: SponsorshipTeaserCard()),

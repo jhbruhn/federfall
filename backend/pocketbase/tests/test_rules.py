@@ -3952,6 +3952,21 @@ def main():
                toks["a"], {"amount_cents": 2000})
     check("...while its own content stays editable", s == 200, f"status {s}")
 
+    # federfall-ys7z — „Patenschaft beenden" is exactly this write, and nothing
+    # else: a date, never a deletion (an ended patronage is never scrubbed, see
+    # federfall-5s5j.4). Clearing it again is the undo, which is why the button
+    # needs none of its own.
+    s, _ = req("PATCH", f"/api/collections/sponsorships/records/{sp_id}",
+               toks["a"], {"ended_at": stamp()})
+    check("a keeper can end a patronage by writing ended_at", s == 200,
+          f"status {s}")
+    s, sp_reopened = req("PATCH",
+                         f"/api/collections/sponsorships/records/{sp_id}",
+                         toks["a"], {"ended_at": ""})
+    check("...and clearing the date makes it run again",
+          s == 200 and (sp_reopened or {}).get("ended_at") in ("", None),
+          f"{s} {sp_reopened}")
+
     # ── THE MOVE: access follows the bird ────────────────────────────────────
     # A holds the bird (they keep its enclosure), so A may write the placement
     # that hands it — and its patronage — to B.

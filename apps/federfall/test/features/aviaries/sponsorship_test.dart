@@ -156,6 +156,91 @@ void main() {
     });
   });
 
+  group('ending a patronage', () {
+    testWidgets('one tap writes today as the end date, after confirming', (
+      tester,
+    ) async {
+      when(() => sponsorships.update(any(), any())).thenAnswer(
+        (_) async => _sponsorship.copyWith(endedAt: DateTime.now().toUtc()),
+      );
+      await pumpDetail(tester, role: UserRole.carer);
+      await tester.tap(find.text('Marlene Wolf'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('End patronage'));
+      await tester.pumpAndSettle();
+      // The confirmation names the date it is about to write, and says the
+      // record is kept — an ended patronage is never scrubbed
+      // (federfall-5s5j.4), so this is a date and not a deletion.
+      expect(find.text('End this patronage?'), findsOneWidget);
+      expect(find.textContaining('kept in full'), findsOneWidget);
+
+      await tester.tap(find.text('End it'));
+      await tester.pumpAndSettle();
+
+      final values =
+          verify(
+                () => sponsorships.update('s1', captureAny()),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(values.keys, ['ended_at']);
+      final written = DateTime.parse(values['ended_at'] as String);
+      expect(
+        written.difference(DateTime.now().toUtc()).inMinutes.abs(),
+        lessThan(2),
+      );
+    });
+
+    testWidgets('backing out of the confirmation writes nothing', (
+      tester,
+    ) async {
+      await pumpDetail(tester, role: UserRole.carer);
+      await tester.tap(find.text('Marlene Wolf'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('End patronage'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      verifyNever(() => sponsorships.update(any(), any()));
+    });
+
+    testWidgets('an already-ended patronage is not offered it again', (
+      tester,
+    ) async {
+      // The button would silently move an end date that is already set.
+      when(() => sponsorships.forAnimal(any())).thenAnswer(
+        (_) async => [
+          _sponsorship.copyWith(
+            endedAt: DateTime.now().toUtc().subtract(const Duration(days: 1)),
+          ),
+        ],
+      );
+      await pumpDetail(tester, role: UserRole.carer);
+      await tester.tap(find.text('Marlene Wolf'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('End patronage'), findsNothing);
+      expect(find.text('Edit sponsorship'), findsOneWidget);
+    });
+
+    testWidgets('a reader who may not write is not offered it', (tester) async {
+      // A coordinator reading the patronages of a bird that has left aviary
+      // care: they wind them down through a coordinator's own edit, and nobody
+      // may write to a patronage whose bird lives nowhere.
+      await pumpDetail(
+        tester,
+        role: UserRole.coordinator,
+        animal: _animal.copyWith(currentAviary: null),
+      );
+      await tester.tap(find.text('Marlene Wolf'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('End patronage'), findsNothing);
+    });
+  });
+
   group('the detail sheet', () {
     testWidgets('tapping a patronage opens its full record, read-only', (
       tester,

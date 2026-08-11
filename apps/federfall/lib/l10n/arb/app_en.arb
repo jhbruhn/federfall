@@ -647,6 +647,17 @@
     "@animalSectionSponsorships": { "description": "Heading of the sponsorships card on the animal detail screen" },
     "animalNoSponsorships": "No sponsorship recorded",
     "@animalNoSponsorships": { "description": "Empty state of the sponsorships card" },
+    "sponsorshipEndNowAction": "End patronage",
+    "@sponsorshipEndNowAction": { "description": "Action on the sponsorship detail sheet that ends a running patronage as of today" },
+    "sponsorshipEndNowConfirmTitle": "End this patronage?",
+    "@sponsorshipEndNowConfirmTitle": { "description": "Title of the confirmation before ending a patronage" },
+    "sponsorshipEndNowConfirmBody": "{date} will be recorded as the end date. The record itself is kept in full — including the address a donation receipt needs. The end date can be changed or removed later under \u201cEdit patronage\u201d.",
+    "@sponsorshipEndNowConfirmBody": {
+        "description": "Body of the confirmation before ending a patronage, naming the date about to be written",
+        "placeholders": { "date": { "type": "String" } }
+    },
+    "sponsorshipEndNowConfirmAction": "End it",
+    "@sponsorshipEndNowConfirmAction": { "description": "Confirm button that ends the patronage" },
     "sponsorshipsOverviewTitle": "Patronages",
     "@sponsorshipsOverviewTitle": { "description": "Title of the coordinator/supervisor screen listing every patronage in the org" },
     "sponsorshipsOverviewSubtitle": "Every patronage in the organisation",

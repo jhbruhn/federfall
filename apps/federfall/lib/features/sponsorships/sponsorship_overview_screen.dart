@@ -172,7 +172,18 @@ class _SponsorshipOverviewScreenState
               onRetry: () => unawaited(notifier.retryPage()),
             );
           }
-          return _SponsorshipTile(state.rows[i]);
+          return _SponsorshipTile(
+            state.rows[i],
+            // A patronage can be ended (or edited) from inside the sheet, and
+            // both change the row this list is showing. Awaiting the sheet and
+            // re-reading afterwards is what keeps the dependency pointing one
+            // way: the sheet knows nothing about this feed.
+            onClosed: () {
+              ref
+                ..invalidate(sponsorshipOverviewFeedProvider)
+                ..invalidate(sponsorshipTotalsProvider);
+            },
+          );
         },
       ),
     );
@@ -372,9 +383,13 @@ class _Filters extends StatelessWidget {
 /// animal detail's card, which is about one bird — then the bird and what is
 /// given.
 class _SponsorshipTile extends StatelessWidget {
-  const _SponsorshipTile(this.row);
+  const _SponsorshipTile(this.row, {required this.onClosed});
 
   final SponsorshipRow row;
+
+  /// Called once the detail sheet is dismissed — the row may have been ended or
+  /// edited while it was open.
+  final VoidCallback onClosed;
 
   @override
   Widget build(BuildContext context) {
@@ -442,12 +457,15 @@ class _SponsorshipTile extends StatelessWidget {
       // coordinator opened this screen for (a Zuwendungsbestätigung is
       // worthless without them), it is the one surface an orphan has at all,
       // and the sheet carries the way to the bird for the rows that have one.
-      onTap: () => showSponsorshipDetailSheet(
-        context,
-        animalId: animal?.id,
-        sponsorship: s,
-        showAnimalLink: true,
-      ),
+      onTap: () async {
+        await showSponsorshipDetailSheet(
+          context,
+          animalId: animal?.id,
+          sponsorship: s,
+          showAnimalLink: true,
+        );
+        onClosed();
+      },
     );
   }
 }

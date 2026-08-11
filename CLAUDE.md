@@ -235,6 +235,9 @@ Every personal field is in `SENSITIVE.sponsorships` and the subject label is for
 the audit log carries the arrangement (amount, interval, dates) and never the person;
 `sponsorship.access_transferred` records each move off `animals.current_aviary` — where
 `aviary_stays.pb.js` hangs, because four other writers change that field.
+„Patenschaft beenden" on the detail sheet is the one-tap version of that end date
+(`endSponsorship`, offered only to a writer and only while it runs) — a date and
+nothing else, undone by clearing it in the edit form, which is why it needs no undo.
 An ENDED patronage is **never** scrubbed (federfall-5s5j.4, decided): a donation that produced
 a Zuwendungsbestätigung falls under §147 AO / §257 HGB and the receipt is worthless without the
 donor's name and address, so here the identity is the part that must be kept — the mirror image

@@ -62,14 +62,14 @@ void main() {
   String? sortSent() => lastCall[const Symbol('sort')] as String?;
 
   // The instant the active/ended split is resolved against. Pinned, because
-  // „läuft bis Dezember" has to come back as RUNNING and a suite asking the wall
-  // clock could not say so twice.
+  // „läuft bis Dezember" has to come back as RUNNING and a suite asking the
+  // wall clock could not say so twice.
   final now = DateTime.utc(2026, 8, 11, 12);
 
   group('filterFor', () {
     test('the default facet keeps unset and future end dates', () {
-      // Two halves, not a negation: an unset `ended_at` is how PocketBase stores
-      // "no end", and a date still to come is a patronage that is still running.
+      // Two halves, not a negation: an unset `ended_at` is how PocketBase
+      // stores "no end", and a date still to come is still running.
       final f = repo.filterFor(const SponsorshipQuery(), now: now);
       expect(
         f!.expression,
@@ -113,8 +113,8 @@ void main() {
 
     test('search matches the sponsor and the town, and nothing else', () {
       // Deliberately not the address or the mobile: neither is a question
-      // anybody asks of this screen, and widening it would put more PII into the
-      // shape of a query.
+      // anybody asks of this screen, and widening it would put more PII into
+      // the shape of a query.
       final f = repo.filterFor(
         const SponsorshipQuery(
           status: SponsorshipStatusFilter.all,
