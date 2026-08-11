@@ -103,19 +103,55 @@ void main() {
     expect(find.text('No residents'), findsOneWidget);
   });
 
-  testWidgets('edit action only for coordinators/supervisors', (tester) async {
-    await _pump(
+  // 1700000086: the enclosure's own keeper edits it. `keeper` stopped being a
+  // label in 1700000076/77 — it is authority over the residents — so the
+  // person who answers for the enclosure corrects its own facts.
+  group('edit action', () {
+    testWidgets('a carer who keeps nothing here does not get it', (
       tester,
-      aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
-      user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
-    );
-    expect(find.byTooltip('Edit aviary'), findsNothing);
+    ) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+        user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+      );
+      expect(find.byTooltip('Edit aviary'), findsNothing);
+    });
+
+    testWidgets("the enclosure's keeper does", (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
+        user: const AppUser(id: 'u1', email: 'k@x.org', role: UserRole.carer),
+      );
+      expect(find.byTooltip('Edit aviary'), findsOneWidget);
+    });
+
+    testWidgets('a coordinator does, whoever keeps it', (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+        user: const AppUser(
+          id: 'u1',
+          email: 'c@x.org',
+          role: UserRole.coordinator,
+        ),
+      );
+      expect(find.byTooltip('Edit aviary'), findsOneWidget);
+    });
+
+    testWidgets('a signed-out session does not', (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+      );
+      expect(find.byTooltip('Edit aviary'), findsNothing);
+    });
   });
 
   // The keeper holds every bird in their enclosure, so placing one there is
   // theirs to do — `animals.createRule` has said so since 1700000077 while the
-  // FAB was still gated on coordinator+ (federfall-q7ks.6). Editing the
-  // enclosure itself is a different rule and stays coordinator+.
+  // FAB was still gated on coordinator+ (federfall-q7ks.6).
   group('add-resident FAB', () {
     testWidgets("the enclosure's keeper may add a resident", (tester) async {
       await _pump(
@@ -125,7 +161,6 @@ void main() {
       );
 
       expect(find.text('Add resident'), findsOneWidget);
-      expect(find.byTooltip('Edit aviary'), findsNothing);
     });
 
     testWidgets('another carer may not', (tester) async {

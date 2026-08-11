@@ -154,6 +154,24 @@ bool animalAdmissibleBy(
 bool aviaryStockableBy(Aviary aviary, AppUser? me) =>
     me != null && (canManageAviaries(me.role) || aviary.keeper == me.id);
 
+/// Whether [me] may edit [aviary] itself — its keeper, or a
+/// coordinator/supervisor. Mirrors 1700000086's update rule.
+///
+/// The keeper answers for the enclosure, so its capacity, location and notes
+/// are theirs to correct. Who the KEEPER is stays a coordinator's to change
+/// (naming somebody else hands over custody of every resident and the sponsor
+/// details of their patronages) — see [aviaryKeeperReassignableBy], which is
+/// what the form's keeper field is gated on.
+bool aviaryEditableBy(Aviary aviary, AppUser? me) =>
+    aviaryStockableBy(aviary, me);
+
+/// Whether [me] may hand an enclosure to a different keeper — the role that
+/// manages enclosures, never the keeper themselves. The other half of
+/// 1700000086: the rule lets a keeper send `keeper` only while it still names
+/// them, so the form must not offer anyone else.
+bool aviaryKeeperReassignableBy(AppUser? me) =>
+    me != null && canManageAviaries(me.role);
+
 /// Whether [me] may see the Patenschaften of a bird living in [aviary]
 /// (federfall-5s5j). Mirrors 1700000085's read rule: a coordinator or
 /// supervisor, or the KEEPER of the enclosure the bird currently lives in.

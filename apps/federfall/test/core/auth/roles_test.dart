@@ -404,4 +404,43 @@ void main() {
       expect(aviaryStockableBy(aviary, null), isFalse);
     });
   });
+
+  // 1700000086. Editing the enclosure and handing it over are two different
+  // permissions on the same form, which is why they are two functions: the
+  // keeper answers for the enclosure, but naming a different keeper gives
+  // somebody else custody of every resident and their sponsors' details.
+  group('aviaryEditableBy / aviaryKeeperReassignableBy', () {
+    const aviary = Aviary(id: 'av1', name: 'Voliere 1', keeper: 'keeper');
+
+    test('the keeper may edit their own enclosure', () {
+      expect(aviaryEditableBy(aviary, user('keeper', UserRole.carer)), isTrue);
+    });
+
+    test('...but may not hand it to anybody else', () {
+      expect(
+        aviaryKeeperReassignableBy(user('keeper', UserRole.carer)),
+        isFalse,
+      );
+    });
+
+    test('another carer may do neither', () {
+      expect(aviaryEditableBy(aviary, user('other', UserRole.carer)), isFalse);
+      expect(
+        aviaryKeeperReassignableBy(user('other', UserRole.carer)),
+        isFalse,
+      );
+    });
+
+    test('a coordinator and a supervisor may do both', () {
+      for (final role in [UserRole.coordinator, UserRole.supervisor]) {
+        expect(aviaryEditableBy(aviary, user('x', role)), isTrue);
+        expect(aviaryKeeperReassignableBy(user('x', role)), isTrue);
+      }
+    });
+
+    test('a signed-out user may do neither', () {
+      expect(aviaryEditableBy(aviary, null), isFalse);
+      expect(aviaryKeeperReassignableBy(null), isFalse);
+    });
+  });
 }

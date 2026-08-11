@@ -25,12 +25,21 @@ void main() {
     WidgetTester tester, {
     Aviary? aviary,
     List<AppUser> members = const [],
+    UserRole? role,
   }) async {
+    // Taller than the 600px default: the sheet is a scroll view on a real
+    // device, but in a test it is laid out at the view size, so one more line
+    // of helper text under the keeper field pushes Save out of hit-test range.
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final container = ProviderContainer(
       overrides: [
         currentUserProvider.overrideWith(
           (ref) async =>
-              const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+              AppUser(id: 'u1', email: 'me@x.org', org: 'org1', role: role),
         ),
         aviariesRepositoryProvider.overrideWith((ref) async => aviaries),
         orgMembersProvider.overrideWith((ref) async => members),
@@ -180,5 +189,66 @@ void main() {
     expect(body['name'], 'Voliere 1');
     expect(body['active'], false);
     expect(body.containsKey('org'), isFalse);
+  });
+
+  // 1700000086: the keeper edits their own enclosure, but handing it to
+  // somebody else stays a coordinator's — that names another member as the
+  // holder of every resident and the reader of their patronages. The rule
+  // admits `keeper` from a keeper only while it still names them, and the form
+  // always sends it, so the field is locked rather than dropped.
+  group('the keeper field on edit', () {
+    const kept = Aviary(id: 'av1', name: 'Voliere 1', keeper: 'u1');
+    const members = [
+      AppUser(id: 'u1', email: 'me@x.org', name: 'Keeper Kim'),
+      AppUser(id: 'u2', email: 'other@x.org', name: 'Coord Chris'),
+    ];
+
+    DropdownButtonFormField<String> keeperField(WidgetTester tester) =>
+        tester.widget<DropdownButtonFormField<String>>(
+          find.byType(DropdownButtonFormField<String>),
+        );
+
+    testWidgets('is locked, and says why, for the keeper themselves', (
+      tester,
+    ) async {
+      await pump(tester, aviary: kept, members: members, role: UserRole.carer);
+
+      expect(keeperField(tester).onChanged, isNull);
+      expect(
+        find.text(
+          'Only coordination or management can hand this aviary to '
+          'another keeper.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('is open for a coordinator', (tester) async {
+      await pump(
+        tester,
+        aviary: kept,
+        members: members,
+        role: UserRole.coordinator,
+      );
+
+      expect(keeperField(tester).onChanged, isNotNull);
+      expect(find.textContaining('hand this aviary'), findsNothing);
+    });
+
+    testWidgets('a locked keeper is still sent, unchanged', (tester) async {
+      when(() => aviaries.update('av1', any())).thenAnswer((_) async => kept);
+
+      await pump(tester, aviary: kept, members: members, role: UserRole.carer);
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      final body =
+          verify(() => aviaries.update('av1', captureAny())).captured.single
+              as Map<String, dynamic>;
+      // The rule reads `@request.body.keeper = @request.auth.id`, so the value
+      // has to be there and has to still name them — omitting it would be
+      // fine by the rule but would blank a required field.
+      expect(body['keeper'], 'u1');
+    });
   });
 }

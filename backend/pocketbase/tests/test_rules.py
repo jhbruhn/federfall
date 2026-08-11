@@ -6251,9 +6251,13 @@ def main():
         "admission_reasons": {"org": "frozen"},
         "animals": {"org": "frozen", "current_aviary": "frozen"},
         "aviaries": {
+            # 1700000086 widened aviaries.update to the keeper, so "the whole
+            # rule is coordinator/supervisor" no longer carries this field: the
+            # rule now names `keeper` itself, admitting it from a keeper only
+            # while it still names them. Reassignment stays a coordinator
+            # action — see the [aviary keeper] block for both directions.
             "keeper": "hook:org_scope.pb.js — mutable: reassigning a keeper is "
-                      "a coordinator action (aviaries.update is "
-                      "coordinator/supervisor)",
+                      "a coordinator action, guarded in-rule since 1700000086",
             "org": "frozen",
         },
         "case_conditions": {
@@ -6540,20 +6544,41 @@ def main():
         "animals": {"lifetime_status": "derived by lib_derive.js; the client "
                                        "never writes it"},
     }
+    # Not every isset guard is a freeze. Two are written
+    # `isset = false || <escape>`, which admits an UNCHANGED value while
+    # refusing a re-point — the shape to reach for whenever the client's form
+    # sends the field as a matter of course, because a hard freeze there is the
+    # 404 this whole block exists for. The escape is asserted, not just
+    # declared: tightening one of these into a real freeze breaks a form.
+    CONDITIONAL_GUARDS = {
+        ("aviaries", "keeper"): "@request.body.keeper = @request.auth.id",
+        ("users", "org"): "@request.body.org = @request.auth.org",
+    }
     unstated = []
+    escape_gone = []
     for c in (all_colls or {}).get("items", []):
         name = c["name"]
         if c.get("system") or name.startswith("_") or c.get("type") == "view":
             continue
-        frozen = set(re.findall(r"@request\.body\.(\w+):isset = false",
-                                str(c.get("updateRule") or "")))
-        stated = {f for f, how in RELATION_GUARDS.get(name, {}).items()
-                  if how == "frozen"} | set(NON_RELATION_FROZEN.get(name, {}))
+        rule = str(c.get("updateRule") or "")
+        frozen = set(re.findall(r"@request\.body\.(\w+):isset = false", rule))
+        conditional = {f for (coll, f) in CONDITIONAL_GUARDS if coll == name}
+        stated = ({f for f, how in RELATION_GUARDS.get(name, {}).items()
+                   if how == "frozen"}
+                  | set(NON_RELATION_FROZEN.get(name, {}))
+                  | conditional)
         unstated += [f"{name}.{f}" for f in sorted(frozen - stated)]
+        for field in sorted(conditional):
+            if CONDITIONAL_GUARDS[(name, field)] not in rule:
+                escape_gone.append(f"{name}.{field}")
     check("every isset-guarded field is a stated freeze",
           not unstated,
           "a new guard nothing describes — state it, and check no client "
           f"update body sends it: {unstated}")
+    check("every conditional guard still lets the unchanged value through",
+          not escape_gone,
+          "the `|| <escape>` half is gone, so this is now a hard freeze — and "
+          f"the form that sends the field will 404: {escape_gone}")
 
     # 1. aviaries — the reported bug. Coordinator AND supervisor: both may edit.
     fz_av = mk(T, "aviaries", {"name": "Voliere Frozen", "keeper": SUP,
@@ -6596,6 +6621,63 @@ def main():
     s, _ = req("PATCH", fz_dpath, toks["a"], dict(fz_dbody, org=ORG))
     check("...and mentioning `org` at all is still refused", s == 404,
           f"status {s}")
+
+    # ── an enclosure's keeper may edit it (1700000086) ──────────────────────
+    # `keeper` stopped being a label in 1700000076/77: it is write authority
+    # over every resident, the right to place a bird there, and the reader of
+    # those birds' patronages. So the keeper edits the enclosure's own facts.
+    # What they may not do is hand it over — that gives another member custody
+    # of the residents AND the sponsors' names, addresses and mobiles.
+    #
+    # The refusals below are 404s, not 403s: a failed UPDATE rule is a "not
+    # found" (see the block above), which is also why "keeper is unchanged" is
+    # re-read from the record rather than inferred from the status.
+    print("\n[aviary keeper]")
+    kp_av = mk(T, "aviaries", {"name": "Voliere Keeper", "keeper": A,
+                               "org": ORG, "capacity": 6})["id"]
+    kp_path = f"/api/collections/aviaries/records/{kp_av}"
+    # The body aviary_form_sheet.dart sends: every field including `keeper`,
+    # which is required and therefore always present.
+    kp_body = {"name": "Voliere Keeper", "keeper": A, "location": "Hof",
+               "capacity": 12, "active": True, "notes": ""}
+
+    s, _ = req("PATCH", kp_path, toks["a"], kp_body)
+    check("the keeper can edit their own aviary", s == 200, f"status {s}")
+    check("...including its capacity",
+          (req("GET", kp_path, toks["a"])[1] or {}).get("capacity") == 12)
+    s, _ = req("PATCH", kp_path, toks["b"], dict(kp_body, capacity=3))
+    check("a member who keeps nothing here CANNOT edit it", s == 404,
+          f"status {s}")
+
+    # The handover, refused: `keeper` may be sent, but only naming the sender.
+    s, _ = req("PATCH", kp_path, toks["a"], dict(kp_body, keeper=B))
+    check("the keeper CANNOT hand the aviary to somebody else", s == 404,
+          f"status {s}")
+    check("...and nothing of that request landed",
+          (req("GET", kp_path, T)[1] or {}).get("keeper") == A)
+    # Not even by naming a coordinator, i.e. it is the ACT that is refused
+    # rather than the target being unworthy.
+    s, _ = req("PATCH", kp_path, toks["a"], dict(kp_body, keeper=COORD))
+    check("...not even to a coordinator", s == 404, f"status {s}")
+
+    # Everything the widening deliberately did NOT touch.
+    s, _ = req("POST", "/api/collections/aviaries/records", toks["a"],
+               {"name": "Neue Voliere", "keeper": A, "org": ORG})
+    check("the keeper still CANNOT create an aviary", s != 200, f"status {s}")
+    s, _ = req("DELETE", kp_path, toks["a"])
+    check("the keeper still CANNOT delete one", s == 404, f"status {s}")
+    s, _ = req("PATCH", kp_path, toks["a"], dict(kp_body, org=ORG))
+    check("`org` is still frozen for the keeper too", s == 404, f"status {s}")
+
+    # The coordinator's half: reassignment, and what it costs the old keeper.
+    s, _ = req("PATCH", kp_path, toks["coord"], dict(kp_body, keeper=B))
+    check("a coordinator CAN hand the aviary to another keeper", s == 200,
+          f"status {s}")
+    s, _ = req("PATCH", kp_path, toks["a"], dict(kp_body, keeper=A))
+    check("the former keeper cannot take it back", s == 404, f"status {s}")
+    s, _ = req("PATCH", kp_path, toks["b"], dict(kp_body, keeper=B,
+                                                 capacity=7))
+    check("the new keeper can edit it", s == 200, f"status {s}")
 
     print("\n[geocode proxy guards]")
     # federfall-2asj: guests are walled off from all data everywhere else —

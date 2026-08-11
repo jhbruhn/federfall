@@ -59,9 +59,12 @@ class AviaryDetailScreen extends ConsumerWidget {
         ..invalidate(aviaryHealthRollupProvider(aviaryId)),
     );
     final aviary = ref.watch(aviaryByIdProvider(aviaryId));
-    final canManage = canManageAviaries(
-      ref.watch(currentUserProvider).value?.role,
-    );
+    final me = ref.watch(currentUserProvider).value;
+    final canManage = canManageAviaries(me?.role);
+    // Wider than [canManage], and it needs the loaded record to say so: the
+    // enclosure's own keeper may correct it (1700000086). Absent while the
+    // record is still loading rather than shown-then-withdrawn.
+    final editable = aviary.value;
 
     return Scaffold(
       appBar: AppBar(
@@ -69,16 +72,12 @@ class AviaryDetailScreen extends ConsumerWidget {
         automaticallyImplyLeading: !context.isExpanded,
         title: Text(l10n.aviaryDetailTitle),
         actions: [
-          if (canManage)
+          if (editable != null && aviaryEditableBy(editable, me))
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: l10n.aviaryEditTitle,
-              onPressed: () {
-                final value = aviary.value;
-                if (value != null) {
-                  unawaited(showAviaryFormSheet(context, aviary: value));
-                }
-              },
+              onPressed: () =>
+                  unawaited(showAviaryFormSheet(context, aviary: editable)),
             ),
         ],
       ),

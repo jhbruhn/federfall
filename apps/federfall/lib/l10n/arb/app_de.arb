@@ -123,6 +123,7 @@
     "aviaryEditTitle": "Voliere bearbeiten",
     "aviaryFieldName": "Name",
     "aviaryFieldKeeper": "Betreuer/in",
+    "aviaryKeeperLockedHelp": "Nur Koordination oder Leitung kann diese Voliere an eine andere Betreuung übergeben.",
     "aviaryFieldLocation": "Standort",
     "aviaryFieldCapacity": "Kapazität",
     "aviaryFieldNotes": "Notizen",

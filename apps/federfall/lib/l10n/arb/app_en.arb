@@ -347,6 +347,8 @@
     "@aviaryFieldName": { "description": "Aviary name field label" },
     "aviaryFieldKeeper": "Keeper",
     "@aviaryFieldKeeper": { "description": "Aviary keeper field label" },
+    "aviaryKeeperLockedHelp": "Only coordination or management can hand this aviary to another keeper.",
+    "@aviaryKeeperLockedHelp": { "description": "Helper under the locked keeper field, shown to a keeper editing their own aviary" },
     "aviaryFieldLocation": "Location",
     "@aviaryFieldLocation": { "description": "Aviary location field label" },
     "aviaryFieldCapacity": "Capacity",

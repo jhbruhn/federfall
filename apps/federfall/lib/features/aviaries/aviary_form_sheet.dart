@@ -1,3 +1,5 @@
+import 'package:federfall/core/auth/current_user.dart';
+import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
@@ -95,6 +97,17 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final members = ref.watch(orgMembersProvider).value ?? const <AppUser>[];
+    // A keeper may correct their own enclosure but not hand it to somebody
+    // else (1700000086): naming another keeper gives away custody of every
+    // resident and the sponsor details of their patronages. The rule accepts
+    // `keeper` only while it still names the sender, so the field is locked
+    // rather than hidden — the form always sends it, and it must stay true.
+    //
+    // On CREATE it is never locked: making an enclosure is coordinator/
+    // supervisor either way (1700000010), and that rule guards no field.
+    final lockKeeper =
+        widget.aviary != null &&
+        !aviaryKeeperReassignableBy(ref.watch(currentUserProvider).value);
 
     return guardUnsavedChanges(
       child: SheetScaffold(
@@ -124,6 +137,8 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
             isExpanded: true,
             decoration: InputDecoration(
               labelText: l10n.aviaryFieldKeeper,
+              helperText: lockKeeper ? l10n.aviaryKeeperLockedHelp : null,
+              helperMaxLines: 2,
               border: const OutlineInputBorder(),
               isDense: true,
             ),
@@ -132,7 +147,9 @@ class _AviaryFormSheetState extends ConsumerState<_AviaryFormSheet>
                 DropdownMenuItem(value: m.id, child: Text(memberLabel(m))),
             ],
             validator: (v) => v == null ? l10n.fieldRequired : null,
-            onChanged: (id) => setState(() => _keeperId = id),
+            onChanged: lockKeeper
+                ? null
+                : (id) => setState(() => _keeperId = id),
           ),
           const SizedBox(height: AppSpacing.md),
           AppTextField(label: l10n.aviaryFieldLocation, controller: _location),
