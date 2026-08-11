@@ -121,6 +121,9 @@ String auditActionTitle(
   AuditAction.eggRecordCreated => l10n.auditActionEggRecordCreated,
   AuditAction.eggRecordUpdated => l10n.auditActionEggRecordUpdated,
   AuditAction.eggRecordDeleted => l10n.auditActionEggRecordDeleted,
+  AuditAction.vaccinationCreated => l10n.auditActionVaccinationCreated,
+  AuditAction.vaccinationUpdated => l10n.auditActionVaccinationUpdated,
+  AuditAction.vaccinationDeleted => l10n.auditActionVaccinationDeleted,
   AuditAction.followUpCreated => l10n.auditActionFollowUpCreated,
   AuditAction.followUpUpdated => l10n.auditActionFollowUpUpdated,
   AuditAction.followUpDeleted => l10n.auditActionFollowUpDeleted,
@@ -257,6 +260,9 @@ extension AuditActionTopic on AuditAction {
     AuditAction.eggRecordCreated ||
     AuditAction.eggRecordUpdated ||
     AuditAction.eggRecordDeleted ||
+    AuditAction.vaccinationCreated ||
+    AuditAction.vaccinationUpdated ||
+    AuditAction.vaccinationDeleted ||
     AuditAction.followUpCreated ||
     AuditAction.followUpUpdated ||
     AuditAction.followUpDeleted ||
@@ -394,6 +400,11 @@ String auditFieldLabel(AppLocalizations l10n, String collection, String field) {
     // The rest of the server's content allowlist (federfall-ybua.4), each
     // reusing the key the app already names that field by elsewhere so the log
     // and the screen that owns the field agree on what it is called.
+    'vaccine' => l10n.vaccinationFieldVaccine,
+    'target' => l10n.vaccinationFieldTarget,
+    'batch' => l10n.vaccinationFieldBatch,
+    'series' => l10n.vaccinationFieldSeries,
+    'next_due_at' => l10n.vaccinationFieldNextDue,
     'applied_at' => l10n.markingFieldApplied,
     'present_at_find' => l10n.markingFieldPresentAtFind,
     'removed_at' => l10n.auditFieldRemovedAt,
@@ -710,6 +721,7 @@ IconData auditIcon(AuditEvent e) {
     'exam' || 'exam_finding' => Icons.medical_services_outlined,
     'microscopy' || 'microscopy_finding' => Icons.biotech_outlined,
     'egg_record' => Icons.egg_outlined,
+    'vaccination' => Icons.vaccines_outlined,
     'follow_up' => Icons.event_repeat,
     'vet_appointment' => Icons.local_hospital_outlined,
     'quarantine' => Icons.do_not_touch_outlined,

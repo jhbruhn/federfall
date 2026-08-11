@@ -3,6 +3,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
+import 'package:federfall/features/animals/vaccinations/vaccinations_providers.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/aviaries/sponsorship_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -87,6 +88,9 @@ void main() {
           weightsForAnimalProvider('a1').overrideWith((ref) async => const []),
           eggsForAnimalProvider('a1').overrideWith((ref) async => const []),
           examsForAnimalProvider('a1').overrideWith((ref) async => const []),
+          vaccinationsForAnimalProvider(
+            'a1',
+          ).overrideWith((ref) async => const []),
           markingTypesProvider.overrideWith((ref) async => const []),
           canWriteAnimalProvider('a1').overrideWith((ref) async => true),
           canOpenCaseOnAnimalProvider('a1').overrideWith((ref) async => true),

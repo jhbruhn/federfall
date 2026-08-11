@@ -8,6 +8,9 @@ import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/animals/delete_record_dialogs.dart';
 import 'package:federfall/features/animals/edit_animal_sheet.dart';
+import 'package:federfall/features/animals/vaccinations/vaccination_sheet.dart';
+import 'package:federfall/features/animals/vaccinations/vaccination_tile.dart';
+import 'package:federfall/features/animals/vaccinations/vaccinations_providers.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/aviaries/sponsorship_detail_sheet.dart';
 import 'package:federfall/features/aviaries/sponsorship_providers.dart';
@@ -81,6 +84,7 @@ class AnimalDetailScreen extends ConsumerWidget {
         'markings',
         'weights',
         'egg_records',
+        'vaccinations',
         'exams',
         'exam_findings',
         // Only the keeper of the bird's enclosure and coord/sup are subscribed
@@ -110,6 +114,7 @@ class AnimalDetailScreen extends ConsumerWidget {
           ..invalidate(markingsForAnimalProvider(animalId))
           ..invalidate(weightsForAnimalProvider(animalId))
           ..invalidate(eggsForAnimalProvider(animalId))
+          ..invalidate(vaccinationsForAnimalProvider(animalId))
           ..invalidate(examsForAnimalProvider(animalId))
           // The access predicate reads the enclosure, so a keeper change has to
           // re-resolve it — invalidating the list alone would keep showing (or
@@ -179,6 +184,11 @@ class AnimalDetailScreen extends ConsumerWidget {
               _WeightSection(animalId: data.animal.id, canWrite: canWrite),
               const SizedBox(height: AppSpacing.md),
               _EggSection(animalId: data.animal.id, canWrite: canWrite),
+              const SizedBox(height: AppSpacing.md),
+              _VaccinationSection(
+                animalId: data.animal.id,
+                canWrite: canWrite,
+              ),
               const SizedBox(height: AppSpacing.md),
               _ExamsSection(animalId: data.animal.id),
               const SizedBox(height: AppSpacing.md),
@@ -434,6 +444,126 @@ class _EggSection extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     EggMonthChart(eggs: eggs),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Life-long vaccinations (1700000087): the per-target status first — what this
+/// bird is protected against, when it was last given and whether a booster is
+/// due — and the individual shots under it.
+///
+/// The status roll-up is the reason this card exists rather than a plain list:
+/// "is this bird done?" is the question a keeper asks, and answering it from a
+/// chronological list means reading every row. It is derived on every build
+/// (`vaccinationStatuses`) rather than denormalised onto `animals`, so it
+/// cannot drift when a row is edited or two birds are merged.
+class _VaccinationSection extends ConsumerWidget {
+  const _VaccinationSection({required this.animalId, required this.canWrite});
+
+  final String animalId;
+
+  /// A vaccination is animal-scoped and follows custody. The per-record menu
+  /// gates itself (see `VaccinationMenu`), so this is only the card's own
+  /// "record vaccination" action.
+  final bool canWrite;
+
+  /// Hard cap on the rows rendered, like the egg card's: a bird with a long
+  /// history must not grow this card without bound. The status lines above are
+  /// complete regardless — they summarise every shot, not just the listed ones.
+  static const int _maxRows = 5;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final materialL10n = MaterialLocalizations.of(context);
+    final shots = ref.watch(vaccinationsForAnimalProvider(animalId));
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.animalSectionVaccinations,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                if (canWrite)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: l10n.timelineAddVaccination,
+                    onPressed: () =>
+                        showVaccinationSheet(context, animalId: animalId),
+                  ),
+              ],
+            ),
+            // A load failure must not render as "never vaccinated" — route
+            // through the standard error state with a retry (federfall-5cle).
+            AsyncValueView<List<Vaccination>>(
+              value: shots,
+              onRetry: () =>
+                  ref.invalidate(vaccinationsForAnimalProvider(animalId)),
+              loading: const LinearProgressIndicator(),
+              data: (shots) {
+                if (shots.isEmpty) {
+                  return Text(
+                    l10n.animalNoVaccinations,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                }
+
+                final statuses = vaccinationStatuses(shots);
+                final recent = [...shots.reversed].take(_maxRows).toList();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final status in statuses)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                l10n.vaccinationStatusLine(
+                                  status.target ?? status.last.vaccine,
+                                  formatLocalDate(
+                                    materialL10n,
+                                    status.last.at,
+                                  ),
+                                ),
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                            if (status.isDue()) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              TagChip(
+                                label: l10n.vaccinationDueChip,
+                                color: theme.colorScheme.error,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (final (i, shot) in recent.indexed)
+                      VaccinationTile(
+                        vaccination: shot,
+                        isLast: i == recent.length - 1,
+                      ),
                   ],
                 );
               },

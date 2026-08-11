@@ -263,6 +263,33 @@ month; `monthlyCents` is rounded once, at the end. `total` is there so an org
 whose patronages have all ENDED is distinguishable from one that never had any,
 which is what keeps the archive a Zuwendungsbestätigung is written from reachable.
 
+**Vaccinations are the animal's, not the case's** (1700000087 + 1700000088): a shot
+given during a spring case is what the next keeper needs two years later in an aviary,
+so `vaccinations` takes the `weights`/`egg_records` stance — animal-scoped, no `case`
+column at all, org-wide READ (that is the question it exists to answer) and
+custody-gated writes with an author-or-supervisor delete. It differs from `egg_records`
+in one deliberate way: `animal` is **frozen** on update (1700000082's treatment), because
+re-attributing a shot is not a feature — a row on the wrong bird is deleted and
+re-entered — so it needs no entry in `animal_custody_scope.pb.js`. `vaccine` and `target`
+are free TEXT rather than a code list or a select; the vocabulary is the
+`vaccine_labels` VIEW over the DISTINCT (vaccine, target) pairs actually recorded per org
+(`animal_species` / `condition_labels`' answer), which builds itself out of use, offers
+nothing dead, needs no seeding — and, because the pair is ONE row, lets picking a product
+prefill the target it covers. What that costs is stated where it is felt: the per-target
+roll-up on the animal card groups on the recorded string, so two spellings are two rows
+and nothing normalises them behind the user's back. `batch` (Chargennummer) is the field
+a journal note could never carry, and `next_due_at` is STORED rather than derived — a
+plan is a fact, and must not move because somebody later edited an interval. Who gave it
+splits in two: `vet` (text) for an external practice, `author` (server-pinned) for
+everyone else — the obvious name `administered_by` is NOT used, because `lib_audit.js`'s
+`RELATION_TARGETS` is keyed by field name GLOBALLY and already maps it to `users`. Adding
+a collection with an `animal` relation means five registries move in the same commit or
+it is silently broken: `merge_animals.pb.js`' re-point list (a cascade means a forgotten
+collection is DESTROYED, not left behind — federfall-0ua6), `lib_authorship.js`,
+`lib_audit.js` (actions + `COLLECTION_ACTIONS` + `CONTENT_FIELDS` + `LABEL_FIELDS`, and
+the Dart `audit_labels.dart` beside it), and `test_rules.py`'s `[relation guards]` +
+`[animal merge]` + `[animal org scope]` registries.
+
 **Case timeline pattern:** every clinical record (weight, condition, medication +
 administration, journal, marking, placement, disposition) is one unified chronology. Each
 kind = a provider + a `showXSheet()` bottom sheet (create/edit) + a tile built on the shared

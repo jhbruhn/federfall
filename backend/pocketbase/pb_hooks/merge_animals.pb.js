@@ -149,6 +149,7 @@ routerAdd(
         "exams",
         "egg_records",
         "aviary_stays",
+        "vaccinations",
         // `sponsorships` (1700000085) declares cascadeDelete: FALSE, so unlike
         // the rest it would survive the delete below as an orphan rather than
         // being destroyed. It is re-pointed anyway: an orphaned patronage is

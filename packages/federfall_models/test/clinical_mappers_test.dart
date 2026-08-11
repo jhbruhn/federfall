@@ -607,6 +607,79 @@ void main() {
     });
   });
 
+  group('Vaccination.fromRecord', () {
+    test('maps a full vaccination', () {
+      final v = Vaccination.fromRecord(
+        RecordModel({
+          'id': 'vacc0000000001',
+          'animal': 'anml0000000001',
+          'vaccine': 'Colombovac PMV',
+          'target': 'Paramyxovirose',
+          'administered_at': '2026-06-02 08:00:00.000Z',
+          'batch': 'C-4711',
+          'dose': 0.2,
+          'dose_unit': 'ml',
+          'route': 'mrte0000000001',
+          'series': 'primary',
+          'next_due_at': '2027-06-02 08:00:00.000Z',
+          'vet': 'TA Praxis Müller',
+          'notes': 'gut vertragen',
+          'attachments': ['vial.jpg'],
+          'author': 'user0000000001',
+          'org': 'org00000000001',
+          'created': '2026-06-02 09:00:00.000Z',
+          'updated': '2026-06-02 10:00:00.000Z',
+        }),
+      );
+
+      expect(v.vaccine, 'Colombovac PMV');
+      expect(v.target, 'Paramyxovirose');
+      expect(v.batch, 'C-4711');
+      expect(v.dose, 0.2);
+      expect(v.doseUnit, 'ml');
+      expect(v.route, 'mrte0000000001');
+      expect(v.series, VaccinationSeries.primary);
+      expect(v.nextDueAt?.year, 2027);
+      expect(v.vet, 'TA Praxis Müller');
+      expect(v.attachments, ['vial.jpg']);
+      expect(v.author, 'user0000000001');
+      expect(v.at?.hour, 8);
+    });
+
+    test('an unset dose reads as none, not as zero millilitres', () {
+      // PocketBase stores 0 for a number nobody filled in, which is why the
+      // mapper uses pbQuantity rather than pbDouble here.
+      final v = Vaccination.fromRecord(
+        RecordModel({'id': 'v', 'animal': 'a', 'vaccine': 'X', 'dose': 0}),
+      );
+
+      expect(v.dose, isNull);
+      expect(v.doseUnit, 'ml');
+    });
+
+    test('falls back to `created` when no date was recorded', () {
+      final v = Vaccination.fromRecord(
+        RecordModel({
+          'id': 'v',
+          'animal': 'a',
+          'vaccine': 'X',
+          'created': '2026-06-02 09:00:00.000Z',
+        }),
+      );
+
+      expect(v.administeredAt, isNull);
+      expect(v.at, DateTime.utc(2026, 6, 2, 9));
+    });
+
+    test('a shot with no planned booster is never due', () {
+      final v = Vaccination.fromRecord(
+        RecordModel({'id': 'v', 'animal': 'a', 'vaccine': 'X'}),
+      );
+
+      expect(v.isDue(now: DateTime.utc(2030)), isFalse);
+    });
+  });
+
   group('EggRecord.fromRecord', () {
     test('maps a full laying event', () {
       final e = EggRecord.fromRecord(

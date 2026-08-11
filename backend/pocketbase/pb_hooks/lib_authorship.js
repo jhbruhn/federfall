@@ -38,6 +38,10 @@ const ACTOR_FIELDS = {
   markings: "applied_by",
   medication_administrations: "administered_by",
   quarantine_records: "set_by",
+  // NOT `vet` — that field names the external practice who gave the shot, which
+  // is a fact about the world the caller is entitled to state. `author` is the
+  // actor: who entered this row.
+  vaccinations: "author",
   vet_appointments: "created_by",
   weights: "author",
 };

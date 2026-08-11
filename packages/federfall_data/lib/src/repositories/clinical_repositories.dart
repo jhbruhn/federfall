@@ -50,6 +50,46 @@ class PbEggRecordsRepository extends PbRepository<EggRecord> {
   );
 }
 
+/// Repository over the `vaccinations` collection (1700000087) — shots as a
+/// longitudinal property of the animal.
+///
+/// Like [PbEggRecordsRepository] there is no `forCase`: a vaccination carries
+/// no case relation, so a case timeline derives its own membership from the
+/// animal (see [Vaccination]).
+class PbVaccinationsRepository extends PbRepository<Vaccination> {
+  PbVaccinationsRepository(PocketBase pb)
+    : super(
+        pb: pb,
+        collection: 'vaccinations',
+        fromRecord: Vaccination.fromRecord,
+      );
+
+  /// Every shot recorded for an animal, oldest first — the order the lifetime
+  /// ledger and the per-target roll-up both read in.
+  Future<List<Vaccination>> forAnimal(String animalId) => list(
+    filter: filterExpr('animal = {:a}', {'a': animalId}),
+    sort: 'administered_at',
+  );
+}
+
+/// Read-only repository over the `vaccine_labels` view (1700000088) — the
+/// (vaccine, target) pairs this org has recorded, for the entry sheet's
+/// suggestions.
+///
+/// Sorted by recency, not alphabetically: what the org vaccinated with last is
+/// the likely next answer. The view is org-scoped by its own rule, so no filter
+/// is needed here.
+class PbVaccineLabelsRepository extends PbReadOnlyRepository<VaccineLabel> {
+  PbVaccineLabelsRepository(PocketBase pb)
+    : super(
+        pb: pb,
+        collection: 'vaccine_labels',
+        fromRecord: VaccineLabel.fromRecord,
+      );
+
+  Future<List<VaccineLabel>> all() => list(sort: '-last_used_at');
+}
+
 /// Repository over the `medications` collection (prescriptions).
 class PbMedicationsRepository extends PbRepository<Medication> {
   PbMedicationsRepository(PocketBase pb)

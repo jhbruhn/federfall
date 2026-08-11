@@ -9,6 +9,7 @@ import 'package:federfall_models/src/models/marking.dart';
 import 'package:federfall_models/src/models/medical_case.dart';
 import 'package:federfall_models/src/models/microscopy.dart';
 import 'package:federfall_models/src/models/quarantine.dart';
+import 'package:federfall_models/src/models/vaccination.dart';
 import 'package:federfall_models/src/models/vet_appointment.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -21,7 +22,8 @@ part 'case_bundle.freezed.dart';
 /// (`<collection>_via_<field>`). Expanded rows honor each collection's view
 /// rule, so the org/share security boundary is unchanged.
 const String caseBundleExpand =
-    'animal,animal.markings_via_animal,animal.egg_records_via_animal,finder,'
+    'animal,animal.markings_via_animal,animal.egg_records_via_animal,'
+    'animal.vaccinations_via_animal,finder,'
     'journal_entries_via_case,weights_via_case,case_conditions_via_case,'
     'medications_via_case,medication_administrations_via_case,'
     'placements_via_case,dispositions_via_case,follow_ups_via_case,'
@@ -59,6 +61,10 @@ abstract class CaseBundle with _$CaseBundle {
     /// The animal's whole laying history, like [markings] — eggs carry no case
     /// relation, so a case timeline narrows this to its own window itself.
     @Default(<EggRecord>[]) List<EggRecord> eggs,
+
+    /// The animal's whole vaccination history, like [eggs] — a shot carries no
+    /// case relation either, so the timeline narrows this to its own window.
+    @Default(<Vaccination>[]) List<Vaccination> vaccinations,
     @Default(<Placement>[]) List<Placement> placements,
     @Default(<Disposition>[]) List<Disposition> dispositions,
     @Default(<FollowUp>[]) List<FollowUp> followUps,
@@ -161,6 +167,15 @@ abstract class CaseBundle with _$CaseBundle {
               'egg_records_via_animal',
               EggRecord.fromRecord,
               by: (e) => e.laidAt ?? e.created,
+              descending: true,
+            ),
+      vaccinations: animalRec == null
+          ? const []
+          : rel(
+              animalRec,
+              'vaccinations_via_animal',
+              Vaccination.fromRecord,
+              by: (v) => v.at,
               descending: true,
             ),
       placements: rel(

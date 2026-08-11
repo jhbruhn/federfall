@@ -1,4 +1,5 @@
 import 'package:federfall/features/animals/custody_providers.dart';
+import 'package:federfall/features/animals/vaccinations/vaccination_sheet.dart';
 import 'package:federfall/features/cases/conditions/condition_entry_sheet.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
@@ -27,6 +28,7 @@ enum _AddKind {
   note,
   weight,
   egg,
+  vaccination,
   exam,
   microscopy,
   condition,
@@ -63,6 +65,8 @@ Future<void> showAddEntrySheet(
       await showWeightEntrySheet(context, animalId: animalId, caseId: caseId);
     case _AddKind.egg:
       await showEggEntrySheet(context, animalId: animalId);
+    case _AddKind.vaccination:
+      await showVaccinationSheet(context, animalId: animalId);
     case _AddKind.exam:
       await showExamSheet(context, caseId: caseId, animalId: animalId);
     case _AddKind.microscopy:
@@ -119,7 +123,8 @@ class _AddEntrySheet extends ConsumerWidget {
         .watch(dispositionsForCaseProvider(medicalCase.id))
         .value;
     final isDisposed = dispositions != null && dispositions.isNotEmpty;
-    // Weight, egg and marking are ANIMAL-scoped and follow custody since
+    // Weight, egg, vaccination and marking are ANIMAL-scoped and follow
+    // custody since
     // 1700000079, which `canEditCase` (the gate on the FAB that opens this
     // sheet) does not imply: the carer of a disposed case may still write its
     // journal after the bird has moved on. Disabled rather than hidden, like
@@ -159,6 +164,14 @@ class _AddEntrySheet extends ConsumerWidget {
             _AddKind.egg,
             Icons.egg_outlined,
             l10n.timelineAddEgg,
+            enabled: holdsBird,
+          ),
+          // Animal-scoped like the weight and the egg above, so it needs the
+          // same custody gate rather than `canEditCase`.
+          _Entry(
+            _AddKind.vaccination,
+            Icons.vaccines_outlined,
+            l10n.timelineAddVaccination,
             enabled: holdsBird,
           ),
           _Entry(

@@ -4,6 +4,7 @@ import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/animals/species_field.dart';
+import 'package:federfall/features/animals/vaccinations/vaccinations_providers.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
@@ -26,6 +27,7 @@ Future<void> _pump(
   List<EggRecord> eggs = const [],
   bool eggsError = false,
   List<Exam> exams = const [],
+  List<Vaccination> vaccinations = const [],
   UserRole? role,
   PbAnimalsRepository? animals,
   bool canWrite = true,
@@ -48,6 +50,9 @@ Future<void> _pump(
           (ref) async => eggsError ? throw Exception('boom') : eggs,
         ),
         examsForAnimalProvider('a1').overrideWith((ref) async => exams),
+        vaccinationsForAnimalProvider(
+          'a1',
+        ).overrideWith((ref) async => vaccinations),
         currentUserProvider.overrideWith(
           (ref) async => role == null
               ? null

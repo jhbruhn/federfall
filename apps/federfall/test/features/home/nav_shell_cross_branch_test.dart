@@ -6,6 +6,7 @@ import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
+import 'package:federfall/features/animals/vaccinations/vaccinations_providers.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -70,6 +71,9 @@ Future<ProviderContainer> _pumpPhone(WidgetTester tester) async {
       weightsForAnimalProvider('a1').overrideWith((ref) async => const []),
       eggsForAnimalProvider('a1').overrideWith((ref) async => const []),
       examsForAnimalProvider('a1').overrideWith((ref) async => const []),
+      vaccinationsForAnimalProvider(
+        'a1',
+      ).overrideWith((ref) async => const []),
       markingTypesProvider.overrideWith((ref) async => const []),
       caseByIdProvider(
         'c1',

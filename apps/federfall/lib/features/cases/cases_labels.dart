@@ -149,6 +149,12 @@ String eggFateLabel(AppLocalizations l10n, EggFate f) => switch (f) {
   EggFate.unknown => l10n.eggFateUnknown,
 };
 
+String vaccinationSeriesLabel(AppLocalizations l10n, VaccinationSeries s) =>
+    switch (s) {
+      VaccinationSeries.primary => l10n.vaccinationSeriesPrimary,
+      VaccinationSeries.booster => l10n.vaccinationSeriesBooster,
+    };
+
 String microscopySampleTypeLabel(
   AppLocalizations l10n,
   MicroscopySampleType t,

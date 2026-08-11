@@ -29,6 +29,7 @@ const _caseTimelineCollections = [
   'microscopy_findings',
   'markings',
   'egg_records',
+  'vaccinations',
   'quarantine_records',
 ];
 
@@ -64,6 +65,9 @@ class CaseLive extends _$CaseLive {
           // other viewers would keep showing it. Refetch on any event, the
           // escape exam_findings already takes.
           'egg_records' => true,
+          // Same reason as the eggs: the row carries no case, so the case
+          // that just lost it cannot be found from the event alone.
+          'vaccinations' => true,
           // exam_findings has no `case` field (it points at an exam); refetch
           // on any of its events rather than resolve the parent. Same for
           // microscopy_findings, which reaches its case through `sample`.

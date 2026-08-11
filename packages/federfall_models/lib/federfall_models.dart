@@ -43,4 +43,6 @@ export 'src/models/microscopy.dart';
 export 'src/models/organisation.dart';
 export 'src/models/quarantine.dart';
 export 'src/models/sponsorship.dart';
+export 'src/models/vaccination.dart';
+export 'src/models/vaccine_label.dart';
 export 'src/models/vet_appointment.dart';

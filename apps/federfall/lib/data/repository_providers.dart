@@ -84,6 +84,14 @@ Future<PbEggRecordsRepository> eggRecordsRepository(Ref ref) async =>
     PbEggRecordsRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbVaccinationsRepository> vaccinationsRepository(Ref ref) async =>
+    PbVaccinationsRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
+Future<PbVaccineLabelsRepository> vaccineLabelsRepository(Ref ref) async =>
+    PbVaccineLabelsRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbMedicationsRepository> medicationsRepository(Ref ref) async =>
     PbMedicationsRepository(await _client(ref));
 

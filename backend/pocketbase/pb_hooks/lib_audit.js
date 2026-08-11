@@ -107,6 +107,10 @@ const ACTIONS = {
   EGG_RECORD_UPDATED: "egg_record.updated",
   EGG_RECORD_DELETED: "egg_record.deleted",
 
+  VACCINATION_CREATED: "vaccination.created",
+  VACCINATION_UPDATED: "vaccination.updated",
+  VACCINATION_DELETED: "vaccination.deleted",
+
   // A microscopy sample and the findings it replaced wholesale, as one event —
   // written from the route (microscopy.pb.js), the way exam.saved is. There is
   // no microscopy_finding.* triple: a finding is never written on its own, and
@@ -516,6 +520,11 @@ const COLLECTION_ACTIONS = {
     updated: ACTIONS.EXAM_FINDING_UPDATED,
     deleted: ACTIONS.EXAM_FINDING_DELETED,
   },
+  vaccinations: {
+    created: ACTIONS.VACCINATION_CREATED,
+    updated: ACTIONS.VACCINATION_UPDATED,
+    deleted: ACTIONS.VACCINATION_DELETED,
+  },
   egg_records: {
     created: ACTIONS.EGG_RECORD_CREATED,
     updated: ACTIONS.EGG_RECORD_UPDATED,
@@ -681,6 +690,10 @@ const LABEL_FIELDS = {
   // The drug is denormalized onto the administration, so no lookup is needed.
   medication_administrations: ["drug"],
   vet_appointments: ["vet"],
+  // The product as written on the vial — neutral text a user typed, never a
+  // translated phrase. `target` is deliberately not a fallback: "Pocken" is a
+  // German word, and a label is stored verbatim and read in both languages.
+  vaccinations: ["vaccine"],
   organisations: ["name"],
   conditions: ["label"],
   admission_reasons: ["label"],
@@ -897,6 +910,21 @@ const CONTENT_FIELDS = {
   exams: ["examined_at", "body_condition", "hydration", "mentation"],
   exam_findings: ["system", "status"],
   egg_records: ["count", "laid_at", "fate"],
+  // `batch` is the one that has to survive: a vaccine failure or a recall is
+  // traced by Chargennummer, and an edit to it is the edit somebody would most
+  // want to reconstruct. `vet` is left out on purpose — it is already the
+  // subject label's neighbour in `changes` only when it changes, and naming an
+  // external practice on every create is not what this row is for.
+  vaccinations: [
+    "vaccine",
+    "target",
+    "administered_at",
+    "batch",
+    "series",
+    "next_due_at",
+    "dose",
+    "dose_unit",
+  ],
   // `no_findings` is the one that matters as much as the grades: "ohne Befund"
   // is an assertion somebody made, not an absence of data.
   microscopy_samples: [

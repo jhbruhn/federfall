@@ -1147,6 +1147,129 @@ def main():
     # Leave one row behind so the guest sweep's member check stays non-vacuous.
     mk(T, "egg_records", {"animal": animal, "count": 1, "org": ORG})
 
+    # ── vaccinations (1700000087) ───────────────────────────────────────────
+    # The identity-layer ledger again — org-wide read, custody-gated write,
+    # author-or-supervisor delete — with ONE deliberate difference from
+    # egg_records that this block exists to pin: `animal` is FROZEN here.
+    # Re-attributing an egg is a feature (the presumed layer being corrected);
+    # moving a vaccination to another bird is a mistake to be deleted and
+    # re-entered, so it takes 1700000082's treatment rather than
+    # animal_custody_scope.pb.js's. If someone ever unfreezes it, the custody
+    # predicate silently starts authorising the bird the row is leaving.
+    print("\n[vaccinations]")
+    s, vacc = req("POST", "/api/collections/vaccinations/records", toks["a"], {
+        "animal": animal, "vaccine": "Colombovac PMV",
+        "target": "Paramyxovirose", "administered_at": "2026-06-02 08:00:00.000Z",
+        "batch": "C-4711", "dose": 0.2, "dose_unit": "ml", "series": "primary",
+        "next_due_at": "2027-06-02 08:00:00.000Z", "vet": "TA Praxis Müller",
+        "author": A, "org": ORG,
+    })
+    check("the bird's carer can record a vaccination", s == 200, f"{s} {vacc}")
+    s, _ = req("POST", "/api/collections/vaccinations/records", toks["a"],
+               {"animal": animal, "batch": "no-product", "org": ORG})
+    check("a vaccination without a product is rejected", s >= 400, f"status {s}")
+    s, _ = req("GET", f"/api/collections/vaccinations/records/{vacc['id']}",
+               toks["d"])
+    check("any org member can view a vaccination", s == 200, f"status {s}")
+    check("vaccinations are org-scoped readable",
+          len(listf(toks["d"], "vaccinations", f"id = \"{vacc['id']}\"")) == 1)
+    # Read is org-wide because "is this bird vaccinated" is exactly the
+    # cross-case question the collection exists to answer; writing is not.
+    s, _ = req("PATCH", f"/api/collections/vaccinations/records/{vacc['id']}",
+               toks["d"], {"batch": "C-0000"})
+    check("a member who does not hold the bird CANNOT edit it", s >= 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/vaccinations/records/{vacc['id']}",
+               toks["a"], {"batch": "C-4712"})
+    check("the bird's carer can", s == 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/vaccinations/records/{vacc['id']}", te)
+    check("other-org member CANNOT view a vaccination", s != 200, f"status {s}")
+    s, _ = req("POST", "/api/collections/vaccinations/records", te,
+               {"animal": animal, "vaccine": "x", "org": ORG})
+    check("other-org member CANNOT create in this org", s >= 400, f"status {s}")
+
+    # The freeze, and the guards around it.
+    s, _ = req("PATCH", f"/api/collections/vaccinations/records/{vacc['id']}",
+               toks["a"], {"animal": animal2})
+    check("vaccination.animal is FROZEN (unlike an egg's)", s >= 400,
+          f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/vaccinations/records/{vacc['id']}",
+               toks["a"], {"org": org2})
+    check("vaccination.org is immutable", s >= 400, f"status {s}")
+    s, _ = req("POST", "/api/collections/vaccinations/records", toks["a"],
+               {"animal": animal_org2, "vaccine": "Colombovac PMV", "org": ORG})
+    check("a vaccination CANNOT be created on another org's animal", s >= 400,
+          f"status {s}")
+
+    # attachments: born protected + MIME-allowlisted, so no repair migration
+    # ever has to find this field (1700000027 / 1700000048 / 1700000049).
+    s, d = upload_file(
+        "PATCH", f"/api/collections/vaccinations/records/{vacc['id']}",
+        toks["a"], "attachments", "evil.svg", "image/svg+xml", _SVG,
+    )
+    check("SVG upload to vaccinations.attachments is rejected", s >= 400,
+          f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/vaccinations/records/{vacc['id']}",
+        toks["a"], "attachments", "vial.png", "image/png", _PNG_1X1,
+    )
+    check("PNG upload to vaccinations.attachments works",
+          s == 200 and bool(d.get("attachments")), f"{s} {d}")
+    vacc_att = ((d or {}).get("attachments") or [None])[0]
+    vacc_file = f"/api/files/vaccinations/{vacc['id']}/{vacc_att}"
+    check("vaccination attachment URL WITHOUT a token is rejected",
+          file_status(vacc_file) != 200, file_status(vacc_file))
+    check("same-org member's file token serves it",
+          file_status(f"{vacc_file}?token={file_token(toks['d'])}") == 200)
+    check("the 200x200 thumb is generated (thumbs whitelist)",
+          file_status(f"{vacc_file}?thumb=200x200&token={file_token(toks['d'])}")
+          == 200)
+
+    # delete: author or supervisor, with custody as a floor (1700000079's
+    # stance). C holds `animal2` through an edit share, so its refusal below is
+    # the AUTHOR guard talking rather than a missing custody.
+    s, vaccC = req("POST", "/api/collections/vaccinations/records", toks["c"],
+                   {"animal": animal2, "vaccine": "Colombovac Paratyphus",
+                    "author": C, "org": ORG})
+    check("setup: C records a vaccination", s == 200, f"{s} {vaccC}")
+    s, _ = req("DELETE", f"/api/collections/vaccinations/records/{vaccC['id']}",
+               toks["a"])
+    check("another member who holds the bird CANNOT delete C's vaccination",
+          s != 204, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/vaccinations/records/{vaccC['id']}",
+               toks["c"])
+    check("the author can delete their own vaccination", s == 204,
+          f"status {s}")
+    s, vaccC2 = req("POST", "/api/collections/vaccinations/records", toks["c"],
+                    {"animal": animal2, "vaccine": "Taubenpocken", "author": C,
+                     "org": ORG})
+    s, _ = req("DELETE", f"/api/collections/vaccinations/records/{vaccC2['id']}",
+               toks["sup"])
+    check("a supervisor can delete any vaccination", s == 204, f"status {s}")
+
+    # ── vaccine_labels (1700000088) ────────────────────────────────────────
+    # The vocabulary view that makes free-text `vaccine`/`target` converge:
+    # DISTINCT pairs actually recorded, per org. It is what a code list would
+    # have been, built out of use instead of curated (and so immune to
+    # federfall-buqb, where code lists are not seeded for later orgs).
+    labels = listf(toks["d"], "vaccine_labels", "vaccine != ''")
+    pmv = [r for r in labels if r["vaccine"] == "Colombovac PMV"]
+    check("a recorded vaccine appears in the suggestion view", len(pmv) == 1,
+          labels)
+    check("...paired with the target it was recorded against",
+          bool(pmv) and pmv[0]["target"] == "Paramyxovirose", pmv)
+    check("...and counted, so suggestions can rank by use",
+          bool(pmv) and int(pmv[0]["use_count"]) >= 1, pmv)
+    check("the view is org-scoped",
+          all(r["org"] == ORG for r in labels), labels)
+    check("another org sees none of this org's vocabulary",
+          not [r for r in listf(te, "vaccine_labels", "vaccine != ''")
+               if r["org"] == ORG])
+
+    # Leave one row behind so the guest sweep's member check stays non-vacuous.
+    mk(T, "vaccinations", {"animal": animal, "vaccine": "Colombovac PMV",
+                           "target": "Paramyxovirose", "org": ORG})
+
     # ── animal org scope (federfall-ti77) ───────────────────────────────────
     # Every collection carrying an `animal` relation must reject a bird from
     # another org, on create and on update. `animal` is deliberately exempt from
@@ -1177,6 +1300,12 @@ def main():
         "egg_records": mk(T, "egg_records", {
             "animal": animal, "count": 1, "org": ORG,
         })["id"],
+        # Driven with T, so the `animal` freeze on the rule is bypassed and what
+        # is exercised here is the ORG hook — which is the point: the freeze
+        # protects the client path, org_scope.pb.js protects every path.
+        "vaccinations": mk(T, "vaccinations", {
+            "animal": animal, "vaccine": "Colombovac PMV", "org": ORG,
+        })["id"],
     }
     ti77_creates = {
         "weights": {"weight_g": 301, "org": ORG},
@@ -1184,6 +1313,7 @@ def main():
         "exams": {"case": case, "org": ORG},
         "cases": {"active_carer": A, "org": ORG},
         "egg_records": {"count": 1, "org": ORG},
+        "vaccinations": {"vaccine": "Colombovac PMV", "org": ORG},
     }
     for coll, rec_id in ti77_rows.items():
         s, _ = req("PATCH", f"/api/collections/{coll}/records/{rec_id}", T,
@@ -2359,6 +2489,9 @@ def main():
     mg_egg = mk(T, "egg_records", {
         "animal": mg_gone, "count": 2, "org": ORG,
     })["id"]
+    mg_vacc = mk(T, "vaccinations", {
+        "animal": mg_gone, "vaccine": "Colombovac PMV", "org": ORG,
+    })["id"]
     # federfall-5s5j — the one child here that does NOT cascade (1700000085), so
     # it would SURVIVE a forgotten re-point rather than be destroyed by one. It
     # still has to move: an orphaned patronage is invisible to every keeper (no
@@ -2396,6 +2529,7 @@ def main():
         ("weights", mg_weight, "weights"),
         ("markings", mg_marking, "markings"),
         ("egg_records", mg_egg, "egg records"),
+        ("vaccinations", mg_vacc, "vaccinations"),
         ("aviary_stays", mg_stay, "aviary stays"),
         ("sponsorships", mg_sponsor, "patronages"),
     ]:
@@ -6294,6 +6428,16 @@ def main():
         "egg_records": {
             "animal": "hook:org_scope.pb.js + hook:animal_custody_scope.pb.js",
             "author": "actor",
+            "org": "frozen",
+        },
+        # 1700000087. The mirror image of egg_records above: `animal` is FROZEN
+        # because re-attributing a shot is not a feature, so the incoming value
+        # never has to be checked at all.
+        "vaccinations": {
+            "animal": "frozen",
+            "author": "actor",
+            "route": "hook:org_scope.pb.js — mutable: correcting a route, "
+                     "like every other route relation here",
             "org": "frozen",
         },
         "exam_findings": {"exam": "frozen", "org": "frozen"},

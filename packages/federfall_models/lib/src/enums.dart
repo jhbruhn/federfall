@@ -276,6 +276,26 @@ enum EggAttribution {
       pbEnum(values, (e) => e.wire, v);
 }
 
+/// Whether a shot was part of the initial course or a top-up
+/// (`vaccinations.series`).
+///
+/// Deliberately not a dose counter: "2 of 3" is a property of a schedule this
+/// app does not model, and a rehab rarely knows what a bird already had.
+enum VaccinationSeries {
+  /// Grundimmunisierung.
+  primary('primary'),
+
+  /// Auffrischung.
+  booster('booster');
+
+  const VaccinationSeries(this.wire);
+
+  final String wire;
+
+  static VaccinationSeries? fromWire(Object? v) =>
+      pbEnum(values, (e) => e.wire, v);
+}
+
 /// Which kind of sample was looked at under the microscope
 /// (`microscopy_samples.sample_type`): a crop swab or a faecal sample.
 enum MicroscopySampleType {
