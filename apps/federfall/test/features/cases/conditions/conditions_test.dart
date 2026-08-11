@@ -30,13 +30,7 @@ void main() {
   setUp(() {
     conditions = MockConditionsRepo();
     caseConditions = MockCaseConditionsRepo();
-    when(
-      () => conditions.list(
-        filter: any(named: 'filter'),
-        sort: any(named: 'sort'),
-        expand: any(named: 'expand'),
-      ),
-    ).thenAnswer((_) async => codeList);
+    when(() => conditions.codelist()).thenAnswer((_) async => codeList);
   });
 
   Future<void> pump(WidgetTester tester, Widget child) async {

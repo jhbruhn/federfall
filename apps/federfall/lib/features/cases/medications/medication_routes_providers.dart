@@ -4,7 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'medication_routes_providers.g.dart';
 
-/// The full medication-route code list, label-sorted. Used to populate the
+/// The full medication-route code list in picker order. Used to populate the
 /// route picker (active entries only) and to resolve a stored route id → its
 /// label on medication tiles / the worklist (so a now-inactive entry still
 /// resolves). Kept alive: a small, rarely-changing vocabulary resolved on every
@@ -12,7 +12,7 @@ part 'medication_routes_providers.g.dart';
 @Riverpod(keepAlive: true)
 Future<List<MedicationRoute>> medicationRoutes(Ref ref) async {
   final repo = await ref.watch(medicationRoutesRepositoryProvider.future);
-  return repo.list(sort: 'label');
+  return repo.codelist();
 }
 
 /// Medication-route code-list entries keyed by id, for label lookup.

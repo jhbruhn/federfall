@@ -13,13 +13,13 @@ Future<List<CaseCondition>> caseConditionsForCase(Ref ref, String caseId) =>
       return repo.forCase(caseId);
     });
 
-/// The full condition code list, label-sorted. Used to populate the picker
+/// The full condition code list in picker order. Used to populate the picker
 /// (active entries only) and to resolve a stored condition id → its label and
 /// notifiable flag on the timeline (so a now-inactive entry still resolves).
 @riverpod
 Future<List<Condition>> conditions(Ref ref) async {
   final repo = await ref.watch(conditionsRepositoryProvider.future);
-  return repo.list(sort: 'label');
+  return repo.codelist();
 }
 
 /// Code-list entries keyed by id, for label/notifiable lookup.

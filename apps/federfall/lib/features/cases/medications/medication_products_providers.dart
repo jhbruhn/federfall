@@ -13,7 +13,7 @@ part 'medication_products_providers.g.dart';
 @Riverpod(keepAlive: true)
 Future<List<MedicationProduct>> medicationProducts(Ref ref) async {
   final repo = await ref.watch(medicationProductsRepositoryProvider.future);
-  return repo.list(sort: 'label');
+  return repo.codelist();
 }
 
 /// Just the entries a supervisor has left active — what the picker in the

@@ -4,13 +4,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'admission_reasons_providers.g.dart';
 
-/// The full admission-reason code list, label-sorted. Used to populate the
+/// The full admission-reason code list in picker order. Used to populate the
 /// intake picker (active entries only) and to resolve a stored reason id → its
 /// label on the case detail / report (so a now-inactive entry still resolves).
 @riverpod
 Future<List<AdmissionReason>> admissionReasons(Ref ref) async {
   final repo = await ref.watch(admissionReasonsRepositoryProvider.future);
-  return repo.list(sort: 'label');
+  return repo.codelist();
 }
 
 /// Admission-reason code-list entries keyed by id, for label lookup.

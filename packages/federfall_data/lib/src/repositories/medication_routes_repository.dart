@@ -1,10 +1,12 @@
 import 'package:federfall_data/src/pb_repository.dart';
+import 'package:federfall_data/src/repositories/codelist_repository.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 /// Repository over the `medication_routes` code list (supervisor-managed routes
 /// of administration: oral, subcutaneous…).
-class PbMedicationRoutesRepository extends PbRepository<MedicationRoute> {
+class PbMedicationRoutesRepository extends PbRepository<MedicationRoute>
+    with CodelistRepository<MedicationRoute> {
   PbMedicationRoutesRepository(PocketBase pb)
     : super(
         pb: pb,
@@ -12,17 +14,15 @@ class PbMedicationRoutesRepository extends PbRepository<MedicationRoute> {
         fromRecord: MedicationRoute.fromRecord,
       );
 
-  /// Active code-list entries, label-sorted, for the route picker.
-  Future<List<MedicationRoute>> active() => list(
-    filter: filterExpr('active = true'),
-    sort: 'label',
-  );
+  @override
+  String labelOf(MedicationRoute entry) => entry.label;
 }
 
 /// Repository over the `medication_products` catalogue (federfall-6d3a.3): the
 /// org's drug protocols, maintained by a supervisor and read by everyone to
 /// prefill a prescription.
-class PbMedicationProductsRepository extends PbRepository<MedicationProduct> {
+class PbMedicationProductsRepository extends PbRepository<MedicationProduct>
+    with CodelistRepository<MedicationProduct> {
   PbMedicationProductsRepository(PocketBase pb)
     : super(
         pb: pb,
@@ -30,11 +30,8 @@ class PbMedicationProductsRepository extends PbRepository<MedicationProduct> {
         fromRecord: MedicationProduct.fromRecord,
       );
 
-  /// Active entries, label-sorted, for the picker in the prescription form.
-  Future<List<MedicationProduct>> active() => list(
-    filter: filterExpr('active = true'),
-    sort: 'label',
-  );
+  @override
+  String labelOf(MedicationProduct entry) => entry.label;
 
   /// How many catalogue entries still name the [routeId] code-list entry — the
   /// third of the three `medication_routes` referrers.

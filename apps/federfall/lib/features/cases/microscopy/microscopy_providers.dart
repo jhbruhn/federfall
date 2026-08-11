@@ -38,7 +38,7 @@ Future<Map<String, List<MicroscopyFinding>>> microscopyFindingsForCase(
   return bySample;
 }
 
-/// The whole finding vocabulary, label-sorted.
+/// The whole finding vocabulary, in picker order.
 ///
 /// Deliberately not `active()`: the sheet's picker offers only the live
 /// entries, but a tile still has to NAME a term that has since been
@@ -46,7 +46,7 @@ Future<Map<String, List<MicroscopyFinding>>> microscopyFindingsForCase(
 @riverpod
 Future<List<MicroscopyFindingType>> microscopyFindingTypes(Ref ref) async {
   final repo = await ref.watch(microscopyFindingTypesRepositoryProvider.future);
-  return repo.list(sort: 'label');
+  return repo.codelist();
 }
 
 /// Vocabulary entries keyed by id, for the label lookup on a tile.

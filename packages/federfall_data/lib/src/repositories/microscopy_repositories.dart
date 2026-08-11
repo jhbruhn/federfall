@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:federfall_data/src/pb_repository.dart';
+import 'package:federfall_data/src/repositories/codelist_repository.dart';
 import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:http/http.dart' as http;
@@ -110,8 +111,14 @@ class PbMicroscopyFindingsRepository extends PbRepository<MicroscopyFinding> {
 
 /// Repository over the `microscopy_finding_types` code list (the
 /// supervisor-managed vocabulary of microscopic findings).
+///
+/// Applicability to the chosen sample type is filtered on the device rather
+/// than in the query: the list is a handful of rows the sheet already holds,
+/// and `sample_types` is a multi-select whose `?=` filter would have to be
+/// rebuilt every time the probe segment changes.
 class PbMicroscopyFindingTypesRepository
-    extends PbRepository<MicroscopyFindingType> {
+    extends PbRepository<MicroscopyFindingType>
+    with CodelistRepository<MicroscopyFindingType> {
   PbMicroscopyFindingTypesRepository(PocketBase pb)
     : super(
         pb: pb,
@@ -119,14 +126,6 @@ class PbMicroscopyFindingTypesRepository
         fromRecord: MicroscopyFindingType.fromRecord,
       );
 
-  /// Active vocabulary entries, label-sorted, for the findings picker.
-  ///
-  /// Applicability to the chosen sample type is filtered on the device rather
-  /// than in the query: the list is a handful of rows the sheet already holds,
-  /// and `sample_types` is a multi-select whose `?=` filter would have to be
-  /// rebuilt every time the probe segment changes.
-  Future<List<MicroscopyFindingType>> active() => list(
-    filter: filterExpr('active = true'),
-    sort: 'label',
-  );
+  @override
+  String labelOf(MicroscopyFindingType entry) => entry.label;
 }
