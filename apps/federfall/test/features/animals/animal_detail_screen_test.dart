@@ -6,6 +6,7 @@ import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
+import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -163,7 +164,12 @@ void main() {
     expect(find.text('2026-009'), findsOneWidget);
   });
 
-  testWidgets('shows the latest weight and a record action', (tester) async {
+  // The WHOLE history, not just the latest: a weight taken outside a case
+  // appears in no case chronology (those read `forCase`), so this card is the
+  // only place such a reading can be corrected at all.
+  testWidgets('lists every weight, newest first, with a record action', (
+    tester,
+  ) async {
     await _pump(
       tester,
       const AnimalLifetime(
@@ -178,9 +184,56 @@ void main() {
       ],
     );
 
-    // Latest reading (last in the oldest-first list) shown; record action.
     expect(find.text('255 g'), findsOneWidget);
+    expect(find.text('240 g'), findsOneWidget);
     expect(find.byTooltip('Add weight'), findsOneWidget);
+    // Newest first, like the case timeline — the provider hands them over
+    // oldest-first for the chart.
+    expect(
+      tester.getTopLeft(find.text('255 g')).dy,
+      lessThan(tester.getTopLeft(find.text('240 g')).dy),
+    );
+  });
+
+  testWidgets('a weight recorded without a case can be edited here', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      // No `case`: nothing else in the app shows this row.
+      weights: const [Weight(id: 'w1', animal: 'a1', weightG: 240)],
+    );
+
+    await tester.tap(find.byType(TimelineEntryMenu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit').last);
+    await tester.pumpAndSettle();
+
+    // The edit sheet opened on that reading.
+    expect(find.text('240'), findsOneWidget);
+  });
+
+  testWidgets('a non-holder gets no weight menu', (tester) async {
+    await _pump(
+      tester,
+      const AnimalLifetime(
+        animal: Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
+        markings: [],
+        cases: [],
+        accessibleCaseIds: {},
+      ),
+      weights: const [Weight(id: 'w1', animal: 'a1', weightG: 240)],
+      canWrite: false,
+    );
+
+    expect(find.text('240 g'), findsOneWidget);
+    expect(find.byType(TimelineEntryMenu), findsNothing);
   });
 
   testWidgets('can apply a marking from the animal detail (no case)', (

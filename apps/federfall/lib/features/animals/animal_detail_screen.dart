@@ -24,6 +24,7 @@ import 'package:federfall/features/cases/markings/marking_sheet.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/features/cases/weights/weight_entry_sheet.dart';
+import 'package:federfall/features/cases/weights/weight_entry_tile.dart';
 import 'package:federfall/features/cases/weights/weight_trend_chart.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -261,7 +262,6 @@ class _WeightSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final materialL10n = MaterialLocalizations.of(context);
     final weights = ref.watch(weightsForAnimalProvider(animalId));
 
     return Card(
@@ -294,10 +294,7 @@ class _WeightSection extends ConsumerWidget {
               onRetry: () => ref.invalidate(weightsForAnimalProvider(animalId)),
               loading: const LinearProgressIndicator(),
               data: (weights) {
-                // weightsForAnimal is sorted oldest-first, so the last is the
-                // latest.
-                final latest = weights.isEmpty ? null : weights.last;
-                if (latest == null) {
+                if (weights.isEmpty) {
                   return Text(
                     l10n.animalNoWeight,
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -305,20 +302,23 @@ class _WeightSection extends ConsumerWidget {
                     ),
                   );
                 }
+                // The whole history, not just the latest reading: a weight
+                // taken outside a case shows in no case chronology (they read
+                // `forCase`), so this is the only place it can be corrected.
+                // Newest first, like the case timeline; the chart keeps the
+                // provider's own oldest-first order.
+                final newestFirst = weights.reversed.toList();
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.monitor_weight_outlined),
-                      title: Text(formatWeightG(l10n, latest.weightG)),
-                      subtitle: switch (latest.measuredAt ?? latest.created) {
-                        final at? => Text(formatLocalDate(materialL10n, at)),
-                        _ => null,
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
                     WeightTrendChart.forAnimal(animalId),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (final (i, w) in newestFirst.indexed)
+                      WeightEntryTile(
+                        weight: w,
+                        canEdit: canWrite,
+                        isLast: i == newestFirst.length - 1,
+                      ),
                   ],
                 );
               },

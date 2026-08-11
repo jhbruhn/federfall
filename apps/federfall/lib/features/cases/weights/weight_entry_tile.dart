@@ -23,17 +23,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// may still write its journal while the bird has moved on, so the menu needs
 /// both. [weightDeletableBy] answers only the author half and is ANDed with
 /// custody here for the same reason.
+///
+/// [caseId] is the case whose chronology is showing this weight, and is null on
+/// the animal's own weight history. A weight is animal-scoped — `case` is
+/// optional on it and frozen after create — so one taken outside any case
+/// appears in no case timeline at all, and the animal screen is the only place
+/// it can be corrected.
 class WeightEntryTile extends ConsumerWidget {
   const WeightEntryTile({
     required this.weight,
-    required this.caseId,
+    this.caseId,
     this.canEdit = true,
     this.isLast = false,
     super.key,
   });
 
   final Weight weight;
-  final String caseId;
+  final String? caseId;
   final bool canEdit;
   final bool isLast;
 
@@ -54,7 +60,11 @@ class WeightEntryTile extends ConsumerWidget {
       action: () async {
         final repo = await ref.read(weightsRepositoryProvider.future);
         await repo.delete(weight.id);
-        ref.invalidate(caseBundleProvider(caseId));
+        // Both views, the same way the sheet's own save does: the animal's
+        // life-long history always, the case chronology only when this tile
+        // is standing in one.
+        ref.invalidate(weightsForAnimalProvider(weight.animal));
+        if (caseId case final id?) ref.invalidate(caseBundleProvider(id));
       },
     );
   }
