@@ -381,6 +381,10 @@ function requireOutcomeWrite(app, auth, disp, removing) {
 
 module.exports = {
   holds: holds,
+  // Exported for sponsorships.pb.js, which needs the NARROW question: `holds`
+  // also answers yes for an open case's carer, and a carer is deliberately not
+  // a reader of a patronage (1700000085).
+  keeps: keeps,
   heldByNobody: heldByNobody,
   requireCustody: requireCustody,
   requireAdmissible: requireAdmissible,

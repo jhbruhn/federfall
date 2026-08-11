@@ -133,6 +133,11 @@ String auditActionTitle(
   AuditAction.aviaryCreated => l10n.auditActionAviaryCreated,
   AuditAction.aviaryUpdated => l10n.auditActionAviaryUpdated,
   AuditAction.aviaryDeleted => l10n.auditActionAviaryDeleted,
+  AuditAction.sponsorshipCreated => l10n.auditActionSponsorshipCreated,
+  AuditAction.sponsorshipUpdated => l10n.auditActionSponsorshipUpdated,
+  AuditAction.sponsorshipDeleted => l10n.auditActionSponsorshipDeleted,
+  AuditAction.sponsorshipAccessTransferred =>
+    l10n.auditActionSponsorshipAccessTransferred,
   AuditAction.finderCreated => l10n.auditActionFinderCreated,
   AuditAction.finderUpdated => l10n.auditActionFinderUpdated,
   AuditAction.finderDeleted => l10n.auditActionFinderDeleted,
@@ -271,7 +276,14 @@ extension AuditActionTopic on AuditAction {
     AuditAction.placementDeleted ||
     AuditAction.aviaryCreated ||
     AuditAction.aviaryUpdated ||
-    AuditAction.aviaryDeleted => AuditTopic.housing,
+    AuditAction.aviaryDeleted ||
+    // A Patenschaft belongs to an aviary RESIDENT and is read by that
+    // enclosure's keeper, so a supervisor looking for it arrives from housing
+    // rather than from the case file.
+    AuditAction.sponsorshipCreated ||
+    AuditAction.sponsorshipUpdated ||
+    AuditAction.sponsorshipDeleted ||
+    AuditAction.sponsorshipAccessTransferred => AuditTopic.housing,
 
     AuditAction.caseShared ||
     AuditAction.caseShareRevoked ||
@@ -335,6 +347,11 @@ String auditFieldLabel(AppLocalizations l10n, String collection, String field) {
   final perCollection = switch ((collection, field)) {
     ('markings', 'type') => l10n.markingFieldType,
     ('dispositions', 'type') => l10n.auditFieldType,
+    // A patronage runs from a date to a date. The shared arms below read
+    // „Beginn"/„Aktiv bis", which is a medication's phrasing — right for a
+    // course of treatment, wrong for a sponsorship that simply ended.
+    ('sponsorships', 'started_at') => l10n.sponsorshipFieldStarted,
+    ('sponsorships', 'ended_at') => l10n.sponsorshipFieldEnded,
     _ => null,
   };
   if (perCollection != null) return perCollection;
@@ -515,6 +532,15 @@ String auditFieldLabel(AppLocalizations l10n, String collection, String field) {
     'description' => l10n.auditFieldDescription,
     'reminder_lead_minutes' => l10n.appointmentReminderLeadTitle,
     'reminder_muted' => l10n.auditFieldReminderMuted,
+    // ── Patenschaften (federfall-5s5j) ─────────────────────────────────────
+    // The sponsor's own fields arrive REDACTED — SENSITIVE.sponsorships strips
+    // the values in the emitter — but the row still names the field that
+    // changed, so it needs a label like any other.
+    'sponsor_name' => l10n.sponsorshipFieldName,
+    'sponsor_pronouns' => l10n.sponsorshipFieldPronouns,
+    'mobile' => l10n.sponsorshipFieldMobile,
+    'amount_cents' => l10n.sponsorshipFieldAmount,
+    'interval' => l10n.sponsorshipFieldInterval,
     _ => field,
   };
 }
@@ -839,6 +865,19 @@ AuditLine auditLine(AppLocalizations l10n, AuditEvent e) {
       // Where the bird still is. Only ever the label — an aviary id would say
       // less than nothing here.
       add(l10n.aviaryDetailTitle, currentAviaryLabel);
+    case SponsorshipDetail(
+      :final sponsorships,
+      :final keeperLabel,
+      :final orphan,
+    ):
+      // A COUNT and a keeper — never a sponsor. The values are redacted in
+      // the emitter (SENSITIVE.sponsorships), and this is the other half of
+      // that rule: nothing here may name the person whose data moved.
+      if (sponsorships != null) {
+        flag(l10n.auditFactSponsorships(sponsorships));
+      }
+      add(l10n.auditFactSponsorshipKeeper, keeperLabel);
+      if (orphan) flag(l10n.auditFactSponsorshipOrphan);
     case AuditPurgedDetail(:final count, :final retentionDays):
       flag(l10n.auditFactPurgedCount(count));
       if (retentionDays != null) {

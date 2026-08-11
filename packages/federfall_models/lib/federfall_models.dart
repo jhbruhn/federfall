@@ -42,4 +42,5 @@ export 'src/models/medication_route.dart';
 export 'src/models/microscopy.dart';
 export 'src/models/organisation.dart';
 export 'src/models/quarantine.dart';
+export 'src/models/sponsorship.dart';
 export 'src/models/vet_appointment.dart';

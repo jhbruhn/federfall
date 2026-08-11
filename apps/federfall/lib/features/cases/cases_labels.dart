@@ -177,6 +177,17 @@ String microscopyExaminedByLabel(
 /// Not translated and not in the ARB, because it is a symbol rather than a
 /// word — the wire values spell it out only so a bare `+` never has to survive
 /// a filter expression or a CSV cell.
+/// How often a Patenschaft is given (federfall-5s5j).
+String sponsorshipIntervalLabel(
+  AppLocalizations l10n,
+  SponsorshipInterval i,
+) => switch (i) {
+  SponsorshipInterval.monthly => l10n.sponsorshipIntervalMonthly,
+  SponsorshipInterval.quarterly => l10n.sponsorshipIntervalQuarterly,
+  SponsorshipInterval.yearly => l10n.sponsorshipIntervalYearly,
+  SponsorshipInterval.oneTime => l10n.sponsorshipIntervalOneTime,
+};
+
 String microscopySeverityLabel(MicroscopySeverity s) => switch (s) {
   MicroscopySeverity.plus => '+',
   MicroscopySeverity.plusPlus => '++',

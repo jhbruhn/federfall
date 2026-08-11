@@ -220,6 +220,19 @@ sealed class AuditDetail with _$AuditDetail {
     String? currentAviaryLabel,
   }) = DispositionDetail;
 
+  /// `sponsorship.*` — what the event means for the patronage data, never the
+  /// sponsor (federfall-5s5j).
+  ///
+  /// Two shapes share one member because they answer the same question: how
+  /// much personal data this touched. On `access_transferred` it also names who
+  /// gained it; on the retention sweep's `deleted` it says the row had outlived
+  /// the bird it documented.
+  const factory AuditDetail.sponsorship({
+    int? sponsorships,
+    String? keeperLabel,
+    @Default(false) bool orphan,
+  }) = SponsorshipDetail;
+
   /// `audit.purged`
   const factory AuditDetail.auditPurged({
     required int count,
@@ -313,6 +326,12 @@ sealed class AuditDetail with _$AuditDetail {
         lifetimeStatus: LifetimeStatus.fromWire(json['lifetime_status']),
         currentAviary: pbString(json['current_aviary']),
         currentAviaryLabel: pbString(json['current_aviary_label']),
+      ),
+      AuditAction.sponsorshipAccessTransferred ||
+      AuditAction.sponsorshipDeleted => AuditDetail.sponsorship(
+        sponsorships: pbInt(json['sponsorships']),
+        keeperLabel: pbString(json['keeper_label']),
+        orphan: pbBool(json['orphan']),
       ),
       AuditAction.auditPurged => AuditDetail.auditPurged(
         count: pbInt(json['count']) ?? 0,

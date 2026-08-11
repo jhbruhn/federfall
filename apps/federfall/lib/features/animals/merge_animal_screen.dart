@@ -3,6 +3,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animal_search_picker.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/aviaries/sponsorship_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
@@ -530,6 +531,13 @@ class _MovesSummary extends ConsumerWidget {
         .watch(aviaryStaysForAnimalProvider(duplicateId))
         .value
         ?.length;
+    // `sponsorships.animal` is the one relation here that does NOT cascade
+    // (1700000085), so these would survive as orphans rather than be destroyed.
+    // The merge re-points them anyway — an orphaned patronage is invisible to
+    // every keeper — so the summary has to say they move.
+    final sponsorships = ref
+        .watch(sponsorshipCountForAnimalProvider(duplicateId))
+        .value;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -546,6 +554,7 @@ class _MovesSummary extends ConsumerWidget {
             Text(l10n.animalMergeExamsCount(exams ?? 0)),
             Text(l10n.animalMergeEggsCount(eggs ?? 0)),
             Text(l10n.animalMergeStaysCount(stays ?? 0)),
+            Text(l10n.animalMergeSponsorshipsCount(sponsorships ?? 0)),
           ],
         ),
       ),

@@ -154,6 +154,36 @@ bool animalAdmissibleBy(
 bool aviaryStockableBy(Aviary aviary, AppUser? me) =>
     me != null && (canManageAviaries(me.role) || aviary.keeper == me.id);
 
+/// Whether [me] may see the Patenschaften of a bird living in [aviary]
+/// (federfall-5s5j). Mirrors 1700000085's read rule: a coordinator or
+/// supervisor, or the KEEPER of the enclosure the bird currently lives in.
+///
+/// Narrower than [animalWritableBy] on purpose, and that is the feature rather
+/// than an omission: custody of a bird is not access to its patronage, so the
+/// bird's own carer is not a reader. [aviary] is the resolved enclosure, or
+/// null when the bird lives in none — in which case no keeper qualifies and
+/// only the two roles do, exactly as the rule resolves it.
+///
+/// This gates whether the section is RENDERED AT ALL, not just its controls.
+/// An always-present empty „Patenschaften" card would tell the whole org that
+/// this bird has a sponsor, which is a leak with no values in it.
+bool sponsorshipsReadableBy(Aviary? aviary, AppUser? me) =>
+    me != null &&
+    (me.role == UserRole.coordinator ||
+        me.role == UserRole.supervisor ||
+        (aviary != null && aviary.keeper == me.id));
+
+/// Whether [me] may RECORD a patronage on a bird living in [aviary]. Mirrors
+/// `pb_hooks/sponsorships.pb.js`: the enclosure's keeper, or a
+/// coordinator/supervisor, and never on a bird that lives in no enclosure.
+///
+/// Identical to [sponsorshipsReadableBy] except for that last clause, which is
+/// why it is a separate predicate: a coord/sup READS the patronages of a bird
+/// that has left aviary care (that is who winds them down), but nobody may
+/// create one there.
+bool sponsorshipWritableBy(Aviary? aviary, AppUser? me) =>
+    aviary != null && sponsorshipsReadableBy(aviary, me);
+
 /// Whether [me] may delete [weight]. Mirrors the server delete rule
 /// (1700000047): a weight is shared clinical history, so destroying one is
 /// reserved for its author (correct-a-typo path) or a supervisor.

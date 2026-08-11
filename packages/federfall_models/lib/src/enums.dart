@@ -339,3 +339,23 @@ enum MicroscopySeverity {
   static MicroscopySeverity? fromWire(Object? v) =>
       pbEnum(values, (e) => e.wire, v);
 }
+
+/// How often a Patenschaft is given (`sponsorships.interval`).
+///
+/// `oneTime` is a single donation rather than a rhythm, and is deliberately in
+/// the same enum: a rehab that received one payment for a bird still calls it a
+/// Patenschaft, and a separate boolean beside a nullable interval would make
+/// "monthly AND one-off" expressible.
+enum SponsorshipInterval {
+  monthly('monthly'),
+  quarterly('quarterly'),
+  yearly('yearly'),
+  oneTime('one_time');
+
+  const SponsorshipInterval(this.wire);
+
+  final String wire;
+
+  static SponsorshipInterval? fromWire(Object? v) =>
+      pbEnum(values, (e) => e.wire, v);
+}

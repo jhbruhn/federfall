@@ -139,6 +139,21 @@ const ACTIONS = {
   // `animals.current_aviary` by aviary_stays.pb.js and has no API of its own.
   // The human action is the animal.updated that moved the bird.
 
+  // ── sponsorships (ids and amounts only — never the sponsor, see SENSITIVE) ─
+  // A Patenschaft holds a member of the public's name, address and mobile.
+  // Same stance as `finders`, for the same reason: this table is append-only
+  // with a tamper guard nothing can delete from (1700000068), so a sponsor's
+  // name logged here would outlive every scrub.
+  SPONSORSHIP_CREATED: "sponsorship.created",
+  SPONSORSHIP_UPDATED: "sponsorship.updated",
+  SPONSORSHIP_DELETED: "sponsorship.deleted",
+  // The bird moved enclosure, so its patronages did too — and with them, who can
+  // read a sponsor's contact details. Emitted from
+  // sponsorship_access_audit.pb.js, which hangs off `animals.current_aviary`
+  // rather than off the disposition, because four other writers change that
+  // field. A disclosure of personal data to a new reader, hence `security`.
+  SPONSORSHIP_ACCESS_TRANSFERRED: "sponsorship.access_transferred",
+
   // ── finders (ids only — never names, see the header) ───────────────────────
   FINDER_CREATED: "finder.created",
   FINDER_UPDATED: "finder.updated",
@@ -219,6 +234,7 @@ const DEFAULT_SEVERITY = {
   "animal.merged": SEVERITY.NOTICE,
   "animal.deleted": SEVERITY.NOTICE,
   "case.deleted": SEVERITY.NOTICE,
+  "sponsorship.access_transferred": SEVERITY.SECURITY,
   "finder.pii_purged": SEVERITY.NOTICE,
   "finder.orphan_deleted": SEVERITY.NOTICE,
   "audit.purged": SEVERITY.NOTICE,
@@ -248,6 +264,21 @@ const SENSITIVE = {
     "phone",
     "alt_phone",
     "email",
+    "notes",
+  ],
+  // federfall-5s5j.1 — a sponsor is a member of the public too, and this row is
+  // the only place their details live (1700000085 stores them INLINE rather than
+  // in a shared person table). Unlike `finders`, the LOCATION fields are
+  // redacted as well: there is no "where do birds come from" statistic to serve
+  // here, and a postal code beside a name is an identification.
+  sponsorships: [
+    "sponsor_name",
+    "sponsor_pronouns",
+    "address",
+    "postal_code",
+    "city",
+    "region",
+    "mobile",
     "notes",
   ],
 };
@@ -562,6 +593,17 @@ const COLLECTION_ACTIONS = {
     deleted: null,
   },
 
+  // ── sponsorships: amounts and dates only, never the sponsor ────────────────
+  // SENSITIVE.sponsorships redacts every personal field, so what a row here
+  // says is "somebody entered / changed / removed a patronage on this bird, and
+  // it was worth this much" — the auditable part, and the part that is not
+  // personal data. The bird arrives as `refs.animal`.
+  sponsorships: {
+    created: ACTIONS.SPONSORSHIP_CREATED,
+    updated: ACTIONS.SPONSORSHIP_UPDATED,
+    deleted: ACTIONS.SPONSORSHIP_DELETED,
+  },
+
   // ── finders: ids only, never names (see the header) ────────────────────────
   finders: {
     created: ACTIONS.FINDER_CREATED,
@@ -615,10 +657,14 @@ const COLLECTION_ACTIONS = {
 // wire value in `changes`/`detail`, where the app translates it.
 //
 // Absent means the envelope carries no label, which the design requires the app
-// to survive anyway. Two collections are absent ON PURPOSE, not by oversight:
+// to survive anyway. Three collections are absent ON PURPOSE, not by oversight:
 //
 //   finders          — additionally forced to "" in emit(). A member of the
 //                      public is never named in this table.
+//   sponsorships     — the same, and forced the same way. The only name a
+//                      patronage has is its sponsor's, so a label here would BE
+//                      the PII that SENSITIVE.sponsorships redacts out of the
+//                      values. The row is located by `refs.animal` instead.
 //   journal_entries  — a journal entry is free clinical text its author can
 //                      edit or delete. Copying it into an append-only table
 //                      would quietly make it permanent, and it is the one
@@ -879,6 +925,12 @@ const CONTENT_FIELDS = {
   journal_entries: [],
   finders: [],
   organisations: [],
+  // Everything a sponsorship says about the SPONSOR is redacted (SENSITIVE), so
+  // what is left is the arrangement: how much, how often, and for how long.
+  // That is enough for the row to be worth reading — a create or delete
+  // otherwise carried nothing but an id, which test_rules.py's
+  // uninformative-event check rejects.
+  sponsorships: ["amount_cents", "interval", "started_at", "ended_at"],
 };
 
 // Ids worth correlating on beyond `case_id`, when the record carries them.
@@ -1280,9 +1332,12 @@ function emit(e, action, opts) {
         }
       }
     }
-    // Hard rule, enforced here rather than trusted to every call site: a finder
-    // is never named in the log.
-    if (subjectCollection === "finders") subjectLabel = "";
+    // Hard rule, enforced here rather than trusted to every call site: a member
+    // of the public is never named in the log — as a finder, and as the sponsor
+    // whose name is the only label a `sponsorships` row could have.
+    if (subjectCollection === "finders" || subjectCollection === "sponsorships") {
+      subjectLabel = "";
+    }
 
     // ── org: the scoping boundary, and the one field with no fallback ────────
     let org = String(o.org || "") || authOrg;

@@ -1,10 +1,12 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
+import 'package:federfall/features/aviaries/sponsorship_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/location/location_picker_screen.dart';
+import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -366,7 +368,153 @@ class _DispositionSheetState extends ConsumerState<DispositionSheet>
                     },
             ),
           ],
+          if (_type case final type?) ...[
+            const SizedBox(height: AppSpacing.md),
+            // Directly above the save button: this outcome may hand a sponsor's
+            // personal data to somebody else, and that has to be readable while
+            // the finger is on its way to Speichern.
+            _SponsorshipTransferNotice(
+              caseId: widget.caseId,
+              type: type,
+              targetAviaryId: _isAviary ? _aviaryId : null,
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// Warns that this outcome will hand the bird's Patenschaften to somebody else,
+/// or take them out of every keeper's reach (federfall-5s5j).
+///
+/// Access to sponsorship data resolves LIVE through
+/// `animal.current_aviary.keeper`, so an outcome that changes where the bird
+/// lives silently changes who can read a sponsor's name, address and mobile.
+/// This is the only screen that can trigger that — `current_aviary` is
+/// isset-guarded against client writes (1700000075) and only `lib_derive.js`
+/// sets it — so it is the only place the warning can live.
+///
+/// Two shapes, one banner:
+///
+///   * a PLACEMENT into a different enclosure: the patronages move, its keeper
+///     gains access and the current keeper loses it.
+///   * anything else (released / died / euthanised / transferred / returned):
+///     `lib_derive.js` clears `current_aviary`, so NO keeper can reach them any
+///     more and winding a patronage down becomes a coordinator's job.
+///
+/// It says a COUNT, never a sponsor's name — the number is what makes the
+/// consequence legible, and naming people would spread the data the warning is
+/// about. Whoever sees this may in fact read those names (moving a bird already
+/// requires custody, so the mover is the keeper or a coord/sup), but the
+/// sentence has no business depending on that.
+class _SponsorshipTransferNotice extends ConsumerWidget {
+  const _SponsorshipTransferNotice({
+    required this.caseId,
+    required this.type,
+    required this.targetAviaryId,
+  });
+
+  final String caseId;
+  final DispositionType type;
+
+  /// The enclosure picked in this form, or null when the outcome is not a
+  /// placement.
+  final String? targetAviaryId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final animalId = ref
+        .watch(caseBundleProvider(caseId))
+        .value
+        ?.medicalCase
+        .animal;
+    if (animalId == null) return const SizedBox.shrink();
+    // Nothing to warn about until we know there IS something to warn about. A
+    // failed or pending count renders nothing rather than a scare with no
+    // number in it.
+    final count = ref.watch(sponsorshipCountForAnimalProvider(animalId)).value;
+    if (count == null || count == 0) return const SizedBox.shrink();
+
+    final current =
+        ref.watch(animalByIdProvider(animalId)).value?.currentAviary ?? '';
+    final target = targetAviaryId ?? '';
+
+    final String message;
+    if (type == DispositionType.placedInAviary) {
+      // A re-save that keeps the bird where it is transfers nothing.
+      if (target.isEmpty || target == current) return const SizedBox.shrink();
+      final aviaries =
+          ref.watch(activeAviariesProvider).value ?? const <Aviary>[];
+      final keeperId = aviaries
+          .where((a) => a.id == target)
+          .map((a) => a.keeper)
+          .firstOrNull;
+      final keeper = keeperId == null
+          ? null
+          : ref.watch(orgMembersByIdProvider).value?[keeperId];
+      message = l10n.sponsorshipTransferWarning(
+        count,
+        // An enclosure has had a required keeper since 1700000076, but a row
+        // predating it — or a member this viewer cannot resolve — must not
+        // blank the sentence: the transfer happens either way.
+        keeper == null
+            ? l10n.sponsorshipTransferKeeperUnknown
+            : memberLabel(keeper),
+      );
+    } else {
+      // The bird leaves aviary care. Only meaningful while it is IN one.
+      if (current.isEmpty) return const SizedBox.shrink();
+      message = l10n.sponsorshipEndOfCareWarning(count);
+    }
+
+    return _NoticeBanner(message: message);
+  }
+}
+
+/// A tonal warning strip inside a form: an icon and one wrapping sentence.
+///
+/// `tertiaryContainer` rather than `errorContainer`: nothing here is a mistake
+/// or a failure — this outcome is very likely the right one — but its side
+/// effect on personal data has to be noticed before saving.
+class _NoticeBanner extends StatelessWidget {
+  const _NoticeBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: colors.tertiaryContainer,
+          borderRadius: BorderRadius.circular(AppSpacing.sm),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.privacy_tip_outlined,
+              size: 20,
+              color: colors.onTertiaryContainer,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onTertiaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

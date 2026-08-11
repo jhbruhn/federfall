@@ -2,8 +2,8 @@
 """federfall-qt96.12 — the retention crons, observed actually running.
 
 Driven by run_cron.sh, which provisions a throwaway instance whose
-`auditRetention` and `finderPiiRetention` jobs are due every minute. Standalone otherwise, against an
-instance you have patched the same way:
+`auditRetention`, `finderPiiRetention` and `sponsorshipRetention` jobs are due
+every minute. Standalone otherwise, against an instance patched the same way:
 
     FED_TEST_URL=http://localhost:8098 python3 test_cron.py
 
@@ -109,6 +109,15 @@ def finder_of_closed_case(token, org):
     # (never `disposed_at`, which a client could backdate).
     mk(token, "dispositions", {"case": case, "type": "released", "org": org})
     return finder
+
+
+_seq = [0]
+
+
+def row_seq():
+    """A per-run counter, for fixture emails that have to be unique."""
+    _seq[0] += 1
+    return _seq[0]
 
 
 def finder_row(token, finder_id):
@@ -260,6 +269,121 @@ def main():
     check("a window set under the older years key is still honoured",
           finder_row(T, legacy_finder).get("pii_purged") is True,
           finder_row(T, legacy_finder))
+
+    # ── sponsorship orphan retention ────────────────────────────────────────
+    # federfall-5s5j.1: `sponsorships.animal` does NOT cascade, on purpose — a
+    # donation record must not be destroyed with the bird it documented. What is
+    # left is an orphan holding a sponsor's name, address and mobile that no
+    # keeper can even read (the predicate resolves through
+    # `animal.current_aviary`), so it is deleted after the org's window.
+    #
+    # Two orgs again, and for the reason above: the window comes out of a JSON
+    # field through lib_org.js, and a single-org test cannot tell a working
+    # settings read from a silent fall-through to the 24-month default.
+    print("\n[sponsorship retention cron]")
+
+    # Both halves of the grace period, the way app_theme_fallbacks_test pins its
+    # two: run_cron.sh removed it in the COPY (a 24 h window measured from a
+    # server-owned autodate is unreachable in a test), so the committed file is
+    # read here to make sure the real one still has it. Without this, deleting
+    # the constant outright would make every assertion below pass.
+    hook_src = open(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "..", "pb_hooks", "sponsorship_retention.pb.js"),
+        encoding="utf-8",
+    ).read()
+    check("the shipped cron still holds a fresh orphan for a day",
+          "const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;" in hook_src,
+          "the grace period is gone from the committed hook — a sponsorship "
+          "written moments before its animal can now be mistaken for an orphan")
+
+    sp_purge_org = mk(T, "organisations", {
+        "name": "Patenschaft Purge",
+        "settings": {"sponsorshipRetentionMonths": 0.000001},
+    })["id"]
+    sp_keep_org = mk(T, "organisations", {
+        "name": "Patenschaft Keep",
+        "settings": {"sponsorshipRetentionMonths": 1200},
+    })["id"]
+
+    def sponsorship_in(org, orphan):
+        """A sponsorship in [org]; [orphan] deletes its animal afterwards.
+
+        Rules do not apply to a superuser, so `current_aviary` (isset-guarded
+        against clients since 1700000075) and the create-gate hook's keeper
+        requirement are both bypassed here — this is a fixture, not a probe of
+        those guards; test_rules.py's `[sponsorships]` block owns them.
+        """
+        # `aviaries.keeper` is required since 1700000076, and it must live in
+        # the same org (org_scope.pb.js) — so each fixture enclosure gets its
+        # own keeper rather than borrowing one.
+        keeper = mk(T, "users", {
+            "email": f"keeper-{row_seq()}@f.local",
+            "password": "Pass12345!", "passwordConfirm": "Pass12345!",
+            "role": "carer", "org": org, "is_active": True, "verified": True,
+        })["id"]
+        aviary = mk(T, "aviaries", {"name": f"V-{org[:6]}", "keeper": keeper,
+                                    "org": org})["id"]
+        animal = mk(T, "animals", {"species": "Stadttaube",
+                                   "current_aviary": aviary, "org": org})["id"]
+        row = mk(T, "sponsorships", {
+            "animal": animal, "sponsor_name": "Marlene Wolf",
+            "mobile": "0170 1234567", "city": "Oldenburg", "org": org,
+        })["id"]
+        if orphan:
+            req("DELETE", f"/api/collections/animals/records/{animal}", T)
+        return row
+
+    def sponsorship_exists(row_id):
+        s, _ = req("GET", f"/api/collections/sponsorships/records/{row_id}", T)
+        return s == 200
+
+    sp_doomed = sponsorship_in(sp_purge_org, orphan=True)
+    sp_long_window = sponsorship_in(sp_keep_org, orphan=True)
+    # The branch that matters most: a bird that still exists keeps its patronage
+    # however short the org's window is. A cron that ignored this would delete
+    # live donation records on a schedule.
+    sp_live = sponsorship_in(sp_purge_org, orphan=False)
+    check("the probe sponsorships exist to begin with (parse guard)",
+          all(sponsorship_exists(r)
+              for r in (sp_doomed, sp_long_window, sp_live)),
+          "a fixture sponsorship was not created")
+
+    print("  … waiting for the sponsorship cron to fire (up to 100 s)")
+    deadline = time.time() + 100
+    while time.time() < deadline:
+        if not sponsorship_exists(sp_doomed):
+            break
+        time.sleep(2)
+
+    check("the cron deleted the orphan past its org's window",
+          not sponsorship_exists(sp_doomed),
+          "still present — the job never fired, or the window was ignored")
+    check("an organisation with a long window keeps its orphan",
+          sponsorship_exists(sp_long_window),
+          "deleted despite a 100-year window — the settings read is broken in "
+          "the other direction")
+    check("a patronage whose bird still exists is never touched",
+          sponsorship_exists(sp_live), "a live donation record was deleted")
+
+    # The deleted row's id is the only remaining evidence it existed, so the
+    # sweep records it — as the cron, with no sponsor detail in sight.
+    s, d = req("GET", "/api/collections/audit_events/records"
+                      "?perPage=50&filter=" + urllib.parse.quote(
+                          f'subject_id = "{sp_doomed}"'), T)
+    sp_rows = d["items"] if s == 200 else []
+    check("...and said so in the audit log",
+          any(r.get("action") == "sponsorship.deleted" for r in sp_rows),
+          sp_rows)
+    check("...attributed to the cron, and marked as an orphan sweep",
+          any(r.get("actor_kind") == "cron"
+              and (r.get("detail") or {}).get("orphan") is True
+              for r in sp_rows),
+          [(r.get("actor_kind"), r.get("detail")) for r in sp_rows])
+    sp_blob = json.dumps(sp_rows)
+    check("...naming no sponsor",
+          "Marlene" not in sp_blob and "0170" not in sp_blob
+          and "Oldenburg" not in sp_blob, sp_blob[:300])
 
     print(f"\n{'=' * 50}\n{_passed} passed, {_failed} failed")
     sys.exit(1 if _failed else 0)

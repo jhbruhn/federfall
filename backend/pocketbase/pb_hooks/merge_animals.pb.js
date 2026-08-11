@@ -149,6 +149,14 @@ routerAdd(
         "exams",
         "egg_records",
         "aviary_stays",
+        // `sponsorships` (1700000085) declares cascadeDelete: FALSE, so unlike
+        // the rest it would survive the delete below as an orphan rather than
+        // being destroyed. It is re-pointed anyway: an orphaned patronage is
+        // invisible to every keeper (no animal, therefore no current_aviary,
+        // therefore nothing the read predicate can reach) and
+        // sponsorship_retention.pb.js sweeps it — so leaving it behind would
+        // silently end a live patronage on the bird that is being kept.
+        "sponsorships",
       ]) {
         for (const rec of tx.findRecordsByFilter(
           collection,

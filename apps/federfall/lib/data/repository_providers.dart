@@ -178,6 +178,10 @@ Future<PbCaseQuarantineRepository> caseQuarantineRepository(Ref ref) async =>
     PbCaseQuarantineRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbSponsorshipsRepository> sponsorshipsRepository(Ref ref) async =>
+    PbSponsorshipsRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbUsersRepository> usersRepository(Ref ref) async =>
     PbUsersRepository(await _client(ref));
 

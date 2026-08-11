@@ -134,10 +134,17 @@ that parent being gone (`main.pb.js`'s disposition reconcile) — it runs
 `onRecordAfterDeleteSuccess`, so throwing there turns a committed delete into a
 400 rather than rolling anything back. That cascade is also why
 `merge_animals.pb.js` must re-point EVERY collection with a direct `animal`
-relation (cases / markings / weights / exams / egg_records / aviary_stays)
+relation (cases / markings / weights / exams / egg_records / aviary_stays /
+sponsorships)
 before it deletes the duplicate: one left out is not left behind, it is
 destroyed inside the merge transaction and answered with a 200 (federfall-0ua6
 — `egg_records` and `aviary_stays` were both added after that list was written).
+`sponsorships` is the one exception to the destruction half and shows why the
+pairing matters: its `animal` does not cascade, so it would SURVIVE a forgotten
+re-point — as an orphan no keeper can read, which is worse than an error. And it
+is deliberately not `required` either, because PocketBase refuses to delete a row
+that is part of a *required* relation reference: required + no cascade would not
+leave an orphan, it would make deleting a sponsored bird impossible.
 `test_rules.py`'s `[animal merge]` block is the guard, and the merge screen's
 own moves summary lists the same collections. Note also that the survivor is
 saved ONCE there: after-success hooks are deferred to the commit and re-read the
@@ -191,16 +198,43 @@ in `test_rules.py` catches omissions). Rule tests are
 Python (`backend/pocketbase/tests/test_rules.py`, run via `run.sh`) and **need a live PB** —
 they can't run in the Flutter test suite, so verify migrations/hooks against a running stack.
 **`cronAdd` jobs are invisible to that suite** (nothing can trigger them): `finder_retention`
-(PII scrub + deletion of finders no case references), `geocodeCachePurge` and
+(PII scrub + deletion of finders no case references), `sponsorship_retention`
+(deletion of patronages whose bird is gone), `geocodeCachePurge` and
 `idempotencyKeyPurge`. Verify one by copying `pb_hooks` to a tempdir, rewriting its schedule
 to `* * * * *`, and running a throwaway container against that copy —
-`tests/run_cron.sh` + `test_cron.py` do exactly that for `auditRetention` and are the
+`tests/run_cron.sh` + `test_cron.py` do exactly that for the three retention jobs and are the
 template for the rest (one `sed` line per job). Kept out of `run.sh`/CI because it waits for
 a wall-clock minute boundary. A window measured in days cannot be reached by backdating
 (`created` is a server-owned autodate), so the test makes the window vanishingly small
 (`0.000001` days = 86 ms) instead. Assert per-org windows, not just one: the window is read
 from a JSON field, i.e. through the `getString()`+`JSON.parse` trap
 (federfall-jumi), and a single-org test cannot tell a working settings read from a broken one.
+A fixed constant the same argument reaches — `sponsorship_retention`'s 24 h orphan grace, which
+no test can age a row past — is `sed`'d out of the COPY too, and `test_cron.py` reads the
+COMMITTED hook to fail if the real one ever loses it: patch a constant in the copy and pin it
+in the original, or the assertions below it pass vacuously.
+
+**Patenschaften follow the bird, live** (federfall-5s5j): `sponsorships` (1700000085) holds
+the sponsor INLINE — name, pronouns, postal address, mobile, amount in integer CENTS — rather
+than in a shared person table on the `finders` pattern, because a shared row would let keeper A
+read a sponsor's PII the moment keeper B's bird acquired that same sponsor. There is
+deliberately no `aviary` snapshot: read/write resolves through
+`animal.current_aviary.keeper`, so **moving a bird moves its patronage** and nothing can drift.
+Consequences worth keeping: the bird's own CARER is not a reader (custody of the bird is not
+access to the patronage — that is the feature); `animal` and `org` are frozen on update, so the
+one route into another keeper's view is moving the bird, which is why
+`disposition_sheet.dart` warns — with a COUNT, never a sponsor's name — at the two places that
+change `current_aviary`; and once the bird leaves aviary care entirely no keeper can reach the
+row, so winding a patronage down needs a coordinator. `sponsorships.pb.js` gates CREATE (the
+rule cannot: "this bird is in an enclosure you keep" is a two-hop body resolution this repo has
+never proven), and it applies "must live in an enclosure" to every role — a row on a bird that
+lives nowhere is unreadable by its own author. `roles.dart`'s `sponsorshipsReadableBy` /
+`sponsorshipWritableBy` mirror that split, and the animal-detail card is ABSENT rather than
+empty for a non-reader: an empty „Patenschaften" card discloses that the bird has a sponsor.
+Every personal field is in `SENSITIVE.sponsorships` and the subject label is forced empty, so
+the audit log carries the arrangement (amount, interval, dates) and never the person;
+`sponsorship.access_transferred` records each move off `animals.current_aviary` — where
+`aviary_stays.pb.js` hangs, because four other writers change that field.
 
 **Case timeline pattern:** every clinical record (weight, condition, medication +
 administration, journal, marking, placement, disposition) is one unified chronology. Each

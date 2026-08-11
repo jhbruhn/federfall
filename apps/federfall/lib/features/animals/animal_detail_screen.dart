@@ -9,6 +9,8 @@ import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/animals/delete_record_dialogs.dart';
 import 'package:federfall/features/animals/edit_animal_sheet.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
+import 'package:federfall/features/aviaries/sponsorship_providers.dart';
+import 'package:federfall/features/aviaries/sponsorship_sheet.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -79,6 +81,10 @@ class AnimalDetailScreen extends ConsumerWidget {
         'egg_records',
         'exams',
         'exam_findings',
+        // Only the keeper of the bird's enclosure and coord/sup are subscribed
+        // to these at all — the rule scopes the realtime stream the same way it
+        // scopes a list.
+        'sponsorships',
       ],
       () {
         // Invalidate the leaf list providers, not just animalLifetime:
@@ -102,7 +108,13 @@ class AnimalDetailScreen extends ConsumerWidget {
           ..invalidate(markingsForAnimalProvider(animalId))
           ..invalidate(weightsForAnimalProvider(animalId))
           ..invalidate(eggsForAnimalProvider(animalId))
-          ..invalidate(examsForAnimalProvider(animalId));
+          ..invalidate(examsForAnimalProvider(animalId))
+          // The access predicate reads the enclosure, so a keeper change has to
+          // re-resolve it — invalidating the list alone would keep showing (or
+          // keep hiding) the section on a stale answer.
+          ..invalidate(sponsorshipAccessProvider(animalId))
+          ..invalidate(sponsorshipsForAnimalProvider(animalId))
+          ..invalidate(sponsorshipCountForAnimalProvider(animalId));
         if (aviaryId != null && aviaryId.isNotEmpty) {
           ref.invalidate(aviaryByIdProvider(aviaryId));
         }
@@ -174,6 +186,10 @@ class AnimalDetailScreen extends ConsumerWidget {
                 canWrite: canWrite,
               ),
               const SizedBox(height: AppSpacing.md),
+              // Renders NOTHING at all unless the viewer is the current
+              // enclosure's keeper or a coordinator/supervisor — not an empty
+              // card. See _SponsorshipSection.
+              _SponsorshipSection(animalId: data.animal.id),
               _CasesSection(
                 animalId: data.animal.id,
                 cases: data.cases,
@@ -667,6 +683,146 @@ class _MarkingsSection extends ConsumerWidget {
     final code = m.code;
     final label = typesById[m.type]?.label ?? '';
     return code != null && code.isNotEmpty ? '$label · $code' : label;
+  }
+}
+
+/// Patenschaften on this bird (federfall-5s5j) — the sponsor, what they give,
+/// and for how long.
+///
+/// **Absent, not empty, for anyone who may not read them.** The section returns
+/// a zero-size box unless the viewer keeps the enclosure the bird lives in (or
+/// is a coordinator/supervisor): an always-present „Patenschaften" card would
+/// tell the whole org that this bird has a sponsor, which is a leak with no
+/// values in it. The server would return an empty list to them anyway — this is
+/// about not asking the question out loud.
+///
+/// It follows the bird by itself. Access resolves through the CURRENT
+/// enclosure, so a move hands the whole section to the new keeper and takes it
+/// from the old one, with nothing on the row to re-point.
+class _SponsorshipSection extends ConsumerWidget {
+  const _SponsorshipSection({required this.animalId});
+
+  final String animalId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final materialL10n = MaterialLocalizations.of(context);
+    // `.value ?? none` — an unresolved or failed access state shows nothing
+    // rather than briefly showing PII to whoever is looking.
+    final access =
+        ref.watch(sponsorshipAccessProvider(animalId)).value ??
+        SponsorshipAccess.none;
+    if (!access.canRead) return const SizedBox.shrink();
+    final sponsorships = ref.watch(sponsorshipsForAnimalProvider(animalId));
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.animalSectionSponsorships,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                // canWrite is narrower than canRead by exactly one clause: a
+                // coordinator still READS the patronages of a bird that has
+                // left aviary care (that is who winds them down), but nobody
+                // may record a new one there.
+                if (access.canWrite)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: l10n.sponsorshipNewTitle,
+                    onPressed: () =>
+                        showSponsorshipSheet(context, animalId: animalId),
+                  ),
+              ],
+            ),
+            AsyncValueView<List<Sponsorship>>(
+              value: sponsorships,
+              onRetry: () =>
+                  ref.invalidate(sponsorshipsForAnimalProvider(animalId)),
+              loading: const LinearProgressIndicator(),
+              data: (rows) {
+                if (rows.isEmpty) {
+                  return Text(
+                    l10n.animalNoSponsorships,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final s in rows)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.volunteer_activism_outlined,
+                          color: s.isActive ? null : theme.colorScheme.outline,
+                        ),
+                        title: Text(s.sponsorName),
+                        subtitle: Text(
+                          _subtitle(l10n, materialL10n, s),
+                        ),
+                        trailing: access.canWrite
+                            ? IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                tooltip: l10n.sponsorshipEditTitle,
+                                onPressed: () => showSponsorshipSheet(
+                                  context,
+                                  animalId: animalId,
+                                  sponsorship: s,
+                                ),
+                              )
+                            : null,
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// „12,50 € monatlich · seit 4. Aug. 2026" — whichever of the three parts the
+  /// row carries. Dates go through [formatLocalDate], the only thing in `lib/`
+  /// allowed to turn a DateTime into a date string.
+  String _subtitle(
+    AppLocalizations l10n,
+    MaterialLocalizations materialL10n,
+    Sponsorship s,
+  ) {
+    final amount = switch (s.amountCents) {
+      final cents? => formatAmountCents(l10n, cents),
+      _ => null,
+    };
+    final interval = switch (s.interval) {
+      final i? => sponsorshipIntervalLabel(l10n, i),
+      _ => null,
+    };
+    String short(DateTime at) =>
+        formatLocalDate(materialL10n, at, style: DateStyle.short);
+    final period = switch ((s.startedAt, s.endedAt)) {
+      (final from?, final to?) => '${short(from)} – ${short(to)}',
+      (final from?, null) => l10n.sponsorshipSince(short(from)),
+      (null, final to?) => l10n.sponsorshipUntil(short(to)),
+      _ => null,
+    };
+    final money = [?amount, ?interval].join(' ');
+    return [
+      if (money.isNotEmpty) money,
+      ?period,
+    ].join(' · ');
   }
 }
 

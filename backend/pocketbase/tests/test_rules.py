@@ -2359,6 +2359,15 @@ def main():
     mg_egg = mk(T, "egg_records", {
         "animal": mg_gone, "count": 2, "org": ORG,
     })["id"]
+    # federfall-5s5j — the one child here that does NOT cascade (1700000085), so
+    # it would SURVIVE a forgotten re-point rather than be destroyed by one. It
+    # still has to move: an orphaned patronage is invisible to every keeper (no
+    # animal, so no current_aviary, so nothing the read rule can reach) and the
+    # retention cron sweeps it — leaving it behind would silently end a live
+    # patronage on the bird that is being kept.
+    mg_sponsor = mk(T, "sponsorships", {
+        "animal": mg_gone, "sponsor_name": "Merle Pate", "org": ORG,
+    })["id"]
     mg_stay = listf(T, "aviary_stays", f'animal = "{mg_gone}"')
     check("the duplicate starts with one open stay",
           len(mg_stay) == 1 and mg_stay[0]["ended_at"] == "", mg_stay)
@@ -2388,6 +2397,7 @@ def main():
         ("markings", mg_marking, "markings"),
         ("egg_records", mg_egg, "egg records"),
         ("aviary_stays", mg_stay, "aviary stays"),
+        ("sponsorships", mg_sponsor, "patronages"),
     ]:
         s, d = req("GET", f"/api/collections/{coll}/records/{rec_id}", T)
         check(f"the duplicate's {label} survive the merge, on the survivor",
@@ -3850,6 +3860,211 @@ def main():
     # in care and never where it lives (federfall-8f1m / lib_derive.js).
     check("...the bird moves, while A's open case keeps it in_care",
           animal_state(rt_x) == ("in_care", rt_av_b), animal_state(rt_x))
+
+    # ── federfall-5s5j: Patenschaften ────────────────────────────────────────
+    # A sponsorship holds a member of the public's name, address and mobile, and
+    # who may read it is decided LIVE by `animal.current_aviary.keeper`
+    # (1700000085). That makes the aviary MOVE the feature's whole point and its
+    # sharpest edge, so it is asserted in both directions here — a rule that
+    # returned nothing to everybody would pass a one-sided test just as well.
+    print("\n[sponsorships]")
+    sp_av_a = mk(T, "aviaries", {"name": "Patenvoliere A", "keeper": A,
+                                 "org": ORG})["id"]
+    sp_av_b = mk(T, "aviaries", {"name": "Patenvoliere B", "keeper": B,
+                                 "org": ORG})["id"]
+    # A resident of A's enclosure whose CASE belongs to C: the carer and the
+    # keeper are deliberately different people, because "custody of the bird is
+    # not access to the patronage" is the claim being tested.
+    sp_bird = mk(T, "animals", {"species": "Stadttaube", "name": "Patenvogel",
+                                "current_aviary": sp_av_a, "org": ORG})["id"]
+    sp_case = mk(T, "cases", {"animal": sp_bird, "active_carer": C,
+                              "org": ORG})["id"]
+
+    def sp_sees(token):
+        return {r["id"] for r in listf(token, "sponsorships",
+                                       f'animal = "{sp_bird}"')}
+
+    def sp_audit(action):
+        flt = f'action = "{action}" && subject_id = "{sp_bird}"'
+        s, d = req("GET", "/api/collections/audit_events/records?sort=created"
+                   "&perPage=20&filter=" + urllib.parse.quote(flt),
+                   toks["sup"])
+        return d["items"] if s == 200 else []
+
+    # ── create: the keeper of the enclosure the bird lives in, and nobody else ─
+    s, sp_row = req("POST", "/api/collections/sponsorships/records", toks["a"],
+                    {"animal": sp_bird, "sponsor_name": "Marlene Wolf",
+                     "mobile": "0170 1234567", "city": "Oldenburg",
+                     "amount_cents": 1250, "interval": "monthly",
+                     "org": ORG})
+    check("the keeper of the bird's aviary can record a patronage", s == 200,
+          f"{s} {sp_row}")
+    sp_id = (sp_row or {}).get("id")
+    s, d = req("POST", "/api/collections/sponsorships/records", toks["b"],
+               {"animal": sp_bird, "sponsor_name": "Fremd", "org": ORG})
+    check("a keeper of a DIFFERENT enclosure cannot", s == 403, f"{s} {d}")
+    # The bird's own carer is refused too, which is the distinction this feature
+    # exists to make: they hold the bird, they are not the patronage's reader.
+    s, d = req("POST", "/api/collections/sponsorships/records", toks["c"],
+               {"animal": sp_bird, "sponsor_name": "Pflegestelle", "org": ORG})
+    check("...nor the bird's own carer", s == 403, f"{s} {d}")
+
+    # Only aviary residents. On a bird in a carer's flat there is nobody the
+    # predicate could grant the row to — not even its author.
+    sp_loose = mk(T, "animals", {"species": "Stadttaube", "name": "Ohne Voliere",
+                                 "org": ORG})["id"]
+    s, d = req("POST", "/api/collections/sponsorships/records", toks["a"],
+               {"animal": sp_loose, "sponsor_name": "Zu früh", "org": ORG})
+    check("a patronage cannot be recorded on a bird with no enclosure",
+          s == 400, f"{s} {d}")
+    s, _ = req("POST", "/api/collections/sponsorships/records", toks["coord"],
+               {"animal": sp_loose, "sponsor_name": "Auch nicht", "org": ORG})
+    check("...not even by a coordinator", s == 400, f"status {s}")
+
+    # ── read: keeper + coord/sup, and nobody else in the org ─────────────────
+    check("the keeper reads their resident's patronage", sp_sees(toks["a"]) ==
+          {sp_id}, sp_sees(toks["a"]))
+    check("another aviary's keeper reads nothing", sp_sees(toks["b"]) == set(),
+          sp_sees(toks["b"]))
+    check("the bird's own carer reads nothing", sp_sees(toks["c"]) == set(),
+          sp_sees(toks["c"]))
+    check("a coordinator reads it", sp_sees(toks["coord"]) == {sp_id},
+          sp_sees(toks["coord"]))
+    check("a supervisor reads it", sp_sees(toks["sup"]) == {sp_id},
+          sp_sees(toks["sup"]))
+    s, _ = req("GET", f"/api/collections/sponsorships/records/{sp_id}",
+               toks["b"])
+    check("...and view-by-id is walled the same way as list", s == 404,
+          f"status {s}")
+
+    # The guest wall (1700000045), on the collection this migration added.
+    check("guest sees no sponsorships",
+          len(listf(gtok, "sponsorships", "id != ''")) == 0, "non-empty")
+    s, _ = req("POST", "/api/collections/sponsorships/records", gtok,
+               {"animal": sp_bird, "sponsor_name": "Gast", "org": ORG})
+    check("guest cannot record one", s != 200, f"status {s}")
+
+    # ── the freeze: `animal` may not be re-pointed ───────────────────────────
+    s, d = req("PATCH", f"/api/collections/sponsorships/records/{sp_id}",
+               toks["a"], {"animal": sp_loose})
+    check("the patronage cannot be moved to another bird", s >= 400, f"{s} {d}")
+    s, _ = req("PATCH", f"/api/collections/sponsorships/records/{sp_id}",
+               toks["a"], {"amount_cents": 2000})
+    check("...while its own content stays editable", s == 200, f"status {s}")
+
+    # ── THE MOVE: access follows the bird ────────────────────────────────────
+    # A holds the bird (they keep its enclosure), so A may write the placement
+    # that hands it — and its patronage — to B.
+    s, d = req("POST", "/api/collections/dispositions/records", toks["sup"],
+               {"case": sp_case, "type": "placed_in_aviary",
+                "aviary": sp_av_b, "org": ORG})
+    check("setup: the bird is placed into the other keeper's enclosure",
+          s == 200, f"{s} {d}")
+    check("...and the animal record says so",
+          animal_state(sp_bird)[1] == sp_av_b, animal_state(sp_bird))
+    check("the patronage moved WITH the bird: the new keeper reads it",
+          sp_sees(toks["b"]) == {sp_id}, sp_sees(toks["b"]))
+    check("...and the previous keeper no longer does",
+          sp_sees(toks["a"]) == set(), sp_sees(toks["a"]))
+    check("...while coordination keeps seeing it throughout",
+          sp_sees(toks["coord"]) == {sp_id}, sp_sees(toks["coord"]))
+
+    # federfall-5s5j.5 — that transfer is a disclosure of personal data to a new
+    # reader, so it is logged: a COUNT and the enclosures, never a sponsor.
+    rows = sp_audit("sponsorship.access_transferred")
+    check("moving a sponsored bird emits sponsorship.access_transferred",
+          len(rows) == 1, rows)
+    ev = rows[0] if rows else {}
+    check("...counting the patronages that changed hands",
+          (ev.get("detail") or {}).get("sponsorships") == 1, ev.get("detail"))
+    check("...naming the keeper who gained access",
+          (ev.get("detail") or {}).get("keeper_label") == "b@f.local",
+          ev.get("detail"))
+    check("...and both enclosures by name, not by id",
+          [(c.get("from_label"), c.get("to_label"))
+           for c in (ev.get("changes") or [])]
+          == [("Patenvoliere A", "Patenvoliere B")], ev.get("changes"))
+    check("...as a security-severity event", ev.get("severity") == "security",
+          ev)
+    sp_blob = json.dumps(ev)
+    check("...and it names no sponsor, anywhere in the row",
+          "Marlene" not in sp_blob and "0170" not in sp_blob, sp_blob[:200])
+
+    # An unsponsored bird's moves stay out of the log — nearly every move.
+    mk(T, "animals", {"species": "Stadttaube", "current_aviary": sp_av_a,
+                      "org": ORG})
+    check("an unsponsored bird's move emits nothing",
+          len(sp_audit("sponsorship.access_transferred")) == 1, "extra rows")
+
+    # ── the terminal case: the bird leaves aviary care ───────────────────────
+    # lib_derive.js clears `current_aviary`, so NO keeper can reach the row any
+    # more. That is correct — there is no keeper to be the keeper — and it is
+    # why winding a patronage down needs a coordinator.
+    s, d = req("POST", "/api/collections/dispositions/records", toks["sup"],
+               {"case": sp_case, "type": "released",
+                "disposed_at": stamp(minutes=1), "org": ORG})
+    check("setup: the bird is released", s == 200, f"{s} {d}")
+    check("...its enclosure is cleared", animal_state(sp_bird)[1] == "",
+          animal_state(sp_bird))
+    check("no keeper reads the patronage once the bird has left aviary care",
+          sp_sees(toks["a"]) == set() and sp_sees(toks["b"]) == set(),
+          f"a={sp_sees(toks['a'])} b={sp_sees(toks['b'])}")
+    check("...while a coordinator still can", sp_sees(toks["coord"]) == {sp_id},
+          sp_sees(toks["coord"]))
+    check("...and a supervisor still can", sp_sees(toks["sup"]) == {sp_id},
+          sp_sees(toks["sup"]))
+    # The audit row for THAT transfer says the same thing: nobody gained access.
+    rows = sp_audit("sponsorship.access_transferred")
+    check("leaving aviary care is logged as a transfer too", len(rows) == 2,
+          rows)
+    check("...with no keeper named, because there is none",
+          (rows[1].get("detail") or {}).get("keeper_label") == ""
+          if len(rows) > 1 else False,
+          rows[1].get("detail") if len(rows) > 1 else rows)
+
+    # ── deleting the bird leaves an orphan, and MUST still be possible ───────
+    # The pairing here is exact and was got wrong once: `animal` does not
+    # cascade, and if it were also `required` PocketBase would refuse the
+    # animal delete outright ("part of a required relation reference") — a
+    # supervisor-only operation blocked by a donation record. Optional + no
+    # cascade nulls the relation, which is the orphan
+    # sponsorship_retention.pb.js sweeps (covered in test_cron.py, since no API
+    # call can trigger a cron).
+    sp_doomed_bird = mk(T, "animals", {"species": "Stadttaube",
+                                       "current_aviary": sp_av_a,
+                                       "org": ORG})["id"]
+    s, sp_orphan = req("POST", "/api/collections/sponsorships/records",
+                       toks["a"], {"animal": sp_doomed_bird,
+                                   "sponsor_name": "Orphan Test", "org": ORG})
+    check("setup: a patronage on a bird about to be deleted", s == 200,
+          f"{s} {sp_orphan}")
+    s, d = req("DELETE", f"/api/collections/animals/records/{sp_doomed_bird}",
+               toks["sup"])
+    check("a sponsored bird can still be deleted", s == 204, f"{s} {d}")
+    s, sp_left = req("GET", "/api/collections/sponsorships/records/"
+                     + (sp_orphan or {}).get("id", ""), toks["sup"])
+    check("...and its patronage survives as an orphan, not silently destroyed",
+          s == 200 and (sp_left or {}).get("animal") in ("", None),
+          f"{s} {sp_left}")
+    check("...which no keeper can read any more",
+          not listf(toks["a"], "sponsorships",
+                    f'id = "{(sp_orphan or {}).get("id", "")}"'), "still visible")
+
+    # ── the audited surface: content, never the sponsor ──────────────────────
+    rows = [r for r in listf(toks["sup"], "audit_events",
+                             f'subject_id = "{sp_id}"')]
+    actions = {r["action"] for r in rows}
+    check("the patronage's own writes are audited",
+          {"sponsorship.created", "sponsorship.updated"} <= actions, actions)
+    blob = json.dumps(rows)
+    check("...with every personal field redacted",
+          "Marlene" not in blob and "0170" not in blob and "Oldenburg"
+          not in blob, blob[:300])
+    check("...and no subject label, which could only be the sponsor's name",
+          all(r.get("subject_label") == "" for r in rows), rows)
+    check("...while the arrangement itself is readable",
+          any(c.get("field") == "amount_cents"
+              for r in rows for c in (r.get("changes") or [])), rows)
 
     # ── federfall-3ty3: intake idempotency key ───────────────────────────────
     print("\n[intake idempotency]")
@@ -6009,6 +6224,11 @@ def main():
         },
         "quarantine_records": {"case": "frozen", "set_by": "actor",
                                "org": "frozen"},
+        # federfall-5s5j — both frozen (1700000085). A re-point would push a
+        # sponsor's contact details into another keeper's view with nothing
+        # warning about it; the ONE intended route is moving the bird, and the
+        # disposition sheet says so before it happens.
+        "sponsorships": {"animal": "frozen", "org": "frozen"},
         "users": {
             "org": "frozen",
             "invited_by": "hook:org_scope.pb.js — mutable: supervisor-only "
