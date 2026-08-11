@@ -2,9 +2,11 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
+import 'package:federfall/features/animals/vaccinations/batch_vaccination_sheet.dart';
 import 'package:federfall/features/animals/vaccinations/vaccination_sheet.dart';
 import 'package:federfall/features/animals/vaccinations/vaccination_tile.dart';
 import 'package:federfall/features/animals/vaccinations/vaccinations_providers.dart';
+import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
@@ -322,6 +324,195 @@ void main() {
       );
 
       expect(find.byType(PopupMenuButton<void>), findsNothing);
+    });
+  });
+
+  group('the batch sheet', () {
+    late MockVaccinationsRepo repo;
+    late MockVaccineLabelsRepo labels;
+
+    // Three residents of one enclosure. `blocked` is the case a real roster
+    // produces and the route refuses over: a bird in the aviary whose open case
+    // belongs to somebody else.
+    const residents = [
+      Animal(id: 'a1', species: 'Stadttaube', name: 'Erna'),
+      Animal(id: 'a2', species: 'Stadttaube', name: 'Fritz'),
+      Animal(id: 'a3', species: 'Stadttaube', name: 'Fremd'),
+    ];
+
+    setUp(() {
+      repo = MockVaccinationsRepo();
+      labels = MockVaccineLabelsRepo();
+      when(() => labels.all()).thenAnswer((_) async => const []);
+      when(
+        () => repo.vaccinateBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((_) async => 2);
+    });
+
+    Future<void> pumpBatch(
+      WidgetTester tester, {
+      Set<String> holds = const {'a1', 'a2'},
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWith(
+            (ref) async =>
+                const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
+          ),
+          vaccinationsRepositoryProvider.overrideWith((ref) async => repo),
+          vaccineLabelsRepositoryProvider.overrideWith((ref) async => labels),
+          medicationRoutesProvider.overrideWith((ref) async => const []),
+          aviaryResidentsProvider('av1').overrideWith((ref) async => residents),
+          for (final a in residents)
+            canWriteAnimalProvider(
+              a.id,
+            ).overrideWith((ref) async => holds.contains(a.id)),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      tester.view.physicalSize = const Size(1000, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            locale: Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: BatchVaccinationSheet(aviaryId: 'av1')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('preselects every bird the keeper holds, and sends them all', (
+      tester,
+    ) async {
+      await pumpBatch(tester);
+      await tester.enterText(find.byType(TextField).first, 'Colombovac PMV');
+      await tester.tap(find.text('Vaccinate 2 birds'));
+      await tester.pumpAndSettle();
+
+      final call = verify(
+        () => repo.vaccinateBatch(
+          captureAny(),
+          captureAny(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).captured;
+      expect(call[0], ['a1', 'a2']);
+      expect((call[1] as Map<String, dynamic>)['vaccine'], 'Colombovac PMV');
+      // One shared record — the animal is the route's to set, per bird.
+      expect((call[1] as Map<String, dynamic>).containsKey('animal'), isFalse);
+    });
+
+    testWidgets(
+      "a bird in someone else's care is shown, disabled and skipped",
+      (
+        tester,
+      ) async {
+        await pumpBatch(tester);
+
+        // Shown, so "this one was not vaccinated" is a fact the keeper leaves
+        // with rather than a silent omission.
+        expect(find.text('Fremd'), findsOneWidget);
+        expect(
+          find.text("In someone else's care — not vaccinated"),
+          findsOneWidget,
+        );
+        expect(
+          find.text("1 bird is in someone else's care and will be skipped"),
+          findsOneWidget,
+        );
+        // ...and not counted in what the button promises.
+        expect(find.text('Vaccinate 2 birds'), findsOneWidget);
+      },
+    );
+
+    testWidgets('unticking a bird leaves it out of the batch', (tester) async {
+      await pumpBatch(tester);
+      await tester.enterText(find.byType(TextField).first, 'Colombovac PMV');
+      await tester.tap(find.text('Fritz'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vaccinate 1 bird'), findsOneWidget);
+      await tester.tap(find.text('Vaccinate 1 bird'));
+      await tester.pumpAndSettle();
+
+      final call = verify(
+        () => repo.vaccinateBatch(
+          captureAny(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).captured;
+      expect(call.single, ['a1']);
+    });
+
+    testWidgets('with nothing selected it writes nothing', (tester) async {
+      await pumpBatch(tester, holds: const {});
+      await tester.tap(find.text('None selected'));
+      await tester.pumpAndSettle();
+
+      verifyNever(
+        () => repo.vaccinateBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      );
+    });
+
+    testWidgets('the product is required here too', (tester) async {
+      await pumpBatch(tester);
+      await tester.tap(find.text('Vaccinate 2 birds'));
+      await tester.pumpAndSettle();
+
+      verifyNever(
+        () => repo.vaccinateBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      );
+      expect(find.text('This field is required'), findsOneWidget);
+    });
+
+    testWidgets('one idempotency key survives a retry', (tester) async {
+      var attempt = 0;
+      final keys = <String?>[];
+      when(
+        () => repo.vaccinateBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((inv) async {
+        keys.add(inv.namedArguments[#idempotencyKey] as String?);
+        if (attempt++ == 0) throw Exception('network');
+        return 2;
+      });
+
+      await pumpBatch(tester);
+      await tester.enterText(find.byType(TextField).first, 'Colombovac PMV');
+      await tester.tap(find.text('Vaccinate 2 birds'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Vaccinate 2 birds'));
+      await tester.pumpAndSettle();
+
+      // The same key both times: the server replays the committed batch rather
+      // than vaccinating the flock a second time.
+      expect(keys, hasLength(2));
+      expect(keys.first, isNotNull);
+      expect(keys.first, keys.last);
     });
   });
 }

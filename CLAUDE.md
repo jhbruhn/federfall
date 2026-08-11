@@ -290,6 +290,21 @@ collection is DESTROYED, not left behind — federfall-0ua6), `lib_authorship.js
 the Dart `audit_labels.dart` beside it), and `test_rules.py`'s `[relation guards]` +
 `[animal merge]` + `[animal org scope]` registries.
 
+**Vaccinating a flock is one act** (federfall-s63u): `POST /api/federfall/vaccinate-batch`
+(`pb_hooks/vaccinate_batch.pb.js`) writes one `vaccinations` row per animal in ONE
+transaction — the exam.pb.js reason (federfall-lov0), sharper here because a
+half-written flock is indistinguishable from birds somebody meant to skip. Custody is
+re-stated per animal and refuses the WHOLE batch, so the batch sheet answers it FIRST
+(`canWriteAnimal` per resident, disabled rows rather than hidden ones) and the server
+check is the backstop for a handover mid-sheet. The refusal cannot name the birds:
+PocketBase rewrites an `ApiError`s `data` into its field-error shape, so ids do not
+survive the wire (verified on 0.39.8). It takes a LIST of animals, never an aviary id
+(re-resolving would vaccinate the bird just unticked), carries no attachments (N copies
+of one vial photo), reuses `idempotency_keys` with endpoint `vaccinate_batch`, and emits
+ONE `vaccination.batch_recorded` rather than N creates. `VaccinationFormModel` /
+`VaccinationFields` are shared by the single and batch sheets so the two cannot ask
+different questions.
+
 **Case timeline pattern:** every clinical record (weight, condition, medication +
 administration, journal, marking, placement, disposition) is one unified chronology. Each
 kind = a provider + a `showXSheet()` bottom sheet (create/edit) + a tile built on the shared

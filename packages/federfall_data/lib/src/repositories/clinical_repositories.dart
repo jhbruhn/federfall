@@ -70,6 +70,60 @@ class PbVaccinationsRepository extends PbRepository<Vaccination> {
     filter: filterExpr('animal = {:a}', {'a': animalId}),
     sort: 'administered_at',
   );
+
+  /// Vaccinates [animalIds] with one shared record, atomically, via
+  /// `POST /api/federfall/vaccinate-batch` (federfall-s63u). Returns how many
+  /// rows were written.
+  ///
+  /// Not a client-side loop, and that is the entire point: vaccinating a flock
+  /// is one act, and a connection lost halfway through N saves leaves a
+  /// half-recorded enclosure in which the missing rows are indistinguishable
+  /// from the birds somebody meant to skip.
+  ///
+  /// [payload] carries the shared fields (`vaccine` required); `animal`,
+  /// `author` and `org` are the server's to set. The route refuses the WHOLE
+  /// batch if any bird is in someone else's care, so callers filter by custody
+  /// before offering the action — the server check is the backstop for a
+  /// handover that happens mid-sheet.
+  Future<int> vaccinateBatch(
+    List<String> animalIds,
+    Map<String, dynamic> payload, {
+    String? idempotencyKey,
+  }) async {
+    try {
+      final res = await pb
+          .send<Map<String, dynamic>>(
+            '/api/federfall/vaccinate-batch',
+            method: 'POST',
+            body: {
+              'animals': animalIds,
+              'vaccination': payload,
+              'idempotency_key': ?idempotencyKey,
+            },
+          )
+          .timeout(networkTimeout);
+      final created = res['created'];
+      return created is int ? created : animalIds.length;
+    } on TimeoutException {
+      // The request left the device; a slow server may still commit the batch.
+      // With an idempotency key a resubmission converges on the committed
+      // result, so it is an ordinary network error; without one, retrying would
+      // vaccinate the flock twice.
+      if (idempotencyKey != null) {
+        throw const RepositoryException(
+          'The server did not respond in time',
+          kind: RepositoryErrorKind.network,
+        );
+      }
+      throw const RepositoryException(
+        'The server did not respond in time — the vaccinations may or may '
+        'not have been saved',
+        kind: RepositoryErrorKind.unknownOutcome,
+      );
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
 }
 
 /// Read-only repository over the `vaccine_labels` view (1700000088) — the

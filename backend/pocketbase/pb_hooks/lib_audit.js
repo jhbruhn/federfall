@@ -110,6 +110,12 @@ const ACTIONS = {
   VACCINATION_CREATED: "vaccination.created",
   VACCINATION_UPDATED: "vaccination.updated",
   VACCINATION_DELETED: "vaccination.deleted",
+  // A whole enclosure vaccinated in one transaction (vaccinate_batch.pb.js).
+  // There is no per-row `vaccination.created` beside it — the route writes with
+  // tx.save(), which fires no request hooks, and N identical rows would bury
+  // the one fact worth reading. Editing one of them afterwards is an ordinary
+  // vaccination.updated.
+  VACCINATION_BATCH_RECORDED: "vaccination.batch_recorded",
 
   // A microscopy sample and the findings it replaced wholesale, as one event —
   // written from the route (microscopy.pb.js), the way exam.saved is. There is

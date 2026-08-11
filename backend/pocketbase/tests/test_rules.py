@@ -3450,6 +3450,148 @@ def main():
             "GET", "/api/federfall/reports/annual" + bad, toks["sup"])
         check(f"the annual report rejects {bad} too", s == 400, f"status {s}")
 
+    # ── federfall-s63u: batch vaccination ───────────────────────────────────
+    # Vaccinating an enclosure is ONE act, so it is one transaction: all rows or
+    # none. The failure this guards against is not a rejected write but a
+    # HALF-written flock, where the missing rows are indistinguishable from the
+    # birds somebody meant to skip.
+    print("\n[batch vaccination]")
+    # An enclosure kept by a plain CARER, so the keeper branch is exercised
+    # rather than a coordinator's override.
+    bv_av = mk(T, "aviaries", {"name": "Voliere Impfung", "keeper": B,
+                               "org": ORG})["id"]
+    bv_birds = [
+        mk(T, "animals", {
+            "species": "Stadttaube", "name": f"Impfling {i}", "org": ORG,
+            "current_aviary": bv_av, "lifetime_status": "in_aviary",
+        })["id"]
+        for i in range(3)
+    ]
+    # A bird in the same org that B does NOT hold — A's open case. A real
+    # roster can contain one, which is the whole reason for the per-animal
+    # check.
+    bv_foreign = mk(T, "animals", {"species": "Stadttaube", "name": "Fremd",
+                                   "org": ORG})["id"]
+    mk(T, "cases", {"animal": bv_foreign, "active_carer": A, "org": ORG})
+    BV_SHOT = {
+        "vaccine": "Colombovac PMV", "target": "Paramyxovirose",
+        "administered_at": "2026-08-11 09:00:00.000Z", "batch": "C-4711",
+        "dose": 0.2, "dose_unit": "ml", "series": "primary",
+        "next_due_at": "2027-08-11 09:00:00.000Z", "vet": "TA Praxis Müller",
+    }
+    bv_url = "/api/federfall/vaccinate-batch"
+    # The per-row event count BEFORE any batch runs: the [vaccinations] block
+    # above wrote rows through the collection API and those DID emit
+    # vaccination.created, so "the batch emits none" can only be asserted as a
+    # difference, never as an absence.
+    bv_created_before = len(
+        listf(T, "audit_events", 'action = "vaccination.created"'))
+
+    s, _ = req("POST", bv_url, None, {"animals": bv_birds,
+                                      "vaccination": BV_SHOT})
+    check("batch vaccination requires auth", s == 401, f"status {s}")
+    s, _ = req("POST", bv_url, gtok, {"animals": bv_birds,
+                                      "vaccination": BV_SHOT})
+    check("guest CANNOT vaccinate a batch", s == 403, f"status {s}")
+    s, _ = req("POST", bv_url, toks["b"], {"animals": [],
+                                           "vaccination": BV_SHOT})
+    check("an empty batch is rejected", s == 400, f"status {s}")
+    s, _ = req("POST", bv_url, toks["b"], {"animals": bv_birds,
+                                           "vaccination": {"target": "x"}})
+    check("a batch without a product is rejected", s == 400, f"status {s}")
+    s, _ = req("POST", bv_url, toks["b"], {
+        "animals": bv_birds,
+        "vaccination": dict(BV_SHOT, series="quarterly"),
+    })
+    check("an unknown series is rejected", s == 400, f"status {s}")
+
+    s, bv = req("POST", bv_url, toks["b"], {
+        "animals": bv_birds, "vaccination": BV_SHOT,
+        "idempotency_key": "bv-key-1",
+    })
+    check("the keeper vaccinates the whole enclosure in one call",
+          s == 200 and bv.get("created") == 3, f"{s} {bv}")
+    bv_rows = listf(T, "vaccinations", f'animal = "{bv_birds[0]}"')
+    check("every bird got the shared row, with the batch number",
+          len(bv_rows) == 1 and bv_rows[0]["batch"] == "C-4711"
+          and bv_rows[0]["vaccine"] == "Colombovac PMV"
+          and bv_rows[0]["series"] == "primary",
+          bv_rows)
+    check("...authored by the caller, never by the body",
+          bv_rows and bv_rows[0]["author"] == B, bv_rows)
+
+    # Idempotency (federfall-3ty3's shape): a retried batch replays, it does not
+    # vaccinate the flock a second time.
+    s, bv2 = req("POST", bv_url, toks["b"], {
+        "animals": bv_birds, "vaccination": BV_SHOT,
+        "idempotency_key": "bv-key-1",
+    })
+    check("a replayed batch returns the SAME rows", s == 200 and bv2 == bv,
+          f"{s} {bv2}")
+    check("...and writes no second row",
+          len(listf(T, "vaccinations", f'animal = "{bv_birds[0]}"')) == 1)
+
+    # The point of the whole route: a refusal leaves NOTHING behind.
+    s, d = req("POST", bv_url, toks["b"], {
+        "animals": bv_birds + [bv_foreign],
+        "vaccination": dict(BV_SHOT, batch="C-9999"),
+    })
+    check("a batch naming a bird the caller does not hold is refused",
+          s == 403, f"{s} {d}")
+    check("...and the birds it COULD have written stay untouched",
+          not listf(T, "vaccinations", 'batch = "C-9999"'))
+    s, d = req("POST", bv_url, toks["b"], {
+        "animals": [bv_birds[0], "doesnotexist000"],
+        "vaccination": dict(BV_SHOT, batch="C-8888"),
+    })
+    check("an unknown animal refuses the batch whole", s == 400, f"{s} {d}")
+    check("...leaving nothing behind either",
+          not listf(T, "vaccinations", 'batch = "C-8888"'))
+    # Cross-org is "unknown", not "forbidden": naming another org's row must not
+    # confirm that it exists.
+    s, _ = req("POST", bv_url, toks["b"], {
+        "animals": [animal_org2], "vaccination": BV_SHOT,
+    })
+    check("another org's animal cannot be vaccinated", s >= 400, f"status {s}")
+
+    # A member who holds none of them gets nowhere.
+    s, _ = req("POST", bv_url, toks["d"], {"animals": bv_birds,
+                                           "vaccination": BV_SHOT})
+    check("a member who keeps no enclosure CANNOT vaccinate its residents",
+          s == 403, f"status {s}")
+    # ...but a coordinator overrides, as everywhere else in the custody model.
+    s, bvc = req("POST", bv_url, toks["coord"], {
+        "animals": bv_birds, "vaccination": dict(BV_SHOT, batch="C-COORD"),
+    })
+    check("a coordinator can", s == 200 and bvc.get("created") == 3,
+          f"{s} {bvc}")
+
+    # Duplicates in the list mean the bird once — two identical rows on one
+    # animal is not a record anybody can read.
+    s, bvd = req("POST", bv_url, toks["b"], {
+        "animals": [bv_birds[0], bv_birds[0]],
+        "vaccination": dict(BV_SHOT, batch="C-DUP"),
+    })
+    check("a bird named twice is vaccinated once",
+          s == 200 and bvd.get("created") == 1, f"{s} {bvd}")
+
+    # ONE audit event for the act, with the animals NAMED — an id in an audit
+    # row is a bug unless a label sits beside it (federfall-qt96).
+    bv_events = listf(T, "audit_events",
+                      'action = "vaccination.batch_recorded"')
+    bv_created_after = len(
+        listf(T, "audit_events", 'action = "vaccination.created"'))
+    check("the batch is audited as one event per call, not as N creates",
+          len(bv_events) == 3 and bv_created_after == bv_created_before,
+          f"{len(bv_events)} batch events, "
+          f"{bv_created_after - bv_created_before} row events")
+    bv_detail = (bv_events[0] or {}).get("detail") or {} if bv_events else {}
+    check("...naming every bird it vaccinated",
+          bv_detail.get("animals") == 3
+          and len(bv_detail.get("animal_labels") or []) == 3
+          and "Impfling 0" in (bv_detail.get("animal_labels") or []),
+          bv_detail)
+
     # ── federfall-zod: atomic intake route + cases.finder lock ──────────────
     print("\n[atomic intake route]")
     s, _ = req("POST", "/api/federfall/intake", None, {"species": "Stadttaube"})

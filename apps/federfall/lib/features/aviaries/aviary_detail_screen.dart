@@ -5,6 +5,7 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/add_animal_sheet.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
+import 'package:federfall/features/animals/vaccinations/batch_vaccination_sheet.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/aviaries/aviary_flock_providers.dart';
 import 'package:federfall/features/aviaries/aviary_flock_timeline.dart';
@@ -188,9 +189,27 @@ class _BestandTab extends ConsumerWidget {
           children: [
             _Header(aviary: aviary, residentCount: residents.value?.length),
             const SizedBox(height: AppSpacing.md),
-            Text(
-              l10n.aviaryResidentsTitle,
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.aviaryResidentsTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                // Vaccinating a flock is one act (federfall-s63u), so it is one
+                // control here rather than N visits to N animal screens. Gated
+                // on the same predicate as "add resident": the keeper holds
+                // every bird in their enclosure.
+                if (canAddResident && (residents.value?.isNotEmpty ?? false))
+                  TextButton.icon(
+                    onPressed: () => unawaited(
+                      showBatchVaccinationSheet(context, aviaryId: aviaryId),
+                    ),
+                    icon: const Icon(Icons.vaccines_outlined),
+                    label: Text(l10n.vaccinationBatchAction),
+                  ),
+              ],
             ),
             const SizedBox(height: AppSpacing.sm),
             // A load failure must not render as "no residents" — route

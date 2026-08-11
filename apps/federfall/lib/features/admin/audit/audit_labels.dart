@@ -124,6 +124,8 @@ String auditActionTitle(
   AuditAction.vaccinationCreated => l10n.auditActionVaccinationCreated,
   AuditAction.vaccinationUpdated => l10n.auditActionVaccinationUpdated,
   AuditAction.vaccinationDeleted => l10n.auditActionVaccinationDeleted,
+  AuditAction.vaccinationBatchRecorded =>
+    l10n.auditActionVaccinationBatchRecorded,
   AuditAction.followUpCreated => l10n.auditActionFollowUpCreated,
   AuditAction.followUpUpdated => l10n.auditActionFollowUpUpdated,
   AuditAction.followUpDeleted => l10n.auditActionFollowUpDeleted,
@@ -263,6 +265,7 @@ extension AuditActionTopic on AuditAction {
     AuditAction.vaccinationCreated ||
     AuditAction.vaccinationUpdated ||
     AuditAction.vaccinationDeleted ||
+    AuditAction.vaccinationBatchRecorded ||
     AuditAction.followUpCreated ||
     AuditAction.followUpUpdated ||
     AuditAction.followUpDeleted ||
