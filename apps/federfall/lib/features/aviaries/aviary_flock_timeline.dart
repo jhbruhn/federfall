@@ -29,8 +29,9 @@ class AviaryFlockTimeline extends ConsumerWidget {
 
   final String aviaryId;
 
-  /// Whether the current user may edit the aviary journal (coordinator or
-  /// supervisor). The condition rollup is always read-only regardless.
+  /// Whether the current user may edit the aviary journal (its keeper, or a
+  /// coordinator/supervisor — 1700000089). The condition rollup is always
+  /// read-only regardless.
   final bool canEdit;
 
   final EdgeInsetsGeometry padding;

@@ -165,6 +165,28 @@ bool aviaryStockableBy(Aviary aviary, AppUser? me) =>
 bool aviaryEditableBy(Aviary aviary, AppUser? me) =>
     aviaryStockableBy(aviary, me);
 
+/// Whether [me] may see an enclosure's flock-care chronology — the Pflege tab:
+/// its aviary journal plus the rollup of conditions diagnosed on its residents.
+/// Its keeper, or a coordinator/supervisor. Mirrors the aviary branch of the
+/// `journal_entries` read rule as 1700000089 leaves it.
+///
+/// This gates whether the tab is RENDERED AT ALL rather than just its controls,
+/// on [sponsorshipsReadableBy]'s reasoning: a flock journal is a care record of
+/// named birds under treatment, and an always-present tab that reads empty for
+/// everyone but the keeper is a worse answer than no tab.
+///
+/// Resolution is live, off the enclosure's current [Aviary.keeper] — handing an
+/// enclosure over hands over its whole log, exactly as the rule resolves it.
+bool aviaryFlockCareVisibleBy(Aviary aviary, AppUser? me) =>
+    me != null && (canManageAviaries(me.role) || aviary.keeper == me.id);
+
+/// Whether [me] may write [aviary]'s journal. The same set as
+/// [aviaryFlockCareVisibleBy], which is what 1700000089 made it: there is
+/// nothing on a flock entry a reader may see but a writer may not add, and the
+/// person doing the cleaning is the one who has something to write down.
+bool aviaryJournalWritableBy(Aviary aviary, AppUser? me) =>
+    aviaryFlockCareVisibleBy(aviary, me);
+
 /// Whether [me] may hand an enclosure to a different keeper — the role that
 /// manages enclosures, never the keeper themselves. The other half of
 /// 1700000086: the rule lets a keeper send `keeper` only while it still names

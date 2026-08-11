@@ -201,6 +201,7 @@ void main() {
     await _pump(
       tester,
       aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
+      user: const AppUser(id: 'u1', email: 'k@x.org', role: UserRole.carer),
       journal: const [
         JournalEntry(id: 'j1', aviary: 'av1', text: 'Cleaned the aviary'),
       ],
@@ -225,6 +226,7 @@ void main() {
     await _pump(
       tester,
       aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
+      user: const AppUser(id: 'u1', email: 'k@x.org', role: UserRole.carer),
       residents: const [
         Animal(id: 'a1', species: 'Columba livia', name: 'Pip'),
       ],
@@ -245,6 +247,7 @@ void main() {
     await _pump(
       tester,
       aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
+      user: const AppUser(id: 'u1', email: 'k@x.org', role: UserRole.carer),
       rollup: const [
         (
           condition: CaseCondition(
@@ -261,5 +264,92 @@ void main() {
     expect(find.text('Trichomoniasis'), findsOneWidget);
     expect(find.text('Pip'), findsWidgets);
     expect(find.byTooltip('Open case record'), findsOneWidget);
+  });
+
+  // 1700000089: the flock log is the enclosure's own care record. The tab is
+  // ABSENT rather than empty for a non-reader — an "aviary journal" that reads
+  // empty for everyone but the keeper is a worse answer than no tab — and its
+  // keeper writes it, which used to need a coordinator.
+  group('Pflege tab', () {
+    const entry = JournalEntry(
+      id: 'j1',
+      aviary: 'av1',
+      text: 'Cleaned the aviary',
+    );
+
+    testWidgets('a carer who keeps nothing here gets no tab at all', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+        user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+        journal: const [entry],
+        width: 400,
+      );
+
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.text('Care'), findsNothing);
+      expect(find.text('Cleaned the aviary'), findsNothing);
+      // …and Bestand is still theirs to see, without a tab bar over it.
+      expect(find.text('Residents'), findsOneWidget);
+    });
+
+    testWidgets('nor a second column on a wide pane', (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+        user: const AppUser(id: 'u1', email: 'c@x.org', role: UserRole.carer),
+        journal: const [entry],
+        width: 1200,
+      );
+
+      expect(find.text('Cleaned the aviary'), findsNothing);
+      expect(find.byType(VerticalDivider), findsNothing);
+      expect(find.text('Residents'), findsOneWidget);
+    });
+
+    testWidgets("the enclosure's keeper reads it and may write", (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'u1', name: 'Garden'),
+        user: const AppUser(id: 'u1', email: 'k@x.org', role: UserRole.carer),
+        journal: const [entry],
+        width: 1200,
+      );
+
+      expect(find.text('Cleaned the aviary'), findsOneWidget);
+      expect(find.text('Entry'), findsOneWidget); // add-entry FAB
+    });
+
+    testWidgets('a coordinator does, whoever keeps it', (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+        user: const AppUser(
+          id: 'u1',
+          email: 'c@x.org',
+          role: UserRole.coordinator,
+        ),
+        journal: const [entry],
+        width: 1200,
+      );
+
+      expect(find.text('Cleaned the aviary'), findsOneWidget);
+      expect(find.text('Entry'), findsOneWidget);
+    });
+
+    testWidgets('a signed-out session does not', (tester) async {
+      await _pump(
+        tester,
+        aviary: const Aviary(id: 'av1', keeper: 'keeper', name: 'Garden'),
+        journal: const [entry],
+        width: 1200,
+      );
+
+      expect(find.text('Cleaned the aviary'), findsNothing);
+    });
   });
 }

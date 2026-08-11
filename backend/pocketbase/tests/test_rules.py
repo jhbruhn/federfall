@@ -888,11 +888,41 @@ def main():
     s, ajr = req("POST", "/api/collections/journal_entries/records", toks["coord"],
                  {"aviary": av, "text": "cleaned the aviary", "org": ORG})
     check("coordinator CAN create an aviary journal entry", s == 200, f"{s} {ajr}")
+    # 1700000089: the flock log is the enclosure's, not the org's. `av` is kept
+    # by SUP, so carer "a" is an outsider to it in both directions — and the
+    # LIST rule is asserted next to the view rule, because that is the call the
+    # app makes and PocketBase filters it rather than refusing it (a 200 with
+    # the row in it would be the leak, not a 4xx).
     s, _ = req("GET", f"/api/collections/journal_entries/records/{ajr['id']}", toks["a"])
-    check("any active member CAN view the aviary journal entry", s == 200, f"status {s}")
+    check("a carer who keeps nothing here CANNOT view the aviary journal entry",
+          s >= 400, f"status {s}")
+    listed = listf(toks["a"], "journal_entries", f'aviary="{av}"')
+    check("…nor list it", listed == [], listed)
+    s, _ = req("GET", f"/api/collections/journal_entries/records/{ajr['id']}", toks["sup"])
+    check("the enclosure's keeper CAN view the aviary journal entry",
+          s == 200, f"status {s}")
     s, _ = req("PATCH", f"/api/collections/journal_entries/records/{ajr['id']}", toks["a"],
                {"text": "carer cannot edit it"})
     check("plain carer CANNOT edit the aviary journal entry", s >= 400, f"status {s}")
+    # The other half of 1700000089: whoever does the cleaning writes it down.
+    # A fresh enclosure kept by the plain carer — nothing else in this file
+    # depends on it, so its ledger/rollup side effects stay contained.
+    jav = mk(T, "aviaries", {"name": "Voliere Journal", "keeper": A,
+                             "org": ORG})["id"]
+    s, kjr = req("POST", "/api/collections/journal_entries/records", toks["a"],
+                 {"aviary": jav, "text": "eingestreut", "org": ORG})
+    check("a keeper CAN log an entry in their OWN enclosure", s == 200, f"{s} {kjr}")
+    s, _ = req("PATCH", f"/api/collections/journal_entries/records/{kjr['id']}", toks["a"],
+               {"text": "eingestreut und Futter gewechselt"})
+    check("…and edit it", s == 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/journal_entries/records/{kjr['id']}", toks["coord"])
+    check("a coordinator still reads any enclosure's journal", s == 200, f"status {s}")
+    s, _ = req("GET", f"/api/collections/journal_entries/records/{kjr['id']}", toks["b"])
+    check("another carer CANNOT read the keeper's entry", s >= 400, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/journal_entries/records/{kjr['id']}", toks["b"])
+    check("another carer CANNOT delete it", s >= 400, f"status {s}")
+    s, _ = req("DELETE", f"/api/collections/journal_entries/records/{kjr['id']}", toks["a"])
+    check("the keeper CAN delete their own entry", s == 204, f"status {s}")
     s, _ = req("PATCH", f"/api/collections/journal_entries/records/{ajr['id']}", toks["coord"],
                {"aviary": av2})
     check("aviary journal_entry.aviary is immutable (no re-pointing)", s >= 400, f"status {s}")

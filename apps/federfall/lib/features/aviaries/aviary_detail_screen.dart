@@ -24,10 +24,16 @@ import 'package:go_router/go_router.dart';
 /// Aviary detail (FED-6.2 + federfall-d5co.3): the aviary's identity over two
 /// tabs — **Bestand** (occupancy: current residents) and **Pflege** (the
 /// flock-care chronology: aviary journal entries + a health rollup).
-/// Coordinators/supervisors can edit the aviary and write journal entries;
-/// placing a bird into it is the KEEPER's call as well as theirs, which is what
-/// `animals.createRule` says since 1700000077 (federfall-q7ks.6) and what the
-/// FAB was refusing while the server allowed it.
+/// Coordinators/supervisors can edit the aviary; placing a bird into it is the
+/// KEEPER's call as well as theirs, which is what `animals.createRule` says
+/// since 1700000077 (federfall-q7ks.6) and what the FAB was refusing while the
+/// server allowed it.
+///
+/// **Pflege is not for the whole org** (1700000089): the flock log is the
+/// enclosure's own care record, so the tab is absent — not empty — for anyone
+/// but its keeper and the coordinators/supervisors, and its keeper writes it.
+/// Bestand stays org-wide, as animal reads deliberately are: re-identifying a
+/// returning bird depends on them.
 ///
 /// State-restoration note (federfall-7ev8): the route's restoration id is
 /// pattern-scoped (`/aviaries/:id`), not per-[aviaryId]. If this screen ever
@@ -61,10 +67,9 @@ class AviaryDetailScreen extends ConsumerWidget {
     );
     final aviary = ref.watch(aviaryByIdProvider(aviaryId));
     final me = ref.watch(currentUserProvider).value;
-    final canManage = canManageAviaries(me?.role);
-    // Wider than [canManage], and it needs the loaded record to say so: the
-    // enclosure's own keeper may correct it (1700000086). Absent while the
-    // record is still loading rather than shown-then-withdrawn.
+    // Every capability here needs the loaded record to say so: the enclosure's
+    // own keeper may correct it (1700000086) and reads its log (1700000089).
+    // Absent while it is still loading rather than shown-then-withdrawn.
     final editable = aviary.value;
 
     return Scaffold(
@@ -86,11 +91,7 @@ class AviaryDetailScreen extends ConsumerWidget {
         value: aviary,
         onRetry: () => ref.invalidate(aviaryByIdProvider(aviaryId)),
         loading: const LinearProgressIndicator(),
-        data: (av) => _AviaryDetail(
-          aviaryId: aviaryId,
-          aviary: av,
-          canManage: canManage,
-        ),
+        data: (av) => _AviaryDetail(aviaryId: aviaryId, aviary: av, me: me),
       ),
     );
   }
@@ -100,22 +101,24 @@ class _AviaryDetail extends StatelessWidget {
   const _AviaryDetail({
     required this.aviaryId,
     required this.aviary,
-    required this.canManage,
+    required this.me,
   });
 
   final String aviaryId;
   final Aviary aviary;
-  final bool canManage;
+  final AppUser? me;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final bestand = _BestandTab(
+    final bestand = _BestandTab(aviaryId: aviaryId, aviary: aviary);
+    // Not a reader: the screen is Bestand alone — no tab bar, no second column
+    // and no request for a journal the server would answer with nothing.
+    if (!aviaryFlockCareVisibleBy(aviary, me)) return bestand;
+    final pflege = _PflegeTab(
       aviaryId: aviaryId,
-      aviary: aviary,
-      canManage: canManage,
+      canEdit: aviaryJournalWritableBy(aviary, me),
     );
-    final pflege = _PflegeTab(aviaryId: aviaryId, canEdit: canManage);
 
     // Wide detail panes show Bestand and Pflege side-by-side; narrow ones
     // keep them behind tabs — same pane-width-keyed split as case detail.
@@ -153,22 +156,17 @@ class _AviaryDetail extends StatelessWidget {
 /// Bestand: the aviary's identity header plus its current residents, with the
 /// "add resident" FAB (the pre-existing single-scroll body).
 class _BestandTab extends ConsumerWidget {
-  const _BestandTab({
-    required this.aviaryId,
-    required this.aviary,
-    required this.canManage,
-  });
+  const _BestandTab({required this.aviaryId, required this.aviary});
 
   final String aviaryId;
   final Aviary aviary;
-  final bool canManage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final residents = ref.watch(aviaryResidentsProvider(aviaryId));
-    // Wider than [canManage] on purpose: the enclosure's keeper holds every
-    // bird in it, so putting one there is theirs to do.
+    // Wider than the managing roles on purpose: the enclosure's keeper holds
+    // every bird in it, so putting one there is theirs to do.
     final canAddResident = aviaryStockableBy(
       aviary,
       ref.watch(currentUserProvider).value,
