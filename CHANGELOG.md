@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/jhbruhn/federfall/compare/v1.1.0...v1.1.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* **ci:** slight trigger for release ([b9d21dc](https://github.com/jhbruhn/federfall/commit/b9d21dc9a61d45ab0ca45748c1300794a2b12359))
+
 ## [1.1.0](https://github.com/jhbruhn/federfall/compare/v1.0.0...v1.1.0) (2026-08-11)
 
 
