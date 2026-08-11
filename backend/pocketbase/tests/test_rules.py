@@ -884,7 +884,8 @@ def main():
     check("journal entry with BOTH case and aviary is rejected", s >= 400, f"status {s}")
     s, _ = req("POST", "/api/collections/journal_entries/records", toks["a"],
                {"aviary": av, "text": "carer CANNOT log an aviary entry", "org": ORG})
-    check("plain carer CANNOT create an aviary journal entry", s >= 400, f"status {s}")
+    check("a carer who keeps nothing here CANNOT create an aviary journal entry",
+          s >= 400, f"status {s}")
     s, ajr = req("POST", "/api/collections/journal_entries/records", toks["coord"],
                  {"aviary": av, "text": "cleaned the aviary", "org": ORG})
     check("coordinator CAN create an aviary journal entry", s == 200, f"{s} {ajr}")
@@ -921,6 +922,18 @@ def main():
     check("another carer CANNOT read the keeper's entry", s >= 400, f"status {s}")
     s, _ = req("DELETE", f"/api/collections/journal_entries/records/{kjr['id']}", toks["b"])
     check("another carer CANNOT delete it", s >= 400, f"status {s}")
+    # Keeping ONE enclosure is not keeping enclosures. Stated after "a" became a
+    # keeper, because the create refusal above was made while they kept nothing
+    # at all — that version passes on a rule that says "no carer writes any
+    # aviary journal", which is exactly what 1700000089 stopped saying. Here the
+    # caller IS a keeper and the rule must still resolve `aviary.keeper` against
+    # the enclosure the body names, not against the caller's own.
+    s, _ = req("POST", "/api/collections/journal_entries/records", toks["a"],
+               {"aviary": av, "text": "not my enclosure", "org": ORG})
+    check("a keeper CANNOT log an entry in somebody ELSE's enclosure",
+          s >= 400, f"status {s}")
+    s, _ = req("GET", f"/api/collections/journal_entries/records/{ajr['id']}", toks["a"])
+    check("…nor read one there", s >= 400, f"status {s}")
     s, _ = req("DELETE", f"/api/collections/journal_entries/records/{kjr['id']}", toks["a"])
     check("the keeper CAN delete their own entry", s == 204, f"status {s}")
     s, _ = req("PATCH", f"/api/collections/journal_entries/records/{ajr['id']}", toks["coord"],

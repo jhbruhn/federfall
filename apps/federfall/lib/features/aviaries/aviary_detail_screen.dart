@@ -32,8 +32,11 @@ import 'package:go_router/go_router.dart';
 /// **Pflege is not for the whole org** (1700000089): the flock log is the
 /// enclosure's own care record, so the tab is absent — not empty — for anyone
 /// but its keeper and the coordinators/supervisors, and its keeper writes it.
-/// Bestand stays org-wide, as animal reads deliberately are: re-identifying a
-/// returning bird depends on them.
+/// What 1700000089 actually enforces is the JOURNAL half; the condition rollup
+/// beside it is built on the device from collections that stay org-wide, so
+/// hiding the tab does not put that half out of reach of the API — see
+/// [aviaryFlockCareVisibleBy]. Bestand stays org-wide too, as animal reads
+/// deliberately are: re-identifying a returning bird depends on them.
 ///
 /// State-restoration note (federfall-7ev8): the route's restoration id is
 /// pattern-scoped (`/aviaries/:id`), not per-[aviaryId]. If this screen ever

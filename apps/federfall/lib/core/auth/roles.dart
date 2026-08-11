@@ -175,6 +175,14 @@ bool aviaryEditableBy(Aviary aviary, AppUser? me) =>
 /// named birds under treatment, and an always-present tab that reads empty for
 /// everyone but the keeper is a worse answer than no tab.
 ///
+/// **Only the journal half is enforced server-side.** 1700000089 tightened
+/// `journal_entries`; the condition rollup beside it is assembled on the device
+/// out of `aviary_stays` → `animals` → `cases` → `case_conditions`, and only
+/// the last of those is access-scoped (per case, not per enclosure). So this
+/// hides a view somebody could still reconstruct through the API, and the parts
+/// of it that are secret are secret because those collections say so — not
+/// because of this predicate. Do not read it as a guarantee about the rollup.
+///
 /// Resolution is live, off the enclosure's current [Aviary.keeper] — handing an
 /// enclosure over hands over its whole log, exactly as the rule resolves it.
 bool aviaryFlockCareVisibleBy(Aviary aviary, AppUser? me) =>
