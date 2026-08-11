@@ -1,5 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/species_field.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -33,12 +34,26 @@ class _EditAnimalSheetState extends ConsumerState<EditAnimalSheet>
   late final TextEditingController _species;
   late Sex? _sex;
 
+  /// Species is a [SpeciesField] (a DropdownMenu, not a Form field), so its
+  /// "required" is enforced here rather than by a validator.
+  bool _speciesMissing = false;
+
   @override
   void initState() {
     super.initState();
     _name = TextEditingController(text: widget.animal.name ?? '');
     _species = TextEditingController(text: widget.animal.species);
     _sex = widget.animal.sex;
+    // The species field sits outside the Form, so `onFormChanged` never fires
+    // for it: mark the sheet dirty — and clear the error — from the controller.
+    // Attached after the initial text, so restating the animal's own species
+    // is not an edit.
+    _species.addListener(() {
+      markDirty();
+      if (_speciesMissing && _species.text.trim().isNotEmpty) {
+        setState(() => _speciesMissing = false);
+      }
+    });
   }
 
   @override
@@ -49,7 +64,11 @@ class _EditAnimalSheetState extends ConsumerState<EditAnimalSheet>
   }
 
   Future<void> _save() async {
-    if (!(formKey.currentState?.validate() ?? false)) return;
+    final missingSpecies = _species.text.trim().isEmpty;
+    if (_speciesMissing != missingSpecies) {
+      setState(() => _speciesMissing = missingSpecies);
+    }
+    if (!(formKey.currentState?.validate() ?? false) || missingSpecies) return;
     final navigator = Navigator.of(context);
 
     final ok = await runSave(() async {
@@ -90,13 +109,10 @@ class _EditAnimalSheetState extends ConsumerState<EditAnimalSheet>
             enabled: !isBusy,
           ),
           const SizedBox(height: AppSpacing.md),
-          AppTextField(
+          SpeciesField(
             controller: _species,
-            label: l10n.caseFieldSpecies,
-            prefixIcon: Icons.pets_outlined,
-            textInputAction: TextInputAction.next,
             enabled: !isBusy,
-            validator: Validators.required(l10n),
+            errorText: _speciesMissing ? l10n.fieldRequired : null,
           ),
           const SizedBox(height: AppSpacing.md),
           DropdownButtonFormField<Sex>(

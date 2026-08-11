@@ -3,6 +3,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
+import 'package:federfall/features/animals/species_field.dart';
 import 'package:federfall/features/cases/eggs/eggs_providers.dart';
 import 'package:federfall/features/cases/exams/exams_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
@@ -106,7 +107,10 @@ void main() {
 
     // Fix the species typo and save.
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Species'),
+      find.descendant(
+        of: find.byType(SpeciesField),
+        matching: find.byType(TextField),
+      ),
       'Columba livia',
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
