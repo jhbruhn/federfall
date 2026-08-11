@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0](https://github.com/jhbruhn/federfall/compare/v1.0.0...v1.1.0) (2026-08-11)
+
+
+### Features
+
+* **sponsorships:** a read-only detail sheet for a patronage ([656b4db](https://github.com/jhbruhn/federfall/commit/656b4dbadc928ff46501dfee1faef9b0e71774cc))
+* **sponsorships:** end a patronage in one tap ([12408a7](https://github.com/jhbruhn/federfall/commit/12408a77f1d1fd911ce3599afb2057a798743e36))
+* **sponsorships:** one coordinator screen over every patronage ([1dc834c](https://github.com/jhbruhn/federfall/commit/1dc834c5a51576bd9b0d580766a029695c7d6174))
+* **sponsorships:** Patenschaften that follow the bird ([e9424f0](https://github.com/jhbruhn/federfall/commit/e9424f0df95eac4e14c55fe2620660f57d1cd9b0))
+
+
+### Bug Fixes
+
+* **cases:** a chip group is not a field, and one chip is enough ([325f8f9](https://github.com/jhbruhn/federfall/commit/325f8f9fd4aecabf8cca2d0b432198e4eefb0cb0))
+* **codelists:** a catch-all belongs at the end of the list ([5ad985b](https://github.com/jhbruhn/federfall/commit/5ad985bece742ebd7971b4317a2b03b83428915d))
+* **sponsorships:** the patronage card sat flush against the cases card ([ee0609b](https://github.com/jhbruhn/federfall/commit/ee0609b931a7ce61df0bdf9f0f1370919e3a4bf7))
+
 ## [1.0.0](https://github.com/jhbruhn/federfall/compare/v0.19.0...v1.0.0) (2026-08-10)
 
 
