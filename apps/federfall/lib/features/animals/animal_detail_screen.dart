@@ -707,9 +707,6 @@ class _SponsorshipSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final materialL10n = MaterialLocalizations.of(context);
     // `.value ?? none` — an unresolved or failed access state shows nothing
     // rather than briefly showing PII to whoever is looking.
     final access =
@@ -717,6 +714,28 @@ class _SponsorshipSection extends ConsumerWidget {
         SponsorshipAccess.none;
     if (!access.canRead) return const SizedBox.shrink();
     final sponsorships = ref.watch(sponsorshipsForAnimalProvider(animalId));
+
+    // This is the only OPTIONAL card in a fixed list of siblings separated by
+    // explicit AppSpacing.md gaps, so it owns the gap BELOW it rather than
+    // having one sit in the list: a standalone SizedBox there would double up
+    // for a viewer this section renders nothing for.
+    return Column(
+      children: [
+        _card(context, ref, sponsorships, access),
+        const SizedBox(height: AppSpacing.md),
+      ],
+    );
+  }
+
+  Widget _card(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<Sponsorship>> sponsorships,
+    SponsorshipAccess access,
+  ) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final materialL10n = MaterialLocalizations.of(context);
 
     return Card(
       child: Padding(
