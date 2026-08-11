@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.0](https://github.com/jhbruhn/federfall/compare/v1.1.1...v1.2.0) (2026-08-11)
+
+
+### Features
+
+* **animals:** the add-resident sheet offers the species vocabulary ([948b41f](https://github.com/jhbruhn/federfall/commit/948b41f5aa9533d6ebb88175b8d67f01751505bf))
+* **animals:** the identity edit sheet offers the species vocabulary too ([e71e795](https://github.com/jhbruhn/federfall/commit/e71e7958a18873265f009d8a742f67d762a8348c))
+* **aviaries:** the keeper of an enclosure may edit it ([600da36](https://github.com/jhbruhn/federfall/commit/600da363e75d263ff9898fdaa03db6491fdeba70))
+
+
+### Bug Fixes
+
+* editing an aviary or an outcome no longer 404s ([c323b50](https://github.com/jhbruhn/federfall/commit/c323b50475baea43f6f7bfb48f9d0a1590b6e110))
+* **weights:** a weight taken without a case can be corrected ([08cc697](https://github.com/jhbruhn/federfall/commit/08cc697b1c4917c2f0ba9501de60dfe285e4cf3f))
+
 ## [1.1.1](https://github.com/jhbruhn/federfall/compare/v1.1.0...v1.1.1) (2026-08-11)
 
 
