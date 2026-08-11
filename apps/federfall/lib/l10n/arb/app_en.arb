@@ -659,6 +659,17 @@
     "@sponsorshipFieldCity": { "description": "Sponsor's town field" },
     "sponsorshipFieldRegion": "Region",
     "@sponsorshipFieldRegion": { "description": "Sponsor's region / state field" },
+    "sponsorshipStatusActive": "Running",
+    "@sponsorshipStatusActive": { "description": "Chip on a sponsorship that has not ended" },
+    "sponsorshipStatusEnded": "Ended",
+    "@sponsorshipStatusEnded": { "description": "Chip on a sponsorship whose end date has passed" },
+    "sponsorshipFieldAddressLabel": "Address",
+    "@sponsorshipFieldAddressLabel": { "description": "Label for the sponsor's full postal address, shown as one block on the detail sheet" },
+    "sponsorshipRecordedOn": "Recorded on {date}",
+    "@sponsorshipRecordedOn": {
+        "description": "When the sponsorship record itself was created",
+        "placeholders": { "date": { "type": "String" } }
+    },
     "sponsorshipFieldNotes": "Notes",
     "@sponsorshipFieldNotes": { "description": "Free-text notes on a sponsorship" },
     "sponsorshipFieldPronounsHint": "e.g. she/her",

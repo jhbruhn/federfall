@@ -9,6 +9,7 @@ import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/animals/delete_record_dialogs.dart';
 import 'package:federfall/features/animals/edit_animal_sheet.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
+import 'package:federfall/features/aviaries/sponsorship_detail_sheet.dart';
 import 'package:federfall/features/aviaries/sponsorship_providers.dart';
 import 'package:federfall/features/aviaries/sponsorship_sheet.dart';
 import 'package:federfall/features/cases/case_summary_tile.dart';
@@ -771,6 +772,15 @@ class _SponsorshipSection extends ConsumerWidget {
                         title: Text(s.sponsorName),
                         subtitle: Text(
                           _subtitle(l10n, materialL10n, s),
+                        ),
+                        // The row is a summary; the address, the mobile and
+                        // the notes live in the detail sheet. Tapping opens
+                        // THAT and not the form, because reading is the common
+                        // act and a reader who may not write still needs it.
+                        onTap: () => showSponsorshipDetailSheet(
+                          context,
+                          animalId: animalId,
+                          sponsorship: s,
                         ),
                         trailing: access.canWrite
                             ? IconButton(

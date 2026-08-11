@@ -156,6 +156,68 @@ void main() {
     });
   });
 
+  group('the detail sheet', () {
+    testWidgets('tapping a patronage opens its full record, read-only', (
+      tester,
+    ) async {
+      when(() => sponsorships.forAnimal(any())).thenAnswer(
+        (_) async => const [
+          Sponsorship(
+            id: 's1',
+            animal: 'a1',
+            sponsorName: 'Marlene Wolf',
+            sponsorPronouns: 'sie/ihr',
+            mobile: '0170 1234567',
+            address: 'Bahnhofstr. 3',
+            postalCode: '26121',
+            city: 'Oldenburg',
+            notes: 'Möchte jährlich ein Foto.',
+            amountCents: 1250,
+            interval: SponsorshipInterval.monthly,
+          ),
+        ],
+      );
+      await pumpDetail(tester, role: UserRole.carer);
+
+      await tester.tap(find.text('Marlene Wolf'));
+      await tester.pumpAndSettle();
+
+      // Everything the card could not show, which is why this sheet exists.
+      expect(find.text('sie/ihr'), findsOneWidget);
+      expect(find.text('0170 1234567'), findsOneWidget);
+      expect(find.textContaining('26121 Oldenburg'), findsOneWidget);
+      expect(find.text('Möchte jährlich ein Foto.'), findsOneWidget);
+      // An unset end date is a fact, not a blank.
+      expect(find.text('Still running'), findsWidgets);
+      // The keeper may write, so the sheet offers the way in.
+      expect(
+        find.widgetWithText(OutlinedButton, 'Edit sponsorship'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a reader who may not write gets the record without an edit '
+        'control', (tester) async {
+      // The gap this sheet closes: a coordinator looking at a bird that has
+      // left aviary care may READ the patronage and may not edit it, so before
+      // this sheet the address and the mobile were unreachable for them.
+      await pumpDetail(
+        tester,
+        role: UserRole.coordinator,
+        animal: _animal.copyWith(currentAviary: null),
+      );
+
+      await tester.tap(find.text('Marlene Wolf'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('12.50'), findsWidgets);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Edit sponsorship'),
+        findsNothing,
+      );
+    });
+  });
+
   group('the aviary-transfer warning', () {
     Future<void> pumpSheet(
       WidgetTester tester, {
