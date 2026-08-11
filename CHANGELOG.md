@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/jhbruhn/federfall/compare/v1.2.0...v1.3.0) (2026-08-11)
+
+
+### Features
+
+* **aviaries:** the flock log belongs to the enclosure's keeper ([db201db](https://github.com/jhbruhn/federfall/commit/db201db19024a3bf0416f0b478d2f09713574b4c))
+* **vaccinations:** record shots on the bird, not on the case ([7d5f7a8](https://github.com/jhbruhn/federfall/commit/7d5f7a87fc01a7fbc365e55173939c464d0d38ac))
+* **vaccinations:** vaccinate a whole enclosure in one act ([384b1f5](https://github.com/jhbruhn/federfall/commit/384b1f5f82549287afd1b67ace38aa5c55f66f50))
+
+
+### Bug Fixes
+
+* **worklist:** show an ending quarantine on its end day only ([5d5f83e](https://github.com/jhbruhn/federfall/commit/5d5f83e38b4c2cad4d5edeb2bbda596a5d60bea5))
+
 ## [1.2.0](https://github.com/jhbruhn/federfall/compare/v1.1.1...v1.2.0) (2026-08-11)
 
 
