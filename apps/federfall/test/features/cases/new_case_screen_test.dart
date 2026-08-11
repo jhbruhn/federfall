@@ -290,7 +290,7 @@ void main() {
     // Try to advance without a reason: stays on step 1 with an error.
     await tapNext(tester);
 
-    expect(find.text('This field is required'), findsOneWidget);
+    expect(find.text('Choose at least one reason'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Create case'), findsNothing);
     verifyNever(
       () => cases.intake(

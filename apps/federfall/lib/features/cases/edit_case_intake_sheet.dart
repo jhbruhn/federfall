@@ -200,7 +200,7 @@ class _EditCaseIntakeSheetState extends ConsumerState<EditCaseIntakeSheet>
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.xs),
               child: Text(
-                l10n.fieldRequired,
+                l10n.caseReasonsRequired,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
                 ),

@@ -883,7 +883,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           selected: _reasons,
           enabled: !_busy,
           error: _reasonsTouched && _reasons.isEmpty
-              ? l10n.fieldRequired
+              ? l10n.caseReasonsRequired
               : null,
           onToggle: (id) {
             _touch();

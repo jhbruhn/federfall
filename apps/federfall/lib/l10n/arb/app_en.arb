@@ -783,6 +783,8 @@
     "@caseShareChangeAccess": { "description": "Tooltip on the change-access menu of an existing share" },
     "caseReasonsFieldLabel": "Reasons for admission",
     "@caseReasonsFieldLabel": { "description": "Label for the reasons list on detail" },
+    "caseReasonsRequired": "Choose at least one reason",
+    "@caseReasonsRequired": { "description": "Validation message when the intake wizard's admission-reason chip group has nothing selected" },
     "caseStatusInCare": "In care",
     "@caseStatusInCare": { "description": "Case status" },
     "caseStatusInTreatment": "In treatment",

@@ -320,6 +320,7 @@
     "caseShareRevokeAction": "Entziehen",
     "caseShareChangeAccess": "Zugriff ändern",
     "caseReasonsFieldLabel": "Aufnahmegründe",
+    "caseReasonsRequired": "Wähle mindestens einen Grund",
     "caseStatusInCare": "In Pflege",
     "caseStatusInTreatment": "In Behandlung",
     "caseStatusRehab": "Reha",
