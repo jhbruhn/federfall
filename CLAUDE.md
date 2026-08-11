@@ -235,6 +235,11 @@ Every personal field is in `SENSITIVE.sponsorships` and the subject label is for
 the audit log carries the arrangement (amount, interval, dates) and never the person;
 `sponsorship.access_transferred` records each move off `animals.current_aviary` — where
 `aviary_stays.pb.js` hangs, because four other writers change that field.
+An ENDED patronage is **never** scrubbed (federfall-5s5j.4, decided): a donation that produced
+a Zuwendungsbestätigung falls under §147 AO / §257 HGB and the receipt is worthless without the
+donor's name and address, so here the identity is the part that must be kept — the mirror image
+of the finder scrub. `sponsorship_retention.pb.js` therefore has exactly one deletion path, the
+orphan whose bird is gone; the absence of a scrub is a decision, not an omission.
 
 **Case timeline pattern:** every clinical record (weight, condition, medication +
 administration, journal, marking, placement, disposition) is one unified chronology. Each

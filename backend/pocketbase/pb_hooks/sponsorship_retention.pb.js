@@ -18,6 +18,18 @@
 // `finder_retention.pb.js` exists to solve, so this closes it the same way:
 // after the org's window, the row is DELETED.
 //
+// ── An ENDED patronage is not swept, and that is a decision ─────────────────
+// federfall-5s5j.4: a patronage whose `ended_at` is set, on a bird that still
+// exists, is kept indefinitely. Data minimisation argues for the finder
+// treatment — the patronage is over, so drop the address and the mobile — but a
+// donation that produced a Zuwendungsbestätigung falls under the retention duties
+// in §147 AO / §257 HGB, and the receipt is worthless without the donor's name
+// and address. Here the identity is the part that must be KEPT, which is the
+// mirror image of the finder scrub. Splitting the row into "receipt fields" and
+// "the rest" and getting that boundary wrong is a legal problem rather than a
+// bug, so the whole row stays and this cron has exactly ONE deletion path: the
+// orphan below. An ended patronage is history, and history is kept.
+//
 // Deleted rather than anonymised, which is the difference from the finder scrub.
 // A scrubbed finder is kept because its location feeds a non-identifying
 // statistic and its case→finder link still means something. A sponsorship
