@@ -28,7 +28,9 @@ class DashboardSummary {
   /// Cases admitted within the current calendar year.
   final int intakesThisYear;
 
-  /// Animals currently resident in an aviary (lifetime_status = in_aviary).
+  /// Animals currently resident in an aviary (`current_aviary` set) — the same
+  /// field the aviaries tab's per-enclosure occupancy counts, so the tile and
+  /// the view it taps through to agree (federfall-ycre).
   final int inAviaryCount;
 
   /// Active-case counts per status, in [CaseStatus] order (disposed excluded).
