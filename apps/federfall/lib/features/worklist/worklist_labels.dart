@@ -55,10 +55,9 @@ String worklistItemDetail(
     item.followUp?.note,
     _relativeDue(l10n, item.dueAt, now),
   ),
-  WorklistKind.quarantineEnding => switch (localDaysBetween(item.dueAt, now)) {
-    <= 0 => l10n.worklistQuarantineEndsToday,
-    final days => l10n.worklistQuarantineEndedDaysAgo(days),
-  },
+  // Only ever today's: [buildWorklist] admits no other day, so there is no
+  // "ended N days ago" phrasing left to pick between.
+  WorklistKind.quarantineEnding => l10n.worklistQuarantineEndsToday,
 };
 
 /// "{prefix} · {relative}" when the prefix (a recheck's note, an appointment's

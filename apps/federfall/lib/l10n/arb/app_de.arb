@@ -163,7 +163,6 @@
     "worklistGroupFollowUps": "Fällige Nachkontrollen",
     "worklistGroupQuarantine": "Quarantäne endet",
     "worklistQuarantineEndsToday": "Endet heute",
-    "worklistQuarantineEndedDaysAgo": "{days, plural, one{Endete gestern} other{Endete vor {days} Tagen}}",
     "worklistGroupStale": "Inaktive Fälle",
     "worklistUnnumberedCase": "Fall ohne Nummer",
     "worklistOverdueHours": "{hours, plural, one{1 Std. überfällig} other{{hours} Std. überfällig}}",

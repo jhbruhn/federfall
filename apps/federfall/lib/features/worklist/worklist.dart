@@ -113,10 +113,6 @@ const vetAppointmentWindow = Duration(days: 7);
 /// How long an active case may go untouched before it counts as "stale".
 const staleThreshold = Duration(days: 7);
 
-/// How many days past its end a quarantine still surfaces on the worklist, so
-/// a carer who skipped the end day still sees the release cue once (7zf).
-const quarantineGraceDays = 3;
-
 /// Builds the carer's worklist from cases they are responsible for plus the
 /// medications/doses on those cases, as of [now]. Pure and PocketBase-free so
 /// it can be unit-tested directly.
@@ -142,19 +138,19 @@ List<WorklistItem> buildWorklist({
   final items = <WorklistItem>[];
   final casesById = {for (final c in cases) c.id: c};
 
-  // Quarantines ending today, plus a short grace window after — a neutral
-  // note, never overdue. A quarantine simply concludes; it isn't an obligation
-  // you fall behind on, and "end now" just moves the end to today, so it
-  // should leave a gentle "ends today" marker rather than flip to a red
-  // "overdue" item the moment it passes. The grace window makes sure a carer
-  // who didn't open the app on the end day still sees the release cue once
-  // ("ended N days ago"); after [quarantineGraceDays] it goes quiet for good
-  // rather than nag indefinitely.
+  // Quarantines ending on the carer's OWN today — a neutral note, never
+  // overdue. A quarantine simply concludes; it isn't an obligation you fall
+  // behind on, and "end now" just moves the end to today, so it should leave a
+  // gentle "ends today" marker rather than flip to a red "overdue" item the
+  // moment it passes. The day is exact in both directions: a quarantine still
+  // running tomorrow is not today's work, and one that ended yesterday is not
+  // either — Today says what is true today, so it goes quiet the next morning
+  // rather than trailing a stale cue (there is no grace window; the end date
+  // stays on the case's own quarantine tile for anyone who missed the day).
   for (final c in cases) {
     final until = quarantineUntilByCase[c.id];
     if (until == null) continue;
-    final endedDaysAgo = localDaysBetween(until, now);
-    if (endedDaysAgo < 0 || endedDaysAgo > quarantineGraceDays) continue;
+    if (localDaysBetween(until, now) != 0) continue;
     items.add(
       WorklistItem(
         kind: WorklistKind.quarantineEnding,
