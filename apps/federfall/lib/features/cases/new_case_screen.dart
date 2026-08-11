@@ -5,8 +5,8 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/org_settings_providers.dart';
 import 'package:federfall/features/animals/animal_search_picker.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
+import 'package:federfall/features/animals/species_field.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
-import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/features/cases/case_intake_draft.dart';
 import 'package:federfall/features/cases/case_intake_draft_store.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
@@ -840,7 +840,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
             },
           )
         else ...[
-          _SpeciesField(
+          SpeciesField(
             controller: _speciesController,
             enabled: !_busy,
             errorText: _speciesMissing ? l10n.fieldRequired : null,
@@ -1189,65 +1189,6 @@ class _WizardNav extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// The intake species field: a Material 3 editable dropdown. The caret opens
-/// the full list of kinds the org has recorded (`animal_species` view); typing
-/// filters it; any value can still be typed freely (free text is kept). Species
-/// is validated manually when advancing past step 0, since a DropdownMenu is
-/// not a Form field.
-class _SpeciesField extends ConsumerWidget {
-  const _SpeciesField({
-    required this.controller,
-    required this.enabled,
-    this.errorText,
-  });
-
-  final TextEditingController controller;
-  final bool enabled;
-  final String? errorText;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final colorScheme = Theme.of(context).colorScheme;
-    final known = ref.watch(animalSpeciesProvider).value ?? const <String>[];
-
-    return DropdownMenu<String>(
-      controller: controller,
-      enabled: enabled,
-      requestFocusOnTap: true,
-      enableFilter: true,
-      expandedInsets: EdgeInsets.zero,
-      menuHeight: 320,
-      label: Text(l10n.caseFieldSpecies),
-      leadingIcon: const Icon(Icons.pets_outlined),
-      errorText: errorText,
-      // Match the app's card/sheet tone — the default menu surface reads as
-      // near-black in dark mode against the grey-ish surfaceContainer used
-      // elsewhere.
-      menuStyle: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(colorScheme.surfaceContainer),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-      ),
-      // While typing a partial value, filter by it; but once the field holds a
-      // complete (already-known) value, show the whole list so the caret
-      // browses all kinds. Free text not in the list is still kept.
-      filterCallback: (entries, filter) {
-        final query = filter.trim().toLowerCase();
-        if (query.isEmpty ||
-            entries.any((e) => e.label.toLowerCase() == query)) {
-          return entries;
-        }
-        return entries
-            .where((e) => e.label.toLowerCase().contains(query))
-            .toList();
-      },
-      dropdownMenuEntries: [
-        for (final s in known) DropdownMenuEntry<String>(value: s, label: s),
-      ],
     );
   }
 }

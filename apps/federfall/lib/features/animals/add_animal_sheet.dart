@@ -1,5 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
+import 'package:federfall/features/animals/species_field.dart';
 import 'package:federfall/features/aviaries/aviaries_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -39,6 +40,23 @@ class _AddAnimalSheetState extends ConsumerState<AddAnimalSheet>
   final _species = TextEditingController();
   Sex? _sex;
 
+  /// Species is a [SpeciesField] (a DropdownMenu, not a Form field), so its
+  /// "required" is enforced here rather than by a validator.
+  bool _speciesMissing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // The species field sits outside the Form, so `onFormChanged` never fires
+    // for it: mark the sheet dirty — and clear the error — from the controller.
+    _species.addListener(() {
+      markDirty();
+      if (_speciesMissing && _species.text.trim().isNotEmpty) {
+        setState(() => _speciesMissing = false);
+      }
+    });
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -47,7 +65,11 @@ class _AddAnimalSheetState extends ConsumerState<AddAnimalSheet>
   }
 
   Future<void> _save() async {
-    if (!(formKey.currentState?.validate() ?? false)) return;
+    final missingSpecies = _species.text.trim().isEmpty;
+    if (_speciesMissing != missingSpecies) {
+      setState(() => _speciesMissing = missingSpecies);
+    }
+    if (!(formKey.currentState?.validate() ?? false) || missingSpecies) return;
     final navigator = Navigator.of(context);
 
     String? createdId;
@@ -84,13 +106,10 @@ class _AddAnimalSheetState extends ConsumerState<AddAnimalSheet>
         error: saveError,
         onSave: _save,
         children: [
-          AppTextField(
+          SpeciesField(
             controller: _species,
-            label: l10n.caseFieldSpecies,
-            prefixIcon: Icons.pets_outlined,
-            textInputAction: TextInputAction.next,
             enabled: !isBusy,
-            validator: Validators.required(l10n),
+            errorText: _speciesMissing ? l10n.fieldRequired : null,
           ),
           const SizedBox(height: AppSpacing.md),
           AppTextField(
