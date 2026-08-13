@@ -88,10 +88,39 @@ function rules(aviaryView, aviaryEdit) {
   };
 }
 
+// A rule reduced to its ACCESS CORE: the boundary freeze stripped off, and the
+// parentheses that only exist to hold it.
+//
+// The freeze is not access logic. It is 1700000043's "these three relations are
+// immutable after create", re-derived by 1700000053 and re-derived again below,
+// and it is identical on every path through this migration — so comparing it is
+// comparing this file to itself. What the guard below is actually for is the
+// aviary/case BRANCH, i.e. who may write at all, and that is what stays exact.
+//
+// This matters because at least one deployed instance reached 1700000089 with
+// the freeze missing from `updateRule` (found in the wild, 2026-08-13). Nothing
+// in the migration chain removes it and no hook writes rules, so it was lost
+// outside the chain — a dashboard save is the only route we know of. Comparing
+// whole strings turned that into a container that will not boot, on a rule this
+// migration overwrites anyway. Comparing cores lets it through AND, because
+// `to` always carries the freeze, RESTORES the protection on the way past: an
+// instance without it can currently re-point a journal entry into another
+// case, aviary or org on update, which is exactly the hole 1700000043 closed.
+function core(rule) {
+  let s = String(rule);
+  for (const field of ["case", "aviary", "org"]) {
+    s = s.split(" && @request.body." + field + ":isset = false").join("");
+  }
+  if (s.indexOf("(") === 0 && s.lastIndexOf(")") === s.length - 1) {
+    s = s.slice(1, -1);
+  }
+  return s;
+}
+
 function apply(app, from, to) {
   const c = app.findCollectionByNameOrId("journal_entries");
   for (const name of Object.keys(from)) {
-    if (String(c[name]) !== from[name]) {
+    if (core(c[name]) !== core(from[name])) {
       // Loud rather than silent: this migration REPLACES the rules wholesale
       // (the aviary branch cannot be edited in place), so drift would be
       // thrown away. Failing here asks whoever changed it to fold the change
@@ -99,6 +128,13 @@ function apply(app, from, to) {
       throw new Error(
         "[1700000089] journal_entries." + name + " is not the expected " +
         "string; refusing to overwrite it:\n  found:    " + String(c[name]) +
+        "\n  expected: " + from[name],
+      );
+    }
+    if (String(c[name]) !== from[name]) {
+      console.log(
+        "[1700000089] journal_entries." + name + " differed only in the " +
+        "boundary freeze; restoring it.\n  found:    " + String(c[name]) +
         "\n  expected: " + from[name],
       );
     }
