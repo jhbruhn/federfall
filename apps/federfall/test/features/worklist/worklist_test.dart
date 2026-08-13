@@ -75,6 +75,90 @@ void main() {
     });
   });
 
+  // federfall-o3gz — a dose round is one drug over several birds, so Today
+  // splits the dues by drug before it offers to give them all.
+  group('groupMedicationDuesByDrug', () {
+    WorklistItem item(
+      String drug,
+      int hoursFromNow, {
+      String caseId = 'c1',
+      bool withPlan = true,
+    }) => WorklistItem(
+      kind: WorklistKind.medicationDue,
+      caseId: caseId,
+      dueAt: _now.add(Duration(hours: hoursFromNow)),
+      severity: WorklistSeverity.upcoming,
+      drug: drug,
+      medication: withPlan
+          ? Medication(id: 'm-$caseId-$drug', caseId: caseId, drug: drug)
+          : null,
+    );
+
+    test('groups follow the earliest due, rows keep their order', () {
+      final groups = groupMedicationDuesByDrug([
+        item('Baytril', 1),
+        item('Metacam', 2, caseId: 'c2'),
+        item('Baytril', 3, caseId: 'c3'),
+      ]);
+
+      expect(groups.map((g) => g.drug), ['Baytril', 'Metacam']);
+      expect(
+        groups.first.items.map((i) => i.caseId),
+        ['c1', 'c3'],
+      );
+    });
+
+    test('only a drug with more than one givable due is a round', () {
+      final groups = groupMedicationDuesByDrug([
+        item('Baytril', 1),
+        item('Baytril', 2, caseId: 'c2'),
+        item('Metacam', 3, caseId: 'c3'),
+      ]);
+
+      expect(groups.first.isRound, isTrue);
+      expect(groups.last.isRound, isFalse);
+    });
+
+    test('a due without its plan cannot be given, so it is not a round', () {
+      // The sheet needs the prescription to derive an amount and the server
+      // needs it to write the row — two dues, one plan, no round.
+      final groups = groupMedicationDuesByDrug([
+        item('Baytril', 1),
+        item('Baytril', 2, caseId: 'c2', withPlan: false),
+      ]);
+
+      expect(groups.single.items, hasLength(2));
+      expect(groups.single.givable, hasLength(1));
+      expect(groups.single.isRound, isFalse);
+    });
+
+    test('two spellings are two groups — nothing is merged silently', () {
+      // Giving a round is an act on a syringe: it must never quietly include a
+      // bird prescribed something whose name only looks the same.
+      final groups = groupMedicationDuesByDrug([
+        item('Baytril', 1),
+        item('baytril', 2, caseId: 'c2'),
+      ]);
+
+      expect(groups, hasLength(2));
+    });
+
+    test('other kinds are left out entirely', () {
+      final groups = groupMedicationDuesByDrug([
+        item('Baytril', 1),
+        WorklistItem(
+          kind: WorklistKind.staleCase,
+          caseId: 'c9',
+          dueAt: _now,
+          severity: WorklistSeverity.overdue,
+        ),
+      ]);
+
+      expect(groups, hasLength(1));
+      expect(groups.single.items.single.kind, WorklistKind.medicationDue);
+    });
+  });
+
   group('buildWorklist — quarantine', () {
     test('quarantine ending today appears as a neutral, non-overdue note', () {
       final until = _now.add(const Duration(hours: 6)); // still 2026-06-24

@@ -26,6 +26,39 @@ class PbWeightsRepository extends PbRepository<Weight> {
     filter: filterExpr('animal = {:a}', {'a': animalId}),
     sort: 'measured_at',
   );
+
+  /// Weights across many cases in one call, oldest first — the same chunked
+  /// `case = {:x} || …` pattern `PbCasesRepository.byAnimals` uses, so a dose
+  /// round over a group (federfall-o3gz) costs O(1) requests rather than one
+  /// per bird. Empty input short-circuits to no request.
+  Future<List<Weight>> byCases(Iterable<String> caseIds) async {
+    final wanted = caseIds.toSet().toList();
+    if (wanted.isEmpty) return const [];
+    final chunks = <Future<List<Weight>>>[];
+    for (var start = 0; start < wanted.length; start += _byCasesChunkSize) {
+      final end = start + _byCasesChunkSize;
+      final chunk = wanted.sublist(
+        start,
+        end > wanted.length ? wanted.length : end,
+      );
+      final params = <String, Object?>{};
+      final clauses = <String>[];
+      for (var i = 0; i < chunk.length; i++) {
+        clauses.add('case = {:c$i}');
+        params['c$i'] = chunk[i];
+      }
+      chunks.add(
+        list(
+          filter: filterExpr(clauses.join(' || '), params),
+          sort: 'measured_at',
+        ),
+      );
+    }
+    final results = await Future.wait(chunks);
+    return [for (final r in results) ...r];
+  }
+
+  static const int _byCasesChunkSize = 100;
 }
 
 /// Repository over the `egg_records` collection (federfall-4agw) — egg-laying
@@ -240,6 +273,63 @@ class PbMedicationAdministrationsRepository
     filter: filterExpr('case = {:c}', {'c': caseId}),
     sort: '-administered_at',
   );
+
+  /// Logs one dose per entry in [doses], atomically, via
+  /// `POST /api/federfall/administer-batch` (federfall-o3gz). Returns how many
+  /// rows were written.
+  ///
+  /// Each entry names its prescription and carries only what varies between
+  /// birds — `medication`, `dose`, `weight_g_used`, `volume_ml`. The amount is
+  /// per bird by necessity: a rate is prescribed per kilogram, so one group on
+  /// one course gets N different amounts. Everything describing the drug (drug,
+  /// unit, route) is read from the prescription server-side, and `case`,
+  /// `administered_by` and `org` are never the client's to send.
+  ///
+  /// [shared] carries the moment and an optional note (`administered_at`,
+  /// `notes`) — what the round has in common.
+  ///
+  /// Not a client-side loop: a dose round half recorded does not read as
+  /// missing rows, it reads as birds that did not get their medicine, which is
+  /// what gets a second dose given.
+  Future<int> administerBatch(
+    List<Map<String, dynamic>> doses,
+    Map<String, dynamic> shared, {
+    String? idempotencyKey,
+  }) async {
+    try {
+      final res = await pb
+          .send<Map<String, dynamic>>(
+            '/api/federfall/administer-batch',
+            method: 'POST',
+            body: {
+              'doses': doses,
+              'administration': shared,
+              'idempotency_key': ?idempotencyKey,
+            },
+          )
+          .timeout(networkTimeout);
+      final created = res['created'];
+      return created is int ? created : doses.length;
+    } on TimeoutException {
+      // The request left the device; a slow server may still commit the round.
+      // With an idempotency key a resubmission converges on the committed
+      // result, so it is an ordinary network error; without one, retrying would
+      // record the round twice — which reads as the group being dosed twice.
+      if (idempotencyKey != null) {
+        throw const RepositoryException(
+          'The server did not respond in time',
+          kind: RepositoryErrorKind.network,
+        );
+      }
+      throw const RepositoryException(
+        'The server did not respond in time — the doses may or may not have '
+        'been saved',
+        kind: RepositoryErrorKind.unknownOutcome,
+      );
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
 
   /// How many logged doses still name the [routeId] code-list entry — the
   /// second of the three `medication_routes` referrers.

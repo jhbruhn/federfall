@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
+import 'package:federfall/features/cases/medications/batch_administration_sheet.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/features/worklist/worklist_labels.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
@@ -136,17 +139,88 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           ),
         ),
       ),
-      for (final item in group)
-        WorklistTile(
-          item: item,
-          now: now,
-          // Wide: select into the side pane; narrow: the tile's default
-          // deep-link to the case full-screen.
-          onTap: expanded
-              ? () => setState(() => _selectedCaseId = item.caseId)
-              : null,
-          selected: expanded && item.caseId == _selectedCaseId,
-        ),
+      // Doses fall into per-drug rounds; every other kind is a flat list.
+      if (kind == WorklistKind.medicationDue)
+        for (final round in groupMedicationDuesByDrug(group))
+          ..._round(context, round, now, expanded: expanded)
+      else
+        for (final item in group) _tile(item, now, expanded: expanded),
     ];
+  }
+
+  /// One drug's due doses: a heading naming the drug and offering the whole
+  /// round in one tap, then the rows.
+  ///
+  /// The heading is only worth its space once the group is a round — a lone
+  /// dose already has the drug in its own subtitle and a per-row button.
+  List<Widget> _round(
+    BuildContext context,
+    MedicationDueGroup round,
+    DateTime now, {
+    required bool expanded,
+  }) {
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    if (!round.isRound) {
+      return [
+        for (final item in round.items) _tile(item, now, expanded: expanded),
+      ];
+    }
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.sm,
+          0,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                round.drug.isEmpty
+                    ? l10n.worklistGroupMeds
+                    : l10n.doseRoundHeading(round.drug, round.givable.length),
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => unawaited(_giveRound(context, round)),
+              icon: const Icon(Icons.vaccines_outlined),
+              label: Text(l10n.doseRoundAction),
+            ),
+          ],
+        ),
+      ),
+      for (final item in round.items)
+        // The heading carries the drug, so the rows drop it and keep the times.
+        _tile(item, now, expanded: expanded, showDrug: false),
+    ];
+  }
+
+  Widget _tile(
+    WorklistItem item,
+    DateTime now, {
+    required bool expanded,
+    bool showDrug = true,
+  }) => WorklistTile(
+    item: item,
+    now: now,
+    showDrug: showDrug,
+    // Wide: select into the side pane; narrow: the tile's default deep-link to
+    // the case full-screen.
+    onTap: expanded
+        ? () => setState(() => _selectedCaseId = item.caseId)
+        : null,
+    selected: expanded && item.caseId == _selectedCaseId,
+  );
+
+  Future<void> _giveRound(
+    BuildContext context,
+    MedicationDueGroup round,
+  ) async {
+    final saved = await showBatchAdministrationSheet(context, group: round);
+    if (saved == null || !context.mounted) return;
+    ref.invalidate(worklistSourceProvider);
   }
 }

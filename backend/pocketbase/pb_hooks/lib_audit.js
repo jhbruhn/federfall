@@ -86,6 +86,10 @@ const ACTIONS = {
   ADMINISTRATION_LOGGED: "administration.logged",
   ADMINISTRATION_UPDATED: "administration.updated",
   ADMINISTRATION_DELETED: "administration.deleted",
+  // One dose round given across a group in one transaction
+  // (administer_batch.pb.js). Same stance as MEDICATION_BATCH_PRESCRIBED above:
+  // one event for the round, and each row is an ordinary dose afterwards.
+  ADMINISTRATION_BATCH_LOGGED: "administration.batch_logged",
 
   JOURNAL_CREATED: "journal.created",
   JOURNAL_UPDATED: "journal.updated",

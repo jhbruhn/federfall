@@ -38,13 +38,14 @@ String worklistItemTitle(AppLocalizations l10n, WorklistItem item) =>
 String worklistItemDetail(
   AppLocalizations l10n,
   WorklistItem item,
-  DateTime now,
-) => switch (item.kind) {
+  DateTime now, {
+  bool showDrug = true,
+}) => switch (item.kind) {
   WorklistKind.staleCase => l10n.worklistStaleDays(
     now.difference(item.dueAt).inDays,
   ),
   WorklistKind.medicationDue =>
-    item.drug == null
+    item.drug == null || !showDrug
         ? _relativeDue(l10n, item.dueAt, now)
         : '${item.drug} · ${_relativeDue(l10n, item.dueAt, now)}',
   WorklistKind.vetAppointment => _withPrefix(

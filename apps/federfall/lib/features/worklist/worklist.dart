@@ -98,6 +98,63 @@ class WorklistItem {
   );
 }
 
+/// The due doses of ONE drug, in due order (federfall-o3gz) — what the Today
+/// screen offers as a single round.
+@immutable
+class MedicationDueGroup {
+  const MedicationDueGroup({required this.drug, required this.items});
+
+  /// The drug name exactly as the prescriptions spell it; empty for dues that
+  /// carry no name at all.
+  final String drug;
+
+  final List<WorklistItem> items;
+
+  /// The dues a round can actually be logged for. An item without its
+  /// prescription cannot be given from here — the sheet needs the plan to
+  /// derive an amount and the server needs it to write the row.
+  List<WorklistItem> get givable => [
+    for (final i in items)
+      if (i.medication != null) i,
+  ];
+
+  /// Whether offering "give all" is worth a control: below two it is the
+  /// per-row button with extra steps.
+  bool get isRound => givable.length > 1;
+}
+
+/// Splits the medication dues out of [items] into one group per drug, groups
+/// ordered by their earliest due and rows kept in the order they arrived.
+///
+/// Pure, so the ordering is testable without a screen. [items] is expected
+/// already sorted by [WorklistItem.dueAt] (what [buildWorklist] returns), which
+/// is what makes first-appearance order the same as earliest-due order.
+///
+/// Drug names are compared EXACTLY, exactly as the per-target vaccination
+/// roll-up does: two spellings of one preparation are two groups, and nothing
+/// merges them behind the carer's back. Giving a round is an act on a syringe —
+/// it must never quietly include a bird prescribed something whose name only
+/// looks the same.
+List<MedicationDueGroup> groupMedicationDuesByDrug(List<WorklistItem> items) {
+  final order = <String>[];
+  final byDrug = <String, List<WorklistItem>>{};
+  for (final item in items) {
+    if (item.kind != WorklistKind.medicationDue) continue;
+    final drug = item.drug ?? '';
+    final group = byDrug[drug];
+    if (group == null) {
+      order.add(drug);
+      byDrug[drug] = [item];
+    } else {
+      group.add(item);
+    }
+  }
+  return [
+    for (final drug in order)
+      MedicationDueGroup(drug: drug, items: byDrug[drug]!),
+  ];
+}
+
 /// How far ahead a scheduled dose counts as "due" on the worklist — a dose
 /// landing later today should show; one days out should not.
 const medicationDueWindow = Duration(hours: 24);

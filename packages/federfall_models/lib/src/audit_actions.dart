@@ -62,6 +62,7 @@ enum AuditAction {
   vaccinationDeleted('vaccination.deleted'),
   vaccinationBatchRecorded('vaccination.batch_recorded'),
   medicationBatchPrescribed('medication.batch_prescribed'),
+  administrationBatchLogged('administration.batch_logged'),
   followUpCreated('follow_up.created'),
   followUpUpdated('follow_up.updated'),
   followUpDeleted('follow_up.deleted'),

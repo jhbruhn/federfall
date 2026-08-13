@@ -98,6 +98,8 @@ String auditActionTitle(
   AuditAction.administrationLogged => l10n.auditActionAdministrationLogged,
   AuditAction.administrationUpdated => l10n.auditActionAdministrationUpdated,
   AuditAction.administrationDeleted => l10n.auditActionAdministrationDeleted,
+  AuditAction.administrationBatchLogged =>
+    l10n.auditActionAdministrationBatchLogged,
   AuditAction.journalCreated => l10n.auditActionJournalCreated,
   AuditAction.journalUpdated => l10n.auditActionJournalUpdated,
   AuditAction.journalDeleted => l10n.auditActionJournalDeleted,
@@ -249,6 +251,7 @@ extension AuditActionTopic on AuditAction {
     AuditAction.administrationLogged ||
     AuditAction.administrationUpdated ||
     AuditAction.administrationDeleted ||
+    AuditAction.administrationBatchLogged ||
     AuditAction.journalCreated ||
     AuditAction.journalUpdated ||
     AuditAction.journalDeleted ||

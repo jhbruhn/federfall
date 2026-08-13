@@ -20,11 +20,17 @@ class WorklistTile extends ConsumerWidget {
     required this.now,
     this.onTap,
     this.selected = false,
+    this.showDrug = true,
     super.key,
   });
 
   final WorklistItem item;
   final DateTime now;
+
+  /// Whether a medication row names its drug. False under a per-drug heading
+  /// (federfall-o3gz), where repeating the name on every row of the group says
+  /// nothing and crowds out the due time.
+  final bool showDrug;
 
   /// Overrides the default tap behaviour (deep-link to the case). Supplied by
   /// the wide-screen Today layout to drive its side detail pane instead.
@@ -64,7 +70,7 @@ class WorklistTile extends ConsumerWidget {
       leading: Icon(worklistIcon(item.kind)),
       title: Text(worklistItemTitle(l10n, item)),
       subtitle: Text(
-        worklistItemDetail(l10n, item, now),
+        worklistItemDetail(l10n, item, now, showDrug: showDrug),
         style: overdue
             ? theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.error,

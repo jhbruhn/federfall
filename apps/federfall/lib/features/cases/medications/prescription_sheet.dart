@@ -256,6 +256,11 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     return [widget.caseId, ..._alsoFor];
   }
 
+  /// Whether both halves of the rhythm are still blank — the one state in which
+  /// either may stay that way (see [_CycleDays]).
+  bool get _cycleUnset =>
+      _cycleOn.text.trim().isEmpty && _cycleOff.text.trim().isEmpty;
+
   /// The rhythm to save: both day counts, or (null, null).
   ///
   /// Only a plan on a real interval can carry one — a cycle qualifies "every N
@@ -668,6 +673,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                       controller: _cycleOn,
                       label: l10n.medCycleOnDays,
                       enabled: !isBusy,
+                      optional: _cycleUnset,
                       onChanged: (_) {
                         setState(() {});
                         _recomputeEnd();
@@ -680,6 +686,7 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                       controller: _cycleOff,
                       label: l10n.medCycleOffDays,
                       enabled: !isBusy,
+                      optional: _cycleUnset,
                       onChanged: (_) {
                         setState(() {});
                         _recomputeEnd();
@@ -688,6 +695,17 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                   ),
                 ],
               ),
+              // Says what the empty pair will do, since it now saves instead of
+              // blocking: a rhythm nobody filled in is no rhythm.
+              if (_cycleUnset) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  l10n.medCycleEmptyHint,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: _cycleRepeats,
@@ -845,20 +863,36 @@ class _GroupPicker extends ConsumerWidget {
 
 /// The frequency presets offered in the prescription form, each mapping to the
 /// structured (kind, interval-hours) stored on the plan.
-/// One half of the give/pause pair. Only ever built while the cycle is on, so
-/// it can require a positive number outright — half a rhythm is not a rhythm,
-/// and the server would silently ignore it.
+/// One half of the give/pause pair, validated AS a pair.
+///
+/// The two halves are only meaningful together — the server reads a half pair
+/// as no rhythm at all (1700000090) — so the rule is: both empty is fine (that
+/// is simply no cycle, saved as none), one filled makes the other required, and
+/// a number below 1 is refused with the reason rather than a bare "required".
+///
+/// Validating each field on its own is what made this a trap: switching the
+/// rhythm on and then thinking better of it left two empty, invalid fields and
+/// no way to save except finding the switch again. `0` is refused on purpose —
+/// a course with no pause is the switch being off, not a zero in a box — but
+/// the message has to say so, because "Pflichtfeld" on a field somebody has
+/// just cleared explains nothing.
 class _CycleDays extends StatelessWidget {
   const _CycleDays({
     required this.controller,
     required this.label,
     required this.enabled,
+    required this.optional,
     required this.onChanged,
   });
 
   final TextEditingController controller;
   final String label;
   final bool enabled;
+
+  /// Whether an empty value is acceptable here — true exactly while BOTH halves
+  /// are empty.
+  final bool optional;
+
   final ValueChanged<String> onChanged;
 
   @override
@@ -873,8 +907,10 @@ class _CycleDays extends StatelessWidget {
       enabled: enabled,
       onChanged: onChanged,
       validator: (v) {
-        final n = int.tryParse((v ?? '').trim());
-        return (n == null || n <= 0) ? l10n.fieldRequired : null;
+        final text = (v ?? '').trim();
+        if (text.isEmpty) return optional ? null : l10n.fieldRequired;
+        final n = int.tryParse(text);
+        return (n == null || n < 1) ? l10n.medCycleDaysMin : null;
       },
     );
   }

@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
+import 'package:federfall/features/cases/medications/batch_administration_sheet.dart';
 import 'package:federfall/features/cases/medications/cycle_preview.dart';
 import 'package:federfall/features/cases/medications/medication_products_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
@@ -8,6 +9,7 @@ import 'package:federfall/features/cases/medications/medication_tiles.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
+import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -21,6 +23,8 @@ class MockMedicationsRepo extends Mock implements PbMedicationsRepository {}
 
 class MockAdministrationsRepo extends Mock
     implements PbMedicationAdministrationsRepository {}
+
+class MockWeightsRepo extends Mock implements PbWeightsRepository {}
 
 /// Two other open cases the signed-in carer holds, for the group picker. The
 /// second bird is unnamed, so its row falls back to the species — the same
@@ -44,10 +48,12 @@ void main() {
 
   late MockMedicationsRepo medications;
   late MockAdministrationsRepo administrations;
+  late MockWeightsRepo weightsRepo;
 
   setUp(() {
     medications = MockMedicationsRepo();
     administrations = MockAdministrationsRepo();
+    weightsRepo = MockWeightsRepo();
   });
 
   Future<void> pump(
@@ -61,6 +67,7 @@ void main() {
       overrides: [
         weightsForCaseProvider('c1').overrideWith((ref) async => weights),
         prescribableCasesProvider('c1').overrideWith((ref) async => others),
+        weightsRepositoryProvider.overrideWith((ref) async => weightsRepo),
         activeMedicationProductsProvider.overrideWith((ref) async => catalogue),
         currentUserProvider.overrideWith(
           (ref) async =>
@@ -537,6 +544,95 @@ void main() {
     });
   });
 
+  // The give/pause pair is validated AS a pair. Validating each half on its own
+  // made the switch a trap: turn it on, think better of it, and the form could
+  // not be saved at all until you found the switch again.
+  group('PrescriptionSheet cycle pair', () {
+    Future<void> turnOnCycle(WidgetTester tester) async {
+      await tester.ensureVisible(find.text('Cyclic schedule'));
+      await tester.tap(find.text('Cyclic schedule'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the switch on with both halves empty saves as no rhythm', (
+      tester,
+    ) async {
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnCycle(tester);
+
+      // It says what the empty pair will do rather than blocking the save.
+      expect(find.text('Left empty, no rhythm is saved.'), findsOneWidget);
+      await save(tester);
+
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['cycle_on_days'], isNull);
+      expect(body['cycle_off_days'], isNull);
+    });
+
+    testWidgets('zero is refused, and the message says where the exit is', (
+      tester,
+    ) async {
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnCycle(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Days on'), '5');
+      await tester.enterText(find.widgetWithText(TextField, 'Days off'), '0');
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      expect(
+        find.text(
+          'At least 1 day — switch the rhythm off for a course with no pause.',
+        ),
+        findsOneWidget,
+      );
+      verifyNever(() => medications.create(any()));
+    });
+
+    testWidgets('one half filled makes the other required', (tester) async {
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnCycle(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Days on'), '5');
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      expect(find.text('This field is required'), findsOneWidget);
+      verifyNever(() => medications.create(any()));
+    });
+
+    testWidgets('clearing a filled pair is a way back out', (tester) async {
+      // The actual report: the fields could not be emptied again, so a plan
+      // that no longer wanted a rhythm could not be saved at all.
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnCycle(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Days on'), '5');
+      await tester.enterText(find.widgetWithText(TextField, 'Days off'), '2');
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Days on'), '');
+      await tester.enterText(find.widgetWithText(TextField, 'Days off'), '');
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['cycle_on_days'], isNull);
+    });
+  });
+
   // federfall-hqhg — nine birds on the same course is one decision, so it is
   // one write. The picker offers the carer's other open cases; ticking any of
   // them routes the save through the transactional endpoint instead of N
@@ -704,6 +800,191 @@ void main() {
 
       expect(
         find.text('You are not carrying any other open cases.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  // federfall-o3gz — giving one drug to a group is one act, but the AMOUNT is
+  // per bird: a rate is prescribed per kilogram, so nine birds on one course
+  // get nine different numbers.
+  group('BatchAdministrationSheet', () {
+    /// A due for [caseId] on a per-kilogram plan.
+    WorklistItem due(String caseId, {String drug = 'Ronidazol'}) =>
+        WorklistItem(
+          kind: WorklistKind.medicationDue,
+          caseId: caseId,
+          dueAt: DateTime(2026, 8, 12, 7),
+          severity: WorklistSeverity.overdue,
+          caseNumber: 'C-$caseId',
+          drug: drug,
+          medication: Medication(
+            id: 'plan-$caseId',
+            caseId: caseId,
+            drug: drug,
+            doseRate: 10,
+            doseUnit: 'mg',
+            concentrationPerMl: 100,
+          ),
+        );
+
+    Weight weight(
+      String caseId,
+      double grams, {
+      Duration age = Duration.zero,
+    }) => Weight(
+      id: 'w-$caseId',
+      animal: 'a-$caseId',
+      caseId: caseId,
+      weightG: grams,
+      measuredAt: DateTime.now().subtract(age),
+    );
+
+    Future<void> pumpRound(
+      WidgetTester tester,
+      List<WorklistItem> dues, {
+      List<Weight> weights = const [],
+      bool failWeights = false,
+    }) async {
+      if (failWeights) {
+        when(() => weightsRepo.byCases(any())).thenThrow(
+          const RepositoryException('nope', kind: RepositoryErrorKind.network),
+        );
+      } else {
+        when(() => weightsRepo.byCases(any())).thenAnswer((_) async => weights);
+      }
+      await pump(
+        tester,
+        BatchAdministrationSheet(
+          group: MedicationDueGroup(drug: dues.first.drug!, items: dues),
+        ),
+      );
+    }
+
+    testWidgets('each bird gets the amount its OWN weight derives', (
+      tester,
+    ) async {
+      when(
+        () => administrations.administerBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((_) async => 2);
+
+      await pumpRound(
+        tester,
+        [due('c1'), due('c2')],
+        weights: [weight('c1', 245), weight('c2', 300)],
+      );
+
+      // 10 mg/kg over 245 g and 300 g — two courses of one plan, two numbers.
+      expect(find.text('2.45'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+
+      final submit = find.widgetWithText(FilledButton, 'Log 2 doses');
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      final call = verify(
+        () => administrations.administerBatch(
+          captureAny(),
+          captureAny(),
+          idempotencyKey: captureAny(named: 'idempotencyKey'),
+        ),
+      ).captured;
+      final doses = call[0] as List<Map<String, dynamic>>;
+      expect(doses.map((d) => d['medication']), ['plan-c1', 'plan-c2']);
+      expect(doses.map((d) => d['dose']), [2.45, 3.0]);
+      // The derivation rides along, so the record can say which weight and
+      // which volume produced the amount.
+      expect(doses.first['weight_g_used'], 245);
+      expect(doses.first['volume_ml'], 0.0245);
+      // Only the moment is shared.
+      expect((call[1] as Map<String, dynamic>)['administered_at'], isNotEmpty);
+      expect(call[2], isNotEmpty);
+    });
+
+    testWidgets('a stale weight prefills nothing and says why', (tester) async {
+      // The one place a batch could silently dose nine birds off a number
+      // nobody checked — so it refuses to guess, exactly like the single-dose
+      // calculator.
+      await pumpRound(
+        tester,
+        [due('c1'), due('c2')],
+        weights: [
+          weight('c1', 245),
+          weight('c2', 300, age: const Duration(days: 5)),
+        ],
+      );
+
+      expect(find.text('2.45'), findsOneWidget);
+      expect(find.text('3'), findsNothing);
+      expect(
+        find.textContaining('is too old', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a bird never weighed says so instead of going blank', (
+      tester,
+    ) async {
+      await pumpRound(
+        tester,
+        [due('c1'), due('c2')],
+        weights: [
+          weight('c1', 245),
+        ],
+      );
+
+      expect(
+        find.text('No weight on record — enter the amount'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('unticking a bird drops it from the round', (tester) async {
+      when(
+        () => administrations.administerBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((_) async => 1);
+
+      await pumpRound(
+        tester,
+        [due('c1'), due('c2')],
+        weights: [weight('c1', 245), weight('c2', 300)],
+      );
+      await tester.tap(find.text('C-c2'));
+      await tester.pumpAndSettle();
+
+      final submit = find.widgetWithText(FilledButton, 'Log 1 dose');
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      final doses =
+          verify(
+                () => administrations.administerBatch(
+                  captureAny(),
+                  any(),
+                  idempotencyKey: any(named: 'idempotencyKey'),
+                ),
+              ).captured.single
+              as List<Map<String, dynamic>>;
+      expect(doses.map((d) => d['medication']), ['plan-c1']);
+    });
+
+    testWidgets('a failed weight fetch is stated, not silent', (tester) async {
+      // Every rate-based prefill is missing because of it, and a blank dose
+      // field with no explanation reads as "no dose needed".
+      await pumpRound(tester, [due('c1'), due('c2')], failWeights: true);
+
+      expect(
+        find.text('Weights could not be loaded — enter the amounts yourself.'),
         findsOneWidget,
       );
     });

@@ -3889,6 +3889,201 @@ def main():
           bp_detail.get("cases") == len(bp_detail.get("case_labels") or [])
           and bool(bp_detail.get("case_labels")), bp_detail)
 
+    # ── federfall-o3gz: batch administration ────────────────────────────────
+    # Giving the course is the act that RECURS — nine birds twice a day is ~126
+    # sheets a week. One transaction, all rows or none: a dose round half
+    # recorded reads as birds that did not get their medicine, which is what
+    # gets a second dose given.
+    print("\n[batch administration]")
+    # Fresh plans on the three cases from the block above, so their own dues
+    # cannot be perturbed by what was written there.
+    ba_plans = [
+        mk(T, "medications", {
+            "case": cid, "drug": "Ronidazol", "dose_rate": 10,
+            "dose_unit": "mg", "concentration_per_ml": 100,
+            "frequency_kind": "scheduled", "interval_hours": 24,
+            "route": route_oral, "org": ORG,
+            "started_at": "2026-08-11 08:00:00.000Z",
+        })["id"]
+        for cid in bp_cases
+    ]
+    # A case A genuinely cannot write: bp_foreign picked up an edit-share in the
+    # block above, which would make the refusal below pass for the wrong reason.
+    ba_locked_case = mk(T, "cases", {
+        "animal": mk(T, "animals", {"species": "Stadttaube", "name": "Fremdgabe",
+                                    "org": ORG})["id"],
+        "active_carer": B, "org": ORG,
+    })["id"]
+    ba_locked_plan = mk(T, "medications", {
+        "case": ba_locked_case, "drug": "Ronidazol", "org": ORG,
+    })["id"]
+    ba_org2_plan = mk(T, "medications", {
+        "case": bp_org2_case, "drug": "Ronidazol", "org": org2,
+    })["id"]
+    ba_url = "/api/federfall/administer-batch"
+    BA_ROUND = {"administered_at": "2026-08-12 07:30:00.000Z",
+                "notes": "morgens, alle ruhig"}
+
+    def ba_doses(plans, dose=2.45):
+        return [{"medication": p, "dose": dose, "weight_g_used": 245,
+                 "volume_ml": 0.0245} for p in plans]
+
+    ba_logged_before = len(
+        listf(T, "audit_events", 'action = "administration.logged"'))
+
+    s, _ = req("POST", ba_url, None, {"doses": ba_doses(ba_plans),
+                                      "administration": BA_ROUND})
+    check("batch administration requires auth", s == 401, f"status {s}")
+    s, _ = req("POST", ba_url, gtok, {"doses": ba_doses(ba_plans),
+                                      "administration": BA_ROUND})
+    check("guest CANNOT log a dose round", s == 403, f"status {s}")
+    s, _ = req("POST", ba_url, toks["a"], {"doses": [],
+                                           "administration": BA_ROUND})
+    check("an empty round is rejected", s == 400, f"status {s}")
+    s, _ = req("POST", ba_url, toks["a"], {"doses": [{"dose": 1}],
+                                           "administration": BA_ROUND})
+    check("a dose that names no prescription is rejected", s == 400,
+          f"status {s}")
+    s, _ = req("POST", ba_url, toks["a"], {
+        "doses": ba_doses(ba_plans, dose=-1), "administration": BA_ROUND,
+    })
+    check("a negative amount is rejected", s == 400, f"status {s}")
+
+    s, ba = req("POST", ba_url, toks["a"], {
+        "doses": ba_doses(ba_plans), "administration": BA_ROUND,
+        "idempotency_key": "ba-key-1",
+    })
+    check("the carer logs the whole round in one call",
+          s == 200 and ba.get("created") == 3, f"{s} {ba}")
+    ba_rows = listf(T, "medication_administrations",
+                    f'medication = "{ba_plans[0]}"')
+    check("every bird got its own row, with its own amount and derivation",
+          len(ba_rows) == 1 and ba_rows[0]["dose"] == 2.45
+          and ba_rows[0]["weight_g_used"] == 245
+          and ba_rows[0]["volume_ml"] == 0.0245, ba_rows)
+    check("...drug, unit and route come from the PLAN, not the body",
+          ba_rows and ba_rows[0]["drug"] == "Ronidazol"
+          and ba_rows[0]["dose_unit"] == "mg"
+          and ba_rows[0]["route"] == route_oral, ba_rows)
+    check("...case and giver come from the plan and the session",
+          ba_rows and ba_rows[0]["case"] == bp_cases[0]
+          and ba_rows[0]["administered_by"] == A
+          and ba_rows[0]["org"] == ORG, ba_rows)
+    # The whole reason the round exists: next-due moves on for every bird.
+    _, ba_due = req("GET", "/api/collections/medication_due/records"
+                    "?perPage=200", toks["a"])
+    ba_next = {r["id"]: r.get("next_due") for r in (ba_due.get("items") or [])}
+    check("each plan's next dose is now derived from the dose just given",
+          all(str(ba_next.get(p, "")).startswith("2026-08-13")
+              for p in ba_plans),
+          {p: ba_next.get(p) for p in ba_plans})
+
+    # A body that tries to dictate the drug is ignored, not honoured: a dose row
+    # must never be able to disagree with the plan it names.
+    s, _ = req("POST", ba_url, toks["a"], {
+        "doses": [{"medication": ba_plans[0], "dose": 1, "drug": "Aspirin",
+                   "case": bp_foreign, "administered_by": B, "org": org2}],
+        "administration": {"administered_at": "2026-08-12 19:00:00.000Z"},
+    })
+    ba_spoof = listf(T, "medication_administrations",
+                     f'medication = "{ba_plans[0]}" && dose = 1')
+    check("drug/case/giver/org in the body are ignored",
+          s == 200 and len(ba_spoof) == 1
+          and ba_spoof[0]["drug"] == "Ronidazol"
+          and ba_spoof[0]["case"] == bp_cases[0]
+          and ba_spoof[0]["administered_by"] == A
+          and ba_spoof[0]["org"] == ORG, ba_spoof)
+
+    # Idempotency: a retried round must not read as the group dosed twice.
+    s, ba2 = req("POST", ba_url, toks["a"], {
+        "doses": ba_doses(ba_plans), "administration": BA_ROUND,
+        "idempotency_key": "ba-key-1",
+    })
+    check("a replayed round returns the SAME rows", s == 200 and ba2 == ba,
+          f"{s} {ba2}")
+    check("...and writes no second dose",
+          len(listf(T, "medication_administrations",
+                    f'medication = "{ba_plans[0]}" && dose = 2.45')) == 1)
+
+    # A refusal leaves NOTHING behind.
+    s, d = req("POST", ba_url, toks["a"], {
+        "doses": ba_doses(ba_plans + [ba_locked_plan], dose=3.33),
+        "administration": BA_ROUND,
+    })
+    check("a round naming a case the caller cannot write is refused",
+          s == 403, f"{s} {d}")
+    check("...and the doses it COULD have written stay untouched",
+          not listf(T, "medication_administrations", "dose = 3.33"))
+    s, d = req("POST", ba_url, toks["a"], {
+        "doses": ba_doses([ba_plans[0], "doesnotexist000"], dose=4.44),
+        "administration": BA_ROUND,
+    })
+    check("an unknown prescription refuses the round whole", s == 400,
+          f"{s} {d}")
+    check("...leaving nothing behind either",
+          not listf(T, "medication_administrations", "dose = 4.44"))
+    s, _ = req("POST", ba_url, toks["a"], {
+        "doses": ba_doses([ba_org2_plan]), "administration": BA_ROUND,
+    })
+    check("another org's prescription cannot be dosed", s >= 400,
+          f"status {s}")
+
+    # A dose with no amount at all is legitimate — a tablet has no number.
+    s, ban = req("POST", ba_url, toks["a"], {
+        "doses": [{"medication": ba_plans[2]}],
+        "administration": {"administered_at": "2026-08-12 20:00:00.000Z",
+                           "notes": "eine Tablette"},
+    })
+    ba_none = listf(T, "medication_administrations",
+                    'notes = "eine Tablette"')
+    check("a dose without an amount is still a dose",
+          s == 200 and ban.get("created") == 1 and len(ba_none) == 1,
+          f"{s} {ban} {ba_none}")
+
+    # No timestamp means now, rather than losing a dose already given.
+    s, _ = req("POST", ba_url, toks["a"], {
+        "doses": [{"medication": ba_plans[2], "dose": 9.99}],
+        "administration": {"notes": "ohne Zeitstempel"},
+    })
+    ba_now = listf(T, "medication_administrations", "dose = 9.99")
+    check("an omitted timestamp defaults to now",
+          s == 200 and len(ba_now) == 1
+          and bool(ba_now[0]["administered_at"]), ba_now)
+
+    # A plan named twice is one dose: two rows at the same instant would read as
+    # a double dose.
+    s, bad = req("POST", ba_url, toks["a"], {
+        "doses": ba_doses([ba_plans[0], ba_plans[0]], dose=5.55),
+        "administration": BA_ROUND,
+    })
+    check("a prescription named twice is dosed once",
+          s == 200 and bad.get("created") == 1, f"{s} {bad}")
+
+    # A supervisor overrides, as in every other custody branch here.
+    s, bas = req("POST", ba_url, toks["sup"], {
+        "doses": ba_doses([ba_locked_plan], dose=6.66),
+        "administration": BA_ROUND,
+    })
+    check("a supervisor can dose another carer's case",
+          s == 200 and bas.get("created") == 1, f"{s} {bas}")
+
+    # ONE audit event per round, with the cases NAMED (federfall-qt96).
+    ba_events = listf(T, "audit_events",
+                      'action = "administration.batch_logged"')
+    ba_logged_after = len(
+        listf(T, "audit_events", 'action = "administration.logged"'))
+    # Six committed calls: the round of three, the spoof attempt, the amountless
+    # dose, the one with no timestamp, the duplicate, the supervisor's. The
+    # replay committed nothing.
+    check("the round is audited as one event per call, not as N doses",
+          len(ba_events) == 6 and ba_logged_after == ba_logged_before,
+          f"{len(ba_events)} round events, "
+          f"{ba_logged_after - ba_logged_before} row events")
+    ba_detail = (ba_events[0] or {}).get("detail") or {} if ba_events else {}
+    check("...naming the cases it dosed and the drug it gave",
+          ba_detail.get("doses") == len(ba_detail.get("case_labels") or [])
+          and "Ronidazol" in (ba_detail.get("drug_labels") or []), ba_detail)
+
     # ── federfall-zod: atomic intake route + cases.finder lock ──────────────
     print("\n[atomic intake route]")
     s, _ = req("POST", "/api/federfall/intake", None, {"species": "Stadttaube"})
