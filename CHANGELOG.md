@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.4.0](https://github.com/jhbruhn/federfall/compare/v1.3.0...v1.4.0) (2026-08-13)
+
+
+### Features
+
+* **dashboard:** a dose round is offered where the work is first seen ([492a237](https://github.com/jhbruhn/federfall/commit/492a237b1f3958eabf757b22985a6a0ef8f298db))
+* **medications:** a prescription can carry a give/pause rhythm ([798917d](https://github.com/jhbruhn/federfall/commit/798917d8646ac32c3933047b3bf62c4a543b07e0))
+* **medications:** a whole dose round goes in with one tap ([d2d37fb](https://github.com/jhbruhn/federfall/commit/d2d37fb3c211bd6bda387e9f2c9d6f5cb2ca727e))
+* **medications:** one course reaches a whole group in one write ([4a53136](https://github.com/jhbruhn/federfall/commit/4a531369327e3128d7439ea5b43f09be9eb1953b))
+* **medications:** the catalogue carries the course length, and the cycle is drawn ([ad3e7f6](https://github.com/jhbruhn/federfall/commit/ad3e7f604c98370641119574451605ab1932ea28))
+* **medications:** the cycle preview draws the whole course, not one round ([dd6424e](https://github.com/jhbruhn/federfall/commit/dd6424e1bb70c2ba8890f21a8a1a95f9032354d6))
+
+
+### Bug Fixes
+
+* **backend:** 1700000089 repairs the boundary freeze instead of refusing to boot ([aa8849f](https://github.com/jhbruhn/federfall/commit/aa8849ff8ed94930e503d21d9e7874547361c513))
+* **medications:** an unset rhythm is no rhythm, not two zeroes ([c894794](https://github.com/jhbruhn/federfall/commit/c8947946a24b49fe82ce9cce41982a59a1c97cc9))
+
 ## [1.3.0](https://github.com/jhbruhn/federfall/compare/v1.2.0...v1.3.0) (2026-08-11)
 
 
