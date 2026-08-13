@@ -1,4 +1,5 @@
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/medications/cycle_preview.dart';
 import 'package:federfall/features/cases/medications/dose_calculator_panel.dart';
@@ -6,8 +7,10 @@ import 'package:federfall/features/cases/medications/medication_products_provide
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
+import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -73,6 +76,21 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   /// only in memory: it supplies defaults and the advisory range, and the plan
   /// itself stands on its own numbers afterwards.
   MedicationProduct? _product;
+
+  /// Whether this course is being written for a group (federfall-hqhg).
+  /// Offered only when creating: a course diverges the moment one bird comes
+  /// off it, so there is no batch EDIT — nine rows are nine prescriptions.
+  bool _forGroup = false;
+
+  /// The OTHER cases ticked for the batch. This sheet's own case is always in
+  /// it and never listed, so an empty set means an ordinary single save.
+  final _alsoFor = <String>{};
+
+  /// One key for this sheet's whole lifetime: pressing save again after a
+  /// timeout resubmits the SAME key, so the server replays the committed batch
+  /// instead of prescribing the course twice — which would make every dose fall
+  /// due twice on the worklist.
+  final String _idempotencyKey = newIdempotencyKey();
 
   bool get _isEditing => widget.plan != null;
 
@@ -209,15 +227,33 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       };
 
       final plan = widget.plan;
-      if (plan == null) {
+      final group = _batchCases;
+      if (plan != null) {
+        await repo.update(plan.id, body);
+      } else if (group == null) {
         await repo.create({...body, 'case': widget.caseId, 'org': org});
       } else {
-        await repo.update(plan.id, body);
+        // One transaction for the whole group, this case included: N saves from
+        // here would leave a course half prescribed on a dropped connection,
+        // and a bird with no row is a bird that never comes up as due.
+        await repo.prescribeBatch(group, body, idempotencyKey: _idempotencyKey);
+        for (final id in group) {
+          ref.invalidate(caseBundleProvider(id));
+        }
+        // The other cases' doses are now due on the worklist too.
+        ref.invalidate(worklistSourceProvider);
       }
 
       ref.invalidate(caseBundleProvider(widget.caseId));
     });
     if (ok && mounted) Navigator.of(context).pop(true);
+  }
+
+  /// The cases this save covers as a batch — this sheet's own first — or null
+  /// when it is an ordinary single-case create/edit.
+  List<String>? get _batchCases {
+    if (_isEditing || !_forGroup || _alsoFor.isEmpty) return null;
+    return [widget.caseId, ..._alsoFor];
   }
 
   /// The rhythm to save: both day counts, or (null, null).
@@ -414,7 +450,53 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
         isBusy: isBusy,
         error: saveError,
         onSave: _save,
+        saveLabel: _batchCases == null
+            ? null
+            : l10n.prescriptionBatchSaveAction(_batchCases!.length),
         children: [
+          // The group comes FIRST because it changes what everything below
+          // means: these fields are one course, and this is who is on it.
+          // Only when creating — see [_forGroup].
+          if (!_isEditing) ...[
+            _SectionTitle(l10n.medSectionGroup),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.prescriptionBatch),
+              subtitle: Text(l10n.prescriptionBatchHelp),
+              value: _forGroup,
+              onChanged: isBusy
+                  ? null
+                  : (v) {
+                      setState(() {
+                        _forGroup = v;
+                        // Switching it off drops the selection rather than
+                        // keeping a hidden group that a later switch-on would
+                        // silently restore into a save.
+                        if (!v) _alsoFor.clear();
+                      });
+                      markDirty();
+                    },
+            ),
+            if (_forGroup) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _GroupPicker(
+                exceptCaseId: widget.caseId,
+                selected: _alsoFor,
+                enabled: !isBusy,
+                onToggle: (id, {required on}) {
+                  setState(() {
+                    if (on) {
+                      _alsoFor.add(id);
+                    } else {
+                      _alsoFor.remove(id);
+                    }
+                  });
+                  markDirty();
+                },
+              ),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+          ],
           _SectionTitle(l10n.medSectionDrug),
           // The catalogue is a prefill, never a constraint: the drug below
           // stays free text so an unlisted preparation is still prescribable.
@@ -690,6 +772,73 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The other cases this course can be written for at the same time
+/// (federfall-hqhg) — the carer's own active ones, none preselected.
+///
+/// Nothing is ticked by default, unlike the batch-vaccination roster: that one
+/// starts from an enclosure whose residents are all in front of the keeper,
+/// while this list is a caseload. Preselecting it would put every bird in care
+/// on a course by default, which is the one mistake this screen must not make
+/// easy.
+class _GroupPicker extends ConsumerWidget {
+  const _GroupPicker({
+    required this.exceptCaseId,
+    required this.selected,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  final String exceptCaseId;
+  final Set<String> selected;
+  final bool enabled;
+  final void Function(String caseId, {required bool on}) onToggle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final cases = ref.watch(prescribableCasesProvider(exceptCaseId));
+
+    // A load failure must not render as "no other cases" — route through the
+    // standard error state with a retry (federfall-5cle).
+    return AsyncValueView<List<PrescribableCase>>(
+      value: cases,
+      onRetry: () => ref.invalidate(prescribableCasesProvider(exceptCaseId)),
+      loading: const LinearProgressIndicator(),
+      data: (cases) => cases.isEmpty
+          ? Text(
+              l10n.prescriptionBatchNoOthers,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          : Column(
+              children: [
+                for (final c in cases)
+                  CheckboxListTile(
+                    value: selected.contains(c.caseRecord.id),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    // The same case-number · bird-name title the worklist
+                    // gives a row, so the two lists read alike.
+                    title: Text(
+                      caseTitleLabel(
+                        l10n,
+                        caseNumber: c.caseRecord.caseNumber,
+                        animalName: c.label,
+                      ),
+                    ),
+                    subtitle: c.animal == null ? null : Text(c.animal!.species),
+                    onChanged: enabled
+                        ? (v) => onToggle(c.caseRecord.id, on: v ?? false)
+                        : null,
+                  ),
+              ],
+            ),
     );
   }
 }

@@ -3701,6 +3701,194 @@ def main():
           and "Impfling 0" in (bv_detail.get("animal_labels") or []),
           bv_detail)
 
+    # ── federfall-hqhg: batch prescription ──────────────────────────────────
+    # Nine birds on the same course is ONE decision, so it is one transaction.
+    # Sharper than the flock above: a prescription says what happens NEXT, so a
+    # case whose row went missing is never offered as due and the bird is simply
+    # never treated.
+    print("\n[batch prescription]")
+    bp_cases = [
+        mk(T, "cases", {
+            "animal": mk(T, "animals", {"species": "Stadttaube",
+                                        "name": f"Kur {i}", "org": ORG})["id"],
+            "active_carer": A, "org": ORG,
+        })["id"]
+        for i in range(3)
+    ]
+    # A case in the same org that A does not carry — the reason for the
+    # per-case check.
+    bp_foreign = mk(T, "cases", {
+        "animal": mk(T, "animals", {"species": "Stadttaube", "name": "Fremdkur",
+                                    "org": ORG})["id"],
+        "active_carer": B, "org": ORG,
+    })["id"]
+    bp_org2_case = mk(T, "cases", {"animal": animal_org2, "org": org2})["id"]
+    # Created rather than looked up: the seeded code list belongs to whichever
+    # orgs existed when 1700000041 ran, and org2 is made by this suite.
+    route_oral = mk(T, "medication_routes", {"label": "Oral (Kur)",
+                                             "org": ORG})["id"]
+    route_org2 = mk(T, "medication_routes", {"label": "Oral (fremd)",
+                                             "org": org2})["id"]
+    BP_PLAN = {
+        "drug": "Baycox", "dose_rate": 7, "dose_unit": "mg",
+        "concentration_per_ml": 25, "frequency_kind": "scheduled",
+        "interval_hours": 24, "cycle_on_days": 2, "cycle_off_days": 5,
+        "started_at": "2026-08-11 08:00:00.000Z",
+        # Far future on purpose: `medication_due` drops a plan whose end has
+        # passed, so a date near this suite's writing would make the due check
+        # below start failing on its own one day.
+        "ended_at": "2099-12-31 08:00:00.000Z",
+        "route": route_oral, "is_controlled": True,
+        "instructions": "in den Schnabel", "prescribed_by": "TA Müller",
+    }
+    bp_url = "/api/federfall/prescribe-batch"
+    # The per-row count BEFORE any batch: rows written through the collection
+    # API elsewhere in this suite DID emit medication.prescribed, so "the batch
+    # emits none" is only assertable as a difference.
+    bp_rows_before = len(
+        listf(T, "audit_events", 'action = "medication.prescribed"'))
+
+    s, _ = req("POST", bp_url, None, {"cases": bp_cases, "medication": BP_PLAN})
+    check("batch prescribing requires auth", s == 401, f"status {s}")
+    s, _ = req("POST", bp_url, gtok, {"cases": bp_cases, "medication": BP_PLAN})
+    check("guest CANNOT prescribe a batch", s == 403, f"status {s}")
+    s, _ = req("POST", bp_url, toks["a"], {"cases": [], "medication": BP_PLAN})
+    check("an empty batch is rejected", s == 400, f"status {s}")
+    s, _ = req("POST", bp_url, toks["a"], {"cases": bp_cases,
+                                           "medication": {"dose": 1}})
+    check("a batch without a drug is rejected", s == 400, f"status {s}")
+    s, _ = req("POST", bp_url, toks["a"], {
+        "cases": bp_cases,
+        "medication": dict(BP_PLAN, frequency_kind="hourly"),
+    })
+    check("an unknown frequency kind is rejected", s == 400, f"status {s}")
+    s, _ = req("POST", bp_url, toks["a"], {
+        "cases": bp_cases, "medication": dict(BP_PLAN, dose_rate=-1),
+    })
+    check("a negative rate is rejected", s == 400, f"status {s}")
+
+    s, bp = req("POST", bp_url, toks["a"], {
+        "cases": bp_cases, "medication": BP_PLAN,
+        "idempotency_key": "bp-key-1",
+    })
+    check("the carer prescribes one course to the whole group in one call",
+          s == 200 and bp.get("created") == 3, f"{s} {bp}")
+    bp_written = listf(T, "medications", f'case = "{bp_cases[0]}"')
+    check("every case got the shared plan, rhythm and all",
+          len(bp_written) == 1 and bp_written[0]["drug"] == "Baycox"
+          and bp_written[0]["dose_rate"] == 7
+          and bp_written[0]["cycle_on_days"] == 2
+          and bp_written[0]["cycle_off_days"] == 5
+          and bp_written[0]["is_controlled"] is True
+          and bp_written[0]["route"] == route_oral,
+          bp_written)
+    check("...org comes from the session, never from the body",
+          bp_written and bp_written[0]["org"] == ORG, bp_written)
+    # The point of the whole route for the worklist: each row is its own plan,
+    # so `medication_due` can answer per case.
+    _, bp_due = req("GET", "/api/collections/medication_due/records"
+                    "?perPage=200", toks["a"])
+    bp_due_ids = {r["case_id"] for r in (bp_due.get("items") or [])}
+    check("all three come up as due in their own right",
+          set(bp_cases) <= bp_due_ids, bp_due_ids)
+
+    # Idempotency (federfall-3ty3's shape): a doubled plan means every dose
+    # falls due twice, so a retry must replay rather than write again.
+    s, bp2 = req("POST", bp_url, toks["a"], {
+        "cases": bp_cases, "medication": BP_PLAN,
+        "idempotency_key": "bp-key-1",
+    })
+    check("a replayed batch returns the SAME rows", s == 200 and bp2 == bp,
+          f"{s} {bp2}")
+    check("...and writes no second plan",
+          len(listf(T, "medications", f'case = "{bp_cases[0]}"')) == 1)
+
+    # A refusal leaves NOTHING behind — the reason the route exists.
+    s, d = req("POST", bp_url, toks["a"], {
+        "cases": bp_cases + [bp_foreign],
+        "medication": dict(BP_PLAN, drug="Refused-A"),
+    })
+    check("a batch naming a case the caller cannot write is refused",
+          s == 403, f"{s} {d}")
+    check("...and the cases it COULD have written stay untouched",
+          not listf(T, "medications", 'drug = "Refused-A"'))
+    s, d = req("POST", bp_url, toks["a"], {
+        "cases": [bp_cases[0], "doesnotexist000"],
+        "medication": dict(BP_PLAN, drug="Refused-B"),
+    })
+    check("an unknown case refuses the batch whole", s == 400, f"{s} {d}")
+    check("...leaving nothing behind either",
+          not listf(T, "medications", 'drug = "Refused-B"'))
+    # Cross-org is "unknown", not "forbidden": naming another org's row must not
+    # confirm that it exists.
+    s, _ = req("POST", bp_url, toks["a"], {"cases": [bp_org2_case],
+                                           "medication": BP_PLAN})
+    check("another org's case cannot be prescribed for", s >= 400,
+          f"status {s}")
+    # A route from another org is equally unknown — org_scope.pb.js's check,
+    # restated because a route bypasses the rules that would make it.
+    s, _ = req("POST", bp_url, toks["a"], {
+        "cases": bp_cases, "medication": dict(BP_PLAN, route=route_org2),
+    })
+    check("a route from another org is refused", s == 400, f"status {s}")
+
+    # An outsider gets nowhere; a supervisor overrides, and so does an
+    # edit-share — the three branches of the `medications` create rule.
+    s, _ = req("POST", bp_url, toks["d"], {"cases": bp_cases,
+                                           "medication": BP_PLAN})
+    check("a member carrying none of the cases CANNOT prescribe for them",
+          s == 403, f"status {s}")
+    s, bps = req("POST", bp_url, toks["sup"], {
+        "cases": [bp_foreign], "medication": dict(BP_PLAN, drug="Sup-Kur"),
+    })
+    check("a supervisor can prescribe on another carer's case",
+          s == 200 and bps.get("created") == 1, f"{s} {bps}")
+    mk(T, "case_shares", {"case": bp_foreign, "shared_with": A,
+                          "shared_by": B, "access": "edit", "org": ORG})
+    s, bpe = req("POST", bp_url, toks["a"], {
+        "cases": [bp_foreign], "medication": dict(BP_PLAN, drug="Share-Kur"),
+    })
+    check("an edit-share is enough to prescribe",
+          s == 200 and bpe.get("created") == 1, f"{s} {bpe}")
+
+    # Duplicates mean the case once: two identical plans on one case would show
+    # the same dose due twice.
+    s, bpd = req("POST", bp_url, toks["a"], {
+        "cases": [bp_cases[0], bp_cases[0]],
+        "medication": dict(BP_PLAN, drug="Doppel"),
+    })
+    check("a case named twice is prescribed for once",
+          s == 200 and bpd.get("created") == 1, f"{s} {bpd}")
+
+    # Half a rhythm is no rhythm — the reading medication_due takes of the
+    # stored pair (1700000090), restated so the two cannot disagree.
+    s, _ = req("POST", bp_url, toks["a"], {
+        "cases": [bp_cases[1]],
+        "medication": dict(BP_PLAN, drug="Halb", cycle_off_days=""),
+    })
+    bp_half = listf(T, "medications", 'drug = "Halb"')
+    check("half a cycle is stored as no cycle at all",
+          s == 200 and len(bp_half) == 1
+          and not bp_half[0]["cycle_on_days"]
+          and not bp_half[0]["cycle_off_days"], bp_half)
+
+    # ONE audit event for the act, with the cases NAMED — an id in an audit row
+    # is a bug unless a label sits beside it (federfall-qt96).
+    bp_events = listf(T, "audit_events",
+                      'action = "medication.batch_prescribed"')
+    bp_rows_after = len(
+        listf(T, "audit_events", 'action = "medication.prescribed"'))
+    # Five committed calls: the group of three, the supervisor's, the
+    # edit-share's, the duplicate, the half-cycle. The replay committed nothing.
+    check("the batch is audited as one event per call, not as N creates",
+          len(bp_events) == 5 and bp_rows_after == bp_rows_before,
+          f"{len(bp_events)} batch events, "
+          f"{bp_rows_after - bp_rows_before} row events")
+    bp_detail = (bp_events[0] or {}).get("detail") or {} if bp_events else {}
+    check("...naming every case it prescribed for",
+          bp_detail.get("cases") == len(bp_detail.get("case_labels") or [])
+          and bool(bp_detail.get("case_labels")), bp_detail)
+
     # ── federfall-zod: atomic intake route + cases.finder lock ──────────────
     print("\n[atomic intake route]")
     s, _ = req("POST", "/api/federfall/intake", None, {"species": "Stadttaube"})

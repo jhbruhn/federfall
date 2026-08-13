@@ -5,6 +5,7 @@ import 'package:federfall/features/cases/medications/cycle_preview.dart';
 import 'package:federfall/features/cases/medications/medication_products_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
+import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -21,8 +22,25 @@ class MockMedicationsRepo extends Mock implements PbMedicationsRepository {}
 class MockAdministrationsRepo extends Mock
     implements PbMedicationAdministrationsRepository {}
 
+/// Two other open cases the signed-in carer holds, for the group picker. The
+/// second bird is unnamed, so its row falls back to the species — the same
+/// title the worklist builds.
+const _others = [
+  PrescribableCase(
+    caseRecord: Case(id: 'c2', animal: 'a2', caseNumber: 'C-2'),
+    animal: Animal(id: 'a2', species: 'Rock pigeon', name: 'Bruno'),
+  ),
+  PrescribableCase(
+    caseRecord: Case(id: 'c3', animal: 'a3', caseNumber: 'C-3'),
+    animal: Animal(id: 'a3', species: 'Rock pigeon'),
+  ),
+];
+
 void main() {
-  setUpAll(() => registerFallbackValue(<String, dynamic>{}));
+  setUpAll(() {
+    registerFallbackValue(<String, dynamic>{});
+    registerFallbackValue(<String>[]);
+  });
 
   late MockMedicationsRepo medications;
   late MockAdministrationsRepo administrations;
@@ -37,10 +55,12 @@ void main() {
     Widget child, {
     List<Weight> weights = const [],
     List<MedicationProduct> catalogue = const [],
+    List<PrescribableCase> others = const [],
   }) async {
     final container = ProviderContainer(
       overrides: [
         weightsForCaseProvider('c1').overrideWith((ref) async => weights),
+        prescribableCasesProvider('c1').overrideWith((ref) async => others),
         activeMedicationProductsProvider.overrideWith((ref) async => catalogue),
         currentUserProvider.overrideWith(
           (ref) async =>
@@ -514,6 +534,178 @@ void main() {
       expect(valueOf('Start')!.isAtSameMomentAs(started), isTrue);
       expect(valueOf('Active until')!.isUtc, isFalse);
       expect(valueOf('Active until')!.isAtSameMomentAs(ended), isTrue);
+    });
+  });
+
+  // federfall-hqhg — nine birds on the same course is one decision, so it is
+  // one write. The picker offers the carer's other open cases; ticking any of
+  // them routes the save through the transactional endpoint instead of N
+  // creates, and this sheet's own case rides along in the same batch.
+  group('PrescriptionSheet group prescribing', () {
+    Future<void> turnOnGroup(WidgetTester tester) async {
+      await tester.ensureVisible(find.text('Also for other cases'));
+      await tester.tap(find.text('Also for other cases'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('one course reaches every ticked case in one request', (
+      tester,
+    ) async {
+      when(
+        () => medications.prescribeBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((_) async => 3);
+
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        others: _others,
+      );
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnGroup(tester);
+      await tester.tap(find.text('C-2 · Bruno'));
+      await tester.tap(find.text('C-3 · Rock pigeon'));
+      await tester.pumpAndSettle();
+
+      // The button counts the whole batch, this case included — three, not the
+      // two that were ticked.
+      final submit = find.widgetWithText(FilledButton, 'Add for 3 cases');
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      final call = verify(
+        () => medications.prescribeBatch(
+          captureAny(),
+          captureAny(),
+          idempotencyKey: captureAny(named: 'idempotencyKey'),
+        ),
+      ).captured;
+      expect(call[0], ['c1', 'c2', 'c3']);
+      expect((call[1] as Map<String, dynamic>)['drug'], 'Baycox');
+      // `case` and `org` are the server's to set on a batch, unlike a create.
+      expect((call[1] as Map<String, dynamic>).containsKey('case'), isFalse);
+      // A retry after a timeout must replay the committed batch, not double it.
+      expect(call[2], isNotEmpty);
+      verifyNever(() => medications.create(any()));
+    });
+
+    testWidgets('the group switch alone is not a batch', (tester) async {
+      // Turning it on and ticking nobody means one prescription for this case.
+      // The batch route would accept a single case, but going through it would
+      // record the act as a group prescription in the audit log.
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        others: _others,
+      );
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnGroup(tester);
+      await save(tester);
+
+      verify(() => medications.create(any())).called(1);
+      verifyNever(
+        () => medications.prescribeBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      );
+    });
+
+    testWidgets('unticking a case drops it from the batch', (tester) async {
+      when(
+        () => medications.prescribeBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((_) async => 2);
+
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        others: _others,
+      );
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnGroup(tester);
+      await tester.tap(find.text('C-2 · Bruno'));
+      await tester.tap(find.text('C-3 · Rock pigeon'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('C-3 · Rock pigeon'));
+      await tester.pumpAndSettle();
+
+      final submit = find.widgetWithText(FilledButton, 'Add for 2 cases');
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      final cases = verify(
+        () => medications.prescribeBatch(
+          captureAny(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).captured.single;
+      expect(cases, ['c1', 'c2']);
+    });
+
+    testWidgets('switching the group off forgets what was ticked', (
+      tester,
+    ) async {
+      // A hidden selection that a later switch-on restores would put birds on a
+      // course the carer had visibly taken them off.
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        others: _others,
+      );
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnGroup(tester);
+      await tester.tap(find.text('C-2 · Bruno'));
+      await tester.pumpAndSettle();
+      await turnOnGroup(tester);
+      await turnOnGroup(tester);
+
+      expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+      await save(tester);
+      verify(() => medications.create(any())).called(1);
+    });
+
+    testWidgets('editing a plan offers no group at all', (tester) async {
+      // A course diverges the moment one bird comes off it, so there is no
+      // batch edit — nine rows are nine prescriptions.
+      await pump(
+        tester,
+        const PrescriptionSheet(
+          caseId: 'c1',
+          plan: Medication(id: 'm1', caseId: 'c1', drug: 'Baycox'),
+        ),
+        others: _others,
+      );
+
+      expect(find.text('Also for other cases'), findsNothing);
+    });
+
+    testWidgets('a carer with no other open cases is told so', (tester) async {
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await turnOnGroup(tester);
+
+      expect(
+        find.text('You are not carrying any other open cases.'),
+        findsOneWidget,
+      );
     });
   });
 

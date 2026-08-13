@@ -159,6 +159,64 @@ class PbMedicationsRepository extends PbRepository<Medication> {
     sort: '-started_at',
   );
 
+  /// Prescribes one shared plan to [caseIds], atomically, via
+  /// `POST /api/federfall/prescribe-batch` (federfall-hqhg). Returns how many
+  /// rows were written.
+  ///
+  /// Not a client-side loop, for the reason [PbVaccinationsRepository
+  /// .vaccinateBatch] gives, and one more: a prescription says what happens
+  /// NEXT, so a bird whose row went missing is not merely unrecorded — it is
+  /// never offered on the worklist, and so never treated.
+  ///
+  /// [payload] carries the shared plan (`drug` required); `case` and `org` are
+  /// the server's to set. The route refuses the WHOLE batch if the caller may
+  /// not write any one of the cases, so callers offer only cases they carry —
+  /// the server check is the backstop for a handover that happens mid-sheet.
+  ///
+  /// Each case gets its OWN row, editable and endable on its own: there is
+  /// deliberately no shared prescription and no batch edit, because a course
+  /// diverges the moment one bird comes off it.
+  Future<int> prescribeBatch(
+    List<String> caseIds,
+    Map<String, dynamic> payload, {
+    String? idempotencyKey,
+  }) async {
+    try {
+      final res = await pb
+          .send<Map<String, dynamic>>(
+            '/api/federfall/prescribe-batch',
+            method: 'POST',
+            body: {
+              'cases': caseIds,
+              'medication': payload,
+              'idempotency_key': ?idempotencyKey,
+            },
+          )
+          .timeout(networkTimeout);
+      final created = res['created'];
+      return created is int ? created : caseIds.length;
+    } on TimeoutException {
+      // The request left the device; a slow server may still commit the batch.
+      // With an idempotency key a resubmission converges on the committed
+      // result, so it is an ordinary network error; without one, retrying would
+      // prescribe the course twice — and a doubled plan means every dose falls
+      // due twice.
+      if (idempotencyKey != null) {
+        throw const RepositoryException(
+          'The server did not respond in time',
+          kind: RepositoryErrorKind.network,
+        );
+      }
+      throw const RepositoryException(
+        'The server did not respond in time — the prescriptions may or may '
+        'not have been saved',
+        kind: RepositoryErrorKind.unknownOutcome,
+      );
+    } on ClientException catch (e) {
+      throw RepositoryException.fromClient(e);
+    }
+  }
+
   /// How many prescriptions still name the [routeId] code-list entry — one of
   /// the three collections a `medication_routes` delete would blank, since
   /// `route` is an optional relation with `cascadeDelete: false` (same

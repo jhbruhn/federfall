@@ -93,6 +93,8 @@ String auditActionTitle(
   AuditAction.medicationPrescribed => l10n.auditActionMedicationPrescribed,
   AuditAction.medicationUpdated => l10n.auditActionMedicationUpdated,
   AuditAction.medicationDeleted => l10n.auditActionMedicationDeleted,
+  AuditAction.medicationBatchPrescribed =>
+    l10n.auditActionMedicationBatchPrescribed,
   AuditAction.administrationLogged => l10n.auditActionAdministrationLogged,
   AuditAction.administrationUpdated => l10n.auditActionAdministrationUpdated,
   AuditAction.administrationDeleted => l10n.auditActionAdministrationDeleted,
@@ -243,6 +245,7 @@ extension AuditActionTopic on AuditAction {
     AuditAction.medicationPrescribed ||
     AuditAction.medicationUpdated ||
     AuditAction.medicationDeleted ||
+    AuditAction.medicationBatchPrescribed ||
     AuditAction.administrationLogged ||
     AuditAction.administrationUpdated ||
     AuditAction.administrationDeleted ||

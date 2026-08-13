@@ -78,6 +78,11 @@ const ACTIONS = {
   MEDICATION_PRESCRIBED: "medication.prescribed",
   MEDICATION_UPDATED: "medication.updated",
   MEDICATION_DELETED: "medication.deleted",
+  // One course written across a group of cases in one transaction
+  // (prescribe_batch.pb.js). No per-row `medication.prescribed` beside it, for
+  // the reason VACCINATION_BATCH_RECORDED gives below; each row is an ordinary
+  // prescription afterwards and its own edits emit medication.updated.
+  MEDICATION_BATCH_PRESCRIBED: "medication.batch_prescribed",
   ADMINISTRATION_LOGGED: "administration.logged",
   ADMINISTRATION_UPDATED: "administration.updated",
   ADMINISTRATION_DELETED: "administration.deleted",

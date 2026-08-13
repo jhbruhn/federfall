@@ -1598,6 +1598,13 @@
         }
     },
     "medSectionDrug": "Medication",
+    "medSectionGroup": "Which birds",
+    "prescriptionBatch": "Also for other cases",
+    "prescriptionBatchHelp": "Each bird gets its own prescription, editable, tickable and endable on its own.",
+    "prescriptionBatchNoOthers": "You are not carrying any other open cases.",
+    "prescriptionBatchSaveAction": "{count, plural, =1{Add for 1 case} other{Add for {count} cases}}",
+    "@prescriptionBatchSaveAction": { "placeholders": {"count": {"type": "int"}} },
+    "auditActionMedicationBatchPrescribed": "Course prescribed to a group",
     "@medSectionDrug": { "description": "Heading of the drug/dosing section of the prescription form" },
     "medSectionGiving": "Administration",
     "@medSectionGiving": { "description": "Heading of the route/schedule section of the prescription form" },
