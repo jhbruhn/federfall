@@ -1,6 +1,7 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
+import 'package:federfall/features/cases/medications/cycle_preview.dart';
 import 'package:federfall/features/cases/medications/medication_products_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medication_tiles.dart';
@@ -309,6 +310,99 @@ void main() {
               as Map<String, dynamic>;
       expect(body['cycle_on_days'], 5);
       expect(body['cycle_off_days'], 2);
+    });
+
+    testWidgets('a catalogue entry pours its course into an end date', (
+      tester,
+    ) async {
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        catalogue: const [
+          MedicationProduct(
+            id: 'p1',
+            label: 'Panacur',
+            doseUnit: 'mg',
+            frequencyKind: MedicationFrequencyKind.scheduled,
+            intervalHours: 12,
+            cycleOnDays: 5,
+            cycleOffDays: 2,
+            cycleRepeats: 3,
+          ),
+        ],
+      );
+      await tester.tap(find.byType(DropdownButtonFormField<MedicationProduct>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Panacur').last);
+      await tester.pumpAndSettle();
+
+      // The count lives on the entry; the END DATE is derived here, against
+      // this bird's own start — the catalogue never sees that date.
+      final started = tester
+          .widget<DateField>(find.widgetWithText(DateField, 'Start'))
+          .value!;
+      expect(
+        tester
+            .widget<DateField>(find.widgetWithText(DateField, 'Active until'))
+            .value,
+        started.add(const Duration(days: 19)),
+      );
+
+      await save(tester);
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['cycle_on_days'], 5);
+      expect(body['cycle_off_days'], 2);
+      // The prescription stores dates, never a count (1700000091).
+      expect(body.containsKey('cycle_repeats'), isFalse);
+    });
+
+    testWidgets('the cycle preview draws one round and appears only once '
+        'both halves are typed', (tester) async {
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.ensureVisible(find.text('Cyclic schedule'));
+      await tester.tap(find.text('Cyclic schedule'));
+      await tester.pumpAndSettle();
+
+      // Half a pair has no shape to draw.
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Days on'),
+        '5',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(MedicationCyclePreview), findsNothing);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Days off'),
+        '2',
+      );
+      await tester.pumpAndSettle();
+
+      final preview = tester.widget<MedicationCyclePreview>(
+        find.byType(MedicationCyclePreview),
+      );
+      expect(preview.onDays, 5);
+      expect(preview.offDays, 2);
+      // No end date yet, so no course length to multiply by.
+      expect(preview.repeats, isNull);
+      expect(find.text('5 days on / 2 days off'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(TextFormField, 'Cycles'), '3');
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<MedicationCyclePreview>(
+              find.byType(MedicationCyclePreview),
+            )
+            .repeats,
+        3,
+      );
+      expect(find.text('× 3'), findsOneWidget);
     });
 
     testWidgets('a plan without a cycle sends null, never half a pair', (

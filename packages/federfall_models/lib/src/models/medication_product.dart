@@ -42,6 +42,13 @@ abstract class MedicationProduct with _$MedicationProduct {
     /// straight through.
     int? cycleOnDays,
     int? cycleOffDays,
+
+    /// How many rounds of that rhythm the protocol runs — the standard course
+    /// length. Stored here as the fact it is, and stored NOWHERE on the
+    /// prescription: there it becomes an end date against the bird's own start
+    /// (1700000091). Null means "no fixed course", the entry says how to give
+    /// the drug but not for how long.
+    int? cycleRepeats,
     String? note,
     @Default(true) bool active,
     String? org,
@@ -66,6 +73,7 @@ abstract class MedicationProduct with _$MedicationProduct {
       intervalHours: pbInt(d['interval_hours']),
       cycleOnDays: pbInt(d['cycle_on_days']),
       cycleOffDays: pbInt(d['cycle_off_days']),
+      cycleRepeats: pbInt(d['cycle_repeats']),
       note: pbString(d['note']),
       active: pbBool(d['active']),
       org: pbString(d['org']),

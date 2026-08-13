@@ -1,5 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/medications/cycle_preview.dart';
 import 'package:federfall/features/cases/medications/dose_calculator_panel.dart';
 import 'package:federfall/features/cases/medications/medication_products_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
@@ -323,15 +324,25 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
             ? '${product.intervalHours ?? ''}'
             : '';
       }
-      // The rhythm is part of the protocol, so it follows the frequency —
-      // including being cleared, which is what an entry giving the drug
-      // straight through has to mean. The cycle count is not the catalogue's
-      // to decide: how long this bird gets it is a decision per case.
+      // The rhythm and the course length are both part of the protocol, so
+      // they follow the frequency — including being cleared, which is what an
+      // entry giving the drug straight through has to mean.
       _useCycle = product.cycleOnDays != null && product.cycleOffDays != null;
       _cycleOn.text = '${product.cycleOnDays ?? ''}';
       _cycleOff.text = '${product.cycleOffDays ?? ''}';
-      _cycleRepeats.text = '${_derivedRepeats() ?? ''}';
+      _cycleRepeats.text = '${product.cycleRepeats ?? ''}';
     });
+    // Outside the setState above, and after it: the count is only a number
+    // until it meets THIS bird's start date, and turning it into an end date
+    // is what the carer came for. The catalogue never sees that date, which is
+    // the whole reason the count is stored there and the end date here.
+    //
+    // An entry WITHOUT a course length leaves the end date alone rather than
+    // clearing it, unlike every other field here. An end date has three
+    // possible authors — this count, the carer's own pick, an existing plan —
+    // and only one of them is the catalogue's; deleting a date somebody typed
+    // is worse than leaving one they can see and change.
+    _recomputeEnd();
     markDirty();
   }
 
@@ -614,6 +625,17 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              // Only once both halves are there: half a pair has no shape to
+              // draw, and a strip that redraws on every keystroke of a number
+              // still being typed is noise.
+              if (_cycle case (final on?, final off?)) ...[
+                const SizedBox(height: AppSpacing.md),
+                MedicationCyclePreview(
+                  onDays: on,
+                  offDays: off,
+                  repeats: _derivedRepeats(),
+                ),
+              ],
             ],
           ],
           const SizedBox(height: AppSpacing.md),

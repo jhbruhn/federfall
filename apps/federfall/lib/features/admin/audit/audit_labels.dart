@@ -386,6 +386,7 @@ String auditFieldLabel(AppLocalizations l10n, String collection, String field) {
     'interval_hours' => l10n.auditFieldIntervalHours,
     'cycle_on_days' => l10n.medCycleOnDays,
     'cycle_off_days' => l10n.medCycleOffDays,
+    'cycle_repeats' => l10n.medCycleRepeats,
     'measured_at' => l10n.auditFieldMeasuredAt,
     'administered_at' => l10n.auditFieldAdministeredAt,
     'disposed_at' => l10n.auditFieldDisposedAt,

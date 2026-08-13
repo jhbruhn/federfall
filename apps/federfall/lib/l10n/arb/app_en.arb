@@ -1656,8 +1656,13 @@
     "@medCycleRepeats": { "description": "Label for how many times the cycle repeats" },
     "medCycleRepeatsHelp": "Sets the end to the last giving day. Leave empty for a schedule with no fixed end.",
     "@medCycleRepeatsHelp": { "description": "Helper under the cycle count field" },
-    "medCycleProductHelp": "Default for new prescriptions. Left empty, the drug is given straight through.",
+    "medCycleProductHelp": "Default for new prescriptions. With no days, the drug is given straight through; with no cycle count, the schedule runs to the prescription's end date.",
     "@medCycleProductHelp": { "description": "Helper under the catalogue entry's cycle fields" },
+    "medCycleRepeatsCount": "{count, plural, =1{1 cycle} other{{count} cycles}}",
+    "@medCycleRepeatsCount": {
+        "description": "Course length shown on a catalogue entry",
+        "placeholders": { "count": { "type": "int" } }
+    },
     "medStarted": "Start",
     "@medStarted": { "description": "Label for the prescription start date" },
     "medEnded": "Active until",

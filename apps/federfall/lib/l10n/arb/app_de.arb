@@ -789,7 +789,11 @@
     "medCycleOffDays": "Tage Pause",
     "medCycleRepeats": "Zyklen",
     "medCycleRepeatsHelp": "Setzt das Ende auf den letzten Gabetag. Leer lassen für ein Schema ohne festes Ende.",
-    "medCycleProductHelp": "Voreinstellung für neue Verordnungen. Ohne Angabe wird durchgehend gegeben.",
+    "medCycleProductHelp": "Voreinstellung für neue Verordnungen. Ohne Tage-Angabe wird durchgehend gegeben; ohne Zyklen läuft das Schema bis zum Enddatum der Verordnung.",
+    "medCycleRepeatsCount": "{count, plural, =1{1 Zyklus} other{{count} Zyklen}}",
+    "@medCycleRepeatsCount": {
+        "placeholders": { "count": { "type": "int" } }
+    },
     "medStarted": "Beginn",
     "medEnded": "Aktiv bis",
     "medPerKg": "Dosis pro kg Körpergewicht",

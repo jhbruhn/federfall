@@ -3,6 +3,7 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/medications/cycle_preview.dart';
 import 'package:federfall/features/cases/medications/medication_products_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
@@ -130,6 +131,12 @@ class _ProductTile extends ConsumerWidget {
         formatDose(l10n, c, unit.isEmpty ? null : '$unit/ml'),
       ?routesById[product.route]?.label,
       if (frequency.isNotEmpty) frequency,
+      // Only alongside a rhythm: a count of rounds of nothing reads as nonsense
+      // (the form refuses to save that pairing, but an older row could carry
+      // it, and the list must not print it).
+      if (product.cycleRepeats case final n?
+          when product.cycleOnDays != null && product.cycleOffDays != null)
+        l10n.medCycleRepeatsCount(n),
       if (!product.active) l10n.conditionInactiveBadge,
     ].join(' · ');
 
@@ -198,6 +205,7 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
   late final TextEditingController _intervalHours;
   late final TextEditingController _cycleOn;
   late final TextEditingController _cycleOff;
+  late final TextEditingController _cycleRepeats;
   bool _active = true;
   bool _seeded = false;
 
@@ -219,6 +227,7 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
     );
     _cycleOn = TextEditingController(text: '${p?.cycleOnDays ?? ''}');
     _cycleOff = TextEditingController(text: '${p?.cycleOffDays ?? ''}');
+    _cycleRepeats = TextEditingController(text: '${p?.cycleRepeats ?? ''}');
     _route = p?.route;
     _frequencyKind = p?.frequencyKind;
     _active = p?.active ?? true;
@@ -255,6 +264,7 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
       _intervalHours,
       _cycleOn,
       _cycleOff,
+      _cycleRepeats,
     ]) {
       c.dispose();
     }
@@ -290,6 +300,16 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
     return (on, off);
   }
 
+  /// The course length, or null. A count of rounds of a rhythm that is not
+  /// there counts nothing, so it falls with the pair rather than being stored
+  /// as a number no reader could interpret.
+  int? get _repeats {
+    final (on, _) = _cycle;
+    if (on == null) return null;
+    final n = int.tryParse(_cycleRepeats.text.trim());
+    return (n == null || n < 1) ? null : n;
+  }
+
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
@@ -309,6 +329,7 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
         'interval_hours': int.tryParse(_intervalHours.text.trim()),
         'cycle_on_days': cycleOn,
         'cycle_off_days': cycleOff,
+        'cycle_repeats': _repeats,
         'note': trimToNull(_note) ?? '',
         'active': _active,
       };
@@ -452,6 +473,7 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     enabled: !isBusy,
                     validator: (v) => _cycleHalfError(l10n, v, _cycleOff),
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -464,9 +486,22 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     enabled: !isBusy,
                     validator: (v) => _cycleHalfError(l10n, v, _cycleOn),
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _cycleRepeats,
+              label: l10n.medCycleRepeats,
+              prefixIcon: Icons.restart_alt_outlined,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              enabled: !isBusy,
+              // No validator: an entry that says how to give a drug but not for
+              // how long is a legitimate protocol.
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
@@ -475,6 +510,14 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
+            if (_cycle case (final on?, final off?)) ...[
+              const SizedBox(height: AppSpacing.md),
+              MedicationCyclePreview(
+                onDays: on,
+                offDays: off,
+                repeats: _repeats,
+              ),
+            ],
           ],
           const SizedBox(height: AppSpacing.md),
           AppTextField(
