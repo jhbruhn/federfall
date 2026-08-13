@@ -329,6 +329,87 @@ void main() {
     });
   });
 
+  // federfall-o3gz — a dose round is offered where the work is first seen, not
+  // only on Today: making the carer navigate first is the step that costs.
+  group('dose rounds on the dashboard', () {
+    const summary = DashboardSummary(
+      activeCount: 9,
+      intakesThisYear: 12,
+      byStatus: {},
+    );
+
+    WorklistItem due(String id, String drug, {bool withPlan = true}) =>
+        WorklistItem(
+          kind: WorklistKind.medicationDue,
+          caseId: id,
+          dueAt: DateTime(2026, 6, 24, 8),
+          severity: WorklistSeverity.overdue,
+          caseNumber: id,
+          drug: drug,
+          medication: withPlan
+              ? Medication(id: 'plan-$id', caseId: id, drug: drug)
+              : null,
+        );
+
+    testWidgets('one drug on several birds is offered as a round', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        summary,
+        worklist: [
+          due('c1', 'Ronidazol'),
+          due('c2', 'Ronidazol'),
+          due('c3', 'Ronidazol'),
+        ],
+      );
+
+      expect(find.text('Ronidazol · 3 due'), findsOneWidget);
+      expect(find.text('Give all'), findsOneWidget);
+    });
+
+    testWidgets('a lone dose is not a round', (tester) async {
+      // It already has its own log-dose button on its row.
+      await _pump(tester, summary, worklist: [due('c1', 'Metacam')]);
+
+      expect(find.text('Give all'), findsNothing);
+    });
+
+    testWidgets('two drugs are two rounds, neither hidden', (tester) async {
+      // Uncapped on purpose: a round is a DRUG, not a bird, so the list is
+      // short by construction and dropping one would hide the act itself.
+      await _pump(
+        tester,
+        summary,
+        worklist: [
+          due('c1', 'Ronidazol'),
+          due('c2', 'Ronidazol'),
+          due('c3', 'Baytril'),
+          due('c4', 'Baytril'),
+        ],
+      );
+
+      expect(find.text('Ronidazol · 2 due'), findsOneWidget);
+      expect(find.text('Baytril · 2 due'), findsOneWidget);
+      expect(find.text('Give all'), findsNWidgets(2));
+    });
+
+    testWidgets('the count promises only what can be given', (tester) async {
+      // A due whose prescription did not come along cannot be logged from here.
+      await _pump(
+        tester,
+        summary,
+        worklist: [
+          due('c1', 'Ronidazol'),
+          due('c2', 'Ronidazol'),
+          due('c3', 'Ronidazol', withPlan: false),
+        ],
+      );
+
+      expect(find.text('Ronidazol · 2 due'), findsOneWidget);
+    });
+  });
+
   group('layout (federfall-773v)', () {
     const summary = DashboardSummary(
       activeCount: 4,

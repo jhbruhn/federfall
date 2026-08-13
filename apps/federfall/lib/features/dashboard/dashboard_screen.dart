@@ -4,6 +4,7 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/medications/batch_administration_sheet.dart';
 import 'package:federfall/features/cases/pending_case_query.dart';
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/features/dashboard/dashboard_providers.dart';
@@ -245,11 +246,59 @@ class _WorklistPreview extends ConsumerWidget {
                   ),
           ),
           if (!showError) ...[
+            // A dose round belongs where the work is first seen, not only on
+            // Today (federfall-o3gz): the whole point is that giving nine birds
+            // the same drug is one act, and making the carer navigate first is
+            // the step that costs. Only rounds appear here — one drug with a
+            // single due is already a row below with its own log-dose button.
+            //
+            // Deliberately uncapped, unlike the rows: a round is a DRUG, not a
+            // bird, so the list is short by construction, and hiding one would
+            // hide the act rather than shorten a list.
+            for (final round in groupMedicationDuesByDrug(actionable))
+              if (round.isRound) _DoseRoundRow(round: round),
             for (final item in preview.take(_previewMax))
               WorklistTile(item: item, now: now),
             if (due.isNotEmpty) const SizedBox(height: AppSpacing.xs),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// One drug due on several birds, offered as a single round straight from the
+/// dashboard (federfall-o3gz).
+///
+/// Emphasised rather than styled like a due row, because it is an ACTION and
+/// the rows around it are a list. It counts the givable dues, not the group —
+/// a due whose prescription did not come along cannot be given from here and
+/// must not be promised.
+class _DoseRoundRow extends ConsumerWidget {
+  const _DoseRoundRow({required this.round});
+
+  final MedicationDueGroup round;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    return ListTile(
+      leading: const IconChip(Icons.vaccines_outlined),
+      title: Text(
+        l10n.doseRoundHeading(round.drug, round.givable.length),
+        style: theme.textTheme.titleSmall,
+      ),
+      trailing: TextButton(
+        onPressed: () async {
+          final saved = await showBatchAdministrationSheet(
+            context,
+            group: round,
+          );
+          if (saved == null) return;
+          ref.invalidate(worklistSourceProvider);
+        },
+        child: Text(l10n.doseRoundAction),
       ),
     );
   }
