@@ -114,9 +114,9 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     _controlled = p?.isControlled ?? false;
 
     // Half a pair is no cycle — the same reading `medication_due` takes.
-    _useCycle = p?.cycleOnDays != null && p?.cycleOffDays != null;
-    _cycleOn = TextEditingController(text: '${p?.cycleOnDays ?? ''}');
-    _cycleOff = TextEditingController(text: '${p?.cycleOffDays ?? ''}');
+    _useCycle = _isCycle(p?.cycleOnDays, p?.cycleOffDays);
+    _cycleOn = TextEditingController(text: _positive(p?.cycleOnDays));
+    _cycleOff = TextEditingController(text: _positive(p?.cycleOffDays));
     _cycleRepeats = TextEditingController(text: '${_derivedRepeats() ?? ''}');
   }
 
@@ -256,6 +256,22 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     return [widget.caseId, ..._alsoFor];
   }
 
+  /// Whether a stored pair really describes a rhythm.
+  ///
+  /// The server refuses a day count below 1 (1700000090) and `medication_due`
+  /// ignores half a pair, so this is the same reading, in the form. It is also
+  /// the second line of defence behind `pbCount`: PocketBase has no null for a
+  /// number field, and a `0` that reached the model here would switch the cycle
+  /// ON over two zeroes the form then refuses to save — which is exactly what
+  /// every catalogue entry without a rhythm used to do.
+  static bool _isCycle(int? on, int? off) =>
+      on != null && off != null && on > 0 && off > 0;
+
+  /// A count worth showing in a field: anything below 1 renders empty rather
+  /// than as a zero somebody has to notice and clear.
+  static String _positive(int? value) =>
+      (value == null || value < 1) ? '' : '$value';
+
   /// Whether both halves of the rhythm are still blank — the one state in which
   /// either may stay that way (see [_CycleDays]).
   bool get _cycleUnset =>
@@ -368,10 +384,10 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       // The rhythm and the course length are both part of the protocol, so
       // they follow the frequency — including being cleared, which is what an
       // entry giving the drug straight through has to mean.
-      _useCycle = product.cycleOnDays != null && product.cycleOffDays != null;
-      _cycleOn.text = '${product.cycleOnDays ?? ''}';
-      _cycleOff.text = '${product.cycleOffDays ?? ''}';
-      _cycleRepeats.text = '${product.cycleRepeats ?? ''}';
+      _useCycle = _isCycle(product.cycleOnDays, product.cycleOffDays);
+      _cycleOn.text = _positive(product.cycleOnDays);
+      _cycleOff.text = _positive(product.cycleOffDays);
+      _cycleRepeats.text = _positive(product.cycleRepeats);
     });
     // Outside the setState above, and after it: the count is only a number
     // until it meets THIS bird's start date, and turning it into an end date

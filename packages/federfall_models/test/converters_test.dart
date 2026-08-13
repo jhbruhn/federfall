@@ -58,6 +58,30 @@ void main() {
     });
   });
 
+  group('pbCount', () {
+    test('treats zero as absent, like pbQuantity does for a rate', () {
+      // The bug this exists for: an unset `cycle_off_days` arrives as 0, which
+      // is not null, so a prescription with no rhythm read as "0 days on, 0
+      // days off" and the form opened with the cycle switched ON over two
+      // zeroes it then refused to save.
+      expect(pbCount(0), isNull);
+      expect(pbCount('0'), isNull);
+      expect(pbCount(''), isNull);
+      expect(pbCount(null), isNull);
+    });
+
+    test('passes real counts through', () {
+      expect(pbCount(1), 1);
+      expect(pbCount(5), 5);
+      expect(pbCount('24'), 24);
+    });
+
+    test('pbInt still reports a zero, for the counts that mean it', () {
+      // A case count of 0 is a fact about an org, not a missing value.
+      expect(pbInt(0), 0);
+    });
+  });
+
   group('pbStringList', () {
     test('filters empties, tolerates scalar and null', () {
       expect(pbStringList(['a', '', 'b']), ['a', 'b']);

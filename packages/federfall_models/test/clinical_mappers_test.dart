@@ -98,6 +98,38 @@ void main() {
       expect(m.cycleOffDays, 2);
     });
 
+    test('an unset rhythm arrives as zeroes and maps to no rhythm', () {
+      // How PocketBase actually answers: a number field has no null, so a
+      // plan without a cycle carries `0`. Reading those as 0 rather than null
+      // is what made the prescription form open with the cycle switched on
+      // over two zeroes it then refused to save — every preset did it.
+      final m = Medication.fromRecord(
+        RecordModel({
+          'id': 'medi0000000004',
+          'case': 'case0000000001',
+          'drug': 'Panacur',
+          'frequency_kind': 'scheduled',
+          'interval_hours': 24,
+          'cycle_on_days': 0,
+          'cycle_off_days': 0,
+        }),
+      );
+      expect(m.cycleOnDays, isNull);
+      expect(m.cycleOffDays, isNull);
+      // The interval is the same column type and the same trap.
+      expect(
+        Medication.fromRecord(
+          RecordModel({
+            'id': 'm',
+            'case': 'c',
+            'drug': 'x',
+            'interval_hours': 0,
+          }),
+        ).intervalHours,
+        isNull,
+      );
+    });
+
     test('defaults isControlled to false and leaves optionals null', () {
       final m = Medication.fromRecord(
         RecordModel({'id': 'm', 'case': 'c', 'drug': 'Saline'}),

@@ -6,6 +6,7 @@ export 'src/audit_actions.dart';
 export 'src/converters.dart'
     show
         pbBool,
+        pbCount,
         pbDate,
         pbDouble,
         pbEnum,

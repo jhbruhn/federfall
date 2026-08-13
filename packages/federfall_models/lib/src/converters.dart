@@ -57,6 +57,23 @@ int? pbInt(Object? raw) {
   return int.tryParse(s);
 }
 
+/// [pbQuantity] for whole numbers: an optional count — days, hours, repeats —
+/// where zero is not a value anyone means.
+///
+/// Same PocketBase trap: a number field has no null, so an unset
+/// `cycle_off_days` comes back as `0` and `pbInt` cannot tell it from a
+/// deliberate zero. For these columns the server does not allow zero at all
+/// (`min: 1`), which is what makes the reading unambiguous — and what makes
+/// getting it wrong visible: a prescription with no rhythm read as
+/// `cycleOnDays: 0, cycleOffDays: 0`, which is not null, so the form opened
+/// with the cycle switched ON over two zeroes it then refused to save.
+///
+/// Use [pbInt] where zero is a real reading (a case count, a photo count).
+int? pbCount(Object? raw) {
+  final value = pbInt(raw);
+  return (value == null || value == 0) ? null : value;
+}
+
 /// Reads a boolean, defaulting absent/empty values to `false`.
 bool pbBool(Object? raw) {
   if (raw is bool) return raw;

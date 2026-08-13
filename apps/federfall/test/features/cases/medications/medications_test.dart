@@ -608,6 +608,48 @@ void main() {
       verifyNever(() => medications.create(any()));
     });
 
+    testWidgets('a preset with no rhythm leaves the switch off', (
+      tester,
+    ) async {
+      // The reported bug, at the layer it was visible: PocketBase answers an
+      // unset `cycle_on_days` with 0, so EVERY catalogue entry used to arrive
+      // "cyclic" over two zeroes and every pick blocked the save. `pbCount`
+      // fixes the mapping; this asserts the form's own reading agrees, since a
+      // hand-built record could still carry a zero.
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        catalogue: const [
+          MedicationProduct(
+            id: 'p1',
+            label: 'Baycox',
+            doseUnit: 'mg',
+            frequencyKind: MedicationFrequencyKind.scheduled,
+            intervalHours: 24,
+            cycleOnDays: 0,
+            cycleOffDays: 0,
+          ),
+        ],
+      );
+      await tester.tap(
+        find.byType(DropdownButtonFormField<MedicationProduct>),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Baycox').last);
+      await tester.pumpAndSettle();
+
+      // Neither the day fields nor the zeroes that used to fill them.
+      expect(find.widgetWithText(TextField, 'Days on'), findsNothing);
+      expect(
+        tester
+            .widget<SwitchListTile>(
+              find.widgetWithText(SwitchListTile, 'Cyclic schedule'),
+            )
+            .value,
+        isFalse,
+      );
+    });
+
     testWidgets('clearing a filled pair is a way back out', (tester) async {
       // The actual report: the fields could not be emptied again, so a plan
       // that no longer wanted a rhythm could not be saved at all.
