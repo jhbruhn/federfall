@@ -194,6 +194,8 @@ List<WorklistItem> buildWorklist({
           route: md.route,
           frequencyKind: md.frequencyKind,
           intervalHours: md.intervalHours,
+          cycleOnDays: md.cycleOnDays,
+          cycleOffDays: md.cycleOffDays,
           startedAt: md.startedAt,
           endedAt: md.endedAt,
         ),

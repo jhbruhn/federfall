@@ -36,6 +36,12 @@ abstract class MedicationProduct with _$MedicationProduct {
     String? route,
     MedicationFrequencyKind? frequencyKind,
     int? intervalHours,
+
+    /// The default give/pause rhythm, poured into the prescription alongside
+    /// [intervalHours] (federfall-wmbi). Both null for a preparation given
+    /// straight through.
+    int? cycleOnDays,
+    int? cycleOffDays,
     String? note,
     @Default(true) bool active,
     String? org,
@@ -58,6 +64,8 @@ abstract class MedicationProduct with _$MedicationProduct {
       route: pbString(d['route']),
       frequencyKind: MedicationFrequencyKind.fromWire(d['frequency_kind']),
       intervalHours: pbInt(d['interval_hours']),
+      cycleOnDays: pbInt(d['cycle_on_days']),
+      cycleOffDays: pbInt(d['cycle_off_days']),
       note: pbString(d['note']),
       active: pbBool(d['active']),
       org: pbString(d['org']),

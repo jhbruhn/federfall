@@ -1628,6 +1628,36 @@
         "description": "Dosing frequency: a custom interval display",
         "placeholders": { "hours": { "type": "int" } }
     },
+    "freqCycle": "{onDays} days on / {offDays} days off",
+    "@freqCycle": {
+        "description": "A repeating give/pause rhythm on a prescription",
+        "placeholders": {
+            "onDays": { "type": "int" },
+            "offDays": { "type": "int" }
+        }
+    },
+    "freqWithCycle": "{frequency}, {cycle}",
+    "@freqWithCycle": {
+        "description": "Joins a dosing interval with its give/pause cycle",
+        "placeholders": {
+            "frequency": { "type": "String" },
+            "cycle": { "type": "String" }
+        }
+    },
+    "medCycle": "Cyclic schedule",
+    "@medCycle": { "description": "Switch enabling a repeating give/pause rhythm" },
+    "medCycleHelp": "Giving and pause alternate, repeating from the start date.",
+    "@medCycleHelp": { "description": "Subtitle of the cyclic schedule switch" },
+    "medCycleOnDays": "Days on",
+    "@medCycleOnDays": { "description": "Label for the number of consecutive giving days" },
+    "medCycleOffDays": "Days off",
+    "@medCycleOffDays": { "description": "Label for the number of consecutive pause days" },
+    "medCycleRepeats": "Cycles",
+    "@medCycleRepeats": { "description": "Label for how many times the cycle repeats" },
+    "medCycleRepeatsHelp": "Sets the end to the last giving day. Leave empty for a schedule with no fixed end.",
+    "@medCycleRepeatsHelp": { "description": "Helper under the cycle count field" },
+    "medCycleProductHelp": "Default for new prescriptions. Left empty, the drug is given straight through.",
+    "@medCycleProductHelp": { "description": "Helper under the catalogue entry's cycle fields" },
     "medStarted": "Start",
     "@medStarted": { "description": "Label for the prescription start date" },
     "medEnded": "Active until",

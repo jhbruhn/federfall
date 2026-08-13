@@ -60,6 +60,8 @@ class PrescriptionTile extends ConsumerWidget {
       l10n,
       plan.frequencyKind,
       plan.intervalHours,
+      cycleOnDays: plan.cycleOnDays,
+      cycleOffDays: plan.cycleOffDays,
     );
     final routesById =
         ref.watch(medicationRoutesByIdProvider).value ?? const {};

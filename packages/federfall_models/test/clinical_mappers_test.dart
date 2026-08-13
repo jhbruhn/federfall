@@ -77,6 +77,25 @@ void main() {
       expect(m.isControlled, isTrue);
       expect(m.instructions, 'with food');
       expect(m.prescribedBy, 'user0000000001');
+      // No cycle recorded: a plain "every 12 h" plan.
+      expect(m.cycleOnDays, isNull);
+      expect(m.cycleOffDays, isNull);
+    });
+
+    test('maps a give/pause cycle', () {
+      final m = Medication.fromRecord(
+        RecordModel({
+          'id': 'medi0000000003',
+          'case': 'case0000000001',
+          'drug': 'Panacur',
+          'frequency_kind': 'scheduled',
+          'interval_hours': 12,
+          'cycle_on_days': 5,
+          'cycle_off_days': 2,
+        }),
+      );
+      expect(m.cycleOnDays, 5);
+      expect(m.cycleOffDays, 2);
     });
 
     test('defaults isControlled to false and leaves optionals null', () {
@@ -119,6 +138,24 @@ void main() {
       expect(m.endedAt, isNull);
       expect(m.nextDue?.day, 13);
       expect(m.activeCarer, 'user0000000001');
+    });
+
+    test('carries the give/pause cycle the view computed next_due from', () {
+      final r = RecordModel({
+        'id': 'medi0000000002',
+        'case_id': 'case0000000001',
+        'drug': 'Panacur',
+        'frequency_kind': 'scheduled',
+        'interval_hours': 12,
+        'cycle_on_days': 5,
+        'cycle_off_days': 2,
+        'started_at': '2026-06-01 08:00:00.000Z',
+        'next_due': '2026-06-08 08:00:00.000Z',
+        'org': 'org00000000001',
+      });
+      final m = MedicationDue.fromRecord(r);
+      expect(m.cycleOnDays, 5);
+      expect(m.cycleOffDays, 2);
     });
   });
 

@@ -769,6 +769,27 @@
     "@freqEveryNHours": {
         "placeholders": { "hours": { "type": "int" } }
     },
+    "freqCycle": "{onDays} Tage Gabe / {offDays} Tage Pause",
+    "@freqCycle": {
+        "placeholders": {
+            "onDays": { "type": "int" },
+            "offDays": { "type": "int" }
+        }
+    },
+    "freqWithCycle": "{frequency}, {cycle}",
+    "@freqWithCycle": {
+        "placeholders": {
+            "frequency": { "type": "String" },
+            "cycle": { "type": "String" }
+        }
+    },
+    "medCycle": "Zyklisches Schema",
+    "medCycleHelp": "Gabe und Pause wechseln sich ab und wiederholen sich ab dem Beginn.",
+    "medCycleOnDays": "Tage Gabe",
+    "medCycleOffDays": "Tage Pause",
+    "medCycleRepeats": "Zyklen",
+    "medCycleRepeatsHelp": "Setzt das Ende auf den letzten Gabetag. Leer lassen für ein Schema ohne festes Ende.",
+    "medCycleProductHelp": "Voreinstellung für neue Verordnungen. Ohne Angabe wird durchgehend gegeben.",
     "medStarted": "Beginn",
     "medEnded": "Aktiv bis",
     "medPerKg": "Dosis pro kg Körpergewicht",

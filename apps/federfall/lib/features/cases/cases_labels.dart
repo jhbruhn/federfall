@@ -47,11 +47,19 @@ String certaintyLabel(AppLocalizations l10n, Certainty c) => switch (c) {
 /// A friendly label for a medication's dosing frequency, derived from the
 /// structured [kind] + [intervalHours] (named presets for common intervals,
 /// "every N h" otherwise). Empty when no frequency is recorded.
+///
+/// A give/pause cycle ([cycleOnDays] + [cycleOffDays], federfall-wmbi) is
+/// appended as a qualifier of the interval — "2× täglich, 5 Tage Gabe / 2 Tage
+/// Pause" — never as a label of its own: a rhythm without an interval says
+/// nothing about when a dose falls, so a half-set pair, or a pair on a plan
+/// with no interval, is ignored exactly as `medication_due` ignores it.
 String medicationFrequencyLabel(
   AppLocalizations l10n,
   MedicationFrequencyKind? kind,
-  int? intervalHours,
-) {
+  int? intervalHours, {
+  int? cycleOnDays,
+  int? cycleOffDays,
+}) {
   switch (kind) {
     case null:
       return '';
@@ -60,7 +68,7 @@ String medicationFrequencyLabel(
     case MedicationFrequencyKind.asNeeded:
       return l10n.freqAsNeeded;
     case MedicationFrequencyKind.scheduled:
-      return switch (intervalHours) {
+      final base = switch (intervalHours) {
         24 => l10n.freqOnceDaily,
         12 => l10n.freqTwiceDaily,
         8 => l10n.freq3xDaily,
@@ -69,8 +77,19 @@ String medicationFrequencyLabel(
         final h? => l10n.freqEveryNHours(h),
         null => '',
       };
+      if (base.isEmpty || cycleOnDays == null || cycleOffDays == null) {
+        return base;
+      }
+      return l10n.freqWithCycle(
+        base,
+        medicationCycleLabel(l10n, cycleOnDays, cycleOffDays),
+      );
   }
 }
+
+/// The give/pause rhythm on its own — "5 Tage Gabe / 2 Tage Pause".
+String medicationCycleLabel(AppLocalizations l10n, int onDays, int offDays) =>
+    l10n.freqCycle(onDays, offDays);
 
 /// Null means the server carries a disposition type this app version does not
 /// know — shown as "unknown" rather than guessing an outcome.

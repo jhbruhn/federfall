@@ -108,6 +108,9 @@
       "48": "Jeden 2. Tag",
     ),
     freqEveryNHours: (h) => "Alle " + str(h) + " h",
+    freqCycle: (on, off) => (
+      str(on) + " Tage Gabe / " + str(off) + " Tage Pause"
+    ),
     controlledBadge: "BtM",
     vetLabel: "Tierarzt",
     prescribedByLabel: "Verordnet von",
@@ -273,6 +276,9 @@
       "48": "Every other day",
     ),
     freqEveryNHours: (h) => "Every " + str(h) + " h",
+    freqCycle: (on, off) => (
+      str(on) + " days on / " + str(off) + " days off"
+    ),
     controlledBadge: "Controlled",
     vetLabel: "Vet",
     prescribedByLabel: "Prescribed by",
@@ -398,22 +404,33 @@
   fmtDate(S, e.at)
 }
 
-#let freqLabel(S, kind, intervalHours) = if kind == "once" {
-  S.freq.once
-} else if kind == "as_needed" {
-  S.freq.as_needed
-} else if kind == "scheduled" {
-  let named = S.freqScheduled.at(str(intervalHours), default: none)
-  if named != none {
-    named
-  } else if intervalHours != none {
-    (S.freqEveryNHours)(intervalHours)
+// The cycle (federfall-wmbi) is a qualifier on the interval, never a label of
+// its own: "2× täglich, 5 Tage Gabe / 2 Tage Pause". A rhythm without an
+// interval says nothing about when a dose falls, so it is only appended to a
+// scheduled plan that has one.
+#let freqLabel(S, kind, intervalHours, cycleOnDays: none, cycleOffDays: none) = (
+  if kind == "once" {
+    S.freq.once
+  } else if kind == "as_needed" {
+    S.freq.as_needed
+  } else if kind == "scheduled" {
+    let named = S.freqScheduled.at(str(intervalHours), default: none)
+    let base = if named != none {
+      named
+    } else if intervalHours != none {
+      (S.freqEveryNHours)(intervalHours)
+    } else {
+      none
+    }
+    if base != none and cycleOnDays != none and cycleOffDays != none {
+      base + ", " + (S.freqCycle)(cycleOnDays, cycleOffDays)
+    } else {
+      base
+    }
   } else {
     none
   }
-} else {
-  none
-}
+)
 
 #let doseStr(dose, unit) = if dose == none {
   none
@@ -456,7 +473,13 @@
     let bits = joinDot((
       dosing,
       e.at("route", default: none),
-      freqLabel(S, e.at("frequencyKind", default: none), e.at("intervalHours", default: none)),
+      freqLabel(
+        S,
+        e.at("frequencyKind", default: none),
+        e.at("intervalHours", default: none),
+        cycleOnDays: e.at("cycleOnDays", default: none),
+        cycleOffDays: e.at("cycleOffDays", default: none),
+      ),
     ))
     let until = fmtDate(S, e.at("endedAt", default: none))
     let prescribedBy = e.at("prescribedBy", default: none)

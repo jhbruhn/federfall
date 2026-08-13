@@ -268,6 +268,102 @@ void main() {
       expect(body['interval_hours'], 12);
     });
 
+    testWidgets('a cycle stores both day counts and ends on the last '
+        'giving day', (tester) async {
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.enterText(find.byType(TextField).first, 'Panacur');
+      await tester.ensureVisible(find.text('Cyclic schedule'));
+      await tester.tap(find.text('Cyclic schedule'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Days on'),
+        '5',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Days off'),
+        '2',
+      );
+      await tester.enterText(find.widgetWithText(TextFormField, 'Cycles'), '3');
+      await tester.pumpAndSettle();
+
+      final started = tester
+          .widget<DateField>(find.widgetWithText(DateField, 'Start'))
+          .value!;
+      // Three rounds of 5-on/2-off end after the LAST giving day, so the
+      // trailing pause is dropped: 3 × 7 − 2 = 19 days, not 21.
+      expect(
+        tester
+            .widget<DateField>(find.widgetWithText(DateField, 'Active until'))
+            .value,
+        started.add(const Duration(days: 19)),
+      );
+
+      await save(tester);
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['cycle_on_days'], 5);
+      expect(body['cycle_off_days'], 2);
+    });
+
+    testWidgets('a plan without a cycle sends null, never half a pair', (
+      tester,
+    ) async {
+      when(() => medications.create(any())).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'x'),
+      );
+
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.enterText(find.byType(TextField).first, 'Baytril');
+      await save(tester);
+
+      final body =
+          verify(() => medications.create(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['cycle_on_days'], isNull);
+      expect(body['cycle_off_days'], isNull);
+    });
+
+    testWidgets('editing a cycled plan derives its cycle count back', (
+      tester,
+    ) async {
+      final started = DateTime.utc(2026, 6, 1, 8);
+      await pump(
+        tester,
+        PrescriptionSheet(
+          caseId: 'c1',
+          plan: Medication(
+            id: 'm1',
+            caseId: 'c1',
+            drug: 'Panacur',
+            frequencyKind: MedicationFrequencyKind.scheduled,
+            intervalHours: 12,
+            cycleOnDays: 5,
+            cycleOffDays: 2,
+            startedAt: started,
+            endedAt: started.add(const Duration(days: 19)),
+          ),
+        ),
+      );
+
+      // The count is not stored — it is read back out of the two dates and the
+      // rhythm, so the form shows the "3" that produced this end date.
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Cycles'),
+            )
+            .controller
+            ?.text,
+        '3',
+      );
+    });
+
     testWidgets('editing seeds both dates in local time', (tester) async {
       // The server hands back UTC; DateField formats what it is given and
       // pickDateTime re-seeds from it, so a UTC value would both display and

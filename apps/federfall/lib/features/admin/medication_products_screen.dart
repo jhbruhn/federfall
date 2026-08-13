@@ -120,6 +120,8 @@ class _ProductTile extends ConsumerWidget {
       l10n,
       product.frequencyKind,
       product.intervalHours,
+      cycleOnDays: product.cycleOnDays,
+      cycleOffDays: product.cycleOffDays,
     );
     final detail = [
       if (product.doseRate case final r?)
@@ -194,6 +196,8 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
   String? _route;
   MedicationFrequencyKind? _frequencyKind;
   late final TextEditingController _intervalHours;
+  late final TextEditingController _cycleOn;
+  late final TextEditingController _cycleOff;
   bool _active = true;
   bool _seeded = false;
 
@@ -213,6 +217,8 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
     _intervalHours = TextEditingController(
       text: p?.intervalHours == null ? '' : '${p!.intervalHours}',
     );
+    _cycleOn = TextEditingController(text: '${p?.cycleOnDays ?? ''}');
+    _cycleOff = TextEditingController(text: '${p?.cycleOffDays ?? ''}');
     _route = p?.route;
     _frequencyKind = p?.frequencyKind;
     _active = p?.active ?? true;
@@ -247,6 +253,8 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
       _concentration,
       _note,
       _intervalHours,
+      _cycleOn,
+      _cycleOff,
     ]) {
       c.dispose();
     }
@@ -256,12 +264,39 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
   double? _number(TextEditingController c) =>
       double.tryParse(c.text.trim().replaceAll(',', '.'));
 
+  /// Flags one half of the give/pause pair filled without the other. Both
+  /// empty is the normal case (no cycle) and passes; one alone would be saved
+  /// as no cycle at all, so it is refused rather than silently dropped.
+  String? _cycleHalfError(
+    AppLocalizations l10n,
+    String? value,
+    TextEditingController other,
+  ) {
+    final mine = (value ?? '').trim();
+    if (other.text.trim().isEmpty) return null;
+    final n = int.tryParse(mine);
+    return (n == null || n <= 0) ? l10n.fieldRequired : null;
+  }
+
+  /// The default rhythm, or (null, null) — a cycle only qualifies a scheduled
+  /// interval, and half a pair is not one (federfall-wmbi).
+  (int?, int?) get _cycle {
+    if (_frequencyKind != MedicationFrequencyKind.scheduled) {
+      return (null, null);
+    }
+    final on = int.tryParse(_cycleOn.text.trim());
+    final off = int.tryParse(_cycleOff.text.trim());
+    if (on == null || off == null || on < 1 || off < 1) return (null, null);
+    return (on, off);
+  }
+
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
     final ok = await runSave(() async {
       final (_, org) = await requireUserOrg();
       final repo = await ref.read(medicationProductsRepositoryProvider.future);
+      final (cycleOn, cycleOff) = _cycle;
       final body = <String, dynamic>{
         'label': _label.text.trim(),
         'dose_unit': trimToNull(_unit) ?? '',
@@ -272,6 +307,8 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
         'route': _route ?? '',
         'frequency_kind': _frequencyKind?.wire ?? '',
         'interval_hours': int.tryParse(_intervalHours.text.trim()),
+        'cycle_on_days': cycleOn,
+        'cycle_off_days': cycleOff,
         'note': trimToNull(_note) ?? '',
         'active': _active,
       };
@@ -401,6 +438,42 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
                 final n = int.tryParse((v ?? '').trim());
                 return (n == null || n <= 0) ? l10n.fieldRequired : null;
               },
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    controller: _cycleOn,
+                    label: l10n.medCycleOnDays,
+                    prefixIcon: Icons.calendar_view_week_outlined,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    enabled: !isBusy,
+                    validator: (v) => _cycleHalfError(l10n, v, _cycleOff),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppTextField(
+                    controller: _cycleOff,
+                    label: l10n.medCycleOffDays,
+                    prefixIcon: Icons.calendar_view_week_outlined,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    enabled: !isBusy,
+                    validator: (v) => _cycleHalfError(l10n, v, _cycleOn),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              l10n.medCycleProductHelp,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
           const SizedBox(height: AppSpacing.md),

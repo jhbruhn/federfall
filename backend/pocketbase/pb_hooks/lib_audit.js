@@ -898,6 +898,8 @@ const CONTENT_FIELDS = {
     "dose_unit",
     "frequency_kind",
     "interval_hours",
+    "cycle_on_days",
+    "cycle_off_days",
     "started_at",
     "ended_at",
   ],

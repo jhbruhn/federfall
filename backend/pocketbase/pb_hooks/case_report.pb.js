@@ -313,6 +313,8 @@ routerAdd(
         route: routeLabel(r.getString("route")),
         frequencyKind: r.getString("frequency_kind") || null,
         intervalHours: r.getInt("interval_hours") || null,
+        cycleOnDays: r.getInt("cycle_on_days") || null,
+        cycleOffDays: r.getInt("cycle_off_days") || null,
         isControlled: r.getBool("is_controlled"),
         endedAt: dateParts(r.getString("ended_at")),
         instructions: r.getString("instructions"),

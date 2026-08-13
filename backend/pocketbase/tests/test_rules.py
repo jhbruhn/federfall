@@ -2837,6 +2837,72 @@ def main():
     s, _ = req("GET", f"/api/collections/medication_due/records/{med}", toks["b"])
     check("other carer CANNOT read the medication_due row", s != 200, f"status {s}")
 
+    # ── the give/pause cycle (federfall-wmbi) ───────────────────────────────
+    # 5 days on / 2 days off from 2026-06-01 08:00, dosed every 12 h. Cycle days
+    # run from the START INSTANT, not from a UTC midnight, so day k is
+    # [start + k*24h, start + (k+1)*24h) and the whole thing is timezone-free.
+    #
+    # Three candidates decide the implementation:
+    #   a) a dose inside a giving day     -> untouched, last + 12 h
+    #   b) the dose that ends day 4       -> lands on day 5, the first pause day,
+    #                                        and must jump to the next cycle
+    #   c) a dose deep inside the pause   -> same jump, from a different phase
+    cycstart = "2026-06-01 08:00:00.000Z"
+    def cycle_med(last_dose):
+        m = mk(T, "medications", {
+            "case": mdcase, "drug": "Panacur", "frequency_kind": "scheduled",
+            "interval_hours": 12, "cycle_on_days": 5, "cycle_off_days": 2,
+            "started_at": cycstart, "dose_unit": "mg", "org": ORG,
+        })["id"]
+        mk(T, "medication_administrations", {
+            "case": mdcase, "medication": m, "drug": "Panacur",
+            "administered_at": last_dose, "org": ORG,
+        })
+        s, row = req("GET", f"/api/collections/medication_due/records/{m}",
+                     toks["a"])
+        return s, (row or {})
+
+    # (a) last dose 2026-06-03 08:00 is day 2 -> +12 h is still day 2.
+    s, row = cycle_med("2026-06-03 08:00:00.000Z")
+    check("cycle: a dose inside a giving day is untouched", s == 200 and
+          row.get("next_due", "").startswith("2026-06-03 20:00"),
+          f"{s} {row.get('next_due')}")
+    check("medication_due exposes cycle_on_days", row.get("cycle_on_days") == 5,
+          f"{row.get('cycle_on_days')}")
+    check("medication_due exposes cycle_off_days", row.get("cycle_off_days") == 2,
+          f"{row.get('cycle_off_days')}")
+
+    # (b) last dose 2026-06-05 20:00 ends day 4; +12 h = 06-06 08:00 = day 5,
+    # the first pause day. Next cycle starts at day 7 = 2026-06-08 08:00.
+    s, row = cycle_med("2026-06-05 20:00:00.000Z")
+    check("cycle: a dose falling on the first pause day jumps the pause",
+          s == 200 and row.get("next_due", "").startswith("2026-06-08 08:00"),
+          f"{s} {row.get('next_due')}")
+
+    # (c) same jump reached from the far side of the pause: 06-07 12:00 is day 6,
+    # +12 h = 06-08 00:00, still day 6 -> next cycle, 2026-06-08 08:00.
+    s, row = cycle_med("2026-06-07 12:00:00.000Z")
+    check("cycle: a dose late in the pause lands on the next cycle's first day",
+          s == 200 and row.get("next_due", "").startswith("2026-06-08 08:00"),
+          f"{s} {row.get('next_due')}")
+
+    # A cycle is a qualifier on an interval, and half a pair is not a cycle:
+    # both must be present or the plan is the plain "every 12 h" it was before.
+    halfmed = mk(T, "medications", {
+        "case": mdcase, "drug": "Panacur", "frequency_kind": "scheduled",
+        "interval_hours": 12, "cycle_on_days": 5, "started_at": cycstart,
+        "dose_unit": "mg", "org": ORG,
+    })["id"]
+    mk(T, "medication_administrations", {
+        "case": mdcase, "medication": halfmed, "drug": "Panacur",
+        "administered_at": "2026-06-07 12:00:00.000Z", "org": ORG,
+    })
+    s, row = req("GET", f"/api/collections/medication_due/records/{halfmed}",
+                 toks["a"])
+    check("half a cycle is ignored, not half-applied",
+          s == 200 and (row or {}).get("next_due", "").startswith("2026-06-08 00:00"),
+          f"{s} {(row or {}).get('next_due')}")
+
     # 6d3a.2 — a carer records what a calculated dose was derived from, under
     # the same child rules as the rest of the timeline (no new rule shape).
     s, adm = req("POST", "/api/collections/medication_administrations/records",

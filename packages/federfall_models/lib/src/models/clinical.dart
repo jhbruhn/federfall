@@ -59,6 +59,14 @@ abstract class Medication with _$Medication {
     double? concentrationPerMl,
     MedicationFrequencyKind? frequencyKind,
     int? intervalHours,
+
+    /// A repeating give/pause rhythm on top of [intervalHours]: give for
+    /// [cycleOnDays] days, pause for [cycleOffDays], repeat — anchored at
+    /// [startedAt] (federfall-wmbi). Both null is the plain "every N hours"
+    /// plan; the pair is meaningless without the other half, so a reader must
+    /// treat a half-set pair as no cycle at all.
+    int? cycleOnDays,
+    int? cycleOffDays,
     String? route,
     DateTime? startedAt,
     DateTime? endedAt,
@@ -82,6 +90,8 @@ abstract class Medication with _$Medication {
       concentrationPerMl: pbQuantity(d['concentration_per_ml']),
       frequencyKind: MedicationFrequencyKind.fromWire(d['frequency_kind']),
       intervalHours: pbInt(d['interval_hours']),
+      cycleOnDays: pbInt(d['cycle_on_days']),
+      cycleOffDays: pbInt(d['cycle_off_days']),
       route: pbString(d['route']),
       startedAt: pbDate(d['started_at']),
       endedAt: pbDate(d['ended_at']),
@@ -98,7 +108,8 @@ abstract class Medication with _$Medication {
 /// A prescription's next-due projection, read from the org-wide
 /// `medication_due` view (cr3.6): the worklist's medications-due source in one
 /// query. [nextDue] is computed server-side (last dose + interval, or start if
-/// never given); null when the prescription has nothing pending.
+/// never given, pushed out of a pause when the plan carries a cycle); null when
+/// the prescription has nothing pending.
 @freezed
 abstract class MedicationDue with _$MedicationDue {
   const factory MedicationDue({
@@ -112,6 +123,8 @@ abstract class MedicationDue with _$MedicationDue {
     String? route,
     MedicationFrequencyKind? frequencyKind,
     int? intervalHours,
+    int? cycleOnDays,
+    int? cycleOffDays,
     DateTime? startedAt,
     DateTime? endedAt,
     DateTime? nextDue,
@@ -132,6 +145,8 @@ abstract class MedicationDue with _$MedicationDue {
       route: pbString(d['route']),
       frequencyKind: MedicationFrequencyKind.fromWire(d['frequency_kind']),
       intervalHours: pbInt(d['interval_hours']),
+      cycleOnDays: pbInt(d['cycle_on_days']),
+      cycleOffDays: pbInt(d['cycle_off_days']),
       startedAt: pbDate(d['started_at']),
       endedAt: pbDate(d['ended_at']),
       nextDue: pbDate(d['next_due']),
