@@ -362,8 +362,8 @@ void main() {
       expect(body.containsKey('cycle_repeats'), isFalse);
     });
 
-    testWidgets('the cycle preview draws one round and appears only once '
-        'both halves are typed', (tester) async {
+    testWidgets('the cycle preview draws the whole course, once both halves '
+        'are typed', (tester) async {
       await pump(tester, const PrescriptionSheet(caseId: 'c1'));
       await tester.ensureVisible(find.text('Cyclic schedule'));
       await tester.tap(find.text('Cyclic schedule'));
@@ -383,26 +383,53 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final preview = tester.widget<MedicationCyclePreview>(
-        find.byType(MedicationCyclePreview),
-      );
-      expect(preview.onDays, 5);
-      expect(preview.offDays, 2);
-      // No end date yet, so no course length to multiply by.
-      expect(preview.repeats, isNull);
+      int marks({required bool giving}) => tester
+          .widgetList<CycleDayMark>(find.byType(CycleDayMark))
+          .where((m) => m.giving == giving)
+          .length;
+
+      // No end date yet: two rounds drawn to show the rhythm restarting, then
+      // an ellipsis saying it keeps going.
       expect(find.text('5 days on / 2 days off'), findsOneWidget);
+      expect(marks(giving: true), 10);
+      expect(marks(giving: false), 4);
+      expect(find.text('…'), findsOneWidget);
 
       await tester.enterText(find.widgetWithText(TextFormField, 'Cycles'), '3');
       await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<MedicationCyclePreview>(
-              find.byType(MedicationCyclePreview),
-            )
-            .repeats,
-        3,
+
+      // The WHOLE course, not one round with a multiplier: 3 × 5 giving days,
+      // and only 2 × 2 pause days because the last round ends on its final
+      // giving day — the same day `ended_at` lands on.
+      expect(marks(giving: true), 15);
+      expect(marks(giving: false), 4);
+      expect(find.text('× 3'), findsNothing);
+      expect(find.text('…'), findsNothing);
+      expect(find.text('5 days on / 2 days off · 3 cycles'), findsOneWidget);
+    });
+
+    testWidgets('a course too long to draw degrades to one round', (
+      tester,
+    ) async {
+      await pump(tester, const PrescriptionSheet(caseId: 'c1'));
+      await tester.ensureVisible(find.text('Cyclic schedule'));
+      await tester.tap(find.text('Cyclic schedule'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Days on'),
+        '10',
       );
-      expect(find.text('× 3'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Days off'),
+        '10',
+      );
+      await tester.enterText(find.widgetWithText(TextFormField, 'Cycles'), '5');
+      await tester.pumpAndSettle();
+
+      // 5 × 20 − 10 = 90 days is a wall of dots; one round plus the count is
+      // what stays readable.
+      expect(find.byType(CycleDayMark), findsNWidgets(20));
+      expect(find.text('× 5'), findsOneWidget);
     });
 
     testWidgets('a plan without a cycle sends null, never half a pair', (
