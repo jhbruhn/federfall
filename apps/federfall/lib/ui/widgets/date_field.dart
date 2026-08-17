@@ -63,6 +63,12 @@ enum DateStyle {
   /// Material's short form — "6/2/2026" in English. Numeric and, unlike
   /// [medium], it carries the year, which anything spanning seasons needs.
   short,
+
+  /// Material's compact form — "06/02/2026" in English, "02.06.2026" in
+  /// German. All-numeric and fixed-width, which is what a chart axis wants:
+  /// [short] spells the month out in German ("2. März 2026") and is twice as
+  /// wide as the column an axis label gets.
+  compact,
 }
 
 /// Formats [value] **in the reader's local time zone**, optionally followed by
@@ -91,6 +97,7 @@ String formatLocalDate(
   final date = switch (style) {
     DateStyle.medium => materialL10n.formatMediumDate(local),
     DateStyle.short => materialL10n.formatShortDate(local),
+    DateStyle.compact => materialL10n.formatCompactDate(local),
   };
   if (!withTime) return date;
   final time = materialL10n.formatTimeOfDay(TimeOfDay.fromDateTime(local));

@@ -65,6 +65,9 @@ class IntakeSeriesChart extends StatelessWidget {
     final ceiling = (tallest ~/ step + 1) * step;
 
     final label = _bucketLabel(context);
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: colors.onSurfaceVariant,
+    );
     final monthFormat = DateFormat.MMM(
       Localizations.localeOf(context).toString(),
     );
@@ -84,7 +87,7 @@ class IntakeSeriesChart extends StatelessWidget {
           builder: (context, constraints) {
             // What one bucket actually gets on this screen: the plot is what
             // is left once the value axis has taken its own width.
-            final (axisLabel, labelEvery) = _axisLabels(
+            final (bucketLabel, labelEvery) = _axisLabels(
               context,
               (constraints.maxWidth - _valueAxisWidth) / points.length,
               label,
@@ -94,13 +97,16 @@ class IntakeSeriesChart extends StatelessWidget {
               child: BarChart(
                 BarChartData(
                   maxY: ceiling.toDouble(),
-                  gridData: FlGridData(
-                    drawVerticalLine: false,
-                    horizontalInterval: step.toDouble(),
-                  ),
+                  gridData: chartGrid(context, interval: step.toDouble()),
                   borderData: FlBorderData(show: false),
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
+                      // Inverse surface rather than fl_chart's blue-grey: the
+                      // default draws body ink on a dark box, and a tooltip on
+                      // an edge bar was clipped by the chart's own canvas.
+                      getTooltipColor: (_) => colors.inverseSurface,
+                      fitInsideHorizontally: true,
+                      fitInsideVertically: true,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         // Which bucket AND which year — with two rods per
                         // group, the number alone would be ambiguous.
@@ -112,7 +118,10 @@ class IntakeSeriesChart extends StatelessWidget {
                         return BarTooltipItem(
                           '${label(points[groupIndex].key)}$period'
                           ': ${rod.toY.toInt()}',
-                          theme.textTheme.labelMedium ?? const TextStyle(),
+                          theme.textTheme.labelMedium?.copyWith(
+                                color: colors.onInverseSurface,
+                              ) ??
+                              TextStyle(color: colors.onInverseSurface),
                         );
                       },
                     ),
@@ -125,6 +134,12 @@ class IntakeSeriesChart extends StatelessWidget {
                         showTitles: true,
                         reservedSize: _valueAxisWidth,
                         interval: step.toDouble(),
+                        getTitlesWidget: (value, meta) => axisLabel(
+                          meta,
+                          meta.formattedValue,
+                          style: labelStyle,
+                          fitInside: false,
+                        ),
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -139,9 +154,10 @@ class IntakeSeriesChart extends StatelessWidget {
                           if (i % labelEvery != 0) {
                             return const SizedBox.shrink();
                           }
-                          return Text(
-                            axisLabel(points[i].key),
-                            style: theme.textTheme.labelSmall,
+                          return axisLabel(
+                            meta,
+                            bucketLabel(points[i].key),
+                            style: labelStyle,
                           );
                         },
                       ),
@@ -161,11 +177,13 @@ class IntakeSeriesChart extends StatelessWidget {
                               toY: (previousByKey[points[i].key] ?? 0)
                                   .toDouble(),
                               width: 7,
+                              borderRadius: _rodEnd,
                               color: colors.primaryContainer,
                             ),
                           BarChartRodData(
                             toY: points[i].count.toDouble(),
                             width: hasPrevious ? 7 : 10,
+                            borderRadius: _rodEnd,
                             color: colors.primary,
                           ),
                         ],
@@ -207,6 +225,14 @@ class IntakeSeriesChart extends StatelessWidget {
         : '${monthName(month)} ${series.previousYear}';
   }
 
+  /// Rounded at the data end, square on the baseline. fl_chart rounds every
+  /// corner by default, so each bar stood on a half-circle that crossed the
+  /// zero line — a one-intake month read as a lozenge hanging off the axis
+  /// rather than as a bar standing on it.
+  static const BorderRadius _rodEnd = BorderRadius.vertical(
+    top: Radius.circular(3),
+  );
+
   /// What the left axis reserves, and therefore what the plot does not get.
   static const double _valueAxisWidth = 32;
 
@@ -238,9 +264,9 @@ class IntakeSeriesChart extends StatelessWidget {
         final style = Theme.of(context).textTheme.labelSmall;
         int strideFor(String Function(int) form) {
           if (column <= 0) return 1;
-          final widest = _widestLabel(context, style, [
+          final widest = labelBounds(context, style, [
             for (final p in series.points) form(p.key),
-          ]);
+          ]).width;
           return ((widest + _labelGap) / column).ceil().clamp(
             1,
             series.points.length,
@@ -257,28 +283,6 @@ class IntakeSeriesChart extends StatelessWidget {
         String narrowLabel(int key) => narrow.format(DateTime(2000, key));
         return (narrowLabel, strideFor(narrowLabel));
     }
-  }
-
-  /// The widest of [labels] as this theme will actually paint them — including
-  /// the reader's text scale, which is what decides whether they fit.
-  static double _widestLabel(
-    BuildContext context,
-    TextStyle? style,
-    List<String> labels,
-  ) {
-    final painter = TextPainter(
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-    );
-    var widest = 0.0;
-    for (final label in labels) {
-      painter
-        ..text = TextSpan(text: label, style: style)
-        ..layout();
-      if (painter.width > widest) widest = painter.width;
-    }
-    painter.dispose();
-    return widest;
   }
 
   /// Bucket key → axis label: a short month name, or the year itself.

@@ -54,6 +54,14 @@ class EggMonthChart extends StatelessWidget {
     ];
     if (totals.every((t) => t == 0)) return const SizedBox.shrink();
     final tallest = totals.reduce((a, b) => a > b ? a : b);
+    // Four gridlines at most, on whole eggs, with a step of headroom above the
+    // tallest month — `IntakeSeriesChart`'s reasoning, and for the same reason:
+    // one line per egg is unreadable the moment a hen has a good month.
+    final step = (tallest / 4).ceil().clamp(1, 1 << 30);
+    final ceiling = (tallest ~/ step + 1) * step;
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,18 +72,24 @@ class EggMonthChart extends StatelessWidget {
           height: 160,
           child: BarChart(
             BarChartData(
-              maxY: tallest + 1,
-              gridData: const FlGridData(drawVerticalLine: false),
+              maxY: ceiling.toDouble(),
+              gridData: chartGrid(context, interval: step.toDouble()),
               borderData: FlBorderData(show: false),
               barTouchData: const BarTouchData(enabled: false),
               titlesData: FlTitlesData(
                 topTitles: const AxisTitles(),
                 rightTitles: const AxisTitles(),
-                leftTitles: const AxisTitles(
+                leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 28,
-                    interval: 1,
+                    interval: step.toDouble(),
+                    getTitlesWidget: (value, meta) => axisLabel(
+                      meta,
+                      meta.formattedValue,
+                      style: labelStyle,
+                      fitInside: false,
+                    ),
                   ),
                 ),
                 bottomTitles: AxisTitles(
@@ -86,11 +100,12 @@ class EggMonthChart extends StatelessWidget {
                       final i = value.toInt();
                       // Every third month only — twelve labels would collide.
                       if (i % 3 != 0) return const SizedBox.shrink();
-                      return Text(
+                      return axisLabel(
+                        meta,
                         month.format(
                           DateTime(firstMonth.year, firstMonth.month + i),
                         ),
-                        style: theme.textTheme.labelSmall,
+                        style: labelStyle,
                       );
                     },
                   ),
@@ -104,6 +119,12 @@ class EggMonthChart extends StatelessWidget {
                       BarChartRodData(
                         toY: totals[i].toDouble(),
                         width: 10,
+                        // Rounded at the data end, square on the baseline:
+                        // fl_chart rounds every corner by default, so a bar
+                        // stood on a half-circle that crossed the zero line.
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(4),
+                        ),
                         color: theme.colorScheme.primary,
                         // The presumed share sits on top in a lighter shade.
                         rodStackItems: [

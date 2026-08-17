@@ -488,3 +488,4 @@
 {"id":"int-9cc54285","kind":"field_change","created_at":"2026-08-17T09:10:44.439569778Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-082v","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
 {"id":"int-878cf6eb","kind":"field_change","created_at":"2026-08-17T09:24:24.589534529Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-185w","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
 {"id":"int-492faa60","kind":"field_change","created_at":"2026-08-17T09:30:51.666261695Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-obia","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
+{"id":"int-0605045e","kind":"field_change","created_at":"2026-08-17T13:32:30.636778882Z","actor":"Jan-Henrik Bruhn","issue_id":"federfall-yapf","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}

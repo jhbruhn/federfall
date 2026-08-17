@@ -71,6 +71,21 @@ void main() {
       expect(m.formatShortDate(utc.toLocal()), contains('2026'));
       expect(m.formatMediumDate(utc.toLocal()), isNot(contains('2026')));
     });
+
+    test('the compact style is all-numeric, for a chart axis', () async {
+      final utc = DateTime.utc(2026, 6, 2, 9, 30);
+      expect(
+        formatLocalDate(m, utc, style: DateStyle.compact),
+        m.formatCompactDate(utc.toLocal()),
+      );
+      // Why it exists: German spells the month out in the short form, which is
+      // twice the width a chart axis has for a label (federfall-yapf).
+      final de = await GlobalMaterialLocalizations.delegate.load(
+        const Locale('de'),
+      );
+      expect(de.formatShortDate(utc.toLocal()), contains('Juni'));
+      expect(de.formatCompactDate(utc.toLocal()), isNot(contains('Juni')));
+    });
   });
 
   // Two source sweeps rather than a test per screen. The defect is invisible on
