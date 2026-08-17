@@ -3339,6 +3339,71 @@ def main():
           len(listf(toks["sup"], "case_report_rows", "id != ''")) > 0, "empty")
     check("guest sees no case_report_rows",
           len(listf(gtok, "case_report_rows", "id != ''")) == 0, "non-empty")
+
+    # federfall-3dy9: demotion to `guest` is the documented way to revoke
+    # access, and a demoted carer's old cases still name them in
+    # `active_carer` — which is the whole of `medication_due`'s rule. So the
+    # wall has to hold for a guest who USED to hold cases, not only for one who
+    # never did: the sweep above cannot see this, because its guest has no
+    # history to leak. `medication_due` had no wall at all until 1700000092
+    # (created three times, each copying the pre-guest predicate), and this is
+    # what that leaked — every still-running dose of every case they once held.
+    exiled = mkuser(T, "exiled@f.local", "carer")["id"]
+    ex_case = mk(T, "cases", {
+        "animal": animal, "active_carer": exiled, "org": ORG,
+    })["id"]
+    ex_med = mk(T, "medications", {
+        "case": ex_case, "drug": "3dy9 Meloxicam", "frequency_kind": "scheduled",
+        "interval_hours": 12, "dose_unit": "mg", "org": ORG,
+    })["id"]
+    _, extok = login("exiled@f.local")
+    check("the carer reads their own due dose (the leak is reachable)",
+          len(listf(extok, "medication_due", f"id = '{ex_med}'")) == 1, "empty")
+    s, _ = req("PATCH", f"/api/collections/users/records/{exiled}", T,
+               {"role": "guest"})
+    check("the carer can be demoted to guest", s == 200, f"status {s}")
+    _, extok = login("exiled@f.local")
+    for coll in ("cases", "medications", "animals", "medication_due"):
+        check(f"a DEMOTED carer sees no {coll}",
+              len(listf(extok, coll, "id != ''")) == 0, "non-empty")
+
+    # …and close the CLASS, not the instance. The list above is
+    # hand-maintained, which is exactly how medication_due slipped past three
+    # migrations: nobody added it. So ask the SCHEMA instead — every rule that
+    # authenticates must also exclude guests — the way the route sweep below
+    # reads pb_hooks/ off disk rather than trusting a list.
+    _, schema = req("GET", "/api/collections?perPage=500", T)
+    RULES = ("listRule", "viewRule", "createRule", "updateRule", "deleteRule")
+    # `users.updateRule` is the one exemption, and naming it here is what makes
+    # it a decision rather than an omission: a guest awaiting access must still
+    # be able to edit their own profile and password. It grants nothing about
+    # anyone else's data (the rule is self-or-supervisor), and main.pb.js §5
+    # blocks role/org/is_active/verified changes by non-supervisors, so a guest
+    # cannot promote themselves through it. 1700000051 rewrote this rule whole
+    # to close a cross-org escalation and dropped the clause with it.
+    GUEST_EXEMPT = {("users", "updateRule")}
+    unwalled, swept = [], 0
+    for c in (schema or {}).get("items", []):
+        if c.get("system"):
+            continue
+        for key in RULES:
+            rule = c.get(key)
+            # An unset rule is superuser-only, and one that never mentions the
+            # caller's identity is not gated on being signed in at all — the
+            # wall is only meaningful where the rule authenticates.
+            if not rule or "@request.auth.id" not in rule:
+                continue
+            swept += 1
+            if (c["name"], key) in GUEST_EXEMPT:
+                continue
+            if '@request.auth.role != "guest"' not in rule:
+                unwalled.append(f"{c['name']}.{key}")
+    # A floor, not the exact figure (175 at 1700000092): the point is that a
+    # sweep which read nothing must fail rather than pass vacuously.
+    check("the rule sweep found the rules to walk", swept >= 150, f"{swept}")
+    check("every authenticated rule in the schema excludes guests",
+          not unwalled, ", ".join(sorted(unwalled)))
+
     # federfall-75sy: the same wall, on the ROUTES. Every hook route bypasses
     # the collection rules it writes through and therefore re-states the
     # boundary itself (lib_auth.js). The sweep above walks collections, so a
