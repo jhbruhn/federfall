@@ -60,7 +60,11 @@ abstract class Sponsorship with _$Sponsorship {
       city: pbString(d['city']),
       region: pbString(d['region']),
       mobile: pbString(d['mobile']),
-      amountCents: pbInt(d['amount_cents']),
+      // pbCount, not pbInt: the amount is optional and PocketBase sends 0 for
+      // one nobody filled in, which rendered as „0,00 €" — a figure a
+      // Zuwendungsbestätigung would be written from, and one the edit form then
+      // prefilled and kept.
+      amountCents: pbCount(d['amount_cents']),
       interval: SponsorshipInterval.fromWire(d['interval']),
       startedAt: pbDate(d['started_at']),
       endedAt: pbDate(d['ended_at']),

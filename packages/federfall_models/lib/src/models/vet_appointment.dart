@@ -48,7 +48,6 @@ abstract class VetAppointment with _$VetAppointment {
 
   factory VetAppointment.fromRecord(RecordModel r) {
     final d = r.data;
-    final lead = pbInt(d['reminder_lead_minutes']);
     return VetAppointment(
       id: r.id,
       caseId: pbString(d['case']) ?? '',
@@ -63,8 +62,9 @@ abstract class VetAppointment with _$VetAppointment {
       // set", and the server cannot help: it skips `min` validation for a zero
       // on an optional field. Hence muting lives in its own bool rather than
       // in a sentinel here. (0 minutes of notice would not be a reminder
-      // anyway.)
-      reminderLeadMinutes: (lead == null || lead <= 0) ? null : lead,
+      // anyway.) That is pbCount's contract; the schema's `min: 1` keeps a
+      // negative from arriving, so 0 is the whole of "not set".
+      reminderLeadMinutes: pbCount(d['reminder_lead_minutes']),
       reminderMuted: pbBool(d['reminder_muted']),
       createdBy: pbString(d['created_by']),
       org: pbString(d['org']),

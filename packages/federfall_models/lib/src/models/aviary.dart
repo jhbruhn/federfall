@@ -39,7 +39,11 @@ abstract class Aviary with _$Aviary {
       keeper: pbString(d['keeper']) ?? '',
       location: pbString(d['location']),
       locationGeo: GeoPoint.fromPb(d['location_geo']),
-      capacity: pbInt(d['capacity']),
+      // pbCount, not pbInt: an unset optional number comes back as 0, and an
+      // enclosure holding "0 birds at most" is not a capacity anyone set — read
+      // as one it painted a false over-capacity alert on every aviary with a
+      // resident and no capacity recorded.
+      capacity: pbCount(d['capacity']),
       active: pbBool(d['active']),
       notes: pbString(d['notes']),
       org: pbString(d['org']),

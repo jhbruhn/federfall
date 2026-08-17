@@ -42,17 +42,14 @@ abstract class Exam with _$Exam {
       examiner: pbString(d['examiner']),
       // PB stores unset number fields as their zero value; body_condition is
       // 1–5 and 0 °C is not a real bird temperature, so 0 means "not
-      // assessed" (same stance as GeoPoint's {0,0} → null).
-      bodyCondition: switch (pbInt(d['body_condition'])) {
-        0 => null,
-        final v => v,
-      },
+      // assessed" (same stance as GeoPoint's {0,0} → null). That is exactly
+      // pbCount/pbQuantity's contract — spelling it out again here is how the
+      // two sites that got this class of bug wrong came to differ from the 24
+      // that call the helpers.
+      bodyCondition: pbCount(d['body_condition']),
       hydration: Hydration.fromWire(d['hydration']),
       mentation: Mentation.fromWire(d['mentation']),
-      temperature: switch (pbDouble(d['temperature'])) {
-        0 => null,
-        final v => v,
-      },
+      temperature: pbQuantity(d['temperature']),
       mmColor: MmColor.fromWire(d['mm_color']),
       mmTexture: MmTexture.fromWire(d['mm_texture']),
       notes: pbString(d['notes']),

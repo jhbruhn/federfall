@@ -423,6 +423,86 @@ void main() {
       // member and simply renders as an absent keeper.
       expect(a.keeper, isEmpty);
     });
+
+    test('reads an unset capacity as null, not a capacity of 0', () {
+      // What the server actually sends: an optional number nobody filled in
+      // comes back as 0, key present. Read as 0 it made every enclosure with
+      // one resident over capacity, and reopened the form showing a 0.
+      final a = Aviary.fromRecord(
+        RecordModel({'id': 'v', 'name': 'X', 'capacity': 0}),
+      );
+      expect(a.capacity, isNull);
+    });
+  });
+
+  group('Sponsorship.fromRecord', () {
+    test('maps the sponsor, the arrangement and its dates', () {
+      final s = Sponsorship.fromRecord(
+        RecordModel({
+          'id': 'spon0000000001',
+          'animal': 'anml0000000001',
+          'sponsor_name': 'Marie Vogt',
+          'sponsor_pronouns': 'sie/ihr',
+          'address': 'Amselweg 4',
+          'postal_code': '26121',
+          'city': 'Oldenburg',
+          'region': 'Niedersachsen',
+          'mobile': '+49 170 1234567',
+          'amount_cents': 2500,
+          'interval': 'monthly',
+          'started_at': '2026-03-01 00:00:00.000Z',
+          'ended_at': '',
+          'notes': 'per Dauerauftrag',
+          'org': 'org00000000001',
+        }),
+      );
+      expect(s.animal, 'anml0000000001');
+      expect(s.sponsorName, 'Marie Vogt');
+      expect(s.sponsorPronouns, 'sie/ihr');
+      expect(s.address, 'Amselweg 4');
+      expect(s.postalCode, '26121');
+      expect(s.city, 'Oldenburg');
+      expect(s.region, 'Niedersachsen');
+      expect(s.mobile, '+49 170 1234567');
+      expect(s.amountCents, 2500);
+      expect(s.interval, SponsorshipInterval.monthly);
+      expect(s.startedAt?.month, 3);
+      expect(s.endedAt, isNull, reason: 'empty date → still running');
+      expect(s.notes, 'per Dauerauftrag');
+      expect(s.isActive, isTrue);
+    });
+
+    test('reads an unset amount as null, not 0,00 EUR', () {
+      // The amount is optional (some patronages are an arrangement without a
+      // figure), and the server sends 0 for one nobody filled in — printed as
+      // „0,00 EUR" that reads as the agreed donation.
+      final s = Sponsorship.fromRecord(
+        RecordModel({
+          'id': 's',
+          'animal': 'a',
+          'sponsor_name': 'N',
+          'amount_cents': 0,
+          'interval': '',
+        }),
+      );
+      expect(s.amountCents, isNull);
+      expect(s.interval, isNull);
+    });
+
+    test('a future end date is still an active patronage', () {
+      final s = Sponsorship.fromRecord(
+        RecordModel({
+          'id': 's',
+          'animal': 'a',
+          'sponsor_name': 'N',
+          'ended_at': DateTime.now()
+              .toUtc()
+              .add(const Duration(days: 30))
+              .toIso8601String(),
+        }),
+      );
+      expect(s.isActive, isTrue);
+    });
   });
 
   group('AviaryStay.fromRecord', () {

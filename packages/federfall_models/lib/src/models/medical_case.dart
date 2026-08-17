@@ -66,7 +66,10 @@ abstract class Case with _$Case {
       city: pbString(d['city']),
       region: pbString(d['region']),
       admissionReasons: pbStringList(d['admission_reasons']),
-      intakeWeightG: pbInt(d['intake_weight_g']),
+      // pbCount: an unset optional number arrives as 0, and a bird weighing
+      // nothing on admission is not a reading — 0 g would be a
+      // plausible-looking intake weight for a case where none was taken.
+      intakeWeightG: pbCount(d['intake_weight_g']),
       intakeNotes: pbString(d['intake_notes']),
       intakePhotos: pbStringList(d['intake_photos']),
       status: CaseStatus.fromWire(d['status']),

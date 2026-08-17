@@ -44,6 +44,17 @@ void main() {
       });
       expect(Case.fromRecord(r).findGeo, isNull);
     });
+
+    test('reads an unset intake weight as null, not 0 g', () {
+      // The server sends 0 for an optional number nobody filled in, so the
+      // key being present is not the same as a weight having been taken.
+      final r = RecordModel({
+        'id': 'c',
+        'animal': 'a',
+        'intake_weight_g': 0,
+      });
+      expect(Case.fromRecord(r).intakeWeightG, isNull);
+    });
   });
 
   group('CaseSummary.fromRecord', () {
