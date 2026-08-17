@@ -59,8 +59,17 @@ class PbAnimalsRepository extends PbRepository<Animal> {
 
   /// Animals currently housed in any aviary (`current_aviary` set) — the
   /// occupancy-count source for the aviary registry.
-  Future<List<Animal>> housed() =>
-      list(filter: filterExpr('current_aviary != ""'));
+  ///
+  /// PROJECTED (federfall-obia): only `id` and `currentAviary` are populated;
+  /// every other field reads as its empty default. This exists to be tallied by
+  /// enclosure, and pulling each housed bird's name, species, notes, photo
+  /// filenames and geo across the wire to count it is what [countHoused] goes
+  /// out of its way to avoid on the very same predicate. A caller that needs a
+  /// whole resident record wants [residentsOf] instead.
+  Future<List<Animal>> housed() => list(
+    filter: filterExpr('current_aviary != ""'),
+    fields: 'id,current_aviary',
+  );
 
   /// How many animals the caller may read live in an enclosure, counted
   /// server-side — one row over the wire, not the whole collection to be

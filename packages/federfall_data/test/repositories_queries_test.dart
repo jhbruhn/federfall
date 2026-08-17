@@ -80,6 +80,42 @@ void main() {
       verify(() => pb.filter('current_aviary != ""', {})).called(1);
     });
 
+    test('housed asks for only the two columns it tallies', () async {
+      // federfall-obia: the aviary registry's occupancy badges. Its one caller
+      // reads `currentAviary` and nothing else, so every housed bird's name,
+      // species, notes, photo filenames and geo used to cross the wire to be
+      // counted — the same over-fetch countHoused avoids on the same predicate.
+      when(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: any(named: 'fields'),
+        ),
+      ).thenAnswer((_) async => ResultList<RecordModel>());
+
+      await PbAnimalsRepository(pb).housed();
+
+      verify(() => pb.filter('current_aviary != ""', {})).called(1);
+      final fields = verify(
+        () => service.getList(
+          page: any(named: 'page'),
+          perPage: any(named: 'perPage'),
+          skipTotal: any(named: 'skipTotal'),
+          filter: any(named: 'filter'),
+          sort: any(named: 'sort'),
+          expand: any(named: 'expand'),
+          fields: captureAny(named: 'fields'),
+        ),
+      ).captured.single;
+      // `id` travels too: fromRecord reads it, and a projection that drops it
+      // hands back records that cannot be told apart.
+      expect(fields, 'id,current_aviary');
+    });
+
     test('residentsOf filters by current_aviary', () async {
       await PbAnimalsRepository(pb).residentsOf('avir1');
       verify(
