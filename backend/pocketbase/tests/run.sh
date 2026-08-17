@@ -66,6 +66,12 @@ echo "==> Starting server on :$PORT"
 # must therefore be ignored by /info while still contributing its origin to the
 # CSP.
 #
+# The geocoder points at a closed local port on purpose (federfall-185w): no
+# test may reach the real Nominatim, and a refused connection makes "the input
+# was rejected" (400) distinguishable from "the input was accepted and the
+# upstream then failed" — which is the only way to prove a coordinate check
+# non-vacuous without standing up a stub geocoder.
+#
 # Two dummy OAuth2 providers are registered so /api/federfall/info has
 # something to report scopes for (federfall-lnz3): a generic OIDC one, which
 # must be told to ask for the groups scope because a group mapping is
@@ -88,6 +94,7 @@ docker run -d --name "$NAME" -p "$PORT:8090" \
   -e FEDERFALL_MAP_STYLE_URL=https://vector.invalid/style.json \
   -e FEDERFALL_MAP_ATTRIBUTION='© Test Tiles' \
   -e FEDERFALL_MAP_API_KEY=test-map-key \
+  -e FEDERFALL_NOMINATIM_URL=http://127.0.0.1:1 \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
   -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
   -v "$PB_DIR/typst:/pb/typst:ro" \

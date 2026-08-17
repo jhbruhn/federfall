@@ -32,8 +32,11 @@
 // this app applies; see the note at the bottom of this file.
 //
 // PocketBase runs each route handler in an isolated JSVM context, so it cannot
-// see file-level helpers — everything a handler needs is defined inside it
-// (hence the cache + normalization helpers are duplicated across handlers).
+// see file-level helpers — but a `require()`d module IS shared across those
+// contexts, which is how the cache, the result normalization and the upstream
+// config live in ONE place (`lib_geocode.js`, federfall-185w) instead of being
+// written out once per handler. Anything else a handler needs is defined inside
+// it.
 
 // Forward geocode: address → candidates.
 routerAdd(
@@ -46,99 +49,8 @@ routerAdd(
     if (e.auth && e.auth.getString("role") === "guest") {
       throw new ForbiddenError("Not allowed.");
     }
-    const base =
-      $os.getenv("FEDERFALL_NOMINATIM_URL") ||
-      "https://nominatim.openstreetmap.org";
-    const key = $os.getenv("FEDERFALL_GEOCODER_KEY") || "";
-    const ua = $os.getenv("FEDERFALL_USER_AGENT") || "Federfall/1.0";
-
-    const toResult = (r) => {
-      const a = r.address || {};
-      const city =
-        a.city || a.town || a.village || a.municipality || a.hamlet || "";
-      const region = a.state || a.region || "";
-      const road = a.road || a.pedestrian || a.footway || a.path || "";
-      const street = road
-        ? a.house_number
-          ? road + " " + a.house_number
-          : road
-        : "";
-      const locality = [a.postcode, city].filter(Boolean).join(" ");
-      // Tidy "Street 8, 26125 City" rather than Nominatim's long display_name.
-      const composed = [street, locality].filter(Boolean).join(", ");
-      return {
-        lat: parseFloat(r.lat),
-        lon: parseFloat(r.lon),
-        displayName: composed || r.display_name || "",
-        city: city,
-        region: region,
-      };
-    };
-
-    // --- cache (see header) ---------------------------------------------------
-    const CACHE = $os.getenv("FEDERFALL_GEOCODE_CACHE_DISABLED") !== "1";
-    const TTL_DAYS =
-      parseFloat($os.getenv("FEDERFALL_GEOCODE_CACHE_TTL_DAYS")) || 30;
-    const NEG_TTL_HOURS =
-      parseFloat($os.getenv("FEDERFALL_GEOCODE_CACHE_NEG_TTL_HOURS")) || 24;
-    const DAY_MS = 86400000;
-    const HOUR_MS = 3600000;
-    const nowMs = new Date().getTime();
-    // PocketBase stores/compares dates as "YYYY-MM-DD HH:MM:SS.sssZ".
-    const pbDate = (d) => d.toISOString().replace("T", " ");
-
-    const cacheGet = (k) => {
-      if (!CACHE) return null;
-      let rec;
-      try {
-        rec = $app.findFirstRecordByFilter(
-          "geocode_cache",
-          "kind = {:kind} && cache_key = {:key}",
-          { kind: "forward", key: k },
-        );
-      } catch (_) {
-        return null; // miss
-      }
-      const exp = new Date(
-        String(rec.get("expires_at")).replace(" ", "T"),
-      ).getTime();
-      if (isNaN(exp) || exp <= nowMs) return null; // stale → treat as miss
-      try {
-        rec.set("hits", (rec.getInt("hits") || 0) + 1);
-        $app.save(rec);
-      } catch (_) {
-        // hit accounting is best-effort; never fail a read on a write error
-      }
-      return rec.get("response");
-    };
-
-    const cachePut = (k, response, count) => {
-      if (!CACHE) return;
-      const ttlMs = count > 0 ? TTL_DAYS * DAY_MS : NEG_TTL_HOURS * HOUR_MS;
-      try {
-        const col = $app.findCollectionByNameOrId("geocode_cache");
-        let rec;
-        try {
-          rec = $app.findFirstRecordByFilter(
-            "geocode_cache",
-            "kind = {:kind} && cache_key = {:key}",
-            { kind: "forward", key: k },
-          );
-        } catch (_) {
-          rec = new Record(col);
-          rec.set("kind", "forward");
-          rec.set("cache_key", k);
-          rec.set("hits", 0);
-        }
-        rec.set("response", response);
-        rec.set("result_count", count);
-        rec.set("expires_at", pbDate(new Date(nowMs + ttlMs)));
-        $app.save(rec);
-      } catch (_) {
-        // A concurrent miss may have inserted the same key first (unique-index
-        // conflict), or any other write error — the response is unaffected.
-      }
-    };
+    const geo = require(`${__hooks}/lib_geocode.js`);
+    const up = geo.upstream();
 
     const q = e.request.url.query().get("q");
     if (!q) return e.json(400, { error: "missing q" });
@@ -150,31 +62,57 @@ routerAdd(
     const cacheKey = q.trim().toLowerCase().replace(/\s+/g, " ");
     if (!cacheKey) return e.json(400, { error: "missing q" });
 
-    const cached = cacheGet(cacheKey);
+    const cached = geo.cacheGet(e.app, "forward", cacheKey);
     if (cached !== null) return e.json(200, cached);
 
-    const res = $http.send({
-      url:
-        base +
-        "/search?format=jsonv2&addressdetails=1&limit=5&q=" +
-        encodeURIComponent(q) +
-        (key ? "&api_key=" + encodeURIComponent(key) : ""),
-      method: "GET",
-      headers: { "User-Agent": ua },
-      timeout: 10,
-    });
+    // $http.send THROWS on a connection-level failure (refused, DNS, timeout)
+    // rather than returning a status, and an uncaught throw here is rendered as
+    // a generic 400 — telling the client its request was bad when the request
+    // was fine and the geocoder was unreachable. That is the likeliest failure
+    // of all, since FEDERFALL_NOMINATIM_URL is operator-set. Same 502 as an
+    // upstream error status, and likewise never cached.
+    let res;
+    try {
+      res = $http.send({
+        url:
+          up.base +
+          "/search?format=jsonv2&addressdetails=1&limit=5&q=" +
+          encodeURIComponent(q) +
+          (up.key ? "&api_key=" + encodeURIComponent(up.key) : ""),
+        method: "GET",
+        headers: { "User-Agent": up.ua },
+        timeout: 10,
+      });
+    } catch (err) {
+      $app
+        .logger()
+        .warn(
+          "geocoder forward unreachable",
+          "err",
+          String(err),
+          "base",
+          up.base,
+        );
+      return e.json(502, { error: "geocoder unavailable" });
+    }
     if (res.statusCode !== 200) {
       $app
         .logger()
-        .warn("geocoder forward failed", "status", res.statusCode, "base", base);
+        .warn(
+          "geocoder forward failed",
+          "status",
+          res.statusCode,
+          "base",
+          up.base,
+        );
       // Don't cache upstream failures — a transient outage must not be stored
       // as "not found".
       return e.json(502, { error: "geocoder unavailable" });
     }
 
-    const results = (res.json || []).map(toResult);
+    const results = (res.json || []).map(geo.toResult);
     const payload = { results: results };
-    cachePut(cacheKey, payload, results.length);
+    geo.cachePut(e.app, "forward", cacheKey, payload, results.length);
     return e.json(200, payload);
   },
   $apis.requireAuth(),
@@ -191,102 +129,24 @@ routerAdd(
     if (e.auth && e.auth.getString("role") === "guest") {
       throw new ForbiddenError("Not allowed.");
     }
-    const base =
-      $os.getenv("FEDERFALL_NOMINATIM_URL") ||
-      "https://nominatim.openstreetmap.org";
-    const key = $os.getenv("FEDERFALL_GEOCODER_KEY") || "";
-    const ua = $os.getenv("FEDERFALL_USER_AGENT") || "Federfall/1.0";
-
-    const toResult = (r) => {
-      const a = r.address || {};
-      const city =
-        a.city || a.town || a.village || a.municipality || a.hamlet || "";
-      const region = a.state || a.region || "";
-      const road = a.road || a.pedestrian || a.footway || a.path || "";
-      const street = road
-        ? a.house_number
-          ? road + " " + a.house_number
-          : road
-        : "";
-      const locality = [a.postcode, city].filter(Boolean).join(" ");
-      // Tidy "Street 8, 26125 City" rather than Nominatim's long display_name.
-      const composed = [street, locality].filter(Boolean).join(", ");
-      return {
-        lat: parseFloat(r.lat),
-        lon: parseFloat(r.lon),
-        displayName: composed || r.display_name || "",
-        city: city,
-        region: region,
-      };
-    };
-
-    // --- cache (see header) ---------------------------------------------------
-    const CACHE = $os.getenv("FEDERFALL_GEOCODE_CACHE_DISABLED") !== "1";
-    const TTL_DAYS =
-      parseFloat($os.getenv("FEDERFALL_GEOCODE_CACHE_TTL_DAYS")) || 30;
-    const NEG_TTL_HOURS =
-      parseFloat($os.getenv("FEDERFALL_GEOCODE_CACHE_NEG_TTL_HOURS")) || 24;
-    const DAY_MS = 86400000;
-    const HOUR_MS = 3600000;
-    const nowMs = new Date().getTime();
-    const pbDate = (d) => d.toISOString().replace("T", " ");
-
-    const cacheGet = (k) => {
-      if (!CACHE) return null;
-      let rec;
-      try {
-        rec = $app.findFirstRecordByFilter(
-          "geocode_cache",
-          "kind = {:kind} && cache_key = {:key}",
-          { kind: "reverse", key: k },
-        );
-      } catch (_) {
-        return null;
-      }
-      const exp = new Date(
-        String(rec.get("expires_at")).replace(" ", "T"),
-      ).getTime();
-      if (isNaN(exp) || exp <= nowMs) return null;
-      try {
-        rec.set("hits", (rec.getInt("hits") || 0) + 1);
-        $app.save(rec);
-      } catch (_) {
-        // best-effort hit accounting
-      }
-      return rec.get("response");
-    };
-
-    const cachePut = (k, response, count) => {
-      if (!CACHE) return;
-      const ttlMs = count > 0 ? TTL_DAYS * DAY_MS : NEG_TTL_HOURS * HOUR_MS;
-      try {
-        const col = $app.findCollectionByNameOrId("geocode_cache");
-        let rec;
-        try {
-          rec = $app.findFirstRecordByFilter(
-            "geocode_cache",
-            "kind = {:kind} && cache_key = {:key}",
-            { kind: "reverse", key: k },
-          );
-        } catch (_) {
-          rec = new Record(col);
-          rec.set("kind", "reverse");
-          rec.set("cache_key", k);
-          rec.set("hits", 0);
-        }
-        rec.set("response", response);
-        rec.set("result_count", count);
-        rec.set("expires_at", pbDate(new Date(nowMs + ttlMs)));
-        $app.save(rec);
-      } catch (_) {
-        // unique-conflict from a concurrent miss, or other write error
-      }
-    };
+    const geo = require(`${__hooks}/lib_geocode.js`);
+    const up = geo.upstream();
 
     const query = e.request.url.query();
     const lat = query.get("lat");
     const lon = query.get("lon");
     if (!lat || !lon) return e.json(400, { error: "missing lat/lon" });
+    // federfall-185w — a coordinate must be a plain number, not merely
+    // something parseFloat can salvage: `52.5abc` passed parseFloat + isFinite
+    // and was then relayed upstream verbatim. Forwarding the parsed pair below
+    // already stops that from splitting a cache entry, but garbage in a
+    // coordinate means the caller is confused, and saying so beats silently
+    // geocoding a different point from the one asked about. Exponent form is
+    // accepted because Dart's `double.toString()` can emit it.
+    const NUMERIC = /^[+-]?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+    if (!NUMERIC.test(lat.trim()) || !NUMERIC.test(lon.trim())) {
+      return e.json(400, { error: "invalid lat/lon" });
+    }
     const latN = parseFloat(lat);
     const lonN = parseFloat(lon);
     if (
@@ -300,27 +160,59 @@ routerAdd(
       return e.json(400, { error: "invalid lat/lon" });
     }
     // Normalization: round to ~1m so near-identical pins share one entry.
-    const cacheKey = latN.toFixed(5) + "," + lonN.toFixed(5);
+    //
+    // federfall-185w — ONE rounded pair feeds both the cache key and the
+    // upstream query, so an entry cannot describe a different point from the one
+    // that was asked about. It used to validate the PARSED coordinate and
+    // forward the RAW string, which meant `lat=52.5abc` survived
+    // parseFloat + isFinite, was keyed as "52.50000", and was then relayed
+    // verbatim — two different upstream queries sharing one entry, whichever
+    // landed first winning it.
+    const latQ = latN.toFixed(5);
+    const lonQ = lonN.toFixed(5);
+    const cacheKey = latQ + "," + lonQ;
 
-    const cached = cacheGet(cacheKey);
+    const cached = geo.cacheGet(e.app, "reverse", cacheKey);
     if (cached !== null) return e.json(200, cached);
 
-    const res = $http.send({
-      url:
-        base +
-        "/reverse?format=jsonv2&addressdetails=1&lat=" +
-        encodeURIComponent(lat) +
-        "&lon=" +
-        encodeURIComponent(lon) +
-        (key ? "&api_key=" + encodeURIComponent(key) : ""),
-      method: "GET",
-      headers: { "User-Agent": ua },
-      timeout: 10,
-    });
+    // As on the forward route: a connection-level failure throws, and an
+    // uncaught throw would report a fine request as a 400.
+    let res;
+    try {
+      res = $http.send({
+        url:
+          up.base +
+          "/reverse?format=jsonv2&addressdetails=1&lat=" +
+          encodeURIComponent(latQ) +
+          "&lon=" +
+          encodeURIComponent(lonQ) +
+          (up.key ? "&api_key=" + encodeURIComponent(up.key) : ""),
+        method: "GET",
+        headers: { "User-Agent": up.ua },
+        timeout: 10,
+      });
+    } catch (err) {
+      $app
+        .logger()
+        .warn(
+          "geocoder reverse unreachable",
+          "err",
+          String(err),
+          "base",
+          up.base,
+        );
+      return e.json(502, { error: "geocoder unavailable" });
+    }
     if (res.statusCode !== 200) {
       $app
         .logger()
-        .warn("geocoder reverse failed", "status", res.statusCode, "base", base);
+        .warn(
+          "geocoder reverse failed",
+          "status",
+          res.statusCode,
+          "base",
+          up.base,
+        );
       return e.json(502, { error: "geocoder unavailable" });
     }
 
@@ -328,8 +220,8 @@ routerAdd(
     // found — treat that as a (cacheable) negative result, not an address.
     const raw = res.json || {};
     const found = !raw.error && raw.lat != null;
-    const payload = { result: found ? toResult(raw) : null };
-    cachePut(cacheKey, payload, found ? 1 : 0);
+    const payload = { result: found ? geo.toResult(raw) : null };
+    geo.cachePut(e.app, "reverse", cacheKey, payload, found ? 1 : 0);
     return e.json(200, payload);
   },
   $apis.requireAuth(),

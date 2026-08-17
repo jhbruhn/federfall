@@ -7615,6 +7615,97 @@ def main():
     check("geocode without q is rejected", s == 400, f"status {s}")
     s, _ = req("GET", "/api/federfall/geocode?q=" + "x" * 300, toks["a"])
     check("geocode with overlong q is rejected", s == 400, f"status {s}")
+
+    # federfall-185w — the reverse route validated the PARSED coordinate and
+    # forwarded the RAW string, so `52.5abc` survived parseFloat + isFinite, was
+    # cache-keyed as "52.50000", and was relayed upstream verbatim: two
+    # different upstream queries sharing one cache entry, whichever landed first
+    # winning it. It is now rejected outright, and the pair that IS forwarded is
+    # the same rounded pair the key is built from.
+    #
+    # These run on the reverse route's own rate budget, before the floods below
+    # exhaust it. Nothing here reaches a geocoder: run.sh points the upstream at
+    # a closed port, which is also what makes the last check meaningful — a
+    # well-formed pin must fail at the UPSTREAM, not at validation.
+    # Asserted on the BODY, not the status: an unreachable upstream USED to
+    # surface as a bare 400 too (an uncaught $http.send throw), so a status-only
+    # check passed for the wrong reason on every one of these — which is how the
+    # non-vacuous half below caught it.
+    def reverse(pin):
+        s, d = req("GET", f"/api/federfall/geocode/reverse?lat={pin}", toks["a"])
+        return s, (d or {}).get("error")
+
+    for bad in ("52.5abc&lon=13.4", "52.5&lon=13.4abc", "abc&lon=13.4",
+                "&lon=13.4", "NaN&lon=13.4", "Infinity&lon=13.4"):
+        s, err = reverse(bad)
+        check(f"reverse geocode rejects lat={bad.split('&')[0]!r}",
+              s == 400 and err in ("invalid lat/lon", "missing lat/lon"),
+              f"{s} {err}")
+    s, err = reverse("91&lon=13.4")
+    check("reverse geocode still rejects an out-of-range latitude",
+          s == 400 and err == "invalid lat/lon", f"{s} {err}")
+    # Non-vacuous: a well-formed pin reaches the UPSTREAM and fails there, which
+    # is a 502 — run.sh points the geocoder at a closed port. Exponent form
+    # counts as well-formed, because Dart's double.toString() emits it.
+    for good in ("52.5&lon=13.4", "-52.5&lon=-13.4", "52.50000&lon=13.40000",
+                 "1e-7&lon=13.4"):
+        s, err = reverse(good)
+        check(f"...while lat={good.split('&')[0]!r} reaches the geocoder",
+              s == 502 and err == "geocoder unavailable", f"{s} {err}")
+    # The same contract on the forward route: an unreachable geocoder is 502,
+    # never a 400 blaming the caller's query.
+    s, d = req("GET", "/api/federfall/geocode?q=Berlin", toks["a"])
+    check("an unreachable geocoder is 502 on the forward route too",
+          s == 502 and (d or {}).get("error") == "geocoder unavailable",
+          f"{s} {d}")
+
+    # The CACHE, which nothing reached before: with no stub geocoder there is no
+    # successful response to store, and `cachePut` swallows every error by
+    # design — so a cache that had silently stopped working (a module context
+    # that could not `new Record`, a drifted key) would look exactly like a
+    # cache that was never exercised. Seeding a row directly is what makes the
+    # read path observable: the upstream here is a closed port, so a 200 can
+    # ONLY have come from the cache.
+    #
+    # `geocode_cache` has all-null API rules — only the hooks touch it — but a
+    # superuser bypasses rules, which is what lets the row be planted.
+    seeded = {"result": {"lat": 52.5, "lon": 13.4, "displayName": "185w Berlin",
+                         "city": "Berlin", "region": "Berlin"}}
+    cache_row = mk(T, "geocode_cache", {
+        "kind": "reverse", "cache_key": "52.50000,13.40000",
+        "response": seeded, "result_count": 1, "hits": 0,
+        "expires_at": stamp(days=1),
+    })["id"]
+    s, d = req("GET", "/api/federfall/geocode/reverse?lat=52.5&lon=13.4",
+               toks["a"])
+    check("a cached reverse lookup is served without reaching the geocoder",
+          s == 200 and (d or {}).get("result", {}).get("displayName")
+          == "185w Berlin", f"{s} {d}")
+    # The ~1m rounding is the key: a pin that differs below the 5th decimal must
+    # land on the same entry, and one that differs above it must not.
+    s, d = req("GET", "/api/federfall/geocode/reverse?lat=52.500001&lon=13.4",
+               toks["a"])
+    check("...and a pin within a metre shares that entry", s == 200, f"{s} {d}")
+    s, _ = reverse("52.6&lon=13.4")
+    check("...while a different pin misses it and goes upstream", s == 502,
+          f"status {s}")
+    # Hit accounting is best-effort, but it is also the only proof the module
+    # can WRITE this collection at all — a silently broken `app.save` here is
+    # what would make the whole cache a no-op.
+    s, row = req("GET", f"/api/collections/geocode_cache/records/{cache_row}", T)
+    check("a cache hit is counted (the module can write the cache)",
+          s == 200 and (row or {}).get("hits", 0) >= 2,
+          f"{s} hits={(row or {}).get('hits')}")
+    # An EXPIRED row is a miss, not a stale answer.
+    mk(T, "geocode_cache", {
+        "kind": "reverse", "cache_key": "10.00000,10.00000",
+        "response": seeded, "result_count": 1, "hits": 0,
+        "expires_at": stamp(days=-1),
+    })
+    s, _ = reverse("10&lon=10")
+    check("an expired cache row is a miss, not a stale answer", s == 502,
+          f"status {s}")
+
     statuses = []
     for _ in range(45):
         s, _ = req("GET", "/api/federfall/geocode", toks["a"])
