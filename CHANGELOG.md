@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.2](https://github.com/jhbruhn/federfall/compare/v1.4.1...v1.4.2) (2026-08-17)
+
+
+### Bug Fixes
+
+* **ui:** a weight axis that stops at zero, and a month per column ([3853517](https://github.com/jhbruhn/federfall/commit/3853517d79b511dd90eaec25e06e909d2b2d17b4))
+* **ui:** axis labels that sit where they belong ([4953365](https://github.com/jhbruhn/federfall/commit/4953365e9d05d62fc6edfb61872683fb29114f4e))
+
 ## [1.4.1](https://github.com/jhbruhn/federfall/compare/v1.4.0...v1.4.1) (2026-08-17)
 
 
