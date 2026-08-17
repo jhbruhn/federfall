@@ -155,6 +155,23 @@ void main() {
       expect(data.maxY, greaterThan(300));
     });
 
+    testWidgets('never runs below zero grams', (tester) async {
+      // A squab and the same bird grown up: rounding the padded floor
+      // outwards over that span put the axis at -200 g.
+      await pump(
+        tester,
+        const WeightTrendChart.forAnimal('a1'),
+        animalWeights: [
+          weight('w1', DateTime(2026, 4, 3), 15),
+          weight('w2', DateTime(2026, 6, 18), 400),
+        ],
+      );
+
+      final data = chartData(tester);
+      expect(data.minY, 0);
+      expect(find.textContaining('-'), findsNothing);
+    });
+
     testWidgets('spells a heavy bird out in grams, never "1.4K"', (
       tester,
     ) async {

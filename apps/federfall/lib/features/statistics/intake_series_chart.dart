@@ -236,9 +236,6 @@ class IntakeSeriesChart extends StatelessWidget {
   /// What the left axis reserves, and therefore what the plot does not get.
   static const double _valueAxisWidth = 32;
 
-  /// Air either side of a bottom label, so two never end up touching.
-  static const double _labelGap = 4;
-
   /// How the bottom axis is labelled in the width it actually has: the label
   /// for a bucket key, and how many buckets there are between labels.
   ///
@@ -261,27 +258,14 @@ class IntakeSeriesChart extends StatelessWidget {
       case SeriesBucket.year:
         return (label, (series.points.length / 6).ceil().clamp(1, 1 << 30));
       case SeriesBucket.month:
-        final style = Theme.of(context).textTheme.labelSmall;
-        int strideFor(String Function(int) form) {
-          if (column <= 0) return 1;
-          final widest = labelBounds(context, style, [
-            for (final p in series.points) form(p.key),
-          ]).width;
-          return ((widest + _labelGap) / column).ceil().clamp(
-            1,
-            series.points.length,
-          );
-        }
-
-        if (strideFor(label) == 1) return (label, 1);
-        final narrow = DateFormat(
-          // Five Ms is the narrow month: "J" for January, and the locale's own
-          // letter rather than a substring of the abbreviation.
-          'MMMMM',
-          Localizations.localeOf(context).toString(),
+        return fittingAxisLabels(
+          context,
+          column: column,
+          keys: [for (final p in series.points) p.key],
+          preferred: label,
+          fallback: narrowMonthLabel(context),
+          style: Theme.of(context).textTheme.labelSmall,
         );
-        String narrowLabel(int key) => narrow.format(DateTime(2000, key));
-        return (narrowLabel, strideFor(narrowLabel));
     }
   }
 

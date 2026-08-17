@@ -63,90 +63,113 @@ class EggMonthChart extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
+    // Bucket index → the month it stands for. Overflowing `month` past twelve
+    // is how `firstMonth` is built too, and `DateTime` normalises it.
+    DateTime monthAt(int i) => DateTime(firstMonth.year, firstMonth.month + i);
+    final narrow = narrowMonthLabel(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(context.l10n.eggChartTitle, style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.md),
-        SizedBox(
-          height: 160,
-          child: BarChart(
-            BarChartData(
-              maxY: ceiling.toDouble(),
-              gridData: chartGrid(context, interval: step.toDouble()),
-              borderData: FlBorderData(show: false),
-              barTouchData: const BarTouchData(enabled: false),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 28,
-                    interval: step.toDouble(),
-                    getTitlesWidget: (value, meta) => axisLabel(
-                      meta,
-                      meta.formattedValue,
-                      style: labelStyle,
-                      fitInside: false,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // EVERY month is named: reading this chart means mapping a bar
+            // back to a month, and a label every third column made that a
+            // counting exercise. What one column actually gets is what is
+            // left once the value axis has taken its own width; where three
+            // letters do not fit — a phone showing twelve months — the
+            // locale's single letter does.
+            final (label, labelEvery) = fittingAxisLabels(
+              context,
+              column: (constraints.maxWidth - _valueAxisWidth) / months,
+              keys: [for (var i = 0; i < months; i++) i],
+              preferred: (i) => month.format(monthAt(i)),
+              fallback: (i) => narrow(monthAt(i).month),
+              style: labelStyle,
+            );
+            return SizedBox(
+              height: 160,
+              child: BarChart(
+                BarChartData(
+                  maxY: ceiling.toDouble(),
+                  gridData: chartGrid(context, interval: step.toDouble()),
+                  borderData: FlBorderData(show: false),
+                  barTouchData: const BarTouchData(enabled: false),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(),
+                    rightTitles: const AxisTitles(),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: _valueAxisWidth,
+                        interval: step.toDouble(),
+                        getTitlesWidget: (value, meta) => axisLabel(
+                          meta,
+                          meta.formattedValue,
+                          style: labelStyle,
+                          fitInside: false,
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 24,
+                        getTitlesWidget: (value, meta) {
+                          final i = value.toInt();
+                          if (i % labelEvery != 0) {
+                            return const SizedBox.shrink();
+                          }
+                          return axisLabel(meta, label(i), style: labelStyle);
+                        },
+                      ),
                     ),
                   ),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 24,
-                    getTitlesWidget: (value, meta) {
-                      final i = value.toInt();
-                      // Every third month only — twelve labels would collide.
-                      if (i % 3 != 0) return const SizedBox.shrink();
-                      return axisLabel(
-                        meta,
-                        month.format(
-                          DateTime(firstMonth.year, firstMonth.month + i),
-                        ),
-                        style: labelStyle,
-                      );
-                    },
-                  ),
-                ),
-              ),
-              barGroups: [
-                for (var i = 0; i < months; i++)
-                  BarChartGroupData(
-                    x: i,
-                    barRods: [
-                      BarChartRodData(
-                        toY: totals[i].toDouble(),
-                        width: 10,
-                        // Rounded at the data end, square on the baseline:
-                        // fl_chart rounds every corner by default, so a bar
-                        // stood on a half-circle that crossed the zero line.
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(4),
-                        ),
-                        color: theme.colorScheme.primary,
-                        // The presumed share sits on top in a lighter shade.
-                        rodStackItems: [
-                          BarChartRodStackItem(
-                            0,
-                            confirmed[i].toDouble(),
-                            theme.colorScheme.primary,
-                          ),
-                          BarChartRodStackItem(
-                            confirmed[i].toDouble(),
-                            totals[i].toDouble(),
-                            theme.colorScheme.primaryContainer,
+                  barGroups: [
+                    for (var i = 0; i < months; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: totals[i].toDouble(),
+                            width: 10,
+                            // Rounded at the data end, square on the
+                            // baseline: fl_chart rounds every corner by
+                            // default, so a bar stood on a half-circle that
+                            // crossed the zero line.
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(4),
+                            ),
+                            color: theme.colorScheme.primary,
+                            // The presumed share sits on top, lighter.
+                            rodStackItems: [
+                              BarChartRodStackItem(
+                                0,
+                                confirmed[i].toDouble(),
+                                theme.colorScheme.primary,
+                              ),
+                              BarChartRodStackItem(
+                                confirmed[i].toDouble(),
+                                totals[i].toDouble(),
+                                theme.colorScheme.primaryContainer,
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
   }
+
+  /// What the value axis reserves, and therefore what the twelve columns do
+  /// not get.
+  static const double _valueAxisWidth = 28;
 }

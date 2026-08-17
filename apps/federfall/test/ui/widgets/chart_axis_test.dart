@@ -66,6 +66,56 @@ void main() {
     expect(grid.getDrawingHorizontalLine(0).dashArray, isNull);
   });
 
+  group('fittingAxisLabels', () {
+    Future<(String Function(int), int)> pick(
+      WidgetTester tester,
+      double column,
+    ) async {
+      late (String Function(int), int) chosen;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              chosen = fittingAxisLabels(
+                context,
+                column: column,
+                keys: [for (var i = 1; i <= 12; i++) i],
+                preferred: (i) => 'month $i',
+                fallback: (i) => '$i',
+                style: const TextStyle(fontSize: 10),
+              );
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      return chosen;
+    }
+
+    testWidgets('keeps the full label where every column has room', (
+      tester,
+    ) async {
+      final (label, stride) = await pick(tester, 200);
+      expect(label(3), 'month 3');
+      expect(stride, 1);
+    });
+
+    testWidgets('narrows before it leaves a column unlabelled', (tester) async {
+      // Skipping columns is the last resort: mapping a mark back to its
+      // column is the whole job of a category axis (federfall-yapf).
+      final (label, stride) = await pick(tester, 30);
+      expect(label(3), '3');
+      expect(stride, 1);
+    });
+
+    testWidgets('grows the stride when even the narrow form does not fit', (
+      tester,
+    ) async {
+      final (_, stride) = await pick(tester, 3);
+      expect(stride, greaterThan(1));
+    });
+  });
+
   testWidgets('labelBounds measures the widest and tallest label', (
     tester,
   ) async {

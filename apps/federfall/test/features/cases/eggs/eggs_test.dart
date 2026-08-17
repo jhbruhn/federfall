@@ -502,15 +502,24 @@ void main() {
   group('EggMonthChart', () {
     Future<void> pumpChart(
       WidgetTester tester,
-      List<EggRecord> eggs,
-    ) async {
+      List<EggRecord> eggs, {
+      double width = 600,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
-            body: EggMonthChart(eggs: eggs, now: DateTime.utc(2026, 7, 15)),
+            body: Center(
+              child: SizedBox(
+                width: width,
+                child: EggMonthChart(
+                  eggs: eggs,
+                  now: DateTime.utc(2026, 7, 15),
+                ),
+              ),
+            ),
           ),
         ),
       );
@@ -528,6 +537,46 @@ void main() {
       await pumpChart(tester, [_egg('e1', laidAt: DateTime.utc(2026, 6, 2))]);
       expect(find.byType(BarChart), findsOneWidget);
       expect(find.text('Eggs per month'), findsOneWidget);
+    });
+
+    // Mapping a bar back to a month was a counting exercise while only every
+    // third column was named (federfall-yapf).
+    testWidgets('names every month of the window', (tester) async {
+      await pumpChart(tester, [_egg('e1', laidAt: DateTime.utc(2026, 6, 2))]);
+
+      for (final name in const [
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+      ]) {
+        expect(find.text(name), findsOneWidget, reason: name);
+      }
+    });
+
+    testWidgets('falls back to one letter before it skips a month', (
+      tester,
+    ) async {
+      // A phone cannot fit twelve three-letter months side by side, and the
+      // locale's narrow form is still read as months in calendar order.
+      await pumpChart(
+        tester,
+        [_egg('e1', laidAt: DateTime.utc(2026, 6, 2))],
+        width: 300,
+      );
+
+      expect(find.text('Aug'), findsNothing);
+      // Every month still carries its own letter: January, June and July.
+      expect(find.text('J'), findsNWidgets(3));
+      expect(find.text('A'), findsNWidgets(2));
     });
   });
 

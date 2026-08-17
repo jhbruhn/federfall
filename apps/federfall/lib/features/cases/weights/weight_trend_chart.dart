@@ -104,9 +104,15 @@ class _Chart extends StatelessWidget {
     // date below it (federfall-yapf). Padding first and rounding outwards
     // keeps the line clear of the edges AND every label a whole number on a
     // gridline — 1240 g reads as "1250", never as fl_chart's "1.4 K".
+    // The floor stops at zero: rounding the padding outwards over a wide span
+    // — a squab at 15 g and the same bird at 400 g — put the axis at -200,
+    // and there is no such thing as a bird weighing less than nothing.
     final pad = ((highest - lowest) * 0.1).clamp(1.0, double.infinity);
     final step = _niceStep((highest - lowest + 2 * pad) / _valueSteps);
-    final axisMin = ((lowest - pad) / step).floorToDouble() * step;
+    final axisMin = math.max<double>(
+      0,
+      ((lowest - pad) / step).floorToDouble() * step,
+    );
     final axisMax = ((highest + pad) / step).ceilToDouble() * step;
 
     // The unit rides the topmost label alone: a "g" beside every number would
