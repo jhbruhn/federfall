@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.1](https://github.com/jhbruhn/federfall/compare/v1.4.0...v1.4.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* **backend:** no dose is due after the plan has ended ([e06228c](https://github.com/jhbruhn/federfall/commit/e06228c215eb3ab381b8fb688c2b4e29523434de))
+* **backend:** one geocode cache, and a coordinate that survives the trip ([71a3e72](https://github.com/jhbruhn/federfall/commit/71a3e72dde29b46c16c9cb7b2a4dd2071e0615a1))
+* **backend:** the guest wall reaches medication_due, and the sweep finds it itself ([66acccf](https://github.com/jhbruhn/federfall/commit/66acccf11d23fca68609d701c2a76d386b0706bb))
+* **models:** an unset number is no number, not a zero ([7800c45](https://github.com/jhbruhn/federfall/commit/7800c453e61cc82e1bbadf49c3f40a85cbb899ec))
+
+
+### Performance Improvements
+
+* **data:** housed() fetches the two columns it is counted by ([1a1b630](https://github.com/jhbruhn/federfall/commit/1a1b6307735f10a819b7acf2f012b37723ddfc28))
+
 ## [1.4.0](https://github.com/jhbruhn/federfall/compare/v1.3.0...v1.4.0) (2026-08-13)
 
 
