@@ -112,6 +112,9 @@ void main() {
     final planned = _plan([
       _due('m1', nextDue: _now),
       _due('m2', nextDue: _now.subtract(const Duration(hours: 2))),
+      // No next-due at all. Since federfall-082v that is a deliberate signal
+      // from the view, not just an absent value: the plan is still running but
+      // its next dose would fall past its own end, so there is nothing to fire.
       _due('m3'),
     ]);
     expect(planned, isEmpty);

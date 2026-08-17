@@ -50,6 +50,9 @@ void main() {
       expect(items, isEmpty);
     });
 
+    // Since federfall-082v the view returns a null next-due for a running plan
+    // whose next dose would fall past its own `ended_at`, so this is the
+    // client half of that clip: nothing to show, and nothing to derive instead.
     test('a row with no next-due is skipped', () {
       final items = buildWorklist(
         cases: [_case('c1')],

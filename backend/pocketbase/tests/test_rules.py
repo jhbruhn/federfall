@@ -2903,6 +2903,85 @@ def main():
           s == 200 and (row or {}).get("next_due", "").startswith("2026-06-08 00:00"),
           f"{s} {(row or {}).get('next_due')}")
 
+    # ── federfall-082v: no dose is due after the plan has ended ─────────────
+    # The row survives while `ended_at > now`, but next_due used to be derived
+    # with no reference to `ended_at`, so the two could disagree — and both
+    # consumers took the view at its word (the worklist filters on its window,
+    # the reminder planner on `isAfter(now)`), so an item showed and a
+    # notification could fire for a dose the plan no longer prescribes.
+    #
+    # Every instant here is relative to the server's own clock: `ended_at` has
+    # to be in the FUTURE for the row to be in the view at all, so a literal
+    # would stop testing this the day it passed.
+    def due_of(med_id):
+        s, row = req("GET", f"/api/collections/medication_due/records/{med_id}",
+                     toks["a"])
+        return s, (row or {}).get("next_due")
+
+    def plain_plan(ended_at):
+        # Last dose an hour ago, every 12 h -> due in 11 h.
+        m = mk(T, "medications", {
+            "case": mdcase, "drug": "082v Baytril",
+            "frequency_kind": "scheduled", "interval_hours": 12,
+            "dose_unit": "mg", "ended_at": ended_at, "org": ORG,
+        })["id"]
+        mk(T, "medication_administrations", {
+            "case": mdcase, "medication": m, "drug": "082v Baytril",
+            "administered_at": stamp(hours=-1), "org": ORG,
+        })
+        return m
+
+    # (1) plain interval overshooting a near-future end: due in 11 h, ends in 6.
+    s, nd = due_of(plain_plan(stamp(hours=6)))
+    check("a plain interval due past ended_at reports no due",
+          s == 200 and not nd, f"{s} {nd}")
+    # …and the row is still THERE: the plan has not ended, there is simply
+    # nothing further due under it. Clipped, not dropped.
+    m_clipped = plain_plan(stamp(hours=6))
+    check("...and the plan is still in the view, just with no due instant",
+          len(listf(toks["a"], "medication_due", f"id = '{m_clipped}'")) == 1,
+          "row vanished")
+    # The twin that must not be clipped, or the check above passes for the
+    # wrong reason: same 11 h due, an end a day out.
+    s, nd = due_of(plain_plan(stamp(hours=24)))
+    check("...while a due instant before ended_at is untouched",
+          s == 200 and bool(nd), f"{s} {nd}")
+
+    # (2) a CYCLE plan whose end was hand-picked INSIDE a pause. 5 on / 2 off
+    # anchored 5 days ago, so day 5 (the first pause day) is now: a dose an hour
+    # ago puts the candidate at now + 11 h, still day 5, which the cycle pushes
+    # to the next cycle's first instant — day 7, i.e. now + 2 days. An end one
+    # day out is inside the pause and therefore BEFORE that push.
+    def cycle_plan(ended_at):
+        m = mk(T, "medications", {
+            "case": mdcase, "drug": "082v Panacur",
+            "frequency_kind": "scheduled", "interval_hours": 12,
+            "cycle_on_days": 5, "cycle_off_days": 2,
+            "started_at": stamp(days=-5), "dose_unit": "mg",
+            "ended_at": ended_at, "org": ORG,
+        })["id"]
+        mk(T, "medication_administrations", {
+            "case": mdcase, "medication": m, "drug": "082v Panacur",
+            "administered_at": stamp(hours=-1), "org": ORG,
+        })
+        return m
+
+    s, nd = due_of(cycle_plan(stamp(days=1)))
+    check("a cycle pushed past an end inside the pause reports no due",
+          s == 200 and not nd, f"{s} {nd}")
+    # The twin: the same push, an end beyond it. This also pins the push itself,
+    # so a future change that stopped jumping the pause would fail here rather
+    # than make the clip look correct.
+    s, nd = due_of(cycle_plan(stamp(days=3)))
+    check("...while the same push lands fine inside a longer plan",
+          s == 200 and bool(nd), f"{s} {nd}")
+
+    # An open-ended plan has nothing to be clipped against, and must keep the
+    # due it always had — `ended_at` is '' there, not NULL.
+    s, nd = due_of(plain_plan(""))
+    check("an open-ended plan still reports its due", s == 200 and bool(nd),
+          f"{s} {nd}")
+
     # 6d3a.2 — a carer records what a calculated dose was derived from, under
     # the same child rules as the rest of the timeline (no new rule shape).
     s, adm = req("POST", "/api/collections/medication_administrations/records",
