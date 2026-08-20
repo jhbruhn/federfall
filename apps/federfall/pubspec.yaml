@@ -53,17 +53,17 @@ dependencies:
   zugvogel_core:
     git:
       url: https://github.com/jhbruhn/zugvogel.git
-      ref: fee4943419d7f3c7c2fa11a8c50a62d1f361b113
+      ref: 34f191443a4e6fe3fd2bb665fd701290e635b610
       path: packages/zugvogel_core
   zugvogel_pb_client:
     git:
       url: https://github.com/jhbruhn/zugvogel.git
-      ref: fee4943419d7f3c7c2fa11a8c50a62d1f361b113
+      ref: 34f191443a4e6fe3fd2bb665fd701290e635b610
       path: packages/zugvogel_pb_client
   zugvogel_ui:
     git:
       url: https://github.com/jhbruhn/zugvogel.git
-      ref: fee4943419d7f3c7c2fa11a8c50a62d1f361b113
+      ref: 34f191443a4e6fe3fd2bb665fd701290e635b610
       path: packages/zugvogel_ui
 dev_dependencies:
   build_runner: ^2.15.0

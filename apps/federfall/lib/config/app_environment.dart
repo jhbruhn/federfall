@@ -1,3 +1,12 @@
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart';
+
+// MapMode now lives in zugvogel_pb_client (eiermann-d2a.4): it is part of the
+// /info wire contract, not of this app's configuration. Re-exported under the
+// same name so every call site keeps working — declaring a second enum here
+// would make the two structurally identical and mutually unassignable, which is
+// exactly the error this replaces.
+export 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show MapMode;
+
 /// Build-time application configuration.
 ///
 /// Values are injected via `--dart-define-from-file=dart_defines/<flavor>.json`
@@ -5,9 +14,6 @@
 /// `String.fromEnvironment`. Because these are compile-time constants they are
 /// tree-shaken and safe to reference anywhere.
 enum AppFlavor { development, staging, production }
-
-/// Map tile rendering path, see [AppEnvironment.mapMode].
-enum MapMode { vector, raster }
 
 abstract final class AppEnvironment {
   /// Raw flavor name from the `FLAVOR` define (defaults to development so a

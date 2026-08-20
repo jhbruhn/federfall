@@ -1,4 +1,3 @@
-import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/config/map_config.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';

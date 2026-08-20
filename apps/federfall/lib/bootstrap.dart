@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:federfall/config/app_environment.dart';
+import 'package:federfall/config/zugvogel_bindings.dart';
 import 'package:federfall/core/logging/app_logger.dart';
 import 'package:federfall/core/logging/logging_observer.dart';
 import 'package:federfall/routing/url_strategy/url_strategy.dart';
@@ -58,6 +59,14 @@ Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
 
   // Clean path-based URLs on the web (no-op on native).
   configureUrlStrategy();
+
+  // What zugvogel needs to know about this app: the service name that derives
+  // the /api/federfall/info route, the identity marker and the storage keys,
+  // plus the map fallback and the flavor-dependent http allowance. The library
+  // reads no compile-time define of its own (injection boundary 3), so this is
+  // the one place those cross over. Set before the ProviderScope below, so no
+  // provider can be read without it.
+  defaultPbClientConfig = federfallPbClientConfig();
 
   runApp(
     ProviderScope(

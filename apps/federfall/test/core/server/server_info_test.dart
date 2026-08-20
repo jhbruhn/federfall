@@ -2,10 +2,20 @@ import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/core/server/server_info.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// `ServerInfo.tryParse` takes the service marker as a parameter now that it
+/// lives in zugvogel_pb_client (eiermann-d2a.4) — hardcoding "federfall" is
+/// exactly what made it unshareable. This supplies what the package used to
+/// assume, so every assertion below is unchanged.
+ServerInfo? _tryParse(Object? json) => ServerInfo.tryParse(
+  json,
+  service: 'federfall',
+  fallbackName: 'Federfall',
+);
+
 void main() {
   group('ServerInfo.tryParse', () {
     test('parses a full Federfall payload', () {
-      final info = ServerInfo.tryParse({
+      final info = _tryParse({
         'service': 'federfall',
         'federfall': true,
         'version': '1.2.0',
@@ -30,7 +40,7 @@ void main() {
     });
 
     test('accepts the federfall marker alone and fills defaults', () {
-      final info = ServerInfo.tryParse({'federfall': true});
+      final info = _tryParse({'federfall': true});
 
       expect(info, isNotNull);
       expect(info!.name, 'Federfall');
@@ -41,7 +51,7 @@ void main() {
     });
 
     test('parses per-provider OAuth2 scope overrides', () {
-      final info = ServerInfo.tryParse({
+      final info = _tryParse({
         'federfall': true,
         'auth': {
           'oauth2': ['oidc'],
@@ -62,7 +72,7 @@ void main() {
     test('ignores a malformed oauth2Scopes value', () {
       // A server sending the wrong shape must not break discovery — the app
       // just falls back to PocketBase's own scopes.
-      final info = ServerInfo.tryParse({
+      final info = _tryParse({
         'federfall': true,
         'auth': {
           'oauth2Scopes': {'oidc': 'openid email', 'ok': <String>[]},
@@ -74,7 +84,7 @@ void main() {
     });
 
     test('an older server omitting oauth2Scopes yields an empty map', () {
-      final info = ServerInfo.tryParse({
+      final info = _tryParse({
         'federfall': true,
         'auth': {
           'oauth2': ['oidc'],
@@ -85,17 +95,17 @@ void main() {
     });
 
     test('rejects a body without the marker (generic PocketBase)', () {
-      expect(ServerInfo.tryParse({'message': 'ok', 'code': 200}), isNull);
+      expect(_tryParse({'message': 'ok', 'code': 200}), isNull);
     });
 
     test('rejects non-map input', () {
-      expect(ServerInfo.tryParse(null), isNull);
-      expect(ServerInfo.tryParse('federfall'), isNull);
-      expect(ServerInfo.tryParse(42), isNull);
+      expect(_tryParse(null), isNull);
+      expect(_tryParse('federfall'), isNull);
+      expect(_tryParse(42), isNull);
     });
 
     test('tolerates a malformed auth block', () {
-      final info = ServerInfo.tryParse({
+      final info = _tryParse({
         'federfall': true,
         'auth': 'nonsense',
       });
@@ -107,10 +117,10 @@ void main() {
 
   group('ServerInfo.tryParse map block', () {
     ServerMapConfig? parseMap(Object? map) =>
-        ServerInfo.tryParse({'federfall': true, 'map': map})?.map;
+        _tryParse({'federfall': true, 'map': map})?.map;
 
     test('is null when the server prescribes nothing', () {
-      expect(ServerInfo.tryParse({'federfall': true})?.map, isNull);
+      expect(_tryParse({'federfall': true})?.map, isNull);
     });
 
     test('parses a raster prescription', () {

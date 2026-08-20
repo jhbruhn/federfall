@@ -5,5 +5,9 @@
 // falls through to a generic message AND takes the content already on screen
 // with it (federfall-s5mm).
 export 'package:zugvogel_core/zugvogel_core.dart'
-    show FutureRecord2, FutureRecord3, FutureRecord4, FutureRecord5,
+    show
+        FutureRecord2,
+        FutureRecord3,
+        FutureRecord4,
+        FutureRecord5,
         FutureRecord7;

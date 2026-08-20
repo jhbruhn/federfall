@@ -75,7 +75,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           _busy = false;
           _error = l10n.serverUnreachable;
         });
-      case ProbeNotFederfall():
+      case ProbeWrongService():
         setState(() {
           _busy = false;
           _error = l10n.serverNotFederfall;
