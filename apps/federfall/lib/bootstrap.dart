@@ -5,10 +5,13 @@ import 'package:federfall/config/app_environment.dart';
 import 'package:federfall/config/zugvogel_bindings.dart';
 import 'package:federfall/core/logging/app_logger.dart';
 import 'package:federfall/core/logging/logging_observer.dart';
+import 'package:federfall/l10n/federfall_strings.dart';
+import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/url_strategy/url_strategy.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart';
 
 /// `vector_map_tiles`'s tile loader (`_VectorTileModelLoader.startLoading` in
 /// `grid/tile_model.dart`) awaits its sprite-atlas fetch outside its own
@@ -67,6 +70,13 @@ Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
   // the one place those cross over. Set before the ProviderScope below, so no
   // provider can be read without it.
   defaultPbClientConfig = federfallPbClientConfig();
+
+  // Where the shared widgets get their words. It takes the BuildContext rather
+  // than a ready-made instance so the strings stay locale-reactive: reading
+  // this app's localizations out of the context on every build is what
+  // registers the dependency a locale change needs, where a cached instance
+  // would freeze the language at startup.
+  defaultZugvogelStrings = (context) => FederfallStrings(context.l10n);
 
   runApp(
     ProviderScope(
