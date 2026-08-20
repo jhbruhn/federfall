@@ -1,25 +1,13 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
-
-part 'geo_point.freezed.dart';
-
-/// A geographic pin, mirroring a PocketBase `geoPoint` field (`{lon, lat}`).
-///
-/// PocketBase represents an unset pin as `{lon: 0, lat: 0}`; [fromPb] treats
-/// that sentinel as "no pin" and returns `null`.
-@freezed
-abstract class GeoPoint with _$GeoPoint {
-  const factory GeoPoint({
-    required double lon,
-    required double lat,
-  }) = _GeoPoint;
-
-  /// Parses a raw PocketBase geoPoint map, or `null` when unset.
-  static GeoPoint? fromPb(Object? raw) {
-    if (raw is! Map) return null;
-    final lon = (raw['lon'] as num?)?.toDouble();
-    final lat = (raw['lat'] as num?)?.toDouble();
-    if (lon == null || lat == null) return null;
-    if (lon == 0 && lat == 0) return null;
-    return GeoPoint(lon: lon, lat: lat);
-  }
-}
+// GeoPoint now lives in zugvogel_core (eiermann-d2a.3), hand-written rather
+// than freezed — that package carries no code generation, because a git
+// dependency cannot have build_runner run inside it.
+//
+// The class is unchanged where it matters: a const constructor, value equality,
+// copyWith, and `fromPb` still reading {lon: 0, lat: 0} as null so an unset pin
+// does not render as a plausible marker in the Gulf of Guinea.
+//
+// One deliberate consequence: freezed no longer generates a nested
+// `$GeoPointCopyWith` for the models that carry a `GeoPoint?` field, because it
+// only does that for types it generated itself. Nothing ever called those
+// chains — checked across both apps before the move.
+export 'package:zugvogel_core/zugvogel_core.dart' show GeoPoint;
