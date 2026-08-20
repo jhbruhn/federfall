@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:federfall/config/map_config.dart';
+import 'package:federfall/config/zugvogel_bindings.dart';
 import 'package:federfall/core/server/server_probe.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -20,6 +22,24 @@ Map<String, Object?> _infoBody({
     'selfSignup': false,
   },
 };
+
+/// ServerProbe takes a PbClientConfig now instead of a bare prober plus a
+/// test-only `forTest` constructor: the /info route, the identity marker and
+/// the insecure-http allowance all come from it (eiermann-d2a.4). The old
+/// `allowInsecureHttp:` argument is passed through unchanged, so the cases
+/// below read the same.
+ServerProbe _probe(
+  ServerInfoProber prober, {
+  bool allowInsecureHttp = false,
+}) => ServerProbe(
+  config: PbClientConfig(
+    service: 'federfall',
+    fallbackServerName: 'Federfall',
+    mapFallback: mapConfigFromDefines(),
+    allowInsecureHttp: allowInsecureHttp,
+  ),
+  prober: prober,
+);
 
 void main() {
   group('normalizeServerUrl', () {
@@ -66,7 +86,7 @@ void main() {
   group('ServerProbe.probe', () {
     test('invalid URL is reported without probing', () async {
       var probed = false;
-      final probe = ServerProbe((_) async {
+      final probe = _probe((_) async {
         probed = true;
         return _infoBody();
       });
@@ -78,7 +98,7 @@ void main() {
     test(
       'a Federfall server is reachable with its normalised url + info',
       () async {
-        final probe = ServerProbe(
+        final probe = _probe(
           (_) async => _infoBody(name: 'Wildvogelhilfe', passwordReset: true),
         );
 
@@ -95,14 +115,14 @@ void main() {
     test(
       'a generic PocketBase (no marker in a 200 body) is not-Federfall',
       () async {
-        final probe = ServerProbe((_) async => {'message': 'ok'});
+        final probe = _probe((_) async => {'message': 'ok'});
 
-        expect(await probe.probe('pigeons.example'), isA<ProbeNotFederfall>());
+        expect(await probe.probe('pigeons.example'), isA<ProbeWrongService>());
       },
     );
 
     test('a connection failure (statusCode 0) is unreachable', () async {
-      final probe = ServerProbe(
+      final probe = _probe(
         (_) async => throw ClientException(),
       );
 
@@ -112,16 +132,16 @@ void main() {
     test(
       'a 404 (route missing on a generic PocketBase) is not-Federfall',
       () async {
-        final probe = ServerProbe(
+        final probe = _probe(
           (_) async => throw ClientException(statusCode: 404),
         );
 
-        expect(await probe.probe('pigeons.example'), isA<ProbeNotFederfall>());
+        expect(await probe.probe('pigeons.example'), isA<ProbeWrongService>());
       },
     );
 
     test('a timeout is unreachable', () async {
-      final probe = ServerProbe(
+      final probe = _probe(
         (_) async => throw TimeoutException('slow'),
       );
 
@@ -135,10 +155,10 @@ void main() {
         // Pinned to `false` (simulating production) rather than relying on
         // AppEnvironment.flavor, which defaults to "development" with no
         // --dart-define — i.e. exactly how `flutter test` runs this suite.
-        final probe = ServerProbe.forTest((_) async {
+        final probe = _probe((_) async {
           probed = true;
           return _infoBody();
-        }, allowInsecureHttp: false);
+        });
 
         expect(
           await probe.probe('http://pigeons.example'),
@@ -152,7 +172,7 @@ void main() {
       'explicit http:// on a non-loopback host is probed in the '
       'development flavor',
       () async {
-        final probe = ServerProbe.forTest(
+        final probe = _probe(
           (_) async => _infoBody(),
           allowInsecureHttp: true,
         );
@@ -167,7 +187,7 @@ void main() {
     test(
       'explicit http:// on localhost is still probed (dev escape hatch)',
       () async {
-        final probe = ServerProbe((_) async => _infoBody());
+        final probe = _probe((_) async => _infoBody());
 
         final result = await probe.probe('http://localhost:8090');
 
@@ -179,7 +199,7 @@ void main() {
     test(
       'explicit http:// on 127.0.0.1 is still probed (dev escape hatch)',
       () async {
-        final probe = ServerProbe((_) async => _infoBody());
+        final probe = _probe((_) async => _infoBody());
 
         expect(
           await probe.probe('http://127.0.0.1:8090'),

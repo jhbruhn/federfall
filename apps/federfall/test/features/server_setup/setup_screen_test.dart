@@ -1,3 +1,5 @@
+import 'package:federfall/config/map_config.dart';
+import 'package:federfall/config/zugvogel_bindings.dart';
 import 'package:federfall/core/pocketbase/auth_token_storage.dart';
 import 'package:federfall/core/server/server_config.dart';
 import 'package:federfall/core/server/server_config_controller.dart';
@@ -44,6 +46,20 @@ Future<ProviderContainer> _pump(WidgetTester tester, ServerProbe probe) async {
   return container;
 }
 
+/// See server_probe_test.dart: ServerProbe takes a PbClientConfig now.
+ServerProbe _probe(
+  ServerInfoProber prober, {
+  bool allowInsecureHttp = false,
+}) => ServerProbe(
+  config: PbClientConfig(
+    service: 'federfall',
+    fallbackServerName: 'Federfall',
+    mapFallback: mapConfigFromDefines(),
+    allowInsecureHttp: allowInsecureHttp,
+  ),
+  prober: prober,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -52,7 +68,7 @@ void main() {
   testWidgets('shows an inline error when the server is unreachable', (
     tester,
   ) async {
-    await _pump(tester, ServerProbe((_) async => throw ClientException()));
+    await _pump(tester, _probe((_) async => throw ClientException()));
 
     await tester.enterText(find.byType(TextFormField), 'pigeons.example');
     await tester.tap(find.text('Connect'));
@@ -66,7 +82,7 @@ void main() {
   ) async {
     final container = await _pump(
       tester,
-      ServerProbe((_) async => _infoBody()),
+      _probe((_) async => _infoBody()),
     );
 
     await tester.enterText(find.byType(TextFormField), 'pigeons.example');
@@ -91,10 +107,10 @@ void main() {
       // defaults to "development" with no --dart-define, which is exactly how
       // `flutter test` runs — the real (non-test) constructor would let this
       // through and defeat the assertion below.
-      ServerProbe.forTest((_) async {
+      _probe((_) async {
         probed = true;
         return _infoBody();
-      }, allowInsecureHttp: false),
+      }),
     );
 
     await tester.enterText(
@@ -112,7 +128,7 @@ void main() {
     var probed = false;
     await _pump(
       tester,
-      ServerProbe((_) async {
+      _probe((_) async {
         probed = true;
         return _infoBody();
       }),
