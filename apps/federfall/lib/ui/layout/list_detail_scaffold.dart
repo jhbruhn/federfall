@@ -1,35 +1,16 @@
-import 'package:federfall/theme/app_spacing.dart';
-import 'package:federfall/ui/layout/window_size.dart';
-import 'package:federfall/ui/widgets/empty_view.dart';
 import 'package:flutter/material.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart';
 
-/// Pure two-pane layout: a fixed-width [list] on the left, a divider, and the
-/// [detail] filling the rest. Knows nothing about routing — callers decide what
-/// each pane is and when to use it (see [ListDetailShell]).
-class ListDetailScaffold extends StatelessWidget {
-  const ListDetailScaffold({
-    required this.list,
-    required this.detail,
-    super.key,
-  });
-
-  /// Left pane — the list. Constrained to [kListPaneWidth].
-  final Widget list;
-
-  /// Right pane — the selected item's detail (or a [DetailPanePlaceholder]).
-  final Widget detail;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(width: kListPaneWidth, child: list),
-        const VerticalDivider(width: 1),
-        Expanded(child: detail),
-      ],
-    );
-  }
-}
+// The two pure containers moved to zugvogel_ui (eiermann-d2a.13):
+// ListDetailScaffold, which is a fixed-width pane beside a divider beside the
+// rest, and DetailPanePlaceholder, whose prompt was already a parameter.
+//
+// ListDetailShell stayed. It is the part that has to know whether a detail is
+// open, and it learns that from the route — so it depends on federfall's own
+// URL shapes and on go_router's ShellRoute. A shared package cannot hold a
+// widget whose behaviour is keyed on another app's route names.
+export 'package:zugvogel_ui/zugvogel_ui.dart'
+    show DetailPanePlaceholder, ListDetailScaffold;
 
 /// Adaptive list-detail container shared by the cases / animals / aviaries (and
 /// admin) surfaces. Wires one reusable [list] widget and the section's pane
@@ -70,33 +51,5 @@ class ListDetailShell extends StatelessWidget {
       return ListDetailScaffold(list: list, detail: detailChild);
     }
     return detailChild;
-  }
-}
-
-/// The empty right pane shown on expanded widths before anything is selected.
-class DetailPanePlaceholder extends StatelessWidget {
-  const DetailPanePlaceholder({required this.message, this.icon, super.key});
-
-  /// Prompt, e.g. "Select a case to view its details".
-  final String message;
-
-  /// Optional leading icon; defaults to a neutral selection cue.
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    // A Material of its own so the pane has a proper background (and text/icon
-    // theming) even when it renders outside a Scaffold — e.g. as the right pane
-    // of the management hub, which is a bare Row.
-    return Material(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: EmptyView(
-          icon: icon ?? Icons.touch_app_outlined,
-          message: message,
-        ),
-      ),
-    );
   }
 }

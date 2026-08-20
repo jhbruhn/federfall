@@ -1,33 +1,29 @@
 import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/error/error_message.dart';
-import 'package:federfall/l10n/l10n.dart';
-import 'package:federfall/theme/app_spacing.dart';
-import 'package:federfall/ui/widgets/primary_button.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart';
 
-/// Mixin for a create/edit sheet's [ConsumerState]: owns the busy/error pair
-/// and [formKey], plus [requireUserOrg] and [runSave] — the byte-identical
-/// org guard and `_save()` try/catch tail every sheet repeated. Pair with the
-/// `DiscardGuard` mixin for the unsaved-changes guard and [SheetScaffold] for
-/// the surrounding layout (see e.g. `weight_entry_sheet.dart`).
-mixin FormSheetState<T extends ConsumerStatefulWidget> on ConsumerState<T> {
-  /// Owned so sheets don't each declare `final _formKey = GlobalKey<...>()`.
-  final formKey = GlobalKey<FormState>();
+// The busy/error lifecycle, the form key, runSave and the sheet shell moved to
+// zugvogel_ui (eiermann-d2a.9) — every create/edit sheet in either app repeats
+// the same try/catch tail and the same padding/scroll/title/error/save layout.
+//
+// requireUserOrg did NOT move, and could not: resolving "the signed-in user
+// and their organisation" needs federfall's own AppUser and its
+// currentUserProvider, and a shared package that knew either would know this
+// app's data model. It stays here as an extension on the library's mixin, so
+// the ~20 sheets that call it keep writing `with FormSheetState<...>` and
+// `await requireUserOrg()` exactly as before.
+export 'package:zugvogel_ui/zugvogel_ui.dart'
+    show FormSheetState, SheetScaffold, trimToNull;
 
-  bool _busy = false;
-  String? _error;
-
-  bool get isBusy => _busy;
-  String? get saveError => _error;
-
-  /// Shows [message] in the same slot [runSave] uses, for a validation check
-  /// that must run before the try/catch (e.g. a cross-field rule `Form`
-  /// validators can't express).
-  void setSaveError(String message) => setState(() => _error = message);
-
+/// The org guard every write in this app runs first.
+///
+/// An extension rather than a member of a federfall mixin so no sheet has to
+/// name two mixins: the method resolves on the library's [FormSheetState] the
+/// same way it did when it lived inside it.
+extension FormSheetOrgGuard<T extends ConsumerStatefulWidget>
+    on FormSheetState<T> {
   /// Resolves the signed-in user and their org, or fails with the
   /// [RepositoryException] every sheet throws before writing without one.
   Future<(AppUser user, String org)> requireUserOrg() async {
@@ -38,146 +34,4 @@ mixin FormSheetState<T extends ConsumerStatefulWidget> on ConsumerState<T> {
     }
     return (user, org);
   }
-
-  /// Runs [action] under the shared busy/error lifecycle. On success, [isBusy]
-  /// is left true — the caller pops the sheet next. On a [RepositoryException]
-  /// its message is shown; any other error is reported via
-  /// [reportCaughtError] and shown as a generic message. Either failure clears
-  /// [isBusy]. Returns whether [action] completed without error.
-  ///
-  /// Pass [clearBusyOnSuccess] where the surface STAYS after a successful save
-  /// — a settings screen that reports with a snackbar rather than closing.
-  /// Leaving the button spinning forever is only correct when the thing it
-  /// sits on is about to go away.
-  Future<bool> runSave(
-    Future<void> Function() action, {
-    bool clearBusyOnSuccess = false,
-  }) async {
-    final l10n = context.l10n;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await action();
-      if (clearBusyOnSuccess && mounted) setState(() => _busy = false);
-      return true;
-    } on RepositoryException catch (e) {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _error = errorMessage(l10n, e);
-        });
-      }
-      return false;
-    } on Object catch (error, stackTrace) {
-      reportCaughtError(error, stackTrace);
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _error = l10n.errorGenericTitle;
-        });
-      }
-      return false;
-    }
-  }
-}
-
-/// The padding/scroll/Form/title/error-slot/save-button shell every
-/// create/edit sheet hand-rolled. Wrap the returned widget in
-/// `guardUnsavedChanges` (from the `DiscardGuard` mixin); [children] are the
-/// sheet's own fields.
-///
-/// [formKey], [isBusy] and [error] normally come straight from a
-/// [FormSheetState] mixed into the same state, and [onSave] from its
-/// `_save()`. [trailing] renders below the save button (e.g. disposition's
-/// delete action).
-class SheetScaffold extends StatelessWidget {
-  const SheetScaffold({
-    required this.title,
-    required this.formKey,
-    required this.onFormChanged,
-    required this.children,
-    required this.isBusy,
-    required this.error,
-    required this.onSave,
-    this.saveLabel,
-    this.saveIcon = Icons.check,
-    this.trailing = const [],
-    super.key,
-  });
-
-  final String title;
-  final GlobalKey<FormState> formKey;
-  final VoidCallback onFormChanged;
-  final List<Widget> children;
-  final bool isBusy;
-  final String? error;
-  final VoidCallback onSave;
-
-  /// Defaults to the generic "Save" label.
-  final String? saveLabel;
-
-  /// Defaults to the check every save button carries. Override where the
-  /// action is not a save in the usual sense — inviting a member SENDS
-  /// something, and its button has always said so.
-  final IconData saveIcon;
-
-  /// Extra widgets rendered after the save button.
-  final List<Widget> trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.lg + viewInsets,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: formKey,
-          onChanged: onFormChanged,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(title, style: theme.textTheme.titleLarge),
-              const SizedBox(height: AppSpacing.md),
-              ...children,
-              if (error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  error!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.lg),
-              PrimaryButton(
-                label: saveLabel ?? l10n.actionSave,
-                icon: saveIcon,
-                isLoading: isBusy,
-                onPressed: onSave,
-              ),
-              ...trailing,
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Trims a controller's text, returning null for an empty result — the
-/// `_trim` helper every sheet with optional text fields repeated.
-String? trimToNull(TextEditingController controller) {
-  final value = controller.text.trim();
-  return value.isEmpty ? null : value;
 }
