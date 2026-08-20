@@ -1797,6 +1797,24 @@ packages:
       url: "https://github.com/jhbruhn/zugvogel.git"
     source: git
     version: "0.1.0"
+  zugvogel_pb_client:
+    dependency: transitive
+    description:
+      path: "packages/zugvogel_pb_client"
+      ref: fee4943419d7f3c7c2fa11a8c50a62d1f361b113
+      resolved-ref: fee4943419d7f3c7c2fa11a8c50a62d1f361b113
+      url: "https://github.com/jhbruhn/zugvogel.git"
+    source: git
+    version: "0.1.0"
+  zugvogel_ui:
+    dependency: transitive
+    description:
+      path: "packages/zugvogel_ui"
+      ref: fee4943419d7f3c7c2fa11a8c50a62d1f361b113
+      resolved-ref: fee4943419d7f3c7c2fa11a8c50a62d1f361b113
+      url: "https://github.com/jhbruhn/zugvogel.git"
+    source: git
+    version: "0.1.0"
 sdks:
   dart: ">=3.12.0 <4.0.0"
   flutter: ">=3.44.0 <4.0.0"

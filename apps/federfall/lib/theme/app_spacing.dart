@@ -1,20 +1,9 @@
-/// Spacing scale used across Federfall, in logical pixels.
-///
-/// A small fixed scale keeps layouts consistent and avoids scattering magic
-/// numbers through widgets.
-abstract final class AppSpacing {
-  /// 4 — hairline gaps between tightly related elements.
-  static const double xs = 4;
+// The spacing scale now lives in zugvogel_ui (eiermann-d2a.9) as
+// ZugvogelSpacing. `AppSpacing` stays as the name ~500 call sites in this app
+// already use: a typedef, so `AppSpacing.md` resolves to the same constant
+// rather than to a copy of it.
+import 'package:zugvogel_ui/zugvogel_ui.dart';
 
-  /// 8 — default gap inside a row/column of related controls.
-  static const double sm = 8;
-
-  /// 16 — standard padding around content and between sections.
-  static const double md = 16;
-
-  /// 24 — generous separation between distinct groups.
-  static const double lg = 24;
-
-  /// 32 — page-level breathing room.
-  static const double xl = 32;
-}
+/// This app's name for [ZugvogelSpacing]. A scale is not brand — no product
+/// identity lives in a gap width — so it is shared rather than injected.
+typedef AppSpacing = ZugvogelSpacing;
