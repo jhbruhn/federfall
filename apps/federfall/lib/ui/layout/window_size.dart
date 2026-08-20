@@ -1,46 +1,24 @@
-import 'package:flutter/widgets.dart';
-
-/// Material 3 window-size classes — the single source of truth for mapping the
-/// current width to a layout decision. Everything adaptive (the nav shell, the
-/// list-detail surfaces, the case detail) derives from here instead of
-/// sprinkling raw `MediaQuery` width checks through the widget tree.
-///
-/// Breakpoints follow the M3 spec: compact `< 600`, medium `600–839`, expanded
-/// `>= 840` (logical pixels).
-enum WindowSizeClass {
-  /// Phones in portrait — single pane, bottom navigation.
-  compact,
-
-  /// Large phones / small tablets — single pane, navigation rail.
-  medium,
-
-  /// Tablets / desktop / web — room for two panes, extended rail.
-  expanded;
-
-  /// Whether this class is [expanded] (i.e. wide enough for two panes).
-  bool get isExpanded => this == WindowSizeClass.expanded;
-}
-
-/// Width (logical px) at/above which the layout is [WindowSizeClass.medium].
-const double kMediumMin = 600;
-
-/// Width (logical px) at/above which the layout is [WindowSizeClass.expanded]
-/// and the canonical list-detail surfaces show both panes.
-const double kExpandedMin = 840;
-
-/// Fixed width of the list pane in a two-pane (list-detail) layout.
-const double kListPaneWidth = 360;
-
-/// Maximum width for flat, scrolling page content (settings lists, the profile,
-/// statistics, admin sections). Beyond this, content is centred with margins so
-/// rows and bars don't stretch to an unreadable length on wide windows. See
-/// `ContentBounds`.
-const double kContentMaxWidth = 840;
-
-/// Maximum width for a modal sheet's content. On wide windows the sheet floats
-/// centred at this width instead of stretching edge-to-edge; below it the sheet
-/// fills the screen as before. See `showAppSheet`.
-const double kSheetMaxWidth = 640;
+// The Material 3 size classes, their breakpoints and the width caps now live in
+// zugvogel_ui (eiermann-d2a.13): compact/medium/expanded is Material's mapping,
+// not federfall's, and both apps read it the same way.
+//
+// This file was SPLIT rather than moved. What stayed below are the breakpoints
+// tuned to particular content — the width the statistics cards need before two
+// columns of chart stay readable, the one the dashboard's KPI tiles need, the
+// one the case detail's panes need — plus the two route predicates. Those are
+// facts about federfall's screens and federfall's URLs, so a shared package
+// answering for them would only be guessing.
+export 'package:zugvogel_ui/zugvogel_ui.dart'
+    show
+        WindowSizeClass,
+        WindowSizeContext,
+        kContentMaxWidth,
+        kExpandedMin,
+        kListPaneWidth,
+        kMediumMin,
+        kSheetMaxWidth,
+        kWideContentMaxWidth,
+        windowSizeClassFor;
 
 /// Width at/above which the statistics screen lays its cards out in two
 /// columns instead of one.
@@ -59,41 +37,16 @@ const double kStatsTwoColumnMin = 960;
 /// 240px minimum (`KpiGrid`), i.e. 496 including the gap between them. Two such
 /// columns plus the gap between them and the page's own padding is 1040. Below
 /// that the caseload is better off with the full width — and the split used to
-/// happen at [kExpandedMin], which is not even the width the dashboard gets: a
+/// happen at `kExpandedMin`, which is not even the width the dashboard gets: a
 /// `NavigationRail` stands beside it, so the body is 80–200px narrower than the
 /// window and the tiles came out under 190px.
 const double kDashboardTwoColumnMin = 1040;
-
-/// Width cap for a page that has earned two columns (statistics, the
-/// dashboard). Wider than [kContentMaxWidth] because two columns of chart or of
-/// cards need the room; without a cap a 4K window would stretch a breakdown row
-/// across half a metre.
-const double kWideContentMaxWidth = 1280;
 
 /// Width of the *detail pane* at/above which the case detail lays Overview and
 /// History out side-by-side instead of behind tabs. Keyed on the pane (not the
 /// window) so a 840-wide window — whose detail pane is only ~480 — keeps tabs,
 /// while a wide desktop or a full-screen detail shows both columns.
 const double kCaseDetailTwoColumnMin = 720;
-
-/// Maps a raw width to its [WindowSizeClass].
-WindowSizeClass windowSizeClassFor(double width) {
-  if (width >= kExpandedMin) return WindowSizeClass.expanded;
-  if (width >= kMediumMin) return WindowSizeClass.medium;
-  return WindowSizeClass.compact;
-}
-
-/// Window-size helpers on [BuildContext]. Reads `MediaQuery.sizeOf`, so callers
-/// rebuild when the window is resized.
-extension WindowSizeContext on BuildContext {
-  /// The current [WindowSizeClass] for this context's width.
-  WindowSizeClass get windowSizeClass =>
-      windowSizeClassFor(MediaQuery.sizeOf(this).width);
-
-  /// Whether the current width is [WindowSizeClass.expanded] — i.e. wide enough
-  /// to show a list and a detail side-by-side.
-  bool get isExpanded => windowSizeClass.isExpanded;
-}
 
 /// Whether [location] addresses an item-detail page (`.../:id`) of one of the
 /// canonical list-detail surfaces. Used by the nav shell to drop the bottom

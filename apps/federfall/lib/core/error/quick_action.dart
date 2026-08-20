@@ -1,62 +1,11 @@
-import 'package:federfall/core/error/error_message.dart';
-import 'package:federfall/l10n/l10n.dart';
-import 'package:federfall/ui/widgets/destructive_action_button.dart';
-import 'package:flutter/material.dart';
-
-/// Runs a one-tap quick action (worklist mark-done, quarantine end-now, tile
-/// or code-list delete …) and surfaces a failure as the standard
-/// [errorMessage] snackbar.
-///
-/// The form sheets show repository errors inline, but these shortcuts have no
-/// surface of their own — without this, a failed call (offline, server error)
-/// was completely silent. Messenger and l10n are snapshotted before the await
-/// so a tile disposed mid-flight can still report.
-Future<void> runQuickAction(
-  BuildContext context,
-  Future<void> Function() action,
-) async {
-  final l10n = context.l10n;
-  final messenger = ScaffoldMessenger.of(context);
-  try {
-    await action();
-  } on Object catch (error, stackTrace) {
-    reportCaughtError(error, stackTrace);
-    messenger.showSnackBar(
-      SnackBar(content: Text(errorMessage(l10n, error))),
-    );
-  }
-}
-
-/// Shows a Cancel/confirm [AlertDialog] and, once confirmed, runs [action] via
-/// [runQuickAction]. The single confirm-then-delete flow every case-timeline
-/// tile's delete affordance repeats.
-Future<void> confirmAndDelete(
-  BuildContext context, {
-  required String title,
-  required String message,
-  required String confirmLabel,
-  required Future<void> Function() action,
-}) async {
-  final l10n = context.l10n;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(title),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: Text(l10n.actionCancel),
-        ),
-        // Filled and error-coloured, not a second text button: see
-        // [DestructiveActionButton].
-        DestructiveActionButton(
-          label: confirmLabel,
-          onPressed: () => Navigator.of(ctx).pop(true),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true || !context.mounted) return;
-  await runQuickAction(context, action);
-}
+// runQuickAction and confirmAndDelete now live in zugvogel_ui
+// (eiermann-d2a.9). Both take only a BuildContext and their callbacks, so
+// nothing about the call sites changed: the library reads its cancel label and
+// its error copy off the injected ZugvogelStrings, which FederfallStrings
+// answers from this app's ARB files.
+//
+// What they exist for is unchanged too — a form sheet shows repository errors
+// inline, but a one-tap shortcut (mark done, end now, delete a tile) has no
+// surface of its own, so without these a failed call was completely silent.
+export 'package:zugvogel_ui/zugvogel_ui.dart'
+    show confirmAndDelete, runQuickAction;
