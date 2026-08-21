@@ -1,7 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/quick_action.dart';
-import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
@@ -37,6 +35,8 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
+import 'package:zugvogel_ui/zugvogel_ui.dart' show runQuickAction;
 
 /// Animal lifetime detail (FED-7.6): one animal's full record — identity,
 /// markings (active + historic) and every case newest-first. Cases the user

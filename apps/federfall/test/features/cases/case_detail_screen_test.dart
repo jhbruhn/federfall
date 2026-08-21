@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/realtime/collection_events.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
@@ -18,6 +17,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart' hide Finder;
 import 'package:mocktail/mocktail.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show collectionEventsProvider;
 
 import '../printing/fake_printer_service.dart';
 import '../printing/fake_printer_settings.dart';

@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:federfall_data/src/repository_exception.dart';
 import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_data/zugvogel_data.dart'
+    show RepositoryErrorKind, RepositoryException;
 
 /// Fetches the per-case PDF report (federfall-gdp8), rendered server-side by
 /// `pb_hooks/case_report.pb.js` (Typst), via

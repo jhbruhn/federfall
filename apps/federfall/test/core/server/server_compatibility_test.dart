@@ -1,6 +1,7 @@
 import 'package:federfall/core/server/server_compatibility.dart';
-import 'package:federfall/core/server/server_info.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show ServerAuthOptions, ServerInfo;
 
 ServerInfo _info({required String version, String? minClient}) => ServerInfo(
   version: version,

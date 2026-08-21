@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/animals/vaccinations/vaccination_sheet.dart';
@@ -17,6 +16,7 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart' show confirmAndDelete;
 
 /// One vaccination as a chronology event (1700000087): the product and what it
 /// protects against, the batch number, dose and route, whether a booster is

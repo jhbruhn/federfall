@@ -1,11 +1,12 @@
 import 'dart:async';
 
 import 'package:federfall_data/src/pb_repository.dart';
-import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_data/zugvogel_data.dart'
+    show RepositoryErrorKind, RepositoryException;
 
 /// Ids of the records created by one atomic intake call.
 typedef IntakeResult = ({String caseId, String animalId});

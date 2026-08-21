@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/worklist/worklist.dart';
@@ -9,6 +8,7 @@ import 'package:federfall/routing/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart' show runQuickAction;
 
 /// One worklist row: kind icon, case number, and a relative detail line that
 /// turns error-coloured when overdue. Taps through to the case. A medication

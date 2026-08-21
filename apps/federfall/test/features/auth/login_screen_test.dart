@@ -2,10 +2,6 @@ import 'dart:async';
 
 import 'package:federfall/core/pocketbase/auth_token_storage.dart';
 import 'package:federfall/core/server/server_compatibility.dart';
-import 'package:federfall/core/server/server_config.dart';
-import 'package:federfall/core/server/server_config_controller.dart';
-import 'package:federfall/core/server/server_info.dart';
-import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/auth/login_screen.dart';
 import 'package:federfall/features/cases/case_intake_draft.dart';
@@ -17,6 +13,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show
+        ServerAuthOptions,
+        ServerConfigured,
+        ServerInfo,
+        ServerUnconfigured,
+        serverConfigControllerProvider,
+        serverInfoProvider;
 
 import '../../helpers/helpers.dart';
 

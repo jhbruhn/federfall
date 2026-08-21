@@ -38,7 +38,7 @@
 //
 // ── The window ──────────────────────────────────────────────────────────────
 // `organisations.settings` → `sponsorshipRetentionMonths`, read through
-// `lib_org.js` (federfall-jumi). NEVER a fresh `getString()` + `JSON.parse` and
+// `zv_org.js` (federfall-jumi). NEVER a fresh `getString()` + `JSON.parse` and
 // never `record.get()`: `get()` on a JSON field hands JS a BYTE ARRAY, so
 // `settings.someKey` is `undefined` and the code falls through to its default in
 // total silence. That trap had already disabled two shipped, documented windows
@@ -76,8 +76,8 @@ cronAdd("sponsorshipRetention", "0 4 * * *", () => {
     return isNaN(d.getTime()) ? null : d;
   };
 
-  // federfall-jumi: through lib_org.js, which decodes the JSON field.
-  const orgs = require(`${__hooks}/lib_org.js`);
+  // federfall-jumi: through zv_org.js, which decodes the JSON field.
+  const orgs = require(`${__hooks}/zv_org.js`);
   const retentionMsForOrg = (orgId) => {
     const months = orgs.positiveNumber(
       orgs.settingsOf($app, orgId),

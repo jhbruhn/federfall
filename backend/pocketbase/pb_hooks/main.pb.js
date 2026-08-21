@@ -91,11 +91,11 @@ onRecordAfterCreateSuccess((e) => {
     // fall back to 14 days when unset or invalid. The app overrides this per
     // case by updating this record after intake, so this also covers cases
     // created outside the app (Admin UI / import).
-    // federfall-jumi: read through lib_org.js. This used to call
+    // federfall-jumi: read through zv_org.js. This used to call
     // `org.get("settings")`, which hands JS a byte array rather than an object
     // — so `quarantineDefaultDays` was ALWAYS undefined and every org silently
     // got 14 days, however it had configured itself.
-    const orgs = require(`${__hooks}/lib_org.js`);
+    const orgs = require(`${__hooks}/zv_org.js`);
     const days = orgs.positiveNumber(
       orgs.settingsOf(e.app, caseRec.get("org")),
       "quarantineDefaultDays",

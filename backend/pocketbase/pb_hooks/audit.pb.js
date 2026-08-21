@@ -61,7 +61,7 @@ cronAdd("auditRetention", "30 3 * * *", () => {
     return;
   }
 
-  const orgSettings = require(`${__hooks}/lib_org.js`);
+  const orgSettings = require(`${__hooks}/zv_org.js`);
   for (const org of orgs) {
     // `allowZero`: unlike a retention WINDOW elsewhere, 0 is a legitimate
     // instruction here — it disables the sweep for that org.
@@ -151,10 +151,10 @@ onRecordDelete((e) => {
   }
 
   // The same window the retention cron applies, read the same way — see
-  // lib_org.js for why a json field must never be reached through `get()`.
+  // zv_org.js for why a json field must never be reached through `get()`.
   // `allowZero` because 0 disables retention for that org, which this guard
   // then treats as "nothing may ever be deleted".
-  const orgSettings = require(`${__hooks}/lib_org.js`);
+  const orgSettings = require(`${__hooks}/zv_org.js`);
   const days = orgSettings.positiveNumber(
     orgSettings.settingsOf(e.app, rec.getString("org")),
     "audit_retention_days",

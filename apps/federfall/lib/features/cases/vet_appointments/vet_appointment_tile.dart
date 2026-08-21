@@ -1,5 +1,4 @@
 import 'package:federfall/core/calendar/calendar_export.dart';
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -13,6 +12,8 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart'
+    show confirmAndDelete, runQuickAction;
 
 /// One vet appointment as a chronology event (federfall-fnpo): the practice and
 /// the reason, the outcome once written, and a status chip — how long until the

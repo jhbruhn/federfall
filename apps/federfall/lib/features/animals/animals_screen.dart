@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
@@ -12,6 +11,7 @@ import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// Animals registry (FED-7.5): a searchable list of the org's persistent animal
 /// identities. Search matches name or active ring/chip code. Each row opens the

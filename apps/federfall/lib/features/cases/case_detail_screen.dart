@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
-import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/audit/audit_screen.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
@@ -39,6 +38,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// Case detail (FED-4.3): a persistent name-first identity header over two
 /// tabs — **Overview** (intake summary + weight trend) and **History** (the

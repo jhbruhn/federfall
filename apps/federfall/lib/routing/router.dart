@@ -1,10 +1,6 @@
-import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/auth/session_refresh.dart';
-import 'package:federfall/core/server/server_config.dart';
-import 'package:federfall/core/server/server_config_controller.dart';
-import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/features/admin/management_screen.dart';
 import 'package:federfall/features/animals/animal_detail_screen.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
@@ -35,6 +31,12 @@ import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show
+        ServerUnconfigured,
+        authStatusProvider,
+        serverConfigControllerProvider,
+        serverInfoProvider;
 
 part 'router.g.dart';
 

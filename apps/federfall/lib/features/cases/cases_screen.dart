@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:federfall/core/realtime/live_refresh.dart';
 // Prefixed: this file also needs `memberLabel` from `placements_providers`,
 // which declares an `orgMembersProvider` of its own (the active-only handoff
 // roster). The filter wants the FULL roster — see `_carerOptions`.
@@ -22,6 +21,7 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// All-cases browser (FED-7.4): the Cases tab of the navigation shell.
 ///

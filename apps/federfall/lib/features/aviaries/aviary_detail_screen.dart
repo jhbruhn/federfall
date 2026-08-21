@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/animals/add_animal_sheet.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/vaccinations/batch_vaccination_sheet.dart';
@@ -20,6 +19,7 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// Aviary detail (FED-6.2 + federfall-d5co.3): the aviary's identity over two
 /// tabs — **Bestand** (occupancy: current residents) and **Pflege** (the

@@ -1,7 +1,8 @@
 import 'package:federfall/core/logging/app_logger.dart';
-import 'package:federfall/core/logging/logging_observer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show LoggingProviderObserver;
 
 /// Captures logged errors instead of writing to dart:developer.
 class _CapturingLogger extends AppLogger {

@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
@@ -9,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// The period a case's `admittedAt` must fall in for its pin to show.
 enum _Period { thisYear, last12Months, allTime }

@@ -278,7 +278,7 @@ def main():
     # `animal.current_aviary`), so it is deleted after the org's window.
     #
     # Two orgs again, and for the reason above: the window comes out of a JSON
-    # field through lib_org.js, and a single-org test cannot tell a working
+    # field through zv_org.js, and a single-org test cannot tell a working
     # settings read from a silent fall-through to the 24-month default.
     print("\n[sponsorship retention cron]")
 

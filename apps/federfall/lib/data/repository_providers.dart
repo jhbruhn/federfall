@@ -1,9 +1,10 @@
 import 'dart:async';
 
-import 'package:federfall/core/pocketbase/pocketbase_provider.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show pocketBaseProvider;
 
 // The protected-file cache manager and the short-lived file token now come
 // from zugvogel_pb_client (eiermann-d2a.4), which builds the cache key from the

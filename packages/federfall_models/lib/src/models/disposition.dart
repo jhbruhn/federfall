@@ -1,8 +1,8 @@
 import 'package:federfall_models/src/converters.dart';
 import 'package:federfall_models/src/enums.dart';
-import 'package:federfall_models/src/models/geo_point.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_core/zugvogel_core.dart' show GeoPoint;
 
 part 'disposition.freezed.dart';
 

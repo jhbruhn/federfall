@@ -1,9 +1,10 @@
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/features/admin/codelist_admin.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart'
+    show confirmAndDelete, runQuickAction;
 
 /// Confirms, then deletes **or deactivates** the code-list [entry]
 /// (federfall-58t1).

@@ -2,7 +2,14 @@
 /// model mapping and error translation.
 library;
 
-export 'src/idempotency.dart';
+// These three are RE-EXPORTED, not imported: they are part of this package's
+// public surface and reached consumers through one-line files under src/ that
+// only named them — migration scaffolding from when the implementations moved
+// to zugvogel_data. Every consumer says
+// `package:federfall_data/federfall_data.dart` and is unaffected.
+export 'package:zugvogel_data/zugvogel_data.dart'
+    show RepositoryErrorKind, RepositoryException, newIdempotencyKey;
+
 export 'src/pb_repository.dart';
 export 'src/repositories/admission_reasons_repository.dart';
 export 'src/repositories/animal_species_repository.dart';
@@ -33,4 +40,3 @@ export 'src/repositories/quarantine_repository.dart';
 export 'src/repositories/sponsorships_repository.dart';
 export 'src/repositories/stats_repository.dart';
 export 'src/repositories/users_repository.dart';
-export 'src/repository_exception.dart';

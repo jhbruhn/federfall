@@ -1,5 +1,6 @@
-import 'package:federfall/core/connectivity/connectivity.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show OnlineStatus, confirmStatus;
 
 void main() {
   group('confirmStatus', () {

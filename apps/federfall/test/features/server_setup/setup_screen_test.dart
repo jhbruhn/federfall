@@ -1,8 +1,6 @@
 import 'package:federfall/config/map_config.dart';
 import 'package:federfall/config/zugvogel_bindings.dart';
 import 'package:federfall/core/pocketbase/auth_token_storage.dart';
-import 'package:federfall/core/server/server_config.dart';
-import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/core/server/server_probe.dart';
 import 'package:federfall/features/server_setup/setup_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -11,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show ServerConfig, serverConfigControllerProvider;
 
 import '../../helpers/helpers.dart';
 

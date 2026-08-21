@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -12,6 +11,7 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart' show confirmAndDelete;
 
 /// One weight measurement as a chronology event (FED-4.4): a [TimelineItem]
 /// showing the measured weight, its date, an optional note and an edit/delete

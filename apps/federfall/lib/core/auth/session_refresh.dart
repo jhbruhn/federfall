@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:federfall/core/server/server_config.dart';
-import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show ServerConfigured, serverConfigControllerProvider;
 
 part 'session_refresh.g.dart';
 
