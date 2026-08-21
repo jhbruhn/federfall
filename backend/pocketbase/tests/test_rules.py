@@ -175,44 +175,26 @@ def main():
     # 2 requests per 3 s, so this block must trip it deliberately and then
     # raise the caps before the suite's own logins start.
     print("\n[rate limiting]")
+
+    # The assertions are zugvogel's; the labels are federfall's. Naming them here
+    # is the point — a budget silently not applied is otherwise invisible, and
+    # both of these guard something specific: the geocode proxy hits an upstream
+    # with a usage policy, and both report routes shell out to `typst compile`
+    # once per request, synchronously, which makes an authenticated loop over the
+    # case report a CPU and temp-space exhaustion primitive.
+    shared_assertions.rate_limits(
+        check, req, T, "federfall",
+        [
+            "GET /api/federfall/geocode",
+            "GET /api/federfall/geocode/",
+            "GET /api/federfall/reports/",
+            "GET /api/federfall/cases/",
+        ],
+    )
+
     s, st = req("GET", "/api/settings", T)
-    check("settings readable", s == 200 and bool(st), f"status {s}")
-    rl = (st or {}).get("rateLimits") or {}
-    rules = rl.get("rules") or []
-    labels = [str(r.get("label")) for r in rules]
-    check("rate limiting is enabled", rl.get("enabled") is True, rl)
-    # Every federfall label is METHOD-QUALIFIED. Matching is not
-    # longest-prefix-wins: an exact rule wins, and failing that the first prefix
-    # rule in STORED ORDER does — so a bare "/api/federfall/cases/" loses to the
-    # factory "/api/" rule ahead of it and budgets nothing. Only the first
-    # search label ("GET <path>") is out of "/api/"'s reach. See
-    # rate_limits.pb.js; the two flood tests at the end of this file are what
-    # prove the labels actually bind.
-    check("the geocode budget is applied",
-          "GET /api/federfall/geocode" in labels
-          and "GET /api/federfall/geocode/" in labels, labels)
-    # federfall-ds0d: both report routes shell out to `typst compile`, once per
-    # request, synchronously — the only subprocess this app spawns. The case
-    # report is open to any active member for any case they can view, so an
-    # authenticated loop over it is a CPU/temp-space exhaustion primitive
-    # without a budget. Prefix labels: exactly one route lives under each.
-    check("the report budget is applied",
-          "GET /api/federfall/reports/" in labels
-          and "GET /api/federfall/cases/" in labels, labels)
-    check("no inert unqualified label is left lying around",
-          not [x for x in labels if x.startswith("/api/federfall/")], labels)
-    check("PocketBase's default auth brake survives the federfall merge",
-          "*:auth" in labels, labels)
-    got429 = False
-    for _ in range(8):
-        s, _ = req("POST", "/api/collections/users/auth-with-password",
-                   body={"identity": "nobody@f.local",
-                         "password": "WrongWrong1!"})
-        if s == 429:
-            got429 = True
-            break
-    check("hammering auth-with-password hits a 429", got429,
-          "no 429 within 8 attempts")
+    rules = ((st or {}).get("rateLimits") or {}).get("rules") or []
+
     # The suite itself must not run throttled: raise every non-geocode cap
     # sky-high. The geocode budget stays untouched — the flood test at the
     # very end relies on it.
