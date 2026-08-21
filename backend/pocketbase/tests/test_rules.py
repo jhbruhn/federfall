@@ -20,6 +20,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import zv_shared_assertions as shared_assertions
+
 # A real 1x1 PNG (RGBA, Pillow-encoded — CRC-correct), for exercising file-
 # field uploads. The previous fixture here decoded as an image fine everywhere
 # it was only ever stored/served, but had a broken IDAT CRC that Typst's
@@ -5166,72 +5168,20 @@ def main():
           bool(i4 and i5) and i4["id"] != i5["id"])
 
     # ── federfall-jfe: security headers (CSP + COOP/COEP scope) ─────────────
+    #
+    # The assertions are zugvogel's (zv_shared_assertions.py): every one of them
+    # is a property of zv_web_headers, identical for any app that mounts it, and
+    # writing them here again would be a second copy to keep in step. What is
+    # federfall's, and therefore stated here, is where its uploaded files live
+    # and what this harness put in the environment for the derivation to find.
     print("\n[security headers]")
 
-    def headers_of(path):
-        r = urllib.request.Request(BASE + path, method="GET")
-        try:
-            return dict(urllib.request.urlopen(r).headers)
-        except urllib.error.HTTPError as e:
-            return dict(e.headers)
+    shared_assertions.web_headers(
+        check,
+        BASE,
+        files_path=f"/api/files/cases/{own}/nonexistent.png",
+    )
 
-    fh = headers_of(f"/api/files/cases/{own}/nonexistent.png")
-    check("uploaded files get the sandbox CSP",
-          fh.get("Content-Security-Policy") == "default-src 'none'; sandbox",
-          fh.get("Content-Security-Policy"))
-    check("uploaded files get nosniff",
-          fh.get("X-Content-Type-Options") == "nosniff")
-    ah = headers_of("/api/health")
-    check("API responses carry NO SPA CSP",
-          "Content-Security-Policy" not in ah,
-          ah.get("Content-Security-Policy"))
-    sh = headers_of("/")
-    spa_csp = sh.get("Content-Security-Policy") or ""
-    check("SPA gets the CSP",
-          spa_csp.startswith("default-src 'self'"), spa_csp)
-    check("SPA CSP allows wasm + blocks embedding",
-          "'wasm-unsafe-eval'" in spa_csp and "frame-ancestors 'none'" in spa_csp,
-          spa_csp)
-    check("SPA CSP allows the default raster tile origin",
-          "https://tile.openstreetmap.org" in spa_csp, spa_csp)
-    check("SPA CSP allows the default vector style/tile origin",
-          "https://tiles.openfreemap.org" in spa_csp, spa_csp)
-    # federfall-el1f: the policy derives its origins from the configured map
-    # URLs, so a server-prescribed tile source cannot end up blocked by the
-    # very policy that server sent — that would just relocate the footgun into
-    # "set these two unrelated variables consistently".
-    check("SPA CSP derives the prescribed raster tile origin",
-          "https://raster.invalid" in spa_csp, spa_csp)
-    check("SPA CSP derives the configured vector style origin",
-          "https://vector.invalid" in spa_csp, spa_csp)
-    check("derived origins do not leak the URL path or template",
-          "{z}" not in spa_csp and "style.json" not in spa_csp, spa_csp)
-    # A key lives in the query string of a tile URL, and the derivation cuts at
-    # the origin — so it cannot end up in a header sent to every visitor.
-    check("derived origins carry no query string (no API key in the header)",
-          "test-map-key" not in spa_csp and "?" not in spa_csp, spa_csp)
-    check("SPA CSP lets connect-src read picked-image blobs",
-          "connect-src 'self' blob:" in spa_csp, spa_csp)
-    check("SPA keeps COOP/COEP isolation",
-          sh.get("Cross-Origin-Opener-Policy") == "same-origin"
-          and sh.get("Cross-Origin-Embedder-Policy") == "credentialless",
-          f"{sh.get('Cross-Origin-Opener-Policy')}/{sh.get('Cross-Origin-Embedder-Policy')}")
-
-    # ── federfall-xvlw: Referrer-Policy + Permissions-Policy on the SPA ──────
-    # federfall-txxj: NOT "same-origin" — that stripped the Referer from map
-    # tile requests, which on web is the only identification they can carry
-    # (the browser forbids setting User-Agent), and OSM 403s such requests.
-    check("SPA gets Referrer-Policy: strict-origin-when-cross-origin",
-          sh.get("Referrer-Policy") == "strict-origin-when-cross-origin",
-          sh.get("Referrer-Policy"))
-    perms = sh.get("Permissions-Policy") or ""
-    check("SPA Permissions-Policy allows camera/geolocation for self only",
-          "camera=(self)" in perms and "geolocation=(self)" in perms, perms)
-    check("SPA Permissions-Policy denies microphone",
-          "microphone=()" in perms, perms)
-    check("uploaded files get NO Referrer/Permissions-Policy (unchanged)",
-          "Referrer-Policy" not in fh and "Permissions-Policy" not in fh,
-          f"{fh.get('Referrer-Policy')}/{fh.get('Permissions-Policy')}")
 
     # ── federfall-h5m: handoff derived from the placement record ────────────
     print("\n[atomic handoff via placement]")
