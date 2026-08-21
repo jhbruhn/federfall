@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/jhbruhn/federfall/compare/v1.4.2...v1.5.0) (2026-08-21)
+
+
+### Features
+
+* **l10n:** give the shared widgets federfall's own words ([3aa954f](https://github.com/jhbruhn/federfall/commit/3aa954f0ace4e85533248fa697d658da356c2ed0))
+
+
+### Bug Fixes
+
+* **backend:** sweep the pre-v0.17 rate-limit labels again ([1e2b446](https://github.com/jhbruhn/federfall/commit/1e2b44655d50e00cb495b73e06d74f436b56a19b))
+* **dev:** stop mounting pb_hooks and typst over the base image ([ad22073](https://github.com/jhbruhn/federfall/commit/ad22073b31c6bd3e2a452adcb788cb340f1c0000))
+
 ## [1.4.2](https://github.com/jhbruhn/federfall/compare/v1.4.1...v1.4.2) (2026-08-17)
 
 
