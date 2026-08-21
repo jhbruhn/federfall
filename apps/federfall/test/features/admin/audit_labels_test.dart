@@ -872,7 +872,7 @@ void main() {
     // without a label — the same both-halves pinning as
     // app_theme_fallbacks_test.
     final source = File(
-      '../../backend/pocketbase/pb_hooks/lib_audit.js',
+      '../../backend/pocketbase/pb_hooks/app_audit_vocabulary.js',
     ).readAsStringSync();
     final block = source
         .split('const CONTENT_FIELDS = {')[1]
