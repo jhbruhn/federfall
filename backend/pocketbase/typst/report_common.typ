@@ -359,43 +359,39 @@
   ),
 )
 
+// ── The six helpers that are not federfall's ───────────────────────────────
+//
+// `lbl`, `joinDash`, `joinDot`, `fmtDate` and `fmtDateTime` come from
+// zv_report_common.typ, shipped in zugvogel-pb-base alongside this file. They
+// were identical here to the byte in three cases and differed only in line
+// wrapping in the other two, which is the definition of a copy worth deleting.
+//
+// Imported and re-exported: Typst makes a module's imported names available to
+// ITS importers, so report.typ, receipt.typ and annual_report.typ go on
+// importing them from this file and not one call site changed. (Verified by
+// compiling a three-file probe rather than assumed.)
+#import "zv_report_common.typ": fmtDate, fmtDateTime, joinDash, joinDot, lbl
+#import "zv_report_common.typ": resolveStrings as zvResolveStrings
+
 // The shared subset (shared_strings.json — caseStatus, disposition,
-// reportColumns) is merged ON TOP of the per-language dict above, so call
-// sites read `S.caseStatus` exactly as they did when it was inline. Typst's
-// `+` on dictionaries merges, and an unknown `lang` falls back to German in
-// both halves independently.
-#let resolveStrings(lang) = (
-  STRINGS.at(lang, default: STRINGS.de) + SHARED.at(lang, default: SHARED.de)
-)
+// reportColumns) is merged with the per-language dict above, so call sites read
+// `S.caseStatus` exactly as they did when it was inline. An unknown `lang` falls
+// back to German in both halves independently.
+//
+// A one-argument wrapper, because every call site says `resolveStrings(lang)`
+// and which dictionaries federfall merges is federfall's business, not the
+// shared helper's.
+//
+// The argument ORDER is reversed from what this file used to do — zugvogel
+// merges `shared + strings`, so the app's own strings win a collision, where
+// this merged `STRINGS + SHARED` and let the shared half win. That is a real
+// semantic difference and it provably cannot bite: the two key sets are
+// disjoint, 64 in STRINGS and 23 in SHARED, and Typst's `+` on dictionaries
+// with no common key gives the same result either way. Worth stating because
+// the report tests assert a PDF renders and is non-trivial, not what any label
+// in it says — a collision would have changed a word and passed.
+#let resolveStrings(lang) = zvResolveStrings(STRINGS, SHARED, lang)
 
-// `lbl` resolves a stable wire value through a STRINGS map, falling back to
-// the wire value itself if this app version doesn't know it (mirrors
-// dispositionTypeLabel's "unknown enum -> not a guess" stance).
-#let lbl(map, wire) = if wire == none { none } else { map.at(wire, default: wire) }
-#let joinDash(parts) = parts.filter(p => p != none and p != "").join(" — ")
-#let joinDot(parts) = parts.filter(p => p != none and p != "").join(" · ")
-
-#let fmtDate(S, d) = if d == none {
-  none
-} else {
-  datetime(year: d.y, month: d.mo, day: d.d, hour: 0, minute: 0, second: 0).display(S.dateFmt)
-}
-#let fmtDateTime(S, d) = if d == none {
-  none
-} else {
-  datetime(
-    year: d.y,
-    month: d.mo,
-    day: d.d,
-    hour: d.at("h", default: 0),
-    minute: d.at("mi", default: 0),
-    second: 0,
-  ).display(S.dateTimeFmt)
-}
-// Journal, administration and vet appointments show a time-of-day (mirrors
-// formatEventDate's withTime split in the app, case_timeline.dart — an
-// appointment's `starts_at` is required, so it always has a real one);
-// everything else is a date-only entry.
 #let fmtAt(S, e) = if (
   e.kind == "journal" or e.kind == "administration" or e.kind == "vet_appointment"
 ) {
