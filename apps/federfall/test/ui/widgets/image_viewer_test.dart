@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
@@ -136,12 +138,14 @@ void main() {
         ),
       ),
     );
-    navKey.currentState!.push(
-      MaterialPageRoute<void>(
-        builder: (_) => ImageViewerScreen(
-          imageUrls: const ['https://example.test/only.jpg'],
-          onEdit: () => edited = true,
-          editTooltip: 'Edit',
+    unawaited(
+      navKey.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => ImageViewerScreen(
+            imageUrls: const ['https://example.test/only.jpg'],
+            onEdit: () => edited = true,
+            editTooltip: 'Edit',
+          ),
         ),
       ),
     );

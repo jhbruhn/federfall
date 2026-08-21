@@ -86,7 +86,7 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
       );
       // The sheet has done its job; leaving it up over the share result reads
       // as if the export were still pending.
-      if (navigator.mounted) navigator.maybePop();
+      if (navigator.mounted) unawaited(navigator.maybePop());
     } on Object catch (e, stackTrace) {
       reportCaughtError(e, stackTrace);
       if (!mounted) return;

@@ -107,10 +107,9 @@ class _AviaryTile extends ConsumerWidget {
       if (keeper != null) memberLabel(keeper),
       ?aviary.location,
       if (capacity != null)
-        if (residents == null)
-          l10n.aviaryCapacityValue(capacity)
-        else
-          l10n.aviaryOccupancyOfCapacity(residents, capacity)
+        residents == null
+            ? l10n.aviaryCapacityValue(capacity)
+            : l10n.aviaryOccupancyOfCapacity(residents, capacity)
       else if (residents != null && residents > 0)
         l10n.aviaryOccupancy(residents),
       if (!aviary.active) l10n.aviaryInactive,
