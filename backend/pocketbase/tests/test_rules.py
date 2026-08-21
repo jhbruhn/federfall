@@ -6891,7 +6891,7 @@ def main():
     # what complains. Adding a collection now fails here until someone decides,
     # in writing, whether it is audited or deliberately not.
     #
-    # The audited set is READ OUT OF lib_audit.js rather than mirrored here on
+    # The audited set is READ OUT OF app_audit_vocabulary.js rather than mirrored
     # purpose — a copy would keep passing after someone removed a collection
     # from the real map.
     print("\n[audit coverage]")
@@ -6911,7 +6911,7 @@ def main():
     }
 
     lib = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                       "..", "pb_hooks", "lib_audit.js")
+                       "..", "pb_hooks", "app_audit_vocabulary.js")
     with open(lib, encoding="utf-8") as fh:
         lib_src = fh.read()
     block = lib_src[lib_src.index("const COLLECTION_ACTIONS = {"):]
@@ -6948,7 +6948,8 @@ def main():
     check("every collection is either audited or explicitly exempt",
           not unclassified,
           "unclassified: " + ", ".join(sorted(unclassified))
-          + " — add an emitter in lib_audit.js's COLLECTION_ACTIONS, "
+          + " — add an emitter in app_audit_vocabulary.js's "
+            "COLLECTION_ACTIONS, "
             "or an entry with a reason in this test's NOT_AUDITED")
     stale = [n for n in list(audited) + list(NOT_AUDITED)
              if n not in base]
@@ -6989,7 +6990,7 @@ def main():
     check("no event is too empty to be worth reading",
           not empty_actions,
           "these say nothing about what they were: " + ", ".join(empty_actions)
-          + " — give them a subject label (lib_audit.js LABEL_FIELDS/"
+          + " — give them a subject label (app_audit_vocabulary.js LABEL_FIELDS/"
             "LABEL_RELATIONS), content (CONTENT_FIELDS) or a typed detail")
 
     # federfall-g5ap — the readability contract on the UPDATE path, which
@@ -7041,7 +7042,7 @@ def main():
           f"{len(free_text)} free-text maps")
 
     # A finder is never named in the log, whichever direction the relation is
-    # reached from (lib_audit.js's header) — so this one field is EXPECTED to
+    # reached from (app_audit_vocabulary.js's header) — so this field is EXPECTED
     # carry a bare id, and labelOf() refuses to resolve it even if asked.
     # …plus an examination, which has no name to snapshot: LABEL_FIELDS could
     # only offer a date, and a label must be neutral text. A finding is located
@@ -7095,12 +7096,14 @@ def main():
     check("no free prose is copied into the log",
           not prose,
           "an edit would store the old AND new text of: " + ", ".join(prose)
-          + " — add the field to lib_audit.js's FREE_TEXT, or to this test's "
+          + " — add the field to app_audit_vocabulary.js's FREE_TEXT, or to "
+            "this test's "
             "PROSE_LOGGED_ON_PURPOSE with the reason it is safe to keep")
     check("every relation an audited collection can log resolves to a label",
           not bare_relations,
           "these would log a bare id: " + ", ".join(bare_relations)
-          + " — add the field to lib_audit.js's RELATION_TARGETS (or "
+          + " — add the field to app_audit_vocabulary.js's RELATION_TARGETS "
+            "(or "
             "RELATION_FIELDS where the name means different things in "
             "different collections)")
     check("every relation target can actually produce a label",
@@ -7318,7 +7321,8 @@ def main():
 
     # `actor` is not asserted from a list here — it is READ OUT of
     # lib_authorship.js, so a field classified as pinned has to actually be the
-    # one that hook pins (same stance as [audit coverage] reading lib_audit.js).
+    # one that hook pins (same stance as [audit coverage] reading the
+    # vocabulary).
     auth_src = open(
         os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      "..", "pb_hooks", "lib_authorship.js"),

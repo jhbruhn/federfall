@@ -8,7 +8,7 @@ import 'package:test/test.dart';
 /// than mirrored, so the two cannot drift apart silently.
 File _libAudit() {
   // Package root when `dart test` runs here; repo root under other runners.
-  const rel = 'backend/pocketbase/pb_hooks/lib_audit.js';
+  const rel = 'backend/pocketbase/pb_hooks/app_audit_vocabulary.js';
   for (final prefix in ['../../', '', '../']) {
     final f = File('$prefix$rel');
     if (f.existsSync()) return f;
@@ -36,7 +36,7 @@ RecordModel _event(Map<String, dynamic> overrides) => RecordModel({
 
 void main() {
   group('AuditAction registry', () {
-    test('matches pb_hooks/lib_audit.js exactly', () {
+    test('matches pb_hooks/app_audit_vocabulary.js exactly', () {
       final src = _libAudit().readAsStringSync();
       final wire = RegExp(
         r'^  [A-Z0-9_]+: "([a-z0-9_]+\.[a-z0-9_]+)",',
