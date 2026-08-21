@@ -30,33 +30,42 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The Typst templates are mounted alongside the hooks below, not taken from the
-# baked image: the image is CACHED by tag (see the inspect-or-build below), so a
-# report-template or shared_strings.json edit would otherwise be silently tested
-# against whatever was in the image the day it was first built.
-echo "==> Ensuring image $IMAGE exists"
+# ── Why nothing is mounted over the hooks or the Typst templates any more ────
+#
+# It used to mount both, and the reason was real: the image was only built when
+# absent (`docker image inspect || docker build`), so a hook or template edit
+# was otherwise tested against whatever was in the image the day it was first
+# built. The mounts were a workaround for a stale image.
+#
+# They are no longer possible. The zv_* libraries come from zugvogel-pb-base, and
+# a mount over /pb/pb_hooks replaces the whole directory with one that does not
+# contain them — every `require` of a shared library would fail at request time
+# as a generic 400. Same for /pb/typst and the shared report base.
+#
+# So the staleness is fixed at the root instead: BUILD UNCONDITIONALLY. It is a
+# cached COPY layer near the end of the Dockerfile, so it costs seconds, and the
+# suite now exercises exactly the image that ships rather than host files laid
+# over one nothing tested.
+echo "==> Building image $IMAGE"
 # Lean PocketBase-only image (no Flutter web) — the `backend` target of the
 # repo-root Dockerfile. Context is the repo root so the baked migrations/hooks
 # resolve; BuildKit skips the Flutter stage since this target doesn't need it.
-docker image inspect "$IMAGE" >/dev/null 2>&1 || \
-  docker build --target backend -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"
+docker build --target backend -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"
 
-# pb_hooks must be mounted here too, not only at serve: onBootstrap hooks run
-# for EVERY command, and the image bakes a copy of them — so without the mount
-# these steps execute whatever hooks were in the image the day it was built,
-# and one that persists state (geocode.pb.js writes settings.rateLimits) can
-# poison the fresh data dir before the hooks under test ever run.
+# onBootstrap hooks run for EVERY command, including these, and one that
+# persists state (geocode.pb.js writes settings.rateLimits) can poison the fresh
+# data dir before the hooks under test ever run. That is why the image being
+# current matters here and not only at serve — handled by the unconditional
+# build above rather than by a mount.
 echo "==> Applying migrations to throwaway data dir"
 docker run --rm \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
-  -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
   -v "$DATA:/pb/pb_data" \
   "$IMAGE" migrate up
 
 echo "==> Creating superuser"
 docker run --rm \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
-  -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
   -v "$DATA:/pb/pb_data" \
   "$IMAGE" superuser upsert "$ADMIN_EMAIL" "$ADMIN_PASS"
 
@@ -96,8 +105,6 @@ docker run -d --name "$NAME" -p "$PORT:8090" \
   -e FEDERFALL_MAP_API_KEY=test-map-key \
   -e FEDERFALL_NOMINATIM_URL=http://127.0.0.1:1 \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
-  -v "$PB_DIR/pb_hooks:/pb/pb_hooks:ro" \
-  -v "$PB_DIR/typst:/pb/typst:ro" \
   -v "$DATA:/pb/pb_data" \
   "$IMAGE" >/dev/null
 

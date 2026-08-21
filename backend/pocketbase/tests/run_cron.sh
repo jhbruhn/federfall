@@ -34,12 +34,27 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "==> Ensuring image $IMAGE exists"
-docker image inspect "$IMAGE" >/dev/null 2>&1 || \
-  docker build --target backend -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"
+# Built unconditionally, not `inspect || build`: the hooks are baked into the
+# image now (the zv_* libraries come from zugvogel-pb-base), so a cached image
+# means testing whatever was in it the day it was first built.
+echo "==> Building image $IMAGE"
+docker build --target backend -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"
 
 echo "==> Copying hooks and making the retention jobs due every minute"
 cp -r "$PB_DIR/pb_hooks/." "$HOOKS/"
+# The shared libraries too. This directory gets MOUNTED over /pb/pb_hooks — which
+# is the whole trick of this harness, since rewriting a cron schedule is the only
+# way to observe a job whose window is measured in days — and a mount replaces
+# the directory wholesale. Without this copy the zv_* libraries are simply not
+# there and every `require` of one fails at request time, which surfaces as
+# "failed to create organisations: 400 Failed to create record" during setup and
+# looks like a schema problem.
+docker run --rm -v "$HOOKS:/out" --entrypoint sh "$IMAGE" \
+  -c 'cp /pb/pb_hooks/zv_*.js /out/'
+ls "$HOOKS"/zv_*.js >/dev/null 2>&1 || {
+  echo "FATAL: no zv_* libraries copied out of $IMAGE" >&2
+  exit 1
+}
 # The three RETENTION jobs, which are the ones that read an org-configurable
 # window out of a JSON field (federfall-jumi) and so cannot be trusted to a
 # code review. The remaining crons (geocodeCachePurge, idempotencyKeyPurge)
