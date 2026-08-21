@@ -33,33 +33,33 @@
 
 const authorship = require(`${__hooks}/lib_authorship.js`);
 
-onRecordCreateRequest((e) => {
-  const fields = require(`${__hooks}/lib_authorship.js`).ACTOR_FIELDS;
-  const field = fields[String(e.record.collection().name)];
-  const auth = e.auth;
-  if (
-    field &&
-    !e.hasSuperuserAuth() &&
-    auth &&
-    String(auth.collection().name) === "users"
-  ) {
-    e.record.set(field, auth.id);
-  }
-  e.next();
-}, ...authorship.COLLECTIONS);
+// The stamping is zv_guards.js/zv_authorship.js; the map is lib_authorship.js.
+// On UPDATE the stored value is put BACK rather than replaced with the caller —
+// "who administered this dose" must not become "who last saved the row". The
+// shared helper used to stamp the caller there, which let whoever edited a
+// record take authorship of it; fixed in zugvogel 98c011a, with the case that
+// separates the two behaviours (the editor naming themselves) as its own test.
+// The map is required INSIDE each handler, not read off the `authorship` const
+// above. That const is in scope where it is used — the tag list, evaluated at
+// registration — and NOT in the handler body, which runs in its own JSVM
+// context. Referencing it there fails with `ReferenceError: authorship is not
+// defined` at request time, reported as a generic 400 on an ordinary create.
+onRecordCreateRequest(
+  (e) =>
+    require(`${__hooks}/zv_guards.js`).authorship(
+      e,
+      require(`${__hooks}/lib_authorship.js`).ACTOR_FIELDS,
+      true,
+    ),
+  ...authorship.COLLECTIONS,
+);
 
-// Authorship is written once. An update that names someone else is silently
-// put back rather than rejected: the app never sends these fields in a PATCH
-// body at all, so anything arriving here is either a client echoing the value
-// it already has (a no-op) or an attempt to rewrite history.
-onRecordUpdateRequest((e) => {
-  const fields = require(`${__hooks}/lib_authorship.js`).ACTOR_FIELDS;
-  const field = fields[String(e.record.collection().name)];
-  if (field && !e.hasSuperuserAuth()) {
-    const was = e.record.original().get(field);
-    if (String(e.record.get(field)) !== String(was)) {
-      e.record.set(field, was);
-    }
-  }
-  e.next();
-}, ...authorship.COLLECTIONS);
+onRecordUpdateRequest(
+  (e) =>
+    require(`${__hooks}/zv_guards.js`).authorship(
+      e,
+      require(`${__hooks}/lib_authorship.js`).ACTOR_FIELDS,
+      false,
+    ),
+  ...authorship.COLLECTIONS,
+);

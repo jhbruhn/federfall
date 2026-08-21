@@ -7352,11 +7352,18 @@ def main():
         ).read()
     except OSError:
         org_src = ""
-    check("org_scope.pb.js is there and calls the shared check",
-          "foreignRelation" in org_src, "not found")
+    # The call goes through zugvogel's guard now (zv_guards.orgScope, which
+    # calls zv_org_scope.foreignRelation), so the name to look for is the guard's
+    # rather than the check's. The properties asserted are unchanged: the hook
+    # exists, it is registered on BOTH model events, and it is UNTAGGED so a
+    # collection added tomorrow is covered without anybody remembering.
+    check("org_scope.pb.js is there and calls the shared guard",
+          "orgScope" in org_src and "zv_guards" in org_src, "not found")
     check("...on create and on update, for every collection",
-          len(re.findall(r"onRecord(?:Create|Update)\(\(e\) => \{", org_src)) == 2
-          and not re.search(r"\}\)\s*,\s*\"", org_src), org_src[:0])
+          len(re.findall(r"onRecord(?:Create|Update)\(\(e\) =>", org_src)) == 2
+          and not re.search(r"\}\)\s*,\s*\"", org_src),
+          f"{len(re.findall(r'onRecord(?:Create|Update)', org_src))} "
+          "registrations found")
 
     s, all_colls = req("GET", "/api/collections?perPage=200", T)
     check("the schema is readable (parse guard)",

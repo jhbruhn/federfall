@@ -106,7 +106,13 @@ docker run -d --name "$NAME" -p "$PORT:8090" \
   -e FEDERFALL_NOMINATIM_URL=http://127.0.0.1:1 \
   -v "$PB_DIR/pb_migrations:/pb/pb_migrations:ro" \
   -v "$DATA:/pb/pb_data" \
-  "$IMAGE" >/dev/null
+  "$IMAGE" serve \
+  --http=0.0.0.0:8090 \
+  --dir=/pb/pb_data \
+  --migrationsDir=/pb/pb_migrations \
+  --hooksDir=/pb/pb_hooks \
+  --automigrate=0 \
+  --dev >/dev/null
 
 echo "==> Waiting for health"
 for _ in $(seq 1 40); do
@@ -119,4 +125,14 @@ echo "==> Running assertion suite"
 FED_TEST_URL="http://localhost:$PORT" \
 FED_ADMIN_EMAIL="$ADMIN_EMAIL" \
 FED_ADMIN_PASS="$ADMIN_PASS" \
-  python3 "$HERE/test_rules.py"
+  python3 "$HERE/test_rules.py" || {
+    status=$?
+    echo "==> Container log (errors and this app's lines)"
+    # An uncaught error in a hook answers a generic 400 with an empty `data` and
+    # is reported nowhere else — the container is the only place it exists, and
+    # the trap removes the container. Without this the diagnosis is a guess.
+    docker logs "$NAME" 2>&1 \
+      | grep -viE 'SELECT|INSERT INTO|UPDATE .* SET|CREATE (TABLE|INDEX)' \
+      | grep -A3 -iE 'federfall:|ERROR' | tail -30 || echo "  (none)"
+    exit $status
+  }
