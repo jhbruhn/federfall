@@ -33,8 +33,8 @@ ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-98c011a36e43606db42b77
 # no third-party prebuilt image). The fat build stage is discarded.
 FROM debian:bookworm-slim AS flutterbuild
 
-# Keep in sync with the repo's pinned Flutter (apps/federfall: flutter ^3.44.0).
-ARG FLUTTER_VERSION=3.44.3
+# Keep in sync with the repo's pinned Flutter (apps/federfall: flutter ^3.47.0).
+ARG FLUTTER_VERSION=3.47.1
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PUB_CACHE=/pub-cache \

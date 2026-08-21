@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -136,13 +134,11 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
       // Scrolls the least amount that puts the panel's bottom on screen, and
       // is a no-op both when it already fits and when there is no scrollable
       // ancestor at all.
-      unawaited(
-        Scrollable.ensureVisible(
-          ctx,
-          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        ),
+      Scrollable.ensureVisible(
+        ctx,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
       );
     });
   }
