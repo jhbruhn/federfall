@@ -54,6 +54,8 @@ bd close <id>         # Complete work
 ## Build & Test
 
 Pub workspace: app in `apps/federfall`, packages in `packages/federfall_{models,data}`.
+The four `zugvogel_*` packages are git dependencies pinned by commit, so `flutter pub get`
+needs network and a pin bump re-resolves them — see the zugvogel section below.
 
 ```bash
 # From the REPO ROOT — this is a pub workspace, so the root run covers the app
@@ -86,7 +88,10 @@ Generated `*.g.dart` / `*.freezed.dart` / `lib/l10n/gen/*` are gitignored and re
 covers the packages — a subdirectory run does not), and `flutter test` green from
 `apps/federfall` plus `dart test` for any touched package. Run a suite so its OWN exit
 code survives — piping it through `grep` reports the filter's status and has hidden real
-failures here. `flutter test --coverage` on the app
+failures here. **Touching `pb_hooks/` needs `backend/pocketbase/tests/run.sh`** (Docker,
+~2 min): the analyzer and `flutter test` cannot see a hook at all, and the failure this
+refactor risks most — a `require` resolving in the wrong JSVM context — surfaces only as a
+generic 400 at request time. `flutter test --coverage` on the app
 must stay above 75% (CI's `min_coverage` gate in `.github/workflows/ci.yml`, hand-written
 code only — generated files are excluded); check before committing if you touched
 `apps/federfall/lib/`.
@@ -97,16 +102,81 @@ Three layers (see `federfall-implementation-is-planned-in-beads-9-phase` memory 
 
 - **`packages/federfall_models`** — immutable `freezed` domain models + `fromRecord`
   mappers from PocketBase `RecordModel`. Enums carry a `wire` value (the exact string PB
-  stores) so Dart renames never break mapping. `GeoPoint.fromPb` treats `{lon:0,lat:0}` as null.
-- **`packages/federfall_data`** — `PbRepository<T>` base over one collection: CRUD +
-  `ClientException`→`RepositoryException`. **Online-only:** every read/write goes straight
-  to the server (no local cache); a `networkTimeout` makes an unreachable server fail fast.
-  File fields use
-  `createWithFiles` / `updateWithFiles` (multipart) + `fileUrl(id, name, {thumb})`.
+  stores) so Dart renames never break mapping. The `pb*` field converters and `GeoPoint`
+  are `zugvogel_core`'s, re-exported from here; `GeoPoint.fromPb` still treats
+  `{lon:0,lat:0}` as null.
+- **`packages/federfall_data`** — the typed repositories. `PbRepository<T>` itself is
+  `zugvogel_data`'s (re-exported from `src/pb_repository.dart`): a base over one
+  collection — CRUD + `ClientException`→`RepositoryException`. **Online-only:** every
+  read/write goes straight to the server (no local cache); a `networkTimeout` makes an
+  unreachable server fail fast. File fields use `createWithFiles` / `updateWithFiles`
+  (multipart) + `fileUrl(id, name, {thumb})`.
   Geocoding goes through `GeocodingRepository` (backend proxy), not a direct API call.
 - **`apps/federfall`** — Riverpod codegen providers (`@riverpod`), `go_router`, feature
   folders under `lib/features/`. Repo providers in `lib/data/repository_providers.dart`
   bind each repo to the resolved `PocketBase` client.
+
+**Half of this repo is now upstream, in zugvogel.** The generic parts — the repository
+base, the PocketBase field converters, the shared widget kit, the connection/session
+providers, and thirteen `zv_*.js` hook libraries — live in
+`github.com/jhbruhn/zugvogel` and arrive here through **two independent pins**:
+
+- **Dart**: `zugvogel_core` / `zugvogel_data` / `zugvogel_pb_client` / `zugvogel_ui`,
+  pinned by COMMIT in `apps/federfall/pubspec.yaml` + both package pubspecs (all three
+  must name the same commit).
+- **Backend**: `ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-<commit>` in the
+  `Dockerfile`. The base image brings the PocketBase binary, the `zv_*.js` libraries, the
+  Typst report base and a `migrate up`-then-`serve` entrypoint.
+
+The pins move independently on purpose (a Dart change does not touch the image), but they
+must stay COMPATIBLE: both halves speak `/api/federfall/info`, so check the image commit
+is an ancestor of — or equal to — the Dart commit before bumping only one.
+
+**Three rules follow from the split, and each has cost real time:**
+
+1. **`/pb/pb_hooks` and `/pb/typst` are assembled from two sources** — the base image lays
+   down the shared half, the `Dockerfile` COPYs federfall's into the same directory — so
+   **neither may be bind-mounted over**. A mount replaces the whole directory: every
+   `require` of a `zv_` library then dies as a generic 400 (or, for the Typst base, on the
+   first PDF request). This is why `docker-compose.override.yml` mounts only
+   `pb_migrations/`, why editing a hook needs `docker compose up --build`, and why
+   `tests/run.sh` builds unconditionally rather than mounting. `tests/run_cron.sh` DOES
+   mount (rewriting a cron schedule is the only way to observe a daily job), so it copies
+   the `zv_*.js` files out of the image into that directory first.
+2. **The library holds no configuration and reads no compile-time define.** Everything it
+   needs about this app arrives through `PbClientConfig` (`lib/config/zugvogel_bindings.dart`)
+   and `ZugvogelStrings` (`lib/l10n/federfall_strings.dart`), set as
+   `defaultPbClientConfig` / `defaultZugvogelStrings` in `bootstrap()` **and** in
+   `test/flutter_test_config.dart`. `service: 'federfall'` is load-bearing: it derives the
+   `/info` route, the identity marker, the `federfall.auth` / `federfall.serverUrl`
+   storage keys and the `federfallProtectedFiles` cache store — change it and every
+   installed client silently loses its session. Both bindings THROW when unset rather than
+   defaulting, because a wrong service name is far harder to notice than a startup failure.
+   Same shape on the backend: each `zv_` hook takes `envPrefix: "FEDERFALL"` and the app's
+   own vocabulary (`org_scope.pb.js`'s `parentOrgFallbacks`, `oauth2_provisioning.pb.js`'s
+   roles, `rate_limits.pb.js`'s groups and `legacyLabels`). A forgotten parameter does not
+   fail loudly, and no suite catches one for you: omitting `parentOrgFallbacks` makes the
+   org-scope check stop finding a scope and wave the write through, and omitting
+   `legacyLabels` leaves an upgraded instance carrying a stale rate-limit rule that a
+   fresh-data-dir test can never see. Both of those shipped. When you pass a `zv_` library
+   a config object, read ITS parameter list, not the call site next door.
+3. **A shared package may not name a colour or a word.** Chart hues come from federfall's
+   `ZugvogelSemantics` theme extension (`AppTheme`), text from the `ZugvogelStrings`
+   interface backed by this app's ARB files. A `zugvogel_ui` widget that knows "Abbrechen"
+   is a bug in zugvogel.
+
+`lib/ui/ui.dart` re-exports the shared kit **symbol by symbol**, not as a bare library
+export: federfall keeps its own `Validators`, `formatNumber`, `MapTileLayer`,
+`errorMessage` and `loadErrorMessage`, so a wholesale re-export makes five names
+ambiguous. The one-line `src/` shims that used to forward each moved file are gone —
+follow a widget to `zugvogel_ui`, not to a file that only names it.
+
+Backend tests that assert a `zv_` library's behaviour live in
+`backend/pocketbase/tests/zv_shared_assertions.py`, which is a **verbatim copy of
+zugvogel's file of the same name** (zugvogel ships no migrations, so it cannot boot a PB
+instance; both apps run these assertions against their own). It is the one thing here NOT
+delivered by a pin — re-copy it from the zugvogel checkout when bumping the image, or it
+will assert yesterday's contract.
 
 **Backend** is fully container-based (see `federfall-backend-is-fully-container-based...`
 memory): PocketBase with JS migrations (`backend/pocketbase/pb_migrations/*.js`, numbered,
@@ -114,7 +184,7 @@ committed) and hooks (`pb_hooks/*.pb.js`). Schema changes = new migration, never
 Hooks own case-number/quarantine defaults, share-on-handoff, and disposition side-effects
 (case `status`, animal `lifetime_status`). They also enforce the invariants rules
 *cannot* express, because a plain field reference in an UPDATE rule resolves against
-the STORED record (1700000043's finding): `org_scope.pb.js` + `lib_org_scope.js`
+the STORED record (1700000043's finding): `org_scope.pb.js` + `zv_org_scope.js`
 reject ANY relation naming a row in another org (federfall-jo1l — it folded in the
 `animal`-only `animal_org_scope.pb.js`, is registered for every collection rather
 than a list, and asks the SCHEMA which relations are org-scoped: a target
@@ -281,14 +351,15 @@ and nothing normalises them behind the user's back. `batch` (Chargennummer) is t
 a journal note could never carry, and `next_due_at` is STORED rather than derived — a
 plan is a fact, and must not move because somebody later edited an interval. Who gave it
 splits in two: `vet` (text) for an external practice, `author` (server-pinned) for
-everyone else — the obvious name `administered_by` is NOT used, because `lib_audit.js`'s
-`RELATION_TARGETS` is keyed by field name GLOBALLY and already maps it to `users`. Adding
+everyone else — the obvious name `administered_by` is NOT used, because
+`app_audit_vocabulary.js`'s `RELATION_TARGETS` is keyed by field name GLOBALLY and
+already maps it to `users`. Adding
 a collection with an `animal` relation means five registries move in the same commit or
 it is silently broken: `merge_animals.pb.js`' re-point list (a cascade means a forgotten
 collection is DESTROYED, not left behind — federfall-0ua6), `lib_authorship.js`,
-`lib_audit.js` (actions + `COLLECTION_ACTIONS` + `CONTENT_FIELDS` + `LABEL_FIELDS`, and
-the Dart `audit_labels.dart` beside it), and `test_rules.py`'s `[relation guards]` +
-`[animal merge]` + `[animal org scope]` registries.
+`app_audit_vocabulary.js` (actions + `COLLECTION_ACTIONS` + `CONTENT_FIELDS` +
+`LABEL_FIELDS`, and the Dart `audit_labels.dart` beside it), and `test_rules.py`'s
+`[relation guards]` + `[animal merge]` + `[animal org scope]` registries.
 
 **Vaccinating a flock is one act** (federfall-s63u): `POST /api/federfall/vaccinate-batch`
 (`pb_hooks/vaccinate_batch.pb.js`) writes one `vaccinations` row per animal in ONE
@@ -340,6 +411,11 @@ including that a carer's widened scope still returns nothing of another carer's.
 **The audit log stores snapshots, never relations** (federfall-qt96 / by7w / ybua):
 `audit_events` is append-only (no write rules; a tamper guard in 1700000068 blocks even a
 superuser UPDATE) and supervisor-only, emitted exclusively from `pb_hooks/lib_audit.js` —
+which is now the BINDING only: the machinery (redaction, the diff, label snapshotting,
+actor/org resolution, the never-throw wrapper) is `zv_audit.js` in the base image, bound
+to federfall's tables via `zv.withRegistry()`, and the tables themselves are
+`app_audit_vocabulary.js`. What stayed in `lib_audit.js` is `emitRecordChange`,
+`contentOf` and `refine`, i.e. the three things that need those tables to work.
 `emit()` never throws, so a failed log cannot break the write it observes. Everything a
 reader sees is TEXT captured at emit time: `actor_label`, `subject_label`, `case_label`, and
 `from_label`/`to_label` on a relation-valued change. That is deliberate and the app must not
@@ -351,8 +427,10 @@ strings (`"in_care"`), translated on the way out in
 `features/admin/audit/audit_labels.dart` — the server has no business picking the reader's
 language. Two guards keep it honest: `test_rules.py`'s sweep fails on an event too empty to
 be worth reading and on an action outside the registry, and `audit_labels_test.dart` parses
-`CONTENT_FIELDS` out of `lib_audit.js` and fails on any recorded field that renders as its
-raw column name in either language. Adding an action or a field is additive — an older client
+`CONTENT_FIELDS` out of `app_audit_vocabulary.js` and fails on any recorded field that
+renders as its raw column name in either language. (Both of those read that file's SOURCE,
+which is why the tables live in a file whose only job is to hold them — move one into a
+hook and the guards go quiet rather than red.) Adding an action or a field is additive — an older client
 renders an unknown one from the envelope alone — so it ships as `feat:`, not `feat!:`.
 **Never log finder PII**: `SENSITIVE.finders` must stay in step with
 `finder_retention.pb.js`'s `PII_FIELDS`, or the scrub is defeated by a table nothing can
@@ -375,8 +453,13 @@ reports everything. The app just picks a period and a format
 there is deliberately no client-side CSV encoder any more. Because the CSV has no template
 to translate in, `typst/shared_strings.json` holds the column titles + the `caseStatus` /
 `disposition` label maps, read by the hook AND merged into `report_common.typ`'s `STRINGS`;
-it is the one place in `pb_hooks/` that localizes anything. `tests/run.sh` bind-mounts
-`typst/` (the image is cached by tag, so a template edit would otherwise go untested).
+it is the one place in `pb_hooks/` that localizes anything. `report_common.typ` imports
+the five shared helpers from `zv_report_common.typ`, which the base image lays down in
+`/pb/typst` — so **`typst/` must not be bind-mounted over** (a mount replaces the whole
+directory and takes the shared base with it; unlike a hook that fails at boot, this one
+waits for the first PDF request). `tests/run.sh` therefore builds the image
+unconditionally instead of mounting, which is also what stops a template edit going
+untested.
 
 **The statistics screen and the annual report are one implementation** (federfall-nmwi):
 `pb_hooks/lib_stats.js` owns the period (`?year=` + `?tzOffsetMinutes=` → caller-local
@@ -397,7 +480,9 @@ refused — it names no period): buckets follow it (days / months / years), and 
 is always the SAME period a year earlier, never the one before, because seasonality is the
 question a rehab asks. The report route takes `?month=` too and titles itself
 *Monatsbericht* rather than *Jahresbericht* for one. **Pie/donut colours are capped at three
-hues + a neutral "Other"** (`ui/widgets/breakdown_pie.dart`): a pie is an all-pairs form, and
+hues + a neutral "Other"** (`zugvogel_ui`'s `breakdown_pie.dart`; the hues themselves are
+federfall's, injected as a `ZugvogelSemantics` theme extension from `AppTheme`): a pie is
+an all-pairs form, and
 three hues is what clears CVD/normal-vision/contrast against BOTH surfaces — light and dark
 are separately validated steps, not a flip. Do not add a fourth hue; the card's rows below
 the chart carry every category and its exact count.
@@ -419,7 +504,8 @@ the chart carry every category and its exact count.
   every PocketBase timestamp arrives UTC — so `materialL10n.formatMediumDate(c.admittedAt)`
   prints the UTC calendar day, which in CET/CEST is the *previous* day for anything after
   22:00 UTC. It fails invisibly on a UTC-clocked dev machine and CI. So `formatLocalDate`
-  (`ui/widgets/date_field.dart`, with `DateStyle.medium`/`.short` and `withTime:`) is the
+  (`zugvogel_ui`'s `date_field.dart`, re-exported from `ui/ui.dart`, with
+  `DateStyle.medium`/`.short` and `withTime:`) is the
   only place in `lib/` that turns a `DateTime` into a date string: it converts first, and
   `toLocal()` is idempotent, so form state and picker results pass through it unchanged and
   no call site has to know which kind it holds. `date_field_test.dart` sweeps `lib/` and
@@ -459,7 +545,8 @@ the chart carry every category and its exact count.
   (`e.json(200, rec.get("response"))`) is fine — JSONRaw marshals correctly; only property
   access in JS is broken. It had silently disabled the org-configurable windows in
   `finder_retention.pb.js` and `main.pb.js`, so **`organisations.settings` now has exactly
-  one reader**: `pb_hooks/lib_org.js` (`settingsOf` / `positiveNumber` / `flag`) — go through
+  one reader**: `zv_org.js` (`settingsOf` / `positiveNumber` / `flag`, in the base image) —
+  go through
   it rather than writing a fifth `getString()`+`JSON.parse`. Both windows it once broke are
   covered now: the quarantine default in `test_rules.py`, the finder scrub in `test_cron.py`
   (a cron, so `run_cron.sh` makes it due every minute — it now rewrites BOTH retention
@@ -483,12 +570,22 @@ the chart carry every category and its exact count.
   *unauthenticated* path, so a warm start can build a map before `/info` lands and the
   layer has to be replaced, not updated in place. `apiKey` is served over an
   unauthenticated endpoint, i.e. deliberately public (documented in `info.pb.js`).
+  `MapConfig` / `ServerMapConfig` / `mapConfigProvider` are `zugvogel_pb_client`'s
+  (re-exported from `config/map_config.dart`); the define-based fallback stayed here as
+  `mapConfigFromDefines()` and reaches the provider through `PbClientConfig.mapFallback` —
+  there is no `MapConfig.fromDefines()` any more, because Dart cannot add a static to
+  somebody else's type.
 - **Geocoding** is proxied through PB hooks (`pb_hooks/geocode.pb.js`) for CORS + server-side
   rate-limiting; configurable via `FEDERFALL_NOMINATIM_URL` / `FEDERFALL_GEOCODER_KEY` /
   `FEDERFALL_USER_AGENT`. Public OSM Nominatim blocks server traffic and placeholder UA
   domains (e.g. `example.org`) — use a real contact or none, or self-host.
 - **Tests:** widget tests override repo providers with `mocktail` mocks via
   `ProviderContainer(overrides: ...)`; inject the image picker via `imagePickerProvider`.
+  `test/flutter_test_config.dart` sets `defaultPbClientConfig` +
+  `defaultZugvogelStrings` around EVERY test in the package, so no individual test has to
+  know those bindings exist — a test that wants a different one overrides
+  `pbClientConfigProvider` or wraps its subtree in a `ZugvogelStringsScope` and wins.
+  Without that file, anything touching a shared widget or a connection provider throws.
   Hide flutter_test's `Finder` when importing models (`import '...flutter_test.dart' hide
   Finder;`). `registerFallbackValue` for `<String,dynamic>{}` and `<MultipartFile>[]`. Fake
   image bytes throw "Invalid image data" — give `Image.memory` an `errorBuilder`; `XFile`
