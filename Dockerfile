@@ -14,7 +14,19 @@
 #                       This is what the compose stack ships.
 #
 # Bump PB_VERSION here and in the root docker-compose.yml to upgrade PocketBase.
-ARG PB_VERSION=0.39.8
+# The shared PocketBase runtime: the binary, the zv_* hook libraries, the Typst
+# report base and the migrate-before-serve entrypoint. Published from zugvogel.
+#
+# Pinned to a `sha-<commit>` tag for the same reason the Dart packages are
+# pinned to a commit hash: it names one commit and nothing can re-point it. The
+# two pins move independently — a change to zugvogel's Dart does not touch this,
+# and a change to the shared hooks does not touch pubspec.yaml.
+#
+# This replaces a local pbfetch stage that carried the PocketBase version and its
+# per-arch checksums. Those existed identically in eiermann's Dockerfile: two
+# places to bump, and a JSVM whose behaviour differs between versions in ways
+# that have cost real time.
+ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-98c011a36e43606db42b771ad7e791ade347e3b9
 
 # ── Flutter web build stage ────────────────────────────────────────────────────
 # Self-installed, version-pinned Flutter SDK (mirrors the pinned-fetch pattern —
@@ -77,34 +89,6 @@ RUN cd /src/apps/federfall && flutter build web --wasm --release \
         --target lib/main_production.dart \
         --dart-define-from-file=dart_defines/production.json
 
-# ── PocketBase fetch stage ─────────────────────────────────────────────────────
-# PocketBase ships a single static Go binary; fetch + verify the pinned release.
-#
-# federfall-e8cl: the zip was downloaded over HTTPS with no integrity check — a
-# tampered GitHub release asset or CDN response would ship a backdoored server
-# binary undetected. SHA256s below are copied verbatim from that release's
-# published checksums.txt (https://github.com/pocketbase/pocketbase/releases/
-# download/v${PB_VERSION}/checksums.txt). Bumping PB_VERSION WITHOUT updating
-# these fails the build with a checksum mismatch (not a silent stale check) —
-# copy the new release's checksums.txt values in at the same time.
-FROM alpine:3.20 AS pbfetch
-ARG PB_VERSION
-ARG TARGETARCH
-RUN apk add --no-cache unzip wget ca-certificates
-WORKDIR /pb
-RUN set -eux; \
-    case "${TARGETARCH}" in \
-        amd64) PB_ARCH=amd64; PB_SHA256=3b675575ff0e6dcc5befc85a9644aea6b04ac617ce125ecb2b6989a3c5b5664f ;; \
-        arm64) PB_ARCH=arm64; PB_SHA256=d9e44e40f2483b468bb4dd64e12b554aa85941dc5ee9c4bb87aee8fa9e469425 ;; \
-        arm)   PB_ARCH=armv7; PB_SHA256=4824b6999c93227a2a544783e4007e57f43b72aac37f2aebbc99fe75055328b9 ;; \
-        *)     echo "unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    wget -q "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_${PB_ARCH}.zip" -O /tmp/pb.zip; \
-    echo "${PB_SHA256}  /tmp/pb.zip" | sha256sum -c -; \
-    unzip /tmp/pb.zip -d /pb; \
-    rm /tmp/pb.zip; \
-    chmod +x /pb/pocketbase
-
 # ── Typst fetch stage ───────────────────────────────────────────────────────────
 # Typst ships a single static Rust binary; fetch + verify the pinned release.
 # Same rigor as pbfetch above, EXCEPT Typst does not publish a checksums.txt —
@@ -129,10 +113,14 @@ RUN set -eux; \
     chmod +x /typst/typst
 
 # ── Backend runtime (lean: PB + migrations + hooks, NO web) ─────────────────────
-# This stage IS the rule-test image (built via `--target backend`).
-FROM alpine:3.20 AS backend
-RUN apk add --no-cache ca-certificates tzdata wget
-COPY --from=pbfetch /pb/pocketbase /usr/local/bin/pocketbase
+# This stage IS the rule-test image (built via `--target backend`), which is the
+# point: the suite exercises the image that ships.
+#
+# The base brings PocketBase, the thirteen zv_* libraries, the Typst report base
+# and the entrypoint. Everything added below is federfall's own — and the hooks
+# COPYed further down land in the same /pb/pb_hooks directory, so a `require` of
+# a zv_ library resolves without any of them living in this repo.
+FROM ${ZUGVOGEL_PB_BASE} AS backend
 # federfall-gdp8 — the per-case PDF report hook shells out to this. Bundled
 # here (not fetched at runtime) so PDF generation works fully offline/
 # reproducibly, same stance as the pinned Flutter SDK and the PB binary above.
@@ -145,19 +133,24 @@ WORKDIR /pb
 # builds keep the "0.0.0-dev" default.
 ARG FEDERFALL_VERSION=0.0.0-dev
 ENV FEDERFALL_VERSION=${FEDERFALL_VERSION}
-RUN mkdir -p /pb/pb_data
 # Bake the committed migrations + hooks INTO the image so it is self-contained
-# and reproducible — production runs them from here with no host bind mounts.
-# (Local dev shadows these with bind mounts via docker-compose.override.yml so
-# automigrate + hot-reload still work.)
+# and reproducible.
+#
+# `pb_hooks/` may no longer be bind-mounted over: the zv_* libraries live in the
+# base image and a mount replaces the whole directory, so every `require` of one
+# would fail at request time as a generic 400. The rule suite therefore runs
+# against the baked copies, which is the more honest arrangement anyway — it used
+# to test host files laid over an image nothing exercised.
 COPY backend/pocketbase/pb_migrations/ /pb/pb_migrations/
 COPY backend/pocketbase/pb_hooks/      /pb/pb_hooks/
 COPY backend/pocketbase/typst/         /pb/typst/
-EXPOSE 8090
 # Production default: automigrate OFF — schema only ever changes via the committed
-# migration files baked above, never drifts from the Admin UI. The dev override
-# re-enables it and bind-mounts the dirs.
-ENTRYPOINT ["pocketbase"]
+# migration files baked above, never drifts from the Admin UI.
+#
+# ENTRYPOINT comes from the base and applies migrations before handing off to
+# `serve`. That ordering is load-bearing rather than tidy: a hook running in
+# onBootstrap is not guaranteed to see the schema, so on a fresh volume it does
+# nothing on the first boot and works on the second.
 CMD ["serve", "--http=0.0.0.0:8090", \
      "--dir=/pb/pb_data", \
      "--migrationsDir=/pb/pb_migrations", \
