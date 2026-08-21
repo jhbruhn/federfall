@@ -233,61 +233,21 @@ def main():
     check("PMV is NOT flagged notifiable", not any("PMV" in x for x in notif), notif)
 
     # ── federfall-7nf.1: server identity & capabilities discovery ────────────
+    #
+    # The assertions are zugvogel's; the values are this harness's. Stating them
+    # at the call site is the point — it reads as what this instance was set up to
+    # be, and a wrong expectation fails here instead of being quietly matched.
     print("\n[federfall info]")
-    s, info = req("GET", "/api/federfall/info")  # no token: must be public
-    check("GET /api/federfall/info is unauthenticated (200)", s == 200, f"status {s}")
-    check("carries the federfall identity marker",
-          bool(info) and info.get("federfall") is True
-          and info.get("service") == "federfall", info)
-    check("reports a version and minClient",
-          bool(info) and bool(info.get("version")) and bool(info.get("minClient")),
-          info)
-    # federfall-1wm: the major IS the app<->server wire contract, so minClient
-    # is DERIVED as "<major>.0.0" — never a hand-set constant that can drift
-    # above every client in existence (it sat at "1.0.0" for all of 0.x).
-    check("minClient floors at the running major",
-          bool(info)
-          and info.get("minClient") == info.get("version", "").split(".")[0] + ".0.0",
-          info)
-    auth = (info or {}).get("auth") or {}
-    check("password auth is enabled", auth.get("password") is True, auth)
-    check("oauth2 is a list", isinstance(auth.get("oauth2"), list), auth)
-    check("self-signup is off (invite-only)", auth.get("selfSignup") is False, auth)
-    # federfall-lnz3: PocketBase hardcodes its OAuth2 scopes and has no
-    # server-side way to widen them, so the server publishes the set the APP
-    # should request instead. Derived from the group mapping being configured
-    # (run.sh sets FEDERFALL_OIDC_CARER_GROUP) — there is no scope env.
-    check("the configured providers are advertised",
-          set(auth.get("oauth2") or []) == {"oidc", "google"}, auth)
-    scopes = (auth.get("oauth2Scopes") or {})
-    check("a group mapping makes OIDC request the groups scope",
-          scopes.get("oidc") == ["openid", "email", "profile", "groups"], auth)
-    # A social provider rejects the whole authorization request over an unknown
-    # scope, and can't do OIDC group mapping anyway.
-    check("a social provider keeps PocketBase's own scopes",
-          "google" not in scopes, auth)
-    # federfall-el1f: the tile source is a build-time define in the app, so the
-    # server prescribes one here for self-hosters on the published image.
-    m = (info or {}).get("map") or {}
-    check("the configured map source is prescribed",
-          m.get("mode") == "raster"
-          and m.get("tileUrl") == "https://raster.invalid/{z}/{x}/{y}.png",
-          m)
-    # Only the URL for the active mode: a leftover variable for the other
-    # rendering path must not travel along and get read as the wrong thing.
-    check("the other mode's URL is not prescribed", "styleUrl" not in m, m)
-    # The credit travels with the URL or neither applies — tiles from one
-    # provider under another's attribution is a licensing problem.
-    check("the prescription carries its attribution",
-          m.get("attribution") == "© Test Tiles", m)
-    check("an unset attribution link stays absent (plain text, not a wrong "
-          "copyright page)", "attributionUrl" not in m, m)
-    # Commercial providers key their tiles, and a vector style needs the key
-    # substituted into the style's own source/sprite URLs — only the client can
-    # do that, so the key travels as its own field. This endpoint is public, so
-    # a key set here is public: see the note in info.pb.js.
-    check("the provider API key is handed to the client",
-          m.get("apiKey") == "test-map-key", m)
+
+    shared_assertions.info(
+        check,
+        req,
+        "federfall",
+        providers={"oidc", "google"},
+        self_signup=False,          # invite-only: every invite is sent BY a supervisor
+        oidc_groups_scope=True,     # run.sh sets FEDERFALL_OIDC_CARER_GROUP
+    )
+
 
     # ── fixtures ────────────────────────────────────────────────────────────
     A = mkuser(T, "a@f.local", "carer")["id"]
