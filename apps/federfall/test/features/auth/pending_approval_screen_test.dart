@@ -1,4 +1,3 @@
-import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/auth/pending_approval_screen.dart';
@@ -9,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show AuthStatus, authStatusProvider;
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 

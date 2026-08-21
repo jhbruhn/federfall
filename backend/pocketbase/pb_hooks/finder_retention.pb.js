@@ -71,10 +71,10 @@ cronAdd("finderPiiRetention", "0 3 * * *", () => {
     return isNaN(d.getTime()) ? null : d;
   };
 
-  // federfall-jumi: read through lib_org.js, which decodes the JSON field —
+  // federfall-jumi: read through zv_org.js, which decodes the JSON field —
   // `org.get("settings")` hands JS a byte array, so every key read as
   // undefined and every org silently got the default window.
-  const orgs = require(`${__hooks}/lib_org.js`);
+  const orgs = require(`${__hooks}/zv_org.js`);
   const retentionMsForOrg = (orgId) => {
     const settings = orgs.settingsOf($app, orgId);
     // The key the org-settings screen writes, in months.

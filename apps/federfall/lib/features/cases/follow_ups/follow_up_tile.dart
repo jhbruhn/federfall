@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/follow_ups/follow_up_sheet.dart';
@@ -9,6 +8,8 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart'
+    show confirmAndDelete, runQuickAction;
 
 /// One recheck as a chronology event (cr3.4): a [TimelineItem] on its due date,
 /// showing the note, a "done" chip once carried out, and a menu to edit, mark

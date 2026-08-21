@@ -1,6 +1,7 @@
 import 'package:federfall/config/app_environment.dart';
-import 'package:federfall/core/server/server_info.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show ServerInfo, ServerMapConfig;
 
 /// `ServerInfo.tryParse` takes the service marker as a parameter now that it
 /// lives in zugvogel_pb_client (eiermann-d2a.4) — hardcoding "federfall" is

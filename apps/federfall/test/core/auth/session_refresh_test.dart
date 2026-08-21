@@ -1,11 +1,16 @@
 import 'package:federfall/core/auth/session_refresh.dart';
-import 'package:federfall/core/server/server_config.dart';
-import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show
+        ServerConfig,
+        ServerConfigController,
+        ServerConfigured,
+        ServerUnconfigured,
+        serverConfigControllerProvider;
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 

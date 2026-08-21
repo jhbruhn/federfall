@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_data/zugvogel_data.dart'
+    show RepositoryErrorKind, RepositoryException;
 
 /// Authentication and session access for the `users` collection.
 abstract interface class AuthRepository {

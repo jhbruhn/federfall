@@ -1,6 +1,5 @@
 import 'package:federfall/core/async/parallel_wait.dart';
 import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/realtime/collection_events.dart';
 import 'package:federfall/features/reminders/reminder_plan.dart';
 import 'package:federfall/features/reminders/reminder_scheduler.dart';
 import 'package:federfall/features/reminders/reminder_settings.dart';
@@ -9,6 +8,8 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
 import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show collectionEventsProvider;
 
 part 'reminders.g.dart';
 

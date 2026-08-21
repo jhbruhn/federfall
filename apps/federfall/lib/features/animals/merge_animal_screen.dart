@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/animals/animal_search_picker.dart';
@@ -17,6 +16,7 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart' show confirmAndDelete;
 
 /// Which record's value wins on a conflicting identity field.
 enum _FieldChoice { current, other }

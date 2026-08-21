@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:federfall_data/src/pb_repository.dart';
-import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_data/zugvogel_data.dart'
+    show RepositoryErrorKind, RepositoryException;
 
 /// Repository over the `weights` collection (drives the trend chart).
 class PbWeightsRepository extends PbRepository<Weight> {

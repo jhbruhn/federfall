@@ -1,7 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/error/error_message.dart';
-import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/medications/batch_administration_sheet.dart';
@@ -20,6 +19,7 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// Dashboard tab of the navigation shell (FED-7.1): the carer's Today preview
 /// plus a caseload KPI grid. Each tile taps through to the pre-filtered case

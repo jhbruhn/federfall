@@ -3,41 +3,80 @@ library;
 
 export 'package:federfall/theme/app_spacing.dart';
 export 'package:federfall/theme/app_theme.dart';
+export 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show fileCacheKey;
+// The shared kit, named symbol by symbol rather than as a bare
+// `export 'package:zugvogel_ui/zugvogel_ui.dart'`. That is not a style
+// preference: the bare form was tried and it collides. federfall keeps its own
+// `Validators`, `formatNumber`, `MapTileLayer`, `errorMessage` and
+// `loadErrorMessage`, all exported from this same barrel, so a wholesale
+// re-export makes five names ambiguous and 24 call sites stop compiling.
+//
+// This list is what thirty-one one-line files in this directory used to say
+// between them: migration scaffolding that kept every import path working while
+// the implementations moved to zugvogel. With the move landed they were a hop
+// with nothing in it — a reader following a widget to its definition went
+// through a file that only named it, and `grep` found the shim rather than the
+// code.
+//
+// Writing it out has a second effect worth keeping: zugvogel gaining a widget
+// does not silently widen federfall's public UI surface.
+export 'package:zugvogel_ui/zugvogel_ui.dart'
+    show
+        AppTextField,
+        AsyncValueView,
+        BreakdownBars,
+        BreakdownCard,
+        BreakdownPie,
+        BreakdownRow,
+        CachedFileImage,
+        ChartEntry,
+        ContentBounds,
+        DateField,
+        DateStyle,
+        DestructiveActionButton,
+        DestructiveChoice,
+        DestructiveDialog,
+        DetailHeader,
+        DiscardGuard,
+        EditablePhotoStrip,
+        EmptyView,
+        ErrorView,
+        IconChip,
+        ImageCropScreen,
+        ImageViewerScreen,
+        JpegEncodeRequest,
+        KpiCard,
+        KpiGrid,
+        LoadingView,
+        LocalPhotoThumb,
+        MapAttribution,
+        MapWheelZoom,
+        MenuAction,
+        OfflineNotice,
+        PagedListTail,
+        PrimaryButton,
+        StagedPhotos,
+        TagChip,
+        VideoAttachmentThumb,
+        axisLabel,
+        buildMenuItems,
+        chartGrid,
+        confirmDiscardChanges,
+        encodeRgbaAsJpeg,
+        fittingAxisLabels,
+        formatLocalDate,
+        isVideoAttachment,
+        labelBounds,
+        narrowMonthLabel,
+        pickDate,
+        pickDateTime,
+        showAppSheet,
+        showImageCropper,
+        showImageViewer;
 
-export 'app_sheet.dart';
-export 'discard_guard.dart';
 export 'form_sheet.dart';
-export 'layout/content_bounds.dart';
 export 'layout/list_detail_scaffold.dart';
 export 'layout/window_size.dart';
 export 'number_format.dart';
 export 'validators.dart';
-export 'widgets/app_text_field.dart';
-export 'widgets/async_value_view.dart';
-export 'widgets/attachment_kind.dart';
-export 'widgets/breakdown_bars.dart';
-export 'widgets/breakdown_card.dart';
-export 'widgets/breakdown_pie.dart';
-export 'widgets/cached_file_image.dart';
-export 'widgets/chart_axis.dart';
-export 'widgets/date_field.dart';
-export 'widgets/destructive_action_button.dart';
-export 'widgets/destructive_dialog.dart';
-export 'widgets/detail_header.dart';
-export 'widgets/editable_photo_strip.dart';
-export 'widgets/empty_view.dart';
-export 'widgets/error_view.dart';
-export 'widgets/icon_chip.dart';
-export 'widgets/image_cropper.dart';
-export 'widgets/image_viewer.dart';
-export 'widgets/kpi_card.dart';
-export 'widgets/loading_view.dart';
-export 'widgets/map_attribution.dart';
 export 'widgets/map_tile_layer.dart';
-export 'widgets/map_wheel_zoom.dart';
-export 'widgets/menu_action.dart';
-export 'widgets/offline_notice.dart';
-export 'widgets/paged_list_tail.dart';
-export 'widgets/primary_button.dart';
-export 'widgets/staged_photos.dart';
-export 'widgets/tag_chip.dart';

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
@@ -16,6 +15,8 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart'
+    show confirmAndDelete, runQuickAction;
 
 /// One egg-laying event as a chronology event (federfall-4agw): how many eggs,
 /// their fertility and outcome, a "presumed" badge when the layer is only

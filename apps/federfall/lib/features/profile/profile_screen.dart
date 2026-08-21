@@ -3,7 +3,6 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/core/auth/sign_out.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/core/pocketbase/user_agent_client.dart';
-import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/printing/printer_config_sheet.dart';
 import 'package:federfall/features/printing/printer_labels.dart';
@@ -20,6 +19,8 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show serverInfoProvider;
 
 /// Minimal profile screen (FED-3.3): shows the signed-in user's details and
 /// hosts the sign-out action.

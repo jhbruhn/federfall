@@ -1,12 +1,12 @@
 import 'dart:convert';
 
 import 'package:federfall/core/pocketbase/auth_token_storage.dart';
-import 'package:federfall/core/pocketbase/pocketbase_provider.dart';
 import 'package:federfall/core/pocketbase/user_agent_client.dart';
-import 'package:federfall/core/server/server_config_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show pocketBaseProvider, serverConfigControllerProvider;
 
 import '../../helpers/helpers.dart';
 

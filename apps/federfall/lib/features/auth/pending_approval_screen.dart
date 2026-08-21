@@ -1,4 +1,3 @@
-import 'package:federfall/core/auth/auth_status.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/sign_out.dart';
 import 'package:federfall/core/error/error_message.dart';
@@ -7,6 +6,8 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show authStatusProvider;
 
 /// Shown to a self-registered guest whose account has no role yet: they are
 /// signed in but the server walls them off from all data until a supervisor

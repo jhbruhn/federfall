@@ -1,6 +1,5 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
-import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/invite_member_sheet.dart';
 import 'package:federfall/features/admin/member_management_sheet.dart';
@@ -9,6 +8,8 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show serverInfoProvider;
 
 /// Supervisor-only team roster (FED-3.3 / FED-3.2). Hosts the member list and
 /// the invite flow; reached from the management hub (federfall-dri). Re-checks

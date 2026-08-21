@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:federfall_data/src/pb_repository.dart';
 import 'package:federfall_data/src/repositories/codelist_repository.dart';
-import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_data/zugvogel_data.dart'
+    show RepositoryErrorKind, RepositoryException;
 
 /// Repository over the `microscopy_samples` collection (one microscopic
 /// examination of a crop swab or faecal sample).

@@ -1,6 +1,4 @@
 import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/server/server_info.dart';
-import 'package:federfall/core/server/server_info_provider.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/admin/team_screen.dart';
@@ -12,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show ServerAuthOptions, ServerInfo, serverInfoProvider;
 
 class MockUsersRepo extends Mock implements PbUsersRepository {}
 

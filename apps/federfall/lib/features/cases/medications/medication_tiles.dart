@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -12,6 +11,7 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart' show confirmAndDelete;
 
 /// A prescription (medication plan) as a chronology event (FED-4.6): drug,
 /// dose, route and frequency, a controlled-drug badge, and a menu to log a

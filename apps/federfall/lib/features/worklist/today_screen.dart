@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:federfall/core/realtime/live_refresh.dart';
 import 'package:federfall/features/cases/case_detail_screen.dart';
 import 'package:federfall/features/cases/medications/batch_administration_sheet.dart';
 import 'package:federfall/features/worklist/worklist.dart';
@@ -12,6 +11,7 @@ import 'package:federfall/routing/back_or_home.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// The "Today" screen (UX Phase D, cr3.2): the signed-in carer's derived
 /// worklist grouped by kind — medications due, quarantines ending, inactive

@@ -1,8 +1,8 @@
-import 'package:federfall/core/connectivity/connectivity.dart';
-import 'package:federfall/core/realtime/collection_events.dart';
 import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show OnlineStatus, collectionEventsProvider, onlineStatusProvider;
 
 part 'case_realtime.g.dart';
 

@@ -2,6 +2,12 @@
 /// `RecordModel` → model mappers that build them.
 library;
 
+// GeoPoint is RE-EXPORTED, not imported: it is part of this package's
+// public surface and reached consumers through a one-line file under src/
+// that only named it — migration scaffolding from when the implementation
+// moved to zugvogel_core. Nothing downstream changes.
+export 'package:zugvogel_core/zugvogel_core.dart' show GeoPoint;
+
 export 'src/audit_actions.dart';
 export 'src/converters.dart'
     show
@@ -34,7 +40,6 @@ export 'src/models/disposition.dart';
 export 'src/models/egg_record.dart';
 export 'src/models/exam.dart';
 export 'src/models/finder.dart';
-export 'src/models/geo_point.dart';
 export 'src/models/marking.dart';
 export 'src/models/marking_type.dart';
 export 'src/models/medical_case.dart';

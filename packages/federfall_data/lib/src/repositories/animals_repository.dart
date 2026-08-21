@@ -1,7 +1,8 @@
 import 'package:federfall_data/src/pb_repository.dart';
-import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_data/zugvogel_data.dart'
+    show RepositoryErrorKind, RepositoryException;
 
 /// Repository over the `animals` collection (persistent animal identities).
 class PbAnimalsRepository extends PbRepository<Animal> {

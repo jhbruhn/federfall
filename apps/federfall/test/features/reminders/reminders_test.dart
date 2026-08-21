@@ -1,5 +1,4 @@
 import 'package:federfall/core/auth/current_user.dart';
-import 'package:federfall/core/realtime/collection_events.dart';
 import 'package:federfall/features/reminders/reminder_plan.dart';
 import 'package:federfall/features/reminders/reminder_scheduler.dart';
 import 'package:federfall/features/reminders/reminder_settings.dart';
@@ -11,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart' hide Finder;
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
+    show collectionEventsProvider;
 
 /// Records every call so the reconcile behaviour can be asserted without any
 /// platform plugin.

@@ -1,4 +1,3 @@
-import 'package:federfall/core/error/quick_action.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/placements/placement_sheet.dart';
@@ -9,6 +8,7 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zugvogel_ui/zugvogel_ui.dart' show confirmAndDelete;
 
 /// A placement / handoff as a chronology event (FED-4.9): a move to an
 /// enclosure and/or a transfer of the active carer, with the holder resolved

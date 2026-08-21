@@ -1,9 +1,10 @@
 import 'dart:async';
 
-import 'package:federfall_data/src/repository_exception.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:meta/meta.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:zugvogel_data/zugvogel_data.dart'
+    show RepositoryErrorKind, RepositoryException;
 
 /// One labelled count in a breakdown (species, diagnosis).
 @immutable
