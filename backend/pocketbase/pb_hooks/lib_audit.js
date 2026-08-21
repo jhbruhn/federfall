@@ -1,7 +1,7 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-// federfall-qt96.2 — the audit log's emitter. Every row in `audit_events`
-// (1700000068) is written from here.
+// federfall-qt96.2 — the audit log's VOCABULARY, and the two emitters that are
+// driven by it. Every row in `audit_events` (1700000068) is written from here.
 //
 // Usage — `require()` INSIDE the handler, never at file level, and always with
 // the `${__hooks}` absolute form (a relative path fails with "Invalid module"):
@@ -16,26 +16,63 @@
 //     });
 //   }, "weights");
 //
-// This file is NOT named *.pb.js, so PocketBase does not load it as a hook —
-// it is only ever reachable through that require(). Unlike a hook file, a
-// required module keeps its own file-level scope, which is why ACTIONS,
-// SENSITIVE and the helpers below can live out here (verified on 0.39.8).
+// This file is NOT named *.pb.js, so PocketBase does not load it as a hook — it
+// is only ever reachable through that require(). Unlike a hook file, a required
+// module keeps its own file-level scope, which is why the tables below and the
+// file-level require of zv_audit.js can live out here (verified on 0.39.8).
 //
-// ── Three properties this module must keep ───────────────────────────────────
+// ── What moved out, and what stayed ─────────────────────────────────────────
 //
-// 1. STATELESS. PocketBase pools JSVMs and each pooled VM holds its own
-//    instance of this module, so a module-level counter/dedup/cache diverges
-//    under concurrency — measured on 0.39.8, not assumed. Anything that must be
-//    consistent has to come from the database.
-// 2. EMIT NEVER THROWS. A failed audit write must not turn a successful domain
-//    write into a 500; the whole body is wrapped and failures go to the logger.
-//    (Consequence, accepted: emit-after-`e.next()` cannot roll a write back. A
-//    log that can break the app it observes is the worse failure mode.)
-// 3. NO FINDER PII, EVER. A finder is a member of the public whose contact
-//    details finder_retention.pb.js scrubs on a schedule; a copy of them sitting
-//    in an append-only table nothing can delete would defeat that scrub with the
-//    app's own audit trail. Finder subjects carry an empty label and their
-//    identity/contact fields are redacted to the FACT of a change.
+// The MACHINERY is zugvogel's now — zv_audit.js, which the base image lays
+// down in this same directory: redaction, the diff, label snapshotting, actor
+// and org resolution, the request id, the never-throw wrapper, the failed-login
+// bucketing. Some 700 lines, identical in both products, and the three
+// properties it must keep (stateless, emit never throws, no PII of the public)
+// are stated in its header rather than restated here.
+//
+// What is left is federfall's VOCABULARY: which action strings exist, which
+// collections are audited, which fields are sensitive, what labels a record.
+// That cannot be shared, and not merely because the words differ — eiermann has
+// no cases, no finders, no medications at all, so a shared table would be two
+// disjoint halves in one file, each product carrying the other's as dead
+// weight. `zv_audit.withRegistry()` binds the two together, and REGISTRY below
+// is federfall's half in the shape it expects.
+//
+// ── Why the vocabulary is in THIS file and not in app_audit_registry.js ─────
+//
+// Three suites read this file's SOURCE TEXT as the single source of truth for
+// the tables below rather than mirroring them, so that a copy cannot go on
+// passing after the real map changed:
+//
+//   backend/pocketbase/tests/test_rules.py — COLLECTION_ACTIONS, SENSITIVE,
+//     FREE_TEXT, IGNORED_FIELDS, LABEL_FIELDS, RELATION_TARGETS,
+//     RELATION_FIELDS and the ACTIONS lines, checked against the LIVE schema
+//   packages/federfall_models/test/audit_event_test.dart — the ACTIONS lines,
+//     which must equal AuditAction.values exactly, in both directions
+//   apps/federfall/test/features/admin/audit_labels_test.dart — CONTENT_FIELDS,
+//     every recorded field needing a translated name in both languages
+//
+// All three pin the vocabulary to `pb_hooks/lib_audit.js` BY PATH. Moving the
+// tables to a second file would mean editing those three suites in the same
+// change that rewrote the emitter under them — the one moment they exist to be
+// independent of it.
+//
+// zv_audit.js's header shows `withRegistry()` reading from a separate
+// `app_audit_registry.js`, and such a file existed here briefly. It was deleted:
+// re-exporting `REGISTRY` from this file gave it a name with nothing behind it
+// and forty lines explaining why it was empty. The example in a shared library's
+// docstring is an example, not a requirement. One file, one copy of the tables.
+//
+// ── The public's PII, restated because it is the rule most easily broken ────
+//
+// A finder and a sponsor are members of the public whose contact details
+// finder_retention.pb.js and sponsorship_retention.pb.js scrub on a schedule; a
+// copy of them sitting in an append-only table nothing can delete would defeat
+// that scrub with the app's own audit trail. Their subjects carry an empty
+// label (NEVER_LABELLED) and their identity/contact fields are redacted to the
+// FACT of a change (SENSITIVE).
+
+const zv = require(`${__hooks}/zv_audit.js`);
 
 // ── Action registry — the single source of truth for valid action strings ────
 //
@@ -223,8 +260,10 @@ const ACTIONS = {
 
 const ACTION_LIST = Object.keys(ACTIONS).map((k) => ACTIONS[k]);
 
-const SEVERITY = { INFO: "info", NOTICE: "notice", SECURITY: "security" };
-const ACTOR = { USER: "user", SYSTEM: "system", CRON: "cron", SUPERUSER: "superuser" };
+// Re-exported, not re-declared: these are the `audit_events` wire values, and
+// zv_audit.js is now the one place they are written down.
+const SEVERITY = zv.SEVERITY;
+const ACTOR = zv.ACTOR;
 
 // What a supervisor should be able to filter for without knowing every action
 // by name: "security" is who can get in and who can see what, "notice" is
@@ -351,6 +390,12 @@ const FREE_TEXT = [
 // the fields out entirely would strip the signal too.
 // PocketBase's own auth bookkeeping stamps (a reset mail was sent, a login
 // alert went out) are internal side effects, not something a person did.
+//
+// zv_audit.js declares the same five and CONCATENATES whatever `ignoredFields`
+// adds, so handing it this list changes nothing today. It is handed over, and
+// kept here, because test_rules.py's prose sweep reads it out of THIS file to
+// decide which columns it may skip: the list the sweep trusts has to be the
+// list the emitter uses, and a duplicate in a denylist is inert.
 const IGNORED_FIELDS = [
   "updated",
   "created",
@@ -358,103 +403,6 @@ const IGNORED_FIELDS = [
   "lastVerificationSentAt",
   "lastLoginAlertSentAt",
 ];
-
-// Long free text (a 2000-char notes field) would bloat a row that can never be
-// deleted, and `changes` has a maxSize. What matters is THAT the text changed.
-const MAX_VALUE_CHARS = 500;
-
-function isWithheld(collection, field) {
-  const list = SENSITIVE[collection];
-  if (list && list.indexOf(field) !== -1) return true;
-  return FREE_TEXT.indexOf(field) !== -1;
-}
-
-function normalize(v) {
-  if (v === null || v === undefined) return "";
-  if (typeof v !== "object") return v;
-
-  let json;
-  try {
-    json = JSON.stringify(v);
-  } catch (_) {
-    return String(v);
-  }
-  if (json === undefined) return String(v);
-  // A Go value that marshals to a JSON SCALAR reaches JS as an object —
-  // types.DateTime is the everyday case, and record.get() hands one back for
-  // every date field. Stringifying it keeps the quotes, so the row would store
-  // '"2026-06-20 07:30:00.000Z"' (unparseable as a date on the way out) and an
-  // unset date would store '""' rather than being recognised as empty. Unwrap
-  // it back to the plain value. Note fieldsData() does NOT do this — it yields
-  // plain JS — which is why only the create/delete path hit it.
-  if (json.length >= 2 && json[0] === '"' && json[json.length - 1] === '"') {
-    try {
-      return JSON.parse(json);
-    } catch (_) {
-      return json;
-    }
-  }
-  // An EMPTY list is an empty value, not the two characters "[]". Every multi
-  // field lands here — a multi-relation (`cases.admission_reasons`), a file
-  // field with no upload — and storing "[]" made the renderer read a first
-  // reason being chosen as a change FROM something ("[] → Kollision") instead
-  // of as one being set.
-  if (json === "[]") return "";
-  return json;
-}
-
-function clamp(v) {
-  if (typeof v === "string" && v.length > MAX_VALUE_CHARS) {
-    return { value: v.slice(0, MAX_VALUE_CHARS), truncated: true };
-  }
-  return { value: v, truncated: false };
-}
-
-// [{field, from, to}] for a plain-object before/after pair — typically
-// `record.original().fieldsData()` and `record.fieldsData()`. Sensitive fields
-// collapse to {field, redacted: true}.
-//
-// @param app optional; resolves relation values to a snapshotted label
-//            (`from_label` / `to_label`) via relationTarget/labelOf below.
-//            Omit it and a relation change carries its ids alone, which is
-//            what every row written before federfall-ybua.2 has.
-function diff(collection, before, after, app) {
-  const out = [];
-  const b = before || {};
-  const a = after || {};
-  const names = {};
-  for (const k in b) names[k] = true;
-  for (const k in a) names[k] = true;
-
-  for (const field in names) {
-    if (IGNORED_FIELDS.indexOf(field) !== -1) continue;
-    const from = normalize(b[field]);
-    const to = normalize(a[field]);
-    if (String(from) === String(to)) continue;
-
-    if (isWithheld(collection, field)) {
-      out.push({ field: field, redacted: true });
-      continue;
-    }
-    const cf = clamp(from);
-    const ct = clamp(to);
-    const entry = { field: field, from: cf.value, to: ct.value };
-    if (cf.truncated || ct.truncated) entry.truncated = true;
-    // A relation's value is an id. Record what it pointed at on BOTH sides —
-    // "Voliere: Quarantäne 1 → Freiflug" rather than two opaque ids. Resolved
-    // from the UNCLAMPED value: a multi-relation's id array can exceed
-    // MAX_VALUE_CHARS, and half a JSON array parses as nothing at all.
-    const target = relationTarget(collection, field);
-    if (target && app) {
-      const fromLabel = labelsOf(app, target, from);
-      const toLabel = labelsOf(app, target, to);
-      if (fromLabel) entry.from_label = fromLabel;
-      if (toLabel) entry.to_label = toLabel;
-    }
-    out.push(entry);
-  }
-  return out;
-}
 
 // ── The audited surface ──────────────────────────────────────────────────────
 //
@@ -683,8 +631,9 @@ const COLLECTION_ACTIONS = {
 // Absent means the envelope carries no label, which the design requires the app
 // to survive anyway. Three collections are absent ON PURPOSE, not by oversight:
 //
-//   finders          — additionally forced to "" in emit(). A member of the
-//                      public is never named in this table.
+//   finders          — additionally forced to "" by NEVER_LABELLED, wherever
+//                      the label would otherwise have come from. A member of
+//                      the public is never named in this table.
 //   sponsorships     — the same, and forced the same way. The only name a
 //                      patronage has is its sponsor's, so a label here would BE
 //                      the PII that SENSITIVE.sponsorships redacts out of the
@@ -805,75 +754,6 @@ const RELATION_FIELDS = {
   markings: { type: "marking_types" },
 };
 
-// The collection [field] of [collection] relates to, or "" if it is not a
-// relation whose target can be named.
-function relationTarget(collection, field) {
-  const per = RELATION_FIELDS[collection];
-  if (per && per[field]) return per[field];
-  return RELATION_TARGETS[field] || "";
-}
-
-/**
- * What the record [id] of [collection] is called.
- *
- * Snapshotted at emit time like every other label in this file: the target can
- * be renamed or deleted afterwards, and a row has to keep saying what it said
- * when it was written. Returns "" when the target is gone, unreadable, or has
- * no label of its own — the id stays in the change either way, so a missing
- * label loses nothing that was there before.
- */
-function labelOf(app, collection, id) {
-  if (!app || !collection || !id) return "";
-  if (collection === "finders") return ""; // never, see the header
-  try {
-    const target = app.findRecordById(collection, id);
-    for (const f of LABEL_FIELDS[collection] || []) {
-      const v = String(target.get(f) || "").trim();
-      if (v) return v.slice(0, 200);
-    }
-  } catch (_) {
-    // Gone or unreadable — the id still identifies it.
-  }
-  return "";
-}
-
-// How many ids of a multi-relation are named. A case carries a handful of
-// admission reasons; the cap is only there so a pathological row cannot turn one
-// change entry into 99 indexed reads and a label longer than the values it
-// describes. The ids all stay in `from`/`to` regardless.
-const MAX_LABELLED_IDS = 20;
-
-/**
- * What [value] is called — a single id, or a whole multi-relation.
- *
- * `normalize()` renders a multi-relation as its JSON id array, so without this
- * `cases.admission_reasons` logged '["fx1…","9aq…"] → […]' and nothing else:
- * unreadable at the time, and unreadable forever after, since the reasons are a
- * code list a supervisor can rename or deactivate (federfall-g5ap). Each id is
- * resolved through labelOf(), i.e. snapshotted at emit time like every other
- * label in this file, and joined in the order the field stores them.
- */
-function labelsOf(app, collection, value) {
-  const raw = String(value === null || value === undefined ? "" : value);
-  if (!raw) return "";
-  if (raw[0] !== "[") return labelOf(app, collection, raw);
-
-  let ids;
-  try {
-    ids = JSON.parse(raw);
-  } catch (_) {
-    return ""; // clamped mid-array, or not an array after all
-  }
-  if (!Array.isArray(ids)) return "";
-
-  const labels = [];
-  for (const id of ids.slice(0, MAX_LABELLED_IDS)) {
-    const label = labelOf(app, collection, String(id || ""));
-    if (label) labels.push(label);
-  }
-  return labels.join(", ").slice(0, 500);
-}
-
 // What a CREATE wrote, and what a DELETE destroyed (federfall-by7w / 9k2g).
 //
 // An update explains itself — a diff of what moved is inherently bounded. A
@@ -982,14 +862,67 @@ const CONTENT_FIELDS = {
 const REF_FIELDS = ["animal", "aviary", "to_user", "from_user", "shared_with"];
 
 // Where a record's case is one hop away, because it has no `case` of its own:
-// {collection: {field, collection}}. Read in emit()'s case correlation.
+// {collection: {field, collection}}. Handed to zv_audit as `correlation.via`,
+// which is what makes a finding edited on its own file under the case it was
+// about rather than under nothing at all (federfall-01wb).
 const CASE_VIA = {
   exam_findings: { field: "exam", collection: "exams" },
   microscopy_findings: { field: "sample", collection: "microscopy_samples" },
 };
 
+// Nobody from the public is ever NAMED in this table — see the header. This one
+// list replaces both halves of how that used to be enforced: labelOf() and
+// subjectLabel() refused `finders`, and emit() additionally blanked a
+// `sponsorships` subject label whatever the call site passed. Naming both in
+// both places is not a widening — neither collection has a LABEL_FIELDS,
+// LABEL_QUANTITIES or LABEL_RELATIONS entry, so every one of those paths
+// already returned "" for them, and nothing in RELATION_TARGETS points at
+// either.
+const NEVER_LABELLED = ["finders", "sponsorships"];
+
+// federfall's half of the audit API, in the shape zv_audit.withRegistry()
+// expects. A key it accepts that is missing here is one federfall has no use
+// for.
+const REGISTRY = {
+  defaultSeverity: DEFAULT_SEVERITY,
+  sensitive: SENSITIVE,
+  freeText: FREE_TEXT,
+  ignoredFields: IGNORED_FIELDS,
+  neverLabelled: NEVER_LABELLED,
+  labelFields: LABEL_FIELDS,
+  labelQuantities: LABEL_QUANTITIES,
+  labelRelations: LABEL_RELATIONS,
+  relationTargets: RELATION_TARGETS,
+  relationFields: RELATION_FIELDS,
+  refFields: REF_FIELDS,
+  // The one central record everything else hangs off. `field` is the relation
+  // most audited collections reach it by; `via` is the hop for the two that
+  // reach it only through a parent, and `labelField` the human-readable number
+  // snapshotted onto every row (federfall-by7w.2).
+  correlation: {
+    collection: "cases",
+    field: "case",
+    labelField: "case_number",
+    via: CASE_VIA,
+  },
+  loginFailedAction: ACTIONS.AUTH_LOGIN_FAILED,
+};
+
+// The shared machinery bound to the tables above. `diff`, `emit`,
+// `emitLoginFailed`, `subjectLabel`, `labelOf`, `labelsOf` and `relationTarget`
+// are re-exported from here untouched — the export surface below is the one
+// twenty-eight callers already use, and none of them had to change.
+const shared = zv.withRegistry(REGISTRY);
+
 /**
  * The allowlisted content of [record] as change entries.
+ *
+ * Stayed behind when the machinery left: every line of it is a CONTENT_FIELDS
+ * lookup, and the allowlist is the whole idea. zugvogel's half is the four
+ * helpers it borrows — `normalize`/`clamp` off the module, `isWithheld`,
+ * `relationTarget` and `labelsOf` off the bound registry, so a field withheld
+ * from a diff is withheld from a create too, by construction rather than by two
+ * lists agreeing.
  *
  * @param created true for a create (values land in `to`), false for a delete
  *                (they land in `from`, which is what "cleared (was X)" reads
@@ -1002,7 +935,7 @@ function contentOf(collection, record, created, app) {
   for (const field of CONTENT_FIELDS[collection] || []) {
     let value;
     try {
-      value = normalize(record.get(field));
+      value = zv.normalize(record.get(field));
     } catch (_) {
       continue; // not a field on this collection
     }
@@ -1010,88 +943,23 @@ function contentOf(collection, record, created, app) {
     // truthiness test: "quarantine lifted" and "capacity 0" both matter.
     if (value === "" || value === null || value === undefined) continue;
 
-    if (isWithheld(collection, field)) {
+    if (shared.isWithheld(collection, field)) {
       out.push({ field: field, redacted: true });
       continue;
     }
-    const c = clamp(value);
+    const c = zv.clamp(value);
     const entry = created
       ? { field: field, to: c.value }
       : { field: field, from: c.value };
     if (c.truncated) entry.truncated = true;
-    const target = relationTarget(collection, field);
+    const target = shared.relationTarget(collection, field);
     if (target && app) {
-      const label = labelsOf(app, target, value);
+      const label = shared.labelsOf(app, target, value);
       if (label) entry[created ? "to_label" : "from_label"] = label;
     }
     out.push(entry);
   }
   return out;
-}
-
-/**
- * What to call this record in the log.
- *
- * @param app resolves LABEL_RELATIONS. Omit it and only the record's own fields
- *            are consulted — callers outside a hook (or looking at a
- *            collection with no relation labels) lose nothing.
- */
-function subjectLabel(record, app) {
-  try {
-    const name = String(record.collection().name);
-    if (name === "finders") return "";
-
-    for (const f of LABEL_FIELDS[name] || []) {
-      const v = String(record.get(f) || "").trim();
-      if (v) return v.slice(0, 200);
-    }
-
-    const quantity = LABEL_QUANTITIES[name];
-    if (quantity) {
-      const v = record.get(quantity.field);
-      if (v !== null && v !== undefined && String(v) !== "" && Number(v) !== 0) {
-        return String(v) + quantity.suffix;
-      }
-    }
-
-    const relations = LABEL_RELATIONS[name];
-    if (relations && app) {
-      for (const field in relations) {
-        const id = String(record.get(field) || "").trim();
-        if (!id) continue;
-        try {
-          const target = app.findRecordById(relations[field], id);
-          // One level only: the target's own label fields, never its relations.
-          for (const f of LABEL_FIELDS[relations[field]] || []) {
-            const v = String(target.get(f) || "").trim();
-            if (v) return v.slice(0, 200);
-          }
-        } catch (_) {
-          // Target gone or unreadable — try the next relation.
-        }
-      }
-    }
-  } catch (_) {
-    // Unknown shape — no label.
-  }
-  return "";
-}
-
-function refsFor(record) {
-  const refs = {};
-  let any = false;
-  for (const f of REF_FIELDS) {
-    try {
-      const v = String(record.get(f) || "");
-      if (v) {
-        refs[f] = v;
-        any = true;
-      }
-    } catch (_) {
-      // Field not on this collection.
-    }
-  }
-  return any ? refs : null;
 }
 
 // The few places where the verb alone is too coarse to be worth reading.
@@ -1145,7 +1013,7 @@ function refine(collection, verb, record, changes, hints, app) {
         with: sharedWith,
         // Who that is. The id alone told a supervisor nothing — and the name
         // was already resolved for subject_label, one line away.
-        with_label: labelOf(app, "users", sharedWith),
+        with_label: shared.labelOf(app, "users", sharedWith),
         access: String(record.getString("access") || ""),
       },
     };
@@ -1170,7 +1038,7 @@ function refine(collection, verb, record, changes, hints, app) {
         const aviary = animal.getString("current_aviary");
         if (aviary) {
           detail.current_aviary = aviary;
-          detail.current_aviary_label = labelOf(app, "aviaries", aviary);
+          detail.current_aviary_label = shared.labelOf(app, "aviaries", aviary);
         }
       }
       return { action: null, detail: detail };
@@ -1190,9 +1058,9 @@ function refine(collection, verb, record, changes, hints, app) {
           from: from,
           // The names, snapshotted. A handoff is the event most often read back
           // and it named both people by id until now.
-          from_label: labelOf(app, "users", from),
+          from_label: shared.labelOf(app, "users", from),
           to: to,
-          to_label: labelOf(app, "users", to),
+          to_label: shared.labelOf(app, "users", to),
           // main.pb.js moves cases.active_carer and leaves the previous carer a
           // read share, both inside this same request.
           carer_moved: true,
@@ -1228,7 +1096,7 @@ function emitRecordChange(e, verb, before, hints) {
       changes = contentOf(collection, record, verb === "created", e.app);
     }
     if (verb === "updated") {
-      changes = diff(collection, before, record.fieldsData(), e.app);
+      changes = shared.diff(collection, before, record.fieldsData(), e.app);
       // A changed password shows up only as the tokenKey PocketBase rotated
       // with it (the hash is not in fieldsData). Name the field that actually
       // changed — redacted, like every other credential — so the line reads as
@@ -1252,14 +1120,14 @@ function emitRecordChange(e, verb, before, hints) {
       detail = refined.detail;
     }
 
-    emit(e, action, {
+    shared.emit(e, action, {
       record: record,
       subject: {
         collection: collection,
         id: record.id,
-        label: subjectLabel(record, e.app),
+        label: shared.subjectLabel(record, e.app),
       },
-      refs: refsFor(record),
+      refs: shared.refsFor(record),
       changes: changes,
       detail: detail,
     });
@@ -1267,315 +1135,6 @@ function emitRecordChange(e, verb, before, hints) {
     $app
       .logger()
       .warn("audit: record change not recorded", "verb", String(verb), "err", String(err));
-  }
-}
-
-// One id per HTTP request, so the rows a single action produced can be read
-// back together. The router event carries a per-request store; anything without
-// one (a cron tick, a model-only hook) gets a fresh id, which is correct — it
-// IS its own unit of work.
-function requestId(e) {
-  try {
-    if (e && typeof e.get === "function") {
-      const existing = e.get("auditRequestId");
-      if (existing) return String(existing);
-      const fresh = $security.randomString(15);
-      e.set("auditRequestId", fresh);
-      return fresh;
-    }
-  } catch (_) {
-    // No store on this event kind — fall through.
-  }
-  try {
-    return $security.randomString(15);
-  } catch (_) {
-    return "";
-  }
-}
-
-// Whether this org opted into storing client IP / user agent. Personal data
-// about staff, so it is off unless asked for. Re-read per emit: caching it
-// would be module state, which is per-VM and therefore a lie (see the header).
-function wantsClientInfo(app, orgId) {
-  const orgs = require(`${__hooks}/lib_org.js`);
-  return orgs.flag(orgs.settingsOf(app, orgId), "audit_log_client_info");
-}
-
-/**
- * Append one event to the audit log. Never throws.
- *
- * @param e     the hook event (RequestEvent-ish) the action happened in, or
- *              null for a cron/system path. `e.auth` is what makes an actor
- *              resolvable — model-only RecordEvents have none, which is why
- *              Tier A emitters hang off the *Request hooks.
- * @param action one of ACTIONS.
- * @param opts  {app, org, subject:{collection,id,label}, record, caseId, refs,
- *               changes, detail, severity, actorKind}
- *              `app` must be the transaction app when emitting from inside a
- *              route's runInTransaction, so the event commits with the writes
- *              it describes. `record` is a shorthand for `subject` and also
- *              supplies org/case_id when they are not given explicitly.
- */
-function emit(e, action, opts) {
-  const o = opts || {};
-  try {
-    const app = o.app || (e && e.app) || $app;
-
-    // ── actor ────────────────────────────────────────────────────────────────
-    let actorId = "";
-    let actorLabel = "";
-    let actorRole = "";
-    let actorKind = o.actorKind || "";
-    let authOrg = "";
-
-    let auth = null;
-    if (!actorKind) {
-      try {
-        // opts.actor is for the auth hooks: during a login the caller is not
-        // authenticated yet, so e.auth is empty and the acting user has to be
-        // handed in explicitly.
-        auth = o.actor || (e ? e.auth : null);
-      } catch (_) {
-        auth = o.actor || null;
-      }
-    }
-    if (auth) {
-      actorId = String(auth.id || "");
-      let collName = "";
-      try {
-        collName = String(auth.collection().name);
-      } catch (_) {
-        collName = "";
-      }
-      if (collName === "_superusers") {
-        // The dashboard operator. No org of their own — the subject supplies it.
-        actorKind = ACTOR.SUPERUSER;
-        actorLabel = auth.getString("email");
-      } else {
-        actorKind = ACTOR.USER;
-        actorLabel = auth.getString("name") || auth.getString("email");
-        actorRole = auth.getString("role");
-        authOrg = auth.getString("org");
-      }
-    } else if (!actorKind) {
-      actorKind = ACTOR.SYSTEM;
-    }
-
-    // ── subject ──────────────────────────────────────────────────────────────
-    const rec = o.record || null;
-    const subject = o.subject || {};
-    let subjectCollection = String(subject.collection || "");
-    let subjectId = String(subject.id || "");
-    let subjectLabel = subject.label === undefined ? "" : String(subject.label);
-    if (rec) {
-      if (!subjectId) subjectId = String(rec.id || "");
-      if (!subjectCollection) {
-        try {
-          subjectCollection = String(rec.collection().name);
-        } catch (_) {
-          subjectCollection = "";
-        }
-      }
-    }
-    // Hard rule, enforced here rather than trusted to every call site: a member
-    // of the public is never named in the log — as a finder, and as the sponsor
-    // whose name is the only label a `sponsorships` row could have.
-    if (subjectCollection === "finders" || subjectCollection === "sponsorships") {
-      subjectLabel = "";
-    }
-
-    // ── org: the scoping boundary, and the one field with no fallback ────────
-    let org = String(o.org || "") || authOrg;
-    if (!org && rec) {
-      try {
-        org = rec.getString("org");
-      } catch (_) {
-        org = "";
-      }
-    }
-    // An organisation has no `org` field — it IS one. Without this, a superuser
-    // editing org settings from the dashboard would fall through to the "no org"
-    // branch below and go unlogged, which is the opposite of who most needs
-    // logging (a supervisor's own edit resolves via their auth record).
-    if (!org && subjectCollection === "organisations") org = subjectId;
-    if (!org) {
-      // Refusing to guess: a row in the wrong org is visible to the wrong
-      // supervisors. A superuser acting outside any org, or a failed login for
-      // an unknown email, legitimately lands here.
-      $app
-        .logger()
-        .warn("audit: no org, event not recorded", "action", String(action));
-      return;
-    }
-
-    // ── case correlation ─────────────────────────────────────────────────────
-    let caseId = String(o.caseId || "");
-    if (!caseId && subjectCollection === "cases") caseId = subjectId;
-    if (!caseId && rec) {
-      try {
-        caseId = rec.getString("case");
-      } catch (_) {
-        caseId = "";
-      }
-    }
-    // A record that belongs to a case only through its PARENT. An exam finding
-    // is the one (1700000025: exam, system, status, note, org), so a finding
-    // edited directly through the collection API — which the rules allow, and
-    // which is why exam_finding.* actions exist — filed under no case at all
-    // and never appeared in the activity of the case it was about
-    // (federfall-01wb). Findings written by the exam route are unaffected: that
-    // path emits exam.saved against the exam, which carries the case itself.
-    if (!caseId && rec) {
-      const via = CASE_VIA[subjectCollection];
-      if (via) {
-        try {
-          const parentId = rec.getString(via.field);
-          if (parentId) {
-            caseId = app
-              .findRecordById(via.collection, parentId)
-              .getString("case");
-          }
-        } catch (_) {
-          // Parent gone (a cascading delete) — the row still stands on its own.
-        }
-      }
-    }
-
-    // The case NUMBER, snapshotted like every other label here (federfall-
-    // by7w.2). Free when the subject IS the case; otherwise one indexed read,
-    // and only for rows that belong to a case at all.
-    let caseLabel = String(o.caseLabel || "");
-    if (!caseLabel && caseId) {
-      if (subjectCollection === "cases" && subjectLabel) {
-        caseLabel = subjectLabel;
-      } else {
-        try {
-          caseLabel = app.findRecordById("cases", caseId).getString("case_number");
-        } catch (_) {
-          // Case already gone — the id still correlates the rows.
-        }
-      }
-    }
-
-    const row = new Record(app.findCollectionByNameOrId("audit_events"));
-    row.set("org", org);
-    row.set("action", String(action));
-    row.set("actor_id", actorId);
-    row.set("actor_label", actorLabel);
-    row.set("actor_role", actorRole);
-    row.set("actor_kind", actorKind);
-    row.set("subject_collection", subjectCollection);
-    row.set("subject_id", subjectId);
-    row.set("subject_label", subjectLabel);
-    row.set("case_id", caseId);
-    row.set("case_label", caseLabel);
-    if (o.refs) row.set("refs", o.refs);
-    if (o.changes && o.changes.length) row.set("changes", o.changes);
-    if (o.detail) row.set("detail", o.detail);
-    row.set(
-      "severity",
-      o.severity || DEFAULT_SEVERITY[String(action)] || SEVERITY.INFO,
-    );
-    row.set("request_id", requestId(e));
-
-    if (e && wantsClientInfo(app, org)) {
-      try {
-        row.set("ip", String(e.realIP() || ""));
-      } catch (_) {
-        // Not a request event.
-      }
-      try {
-        const headers = e.requestInfo().headers || {};
-        row.set("user_agent", String(headers.user_agent || "").slice(0, 512));
-      } catch (_) {
-        // Not a request event.
-      }
-    }
-
-    app.save(row);
-  } catch (err) {
-    // Property 2 in the header: the log never breaks the thing it observes.
-    $app
-      .logger()
-      .warn(
-        "audit: emit failed",
-        "action",
-        String(action),
-        "err",
-        String(err),
-      );
-  }
-}
-
-/**
- * A failed password login, collapsed to AT MOST ONE ROW per user per
- * five-minute wall-clock bucket. Never throws.
- *
- * Someone hammering a login form must not be able to fill a table that has no
- * delete path — but the honest alternative, a counter on one row, would need an
- * UPDATE, which the append-only guard forbids absolutely, and module state
- * cannot hold the count either (per-JSVM, divergent under concurrency). So the
- * row means "at least one failure in this window", which is what a supervisor
- * acts on anyway; `detail.window_minutes` says so explicitly rather than
- * letting anyone read it as an exact count.
- *
- * The bucket is a floored wall-clock slot, not "the last five minutes", so two
- * concurrent requests agree on which window they are in without coordinating.
- *
- * @param record the user the identity resolved to. An unknown email has no
- *               user and therefore no org — it goes to the logger only, since
- *               an unauthenticated caller must never be able to write a row
- *               into some organisation's table by guessing addresses.
- */
-function emitLoginFailed(e, record, detail) {
-  try {
-    if (!record) {
-      $app.logger().info("audit: failed login for an unknown identity");
-      return;
-    }
-    // Every index on audit_events leads with `org` (1700000068), so a filter
-    // without it cannot use one — and this read runs on EVERY failed attempt,
-    // not just the one that writes a row, against a table that only grows. With
-    // org and actor_id present it is an idx_audit_events_org_actor lookup.
-    // A user with no org cannot be filed under one anyway (emit() refuses to
-    // guess), so there is nothing to dedup and nothing to write.
-    const org = record.getString("org");
-    if (!org) {
-      $app.logger().info("audit: failed login for a user with no org");
-      return;
-    }
-
-    const BUCKET_MINUTES = 5;
-    const slotMs = BUCKET_MINUTES * 60 * 1000;
-    const start = new Date(Math.floor(new Date().getTime() / slotMs) * slotMs);
-    // PocketBase compares datetimes as "YYYY-MM-DD HH:MM:SS.sssZ" strings.
-    const since = start.toISOString().replace("T", " ");
-
-    const existing = $app.findRecordsByFilter(
-      "audit_events",
-      "org = {:org} && actor_id = {:a}" +
-        ' && action = "auth.login_failed" && created >= {:since}',
-      "",
-      1,
-      0,
-      { org: org, a: record.id, since: since },
-    );
-    if (existing.length > 0) return; // already one row for this window
-
-    const d = detail || {};
-    d.window_minutes = BUCKET_MINUTES;
-    emit(e, ACTIONS.AUTH_LOGIN_FAILED, {
-      actor: record,
-      org: org,
-      subject: {
-        collection: "users",
-        id: record.id,
-        label: subjectLabel(record),
-      },
-      detail: d,
-    });
-  } catch (err) {
-    $app.logger().warn("audit: failed login not recorded", "err", String(err));
   }
 }
 
@@ -1588,12 +1147,16 @@ module.exports = {
   FREE_TEXT: FREE_TEXT,
   COLLECTION_ACTIONS: COLLECTION_ACTIONS,
   AUDITED_COLLECTIONS: Object.keys(COLLECTION_ACTIONS),
-  diff: diff,
-  emit: emit,
+  diff: shared.diff,
+  emit: shared.emit,
   emitRecordChange: emitRecordChange,
-  emitLoginFailed: emitLoginFailed,
-  subjectLabel: subjectLabel,
-  labelOf: labelOf,
-  labelsOf: labelsOf,
-  relationTarget: relationTarget,
+  emitLoginFailed: shared.emitLoginFailed,
+  subjectLabel: shared.subjectLabel,
+  labelOf: shared.labelOf,
+  labelsOf: shared.labelsOf,
+  relationTarget: shared.relationTarget,
+  // Not part of the surface the hooks use — the one consumer is
+  // app_audit_registry.js, which exists so zv_audit.js's documented
+  // `withRegistry(require(app_audit_registry.js))` call resolves in this repo.
+  REGISTRY: REGISTRY,
 };
