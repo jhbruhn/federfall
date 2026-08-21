@@ -26,11 +26,12 @@ const ACTOR_FIELDS = {
   weights: "author",
 };
 
+// Only the map and the tag list. There is deliberately no `stampActor`
+// delegate here: authorship.pb.js hands ACTOR_FIELDS to zv_guards.js, which
+// calls the shared stamper itself, so a wrapper would be a second way to do
+// the same thing — and the one nothing calls is the one that rots.
 module.exports = {
   ACTOR_FIELDS: ACTOR_FIELDS,
   /** The tag list for the hooks — every collection that has an actor field. */
   COLLECTIONS: Object.keys(ACTOR_FIELDS),
-  /** Delegates to the shared stamper with this app's map. */
-  stampActor: (e, opts) =>
-    require(`${__hooks}/zv_authorship.js`).stampActor(e, ACTOR_FIELDS, opts),
 };
