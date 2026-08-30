@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/jhbruhn/federfall/compare/v1.5.0...v1.5.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **ui:** the drug catalogue's cycle fields get the switch and the pair rule ([4b6d985](https://github.com/jhbruhn/federfall/commit/4b6d985d55c802bfe86b8da9e26eff9028b9d970))
+
 ## [1.5.0](https://github.com/jhbruhn/federfall/compare/v1.4.2...v1.5.0) (2026-08-21)
 
 
