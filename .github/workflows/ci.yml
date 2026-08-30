@@ -63,17 +63,26 @@ jobs:
         run: flutter test --coverage
         working-directory: apps/federfall
 
-      # ~75% gate (lowered from 80%, federfall-m33r: several screens had
-      # shipped with no tests at all, dragging real coverage down to ~70%;
-      # closed the zero-coverage gap and re-set the floor just above the
-      # recovered level rather than leaving CI red). Raise back towards 80%
-      # incrementally as the remaining partially-covered screens gain tests.
-      # Generated files are excluded.
+      # 80% gate, restored (federfall-m33r). It was lowered to 75% after
+      # several screens shipped with no tests at all and dragged real coverage
+      # down to ~70%; the floor was re-set just above the recovered level
+      # rather than leaving CI red, to be raised back as those screens gained
+      # tests. They have: the long tail is now covered enough that the suite
+      # measures 80.9%, so the original floor is where it belongs again.
+      #
+      # The margin over the floor is about one point, i.e. ~150 lines. That is
+      # deliberate and is the gate doing its job: a screen shipped without
+      # tests trips it, which is exactly the failure this number exists to
+      # catch. Add the tests rather than lowering the floor.
+      #
+      # Generated files are excluded. Biggest remaining gaps if you want more
+      # headroom: sponsorship_sheet.dart (0%), vet_appointment_sheet.dart
+      # (1%), printer_service_native.dart (6%).
       - name: Check coverage
         uses: VeryGoodOpenSource/very_good_coverage@v3
         with:
           path: apps/federfall/coverage/lcov.info
-          min_coverage: 75
+          min_coverage: 80
           exclude: "**/*.g.dart **/*.freezed.dart **/l10n/gen/**"
 
   backend-rules:
