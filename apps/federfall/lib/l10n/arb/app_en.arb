@@ -1683,6 +1683,8 @@
     "@medCycleRepeats": { "description": "Label for how many times the cycle repeats" },
     "medCycleRepeatsHelp": "Sets the end to the last giving day. Leave empty for a schedule with no fixed end.",
     "@medCycleRepeatsHelp": { "description": "Helper under the cycle count field" },
+    "medCycleRepeatsNeedsDays": "Cycles need a rhythm — please fill in days on and days off.",
+    "@medCycleRepeatsNeedsDays": { "description": "Error when a cycle count is given without a give/pause rhythm" },
     "medCycleProductHelp": "Default for new prescriptions. With no days, the drug is given straight through; with no cycle count, the schedule runs to the prescription's end date.",
     "@medCycleProductHelp": { "description": "Helper under the catalogue entry's cycle fields" },
     "medCycleRepeatsCount": "{count, plural, =1{1 cycle} other{{count} cycles}}",

@@ -1,6 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/medications/cycle_fields.dart';
 import 'package:federfall/features/cases/medications/cycle_preview.dart';
 import 'package:federfall/features/cases/medications/dose_calculator_panel.dart';
 import 'package:federfall/features/cases/medications/medication_products_providers.dart';
@@ -114,9 +115,9 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     _controlled = p?.isControlled ?? false;
 
     // Half a pair is no cycle — the same reading `medication_due` takes.
-    _useCycle = _isCycle(p?.cycleOnDays, p?.cycleOffDays);
-    _cycleOn = TextEditingController(text: _positive(p?.cycleOnDays));
-    _cycleOff = TextEditingController(text: _positive(p?.cycleOffDays));
+    _useCycle = isCyclePair(p?.cycleOnDays, p?.cycleOffDays);
+    _cycleOn = TextEditingController(text: cycleCountText(p?.cycleOnDays));
+    _cycleOff = TextEditingController(text: cycleCountText(p?.cycleOffDays));
     _cycleRepeats = TextEditingController(text: '${_derivedRepeats() ?? ''}');
   }
 
@@ -129,10 +130,8 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   /// applied — see [_recomputeEnd] for why whole days are the right unit.
   int? _derivedRepeats() {
     final ended = _endedAt;
-    final on = int.tryParse(_cycleOn.text.trim());
-    final off = int.tryParse(_cycleOff.text.trim());
+    final (on, off) = cycleDaysOf(_cycleOn, _cycleOff);
     if (!_useCycle || ended == null || on == null || off == null) return null;
-    if (on < 1 || off < 1) return null;
     final days = ended.difference(_startedAt).inDays;
     final length = on + off;
     // days = repeats * length - off, inverted.
@@ -256,40 +255,16 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
     return [widget.caseId, ..._alsoFor];
   }
 
-  /// Whether a stored pair really describes a rhythm.
-  ///
-  /// The server refuses a day count below 1 (1700000090) and `medication_due`
-  /// ignores half a pair, so this is the same reading, in the form. It is also
-  /// the second line of defence behind `pbCount`: PocketBase has no null for a
-  /// number field, and a `0` that reached the model here would switch the cycle
-  /// ON over two zeroes the form then refuses to save — which is exactly what
-  /// every catalogue entry without a rhythm used to do.
-  static bool _isCycle(int? on, int? off) =>
-      on != null && off != null && on > 0 && off > 0;
-
-  /// A count worth showing in a field: anything below 1 renders empty rather
-  /// than as a zero somebody has to notice and clear.
-  static String _positive(int? value) =>
-      (value == null || value < 1) ? '' : '$value';
-
-  /// Whether both halves of the rhythm are still blank — the one state in which
-  /// either may stay that way (see [_CycleDays]).
-  bool get _cycleUnset =>
-      _cycleOn.text.trim().isEmpty && _cycleOff.text.trim().isEmpty;
-
   /// The rhythm to save: both day counts, or (null, null).
   ///
   /// Only a plan on a real interval can carry one — a cycle qualifies "every N
-  /// hours" and means nothing without it — and only a complete, positive pair
-  /// counts, so the server never stores half a rhythm the view would ignore.
+  /// hours" and means nothing without it — so the switch alone is not enough.
+  /// [cycleDaysOf] applies the rest of the rule.
   (int?, int?) get _cycle {
     if (!_useCycle || _preset.kind != MedicationFrequencyKind.scheduled) {
       return (null, null);
     }
-    final on = int.tryParse(_cycleOn.text.trim());
-    final off = int.tryParse(_cycleOff.text.trim());
-    if (on == null || off == null || on < 1 || off < 1) return (null, null);
-    return (on, off);
+    return cycleDaysOf(_cycleOn, _cycleOff);
   }
 
   /// Rewrites the end date from the cycle count, whenever a number the count
@@ -384,10 +359,10 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
       // The rhythm and the course length are both part of the protocol, so
       // they follow the frequency — including being cleared, which is what an
       // entry giving the drug straight through has to mean.
-      _useCycle = _isCycle(product.cycleOnDays, product.cycleOffDays);
-      _cycleOn.text = _positive(product.cycleOnDays);
-      _cycleOff.text = _positive(product.cycleOffDays);
-      _cycleRepeats.text = _positive(product.cycleRepeats);
+      _useCycle = isCyclePair(product.cycleOnDays, product.cycleOffDays);
+      _cycleOn.text = cycleCountText(product.cycleOnDays);
+      _cycleOff.text = cycleCountText(product.cycleOffDays);
+      _cycleRepeats.text = cycleCountText(product.cycleRepeats);
     });
     // Outside the setState above, and after it: the count is only a number
     // until it meets THIS bird's start date, and turning it into an end date
@@ -681,65 +656,23 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
             ),
             if (_useCycle) ...[
               const SizedBox(height: AppSpacing.sm),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _CycleDays(
-                      controller: _cycleOn,
-                      label: l10n.medCycleOnDays,
-                      enabled: !isBusy,
-                      optional: _cycleUnset,
-                      onChanged: (_) {
-                        setState(() {});
-                        _recomputeEnd();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: _CycleDays(
-                      controller: _cycleOff,
-                      label: l10n.medCycleOffDays,
-                      enabled: !isBusy,
-                      optional: _cycleUnset,
-                      onChanged: (_) {
-                        setState(() {});
-                        _recomputeEnd();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              // Says what the empty pair will do, since it now saves instead of
-              // blocking: a rhythm nobody filled in is no rhythm.
-              if (_cycleUnset) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  l10n.medCycleEmptyHint,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _cycleRepeats,
-                label: l10n.medCycleRepeats,
-                prefixIcon: Icons.restart_alt_outlined,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              CycleDaysPair(
+                onDays: _cycleOn,
+                offDays: _cycleOff,
                 enabled: !isBusy,
-                // Deliberately no validator: an empty count is a schedule that
-                // runs until somebody ends it, which is a legitimate plan.
-                onChanged: (_) => _recomputeEnd(),
+                onChanged: (_) {
+                  setState(() {});
+                  _recomputeEnd();
+                },
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                l10n.medCycleRepeatsHelp,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              const SizedBox(height: AppSpacing.md),
+              CycleRepeatsField(
+                controller: _cycleRepeats,
+                onDays: _cycleOn,
+                offDays: _cycleOff,
+                enabled: !isBusy,
+                help: l10n.medCycleRepeatsHelp,
+                onChanged: (_) => _recomputeEnd(),
               ),
               // Only once both halves are there: half a pair has no shape to
               // draw, and a strip that redraws on every keystroke of a number
@@ -879,59 +812,6 @@ class _GroupPicker extends ConsumerWidget {
 
 /// The frequency presets offered in the prescription form, each mapping to the
 /// structured (kind, interval-hours) stored on the plan.
-/// One half of the give/pause pair, validated AS a pair.
-///
-/// The two halves are only meaningful together — the server reads a half pair
-/// as no rhythm at all (1700000090) — so the rule is: both empty is fine (that
-/// is simply no cycle, saved as none), one filled makes the other required, and
-/// a number below 1 is refused with the reason rather than a bare "required".
-///
-/// Validating each field on its own is what made this a trap: switching the
-/// rhythm on and then thinking better of it left two empty, invalid fields and
-/// no way to save except finding the switch again. `0` is refused on purpose —
-/// a course with no pause is the switch being off, not a zero in a box — but
-/// the message has to say so, because "Pflichtfeld" on a field somebody has
-/// just cleared explains nothing.
-class _CycleDays extends StatelessWidget {
-  const _CycleDays({
-    required this.controller,
-    required this.label,
-    required this.enabled,
-    required this.optional,
-    required this.onChanged,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final bool enabled;
-
-  /// Whether an empty value is acceptable here — true exactly while BOTH halves
-  /// are empty.
-  final bool optional;
-
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return AppTextField(
-      controller: controller,
-      label: label,
-      prefixIcon: Icons.calendar_view_week_outlined,
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      enabled: enabled,
-      onChanged: onChanged,
-      validator: (v) {
-        final text = (v ?? '').trim();
-        if (text.isEmpty) return optional ? null : l10n.fieldRequired;
-        final n = int.tryParse(text);
-        return (n == null || n < 1) ? l10n.medCycleDaysMin : null;
-      },
-    );
-  }
-}
-
 enum _FreqPreset {
   once(MedicationFrequencyKind.once, null),
   daily(MedicationFrequencyKind.scheduled, 24),

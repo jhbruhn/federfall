@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
+import 'package:federfall/features/cases/medications/cycle_fields.dart';
 import 'package:federfall/features/cases/medications/cycle_preview.dart';
 import 'package:federfall/features/cases/medications/medication_products_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
@@ -206,6 +207,11 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
   late final TextEditingController _cycleOn;
   late final TextEditingController _cycleOff;
   late final TextEditingController _cycleRepeats;
+
+  /// Whether the entry carries a give/pause rhythm at all. The same switch the
+  /// prescription form has: without it the two day fields look mandatory, and a
+  /// keeper who filled one in had no visible way back out (federfall-sh9e).
+  bool _useCycle = false;
   bool _active = true;
   bool _seeded = false;
 
@@ -225,9 +231,13 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
     _intervalHours = TextEditingController(
       text: p?.intervalHours == null ? '' : '${p!.intervalHours}',
     );
-    _cycleOn = TextEditingController(text: '${p?.cycleOnDays ?? ''}');
-    _cycleOff = TextEditingController(text: '${p?.cycleOffDays ?? ''}');
-    _cycleRepeats = TextEditingController(text: '${p?.cycleRepeats ?? ''}');
+    // Half a pair is no cycle — the same reading `medication_due` takes.
+    _useCycle = isCyclePair(p?.cycleOnDays, p?.cycleOffDays);
+    _cycleOn = TextEditingController(text: cycleCountText(p?.cycleOnDays));
+    _cycleOff = TextEditingController(text: cycleCountText(p?.cycleOffDays));
+    _cycleRepeats = TextEditingController(
+      text: cycleCountText(p?.cycleRepeats),
+    );
     _route = p?.route;
     _frequencyKind = p?.frequencyKind;
     _active = p?.active ?? true;
@@ -274,30 +284,14 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
   double? _number(TextEditingController c) =>
       double.tryParse(c.text.trim().replaceAll(',', '.'));
 
-  /// Flags one half of the give/pause pair filled without the other. Both
-  /// empty is the normal case (no cycle) and passes; one alone would be saved
-  /// as no cycle at all, so it is refused rather than silently dropped.
-  String? _cycleHalfError(
-    AppLocalizations l10n,
-    String? value,
-    TextEditingController other,
-  ) {
-    final mine = (value ?? '').trim();
-    if (other.text.trim().isEmpty) return null;
-    final n = int.tryParse(mine);
-    return (n == null || n <= 0) ? l10n.fieldRequired : null;
-  }
-
   /// The default rhythm, or (null, null) — a cycle only qualifies a scheduled
-  /// interval, and half a pair is not one (federfall-wmbi).
+  /// interval, and half a pair is not one (federfall-wmbi). [cycleDaysOf]
+  /// applies the rest of the rule, the same way the prescription form does.
   (int?, int?) get _cycle {
-    if (_frequencyKind != MedicationFrequencyKind.scheduled) {
+    if (!_useCycle || _frequencyKind != MedicationFrequencyKind.scheduled) {
       return (null, null);
     }
-    final on = int.tryParse(_cycleOn.text.trim());
-    final off = int.tryParse(_cycleOff.text.trim());
-    if (on == null || off == null || on < 1 || off < 1) return (null, null);
-    return (on, off);
+    return cycleDaysOf(_cycleOn, _cycleOff);
   }
 
   /// The course length, or null. A count of rounds of a rhythm that is not
@@ -460,63 +454,43 @@ class _MedicationProductSheetState extends ConsumerState<MedicationProductSheet>
                 return (n == null || n <= 0) ? l10n.fieldRequired : null;
               },
             ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: AppTextField(
-                    controller: _cycleOn,
-                    label: l10n.medCycleOnDays,
-                    prefixIcon: Icons.calendar_view_week_outlined,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    enabled: !isBusy,
-                    validator: (v) => _cycleHalfError(l10n, v, _cycleOff),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: AppTextField(
-                    controller: _cycleOff,
-                    label: l10n.medCycleOffDays,
-                    prefixIcon: Icons.calendar_view_week_outlined,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    enabled: !isBusy,
-                    validator: (v) => _cycleHalfError(l10n, v, _cycleOn),
-                    onChanged: (_) => setState(() {}),
-                  ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.medCycle),
+              subtitle: Text(l10n.medCycleHelp),
+              value: _useCycle,
+              onChanged: isBusy
+                  ? null
+                  : (v) {
+                      setState(() => _useCycle = v);
+                      markDirty();
+                    },
+            ),
+            if (_useCycle) ...[
+              const SizedBox(height: AppSpacing.sm),
+              CycleDaysPair(
+                onDays: _cycleOn,
+                offDays: _cycleOff,
+                enabled: !isBusy,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              CycleRepeatsField(
+                controller: _cycleRepeats,
+                onDays: _cycleOn,
+                offDays: _cycleOff,
+                enabled: !isBusy,
+                help: l10n.medCycleProductHelp,
+                onChanged: (_) => setState(() {}),
+              ),
+              if (_cycle case (final on?, final off?)) ...[
+                const SizedBox(height: AppSpacing.md),
+                MedicationCyclePreview(
+                  onDays: on,
+                  offDays: off,
+                  repeats: _repeats,
                 ),
               ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AppTextField(
-              controller: _cycleRepeats,
-              label: l10n.medCycleRepeats,
-              prefixIcon: Icons.restart_alt_outlined,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              enabled: !isBusy,
-              // No validator: an entry that says how to give a drug but not for
-              // how long is a legitimate protocol.
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              l10n.medCycleProductHelp,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            if (_cycle case (final on?, final off?)) ...[
-              const SizedBox(height: AppSpacing.md),
-              MedicationCyclePreview(
-                onDays: on,
-                offDays: off,
-                repeats: _repeats,
-              ),
             ],
           ],
           const SizedBox(height: AppSpacing.md),
