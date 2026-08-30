@@ -11,6 +11,7 @@ import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
+import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -209,6 +210,7 @@ void main() {
       Widget child, {
       AppUser me = const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
       bool holdsBird = true,
+      List<MedicationRoute> routes = const [],
     }) async {
       final container = ProviderContainer(
         overrides: [
@@ -216,7 +218,7 @@ void main() {
           vaccinationsRepositoryProvider.overrideWith((ref) async => repo),
           vaccineLabelsRepositoryProvider.overrideWith((ref) async => labels),
           imagePickerProvider.overrideWithValue(picker),
-          medicationRoutesProvider.overrideWith((ref) async => const []),
+          medicationRoutesProvider.overrideWith((ref) async => routes),
           markingTypesProvider.overrideWith((ref) async => const []),
           canWriteAnimalProvider(
             'anml1',
@@ -312,6 +314,154 @@ void main() {
       );
 
       expect(find.text('due'), findsNothing);
+    });
+
+    // Everything the tile can say about one shot, in the one order it says it.
+    // Each of these is a separate conditional line, and an absent one is not a
+    // rendering detail: a batch number that stops printing takes the only
+    // evidence a vaccination happened with it.
+    testWidgets('a fully recorded shot prints every line it has', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        VaccinationTile(
+          vaccination: Vaccination(
+            id: 'v1',
+            animal: 'anml1',
+            vaccine: 'Colombovac PMV',
+            target: 'Paramyxovirose',
+            administeredAt: DateTime.utc(2026, 5, 4),
+            batch: 'L-2261',
+            dose: 0.25,
+            series: VaccinationSeries.primary,
+            vet: 'Praxis Dr. Vogel',
+            notes: 'Left breast muscle',
+            nextDueAt: DateTime.utc(2027, 5, 4),
+          ),
+        ),
+      );
+
+      expect(find.text('Colombovac PMV'), findsOneWidget);
+      expect(find.text('Paramyxovirose'), findsOneWidget);
+      // Dose and series share one line, joined by a middot; the route is empty
+      // here because the fixture's route list is.
+      expect(find.text('0.25 ml · Primary course'), findsOneWidget);
+      expect(find.text('Batch L-2261'), findsOneWidget);
+      expect(find.text('Praxis Dr. Vogel'), findsOneWidget);
+      expect(find.text('Left breast muscle'), findsOneWidget);
+      expect(find.textContaining('Booster due'), findsOneWidget);
+      // Still a year out, so the due line is not the error-coloured one.
+      expect(find.text('due'), findsNothing);
+    });
+
+    testWidgets('a shot recorded with nothing but a product says only that', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const VaccinationTile(
+          vaccination: Vaccination(
+            id: 'v1',
+            animal: 'anml1',
+            vaccine: 'Colombovac PMV',
+            target: '',
+          ),
+        ),
+      );
+
+      expect(find.text('Colombovac PMV'), findsOneWidget);
+      // No empty target line, no bare middot where a detail would have been.
+      expect(find.textContaining('·'), findsNothing);
+      expect(find.textContaining('Batch'), findsNothing);
+    });
+
+    testWidgets('the route is named, once the vocabulary has loaded', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const VaccinationTile(
+          vaccination: Vaccination(
+            id: 'v1',
+            animal: 'anml1',
+            vaccine: 'Colombovac PMV',
+            route: 'r1',
+            dose: 0.5,
+          ),
+        ),
+        routes: const [
+          MedicationRoute(id: 'r1', label: 'subcutaneous'),
+        ],
+      );
+
+      expect(find.text('0.5 ml · subcutaneous'), findsOneWidget);
+    });
+
+    testWidgets('attachments become a thumbnail strip', (tester) async {
+      await pump(
+        tester,
+        const VaccinationTile(
+          vaccination: Vaccination(
+            id: 'v1',
+            animal: 'anml1',
+            vaccine: 'Colombovac PMV',
+            attachments: ['vial.jpg', 'ausweis.jpg'],
+          ),
+        ),
+      );
+
+      expect(find.byType(VaccinationImageStrip), findsOneWidget);
+      // The URLs stay token-free — the access token is appended at download
+      // time by the cache manager.
+      verify(
+        () => repo.fileUrl('v1', 'vial.jpg', thumb: '200x200'),
+      ).called(greaterThan(0));
+    });
+
+    testWidgets('the author can delete, and the record goes with it', (
+      tester,
+    ) async {
+      when(() => repo.delete(any())).thenAnswer((_) async {});
+
+      await pump(
+        tester,
+        VaccinationTile(vaccination: _shot('v1', author: 'u1')),
+      );
+
+      await tester.tap(find.byType(PopupMenuButton<void>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete vaccination').last);
+      await tester.pumpAndSettle();
+
+      // The confirmation names what is lost, because nothing can evidence the
+      // batch number afterwards.
+      expect(find.textContaining('removed permanently'), findsOneWidget);
+      await tester.tap(
+        find.widgetWithText(DestructiveActionButton, 'Delete vaccination'),
+      );
+      await tester.pumpAndSettle();
+
+      verify(() => repo.delete('v1')).called(1);
+    });
+
+    testWidgets("somebody else's shot offers edit but not delete", (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        VaccinationTile(vaccination: _shot('v1', author: 'u2')),
+      );
+
+      await tester.tap(find.byType(PopupMenuButton<void>));
+      await tester.pumpAndSettle();
+
+      // Custody lets anyone holding the bird correct a record; deleting one is
+      // the author's or a supervisor's, mirroring 1700000087. The item is
+      // absent rather than greyed out — the menu builds no entry without an
+      // action behind it.
+      expect(find.text('Edit vaccination'), findsOneWidget);
+      expect(find.text('Delete vaccination'), findsNothing);
     });
 
     testWidgets('a member who does not hold the bird gets no menu', (

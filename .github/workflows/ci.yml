@@ -67,17 +67,17 @@ jobs:
       # several screens shipped with no tests at all and dragged real coverage
       # down to ~70%; the floor was re-set just above the recovered level
       # rather than leaving CI red, to be raised back as those screens gained
-      # tests. They have: the long tail is now covered enough that the suite
-      # measures 80.9%, so the original floor is where it belongs again.
+      # tests. They have: the suite measures 83.6%, so the original floor is
+      # where it belongs again, with ~3.6 points of room above it.
       #
-      # The margin over the floor is about one point, i.e. ~150 lines. That is
-      # deliberate and is the gate doing its job: a screen shipped without
-      # tests trips it, which is exactly the failure this number exists to
-      # catch. Add the tests rather than lowering the floor.
+      # That room is not slack to spend — it is what lets one screen land
+      # without tests before CI goes red, and the gate is here to catch exactly
+      # that. Add the tests rather than lowering the floor.
       #
-      # Generated files are excluded. Biggest remaining gaps if you want more
-      # headroom: sponsorship_sheet.dart (0%), vet_appointment_sheet.dart
-      # (1%), printer_service_native.dart (6%).
+      # Generated files are excluded. The biggest remaining gap by far is
+      # printing/printer_service_native.dart (6%), which drives real hardware
+      # through unified_esc_pos_printer and cannot be meaningfully widget
+      # tested; excluding it would be massaging the denominator, so it stays in.
       - name: Check coverage
         uses: VeryGoodOpenSource/very_good_coverage@v3
         with:
