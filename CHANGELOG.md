@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.0](https://github.com/jhbruhn/federfall/compare/v1.5.1...v1.6.0) (2026-09-10)
+
+
+### Features
+
+* **cases:** a case row says which bird and what is wrong with it ([3ccf486](https://github.com/jhbruhn/federfall/commit/3ccf48630e50dd46b8a3c59d481d3c0c27e07d27))
+* **cases:** the case overview leads with the current treatment ([4f01678](https://github.com/jhbruhn/federfall/commit/4f01678be8e66e063d889579965e81305561a056))
+* **cases:** the treatment card can stop a course, not only give a dose ([19171bd](https://github.com/jhbruhn/federfall/commit/19171bd329535343758dd3965f52954f2614ba12))
+* **ui:** a running medication can be stopped instead of deleted ([d0ffd83](https://github.com/jhbruhn/federfall/commit/d0ffd83ee1f13ffaa7e1934c6efa73f9452106ce))
+* **worklist:** a quiet case is a note on the case, not a task ([405d7c2](https://github.com/jhbruhn/federfall/commit/405d7c270745e26cbc6ce3c2d96fcbd830b82d1d))
+
+
+### Bug Fixes
+
+* **cases:** a new diagnosis reaches the case row beside it ([0283b65](https://github.com/jhbruhn/federfall/commit/0283b65b9b84a0fcea7a29fde9546b4ac059cd42))
+* **ui:** dialog and paired buttons stop stretching to full width ([65febd0](https://github.com/jhbruhn/federfall/commit/65febd09e8f0747273c6ea3f3c30411bbd744f5b))
+* **ui:** the full-width filled button stops being the app-wide default ([be8fef1](https://github.com/jhbruhn/federfall/commit/be8fef1cdbc8e224c092f757942fdce7e12fa821))
+
 ## [1.5.1](https://github.com/jhbruhn/federfall/compare/v1.5.0...v1.5.1) (2026-08-30)
 
 
