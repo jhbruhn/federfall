@@ -195,10 +195,24 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
     // 'case_shares' matters because a case shared *with* the signed-in user
     // grants list visibility without touching the case record itself — so only
     // the case_shares create/delete event reflects the change live.
-    ref.liveRefresh(
-      const ['cases', 'animals', 'case_shares'],
-      () => ref.invalidate(caseBrowseFeedProvider),
-    );
+    ref
+      ..liveRefresh(
+        const ['cases', 'animals', 'case_shares'],
+        () => ref.invalidate(caseBrowseFeedProvider),
+      )
+      // A diagnosis changes what a row SAYS, not which rows there are, and
+      // the subtitle is fetched per page rather than read off the case — so
+      // recording one in the detail pane beside this list left the row
+      // stating the old answer. Refreshed in place rather than by
+      // invalidating: on a list scrolled through several pages, throwing away
+      // the paging and the scroll position to change one line of text is a
+      // worse bug than the one being fixed.
+      ..liveRefresh(
+        const ['case_conditions'],
+        () => unawaited(
+          ref.read(caseBrowseFeedProvider(_query).notifier).refreshDiagnoses(),
+        ),
+      );
     final feed = ref.watch(caseBrowseFeedProvider(_query));
     // The empty list offers an "admit a case" CTA of its own, so suppress the
     // FAB then — two identical primary actions on one screen is redundant.

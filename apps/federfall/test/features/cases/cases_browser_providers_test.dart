@@ -116,6 +116,97 @@ void main() {
     expect(asked[1], isTrue);
   });
 
+  group('refreshDiagnoses (federfall-78k6.5)', () {
+    test(
+      're-reads the subtitles without disturbing the rows or the cursor',
+      () async {
+        // Recording a diagnosis in the detail pane beside the list changes what
+        // a row says, not which rows there are. Invalidating the feed would
+        // also work and would throw away the paging and the scroll position to
+        // change one line of text.
+        stubBrowse(
+          () => PbPage(
+            items: [_case('c1'), _case('c2')],
+            cursor: const PbCursor(value: '2026-08-04 10:00:00.000Z', id: 'c2'),
+          ),
+        );
+        when(
+          () => conditions.byCases(
+            any(),
+            fields: any(named: 'fields'),
+            openOnly: any(named: 'openOnly'),
+          ),
+        ).thenAnswer((_) async => const []);
+
+        final container = makeContainer();
+        const query = CaseQuery();
+        final before = await container.read(
+          caseBrowseFeedProvider(query).future,
+        );
+        expect(before.diagnosesByCase, isEmpty);
+
+        when(
+          () => conditions.byCases(
+            any(),
+            fields: any(named: 'fields'),
+            openOnly: any(named: 'openOnly'),
+          ),
+        ).thenAnswer(
+          (_) async => const [
+            CaseCondition(id: 'x1', caseId: 'c1', freeText: 'Fracture'),
+          ],
+        );
+        await container
+            .read(caseBrowseFeedProvider(query).notifier)
+            .refreshDiagnoses();
+
+        final after = container.read(caseBrowseFeedProvider(query)).value!;
+        expect(after.diagnosesByCase['c1']?.single.freeText, 'Fracture');
+        // Everything paging depends on is untouched.
+        expect(after.cases.map((c) => c.id), ['c1', 'c2']);
+        expect(after.cursor?.id, 'c2');
+        expect(after.hasMore, isTrue);
+      },
+    );
+
+    test('a failed re-read keeps the subtitles already on screen', () async {
+      stubBrowse(() => PbPage(items: [_case('c1')]));
+      when(
+        () => conditions.byCases(
+          any(),
+          fields: any(named: 'fields'),
+          openOnly: any(named: 'openOnly'),
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          CaseCondition(id: 'x1', caseId: 'c1', freeText: 'Fracture'),
+        ],
+      );
+
+      final container = makeContainer();
+      const query = CaseQuery();
+      await container.read(caseBrowseFeedProvider(query).future);
+
+      when(
+        () => conditions.byCases(
+          any(),
+          fields: any(named: 'fields'),
+          openOnly: any(named: 'openOnly'),
+        ),
+      ).thenThrow(
+        const RepositoryException('offline', kind: RepositoryErrorKind.network),
+      );
+      await container
+          .read(caseBrowseFeedProvider(query).notifier)
+          .refreshDiagnoses();
+
+      // A subtitle is worth a retry on the next event, never the list.
+      final after = container.read(caseBrowseFeedProvider(query)).value!;
+      expect(after.diagnosesByCase['c1']?.single.freeText, 'Fracture');
+      expect(after.cases, hasLength(1));
+    });
+  });
+
   test('a dropped connection surfaces as itself, not wrapped', () {
     // federfall-s5mm, end to end on the busiest screen in the app. Gathered
     // with `(a, b, …).wait` this arrived as a ParallelWaitError, which

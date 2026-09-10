@@ -509,24 +509,77 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
         // falls back to it.
         fields: 'id,species,name,photo',
       ),
-      conditionsRepo.byCases(
-        caseIds,
-        fields: 'id,case,condition,free_text',
-        openOnly: true,
-      ),
+      _diagnosesFor(conditionsRepo, caseIds),
     ).waitUnwrapped;
 
-    final byCase = <String, List<CaseCondition>>{};
-    for (final d in diagnoses) {
-      (byCase[d.caseId] ??= []).add(d);
-    }
     return (
       cases: cases,
       animalsById: {for (final a in animals) a.id: a},
-      diagnosesByCase: byCase,
+      diagnosesByCase: diagnoses,
       cursor: cursor,
       hasMore: hasMore,
     );
+  }
+
+  /// The unresolved diagnoses of [caseIds], grouped by case. One place, so
+  /// the first load and [refreshDiagnoses] cannot come to ask differently.
+  static Future<Map<String, List<CaseCondition>>> _diagnosesFor(
+    PbCaseConditionsRepository repo,
+    List<String> caseIds,
+  ) async {
+    final rows = await repo.byCases(
+      caseIds,
+      fields: 'id,case,condition,free_text',
+      openOnly: true,
+    );
+    final byCase = <String, List<CaseCondition>>{};
+    for (final d in rows) {
+      (byCase[d.caseId] ??= []).add(d);
+    }
+    return byCase;
+  }
+
+  /// Re-reads the diagnoses of the rows already loaded, leaving those rows,
+  /// the cursor and the scroll position exactly where they are.
+  ///
+  /// A diagnosis recorded in the detail pane — or by a colleague — changes
+  /// what a row SAYS without changing which rows there are, and the subtitle
+  /// is fetched per page rather than derived from the case record, so nothing
+  /// else refreshes it (federfall-78k6.5). Invalidating the feed would work
+  /// and is wrong: on a list scrolled through several pages it would throw
+  /// away the paging and the scroll position to change one line of text.
+  ///
+  /// Skipped while a page is in flight — that append is about to write the
+  /// state from a snapshot taken before this ran, so the two would race and
+  /// the loser's rows would be lost. A failure is swallowed: the subtitle is
+  /// worth a retry on the next event, never the list.
+  Future<void> refreshDiagnoses() async {
+    final current = state.value;
+    if (current == null || current.loadingMore || current.cases.isEmpty) {
+      return;
+    }
+    try {
+      final repo = await ref.read(caseConditionsRepositoryProvider.future);
+      final diagnoses = await _diagnosesFor(repo, [
+        for (final c in current.cases) c.id,
+      ]);
+      final latest = state.value;
+      // Another load may have replaced the rows while this was in flight.
+      if (latest == null || !identical(latest.cases, current.cases)) return;
+      state = AsyncData(
+        CaseBrowseState(
+          browse: latest.browse,
+          cases: latest.cases,
+          animalsById: latest.animalsById,
+          diagnosesByCase: diagnoses,
+          cursor: latest.cursor,
+          hasMore: latest.hasMore,
+          pageError: latest.pageError,
+        ),
+      );
+    } on Object {
+      // Keep the subtitles that are already on screen.
+    }
   }
 
   /// Drops the rows whose *terminal* disposition is not [outcome].
