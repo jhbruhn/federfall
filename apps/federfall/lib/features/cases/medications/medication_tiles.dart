@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
@@ -11,11 +13,16 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:zugvogel_ui/zugvogel_ui.dart' show confirmAndDelete;
+import 'package:zugvogel_ui/zugvogel_ui.dart'
+    show confirmAndDelete, runQuickAction;
 
 /// A prescription (medication plan) as a chronology event (FED-4.6): drug,
 /// dose, route and frequency, a controlled-drug badge, and a menu to log a
-/// dose against it, edit or delete it.
+/// dose against it, stop it, edit or delete it.
+///
+/// While the course is running the two verbs it exists for — give and stop —
+/// are also buttons on the row itself, because a menu is where stopping went
+/// missing (federfall-78k6.1).
 class PrescriptionTile extends ConsumerWidget {
   const PrescriptionTile({
     required this.plan,
@@ -43,6 +50,62 @@ class PrescriptionTile extends ConsumerWidget {
         ref.invalidate(caseBundleProvider(caseId));
       },
     );
+  }
+
+  /// Ends the course as of now, after a confirmation that names the date it is
+  /// about to write and says the record is kept.
+  ///
+  /// Deliberately not a delete and deliberately not a trip through the
+  /// prescription sheet. Stopping a course early is the one change somebody
+  /// makes without wanting to edit anything, and the only way to express it
+  /// used to be the sheet's `ended_at` field — a form with a dozen inputs, a
+  /// cycle preview and a dose calculator for a one-word decision. Carers
+  /// reached for delete instead, which destroys the record that the bird was
+  /// on the drug at all while leaving its administrations behind, so the case
+  /// ends up with logged doses of a prescription it never had.
+  ///
+  /// Confirmed rather than immediate, unlike the timeline's other one-tap
+  /// actions: the write is invisible where it matters most. Nothing on this
+  /// screen shows that the plan has quietly left the worklist, the Today
+  /// screen and the on-device dose reminders — the `medication_due` view drops
+  /// an ended prescription server-side (1700000024) — so a stray tap would
+  /// stop a bird's antibiotics with no cue that it had. The dialog is not a
+  /// destructive one: nothing is deleted, and clearing the date under
+  /// „Bearbeiten“ makes the course run again.
+  Future<void> _confirmStop(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final materialL10n = MaterialLocalizations.of(context);
+    final now = DateTime.now();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.medStopConfirmTitle),
+        content: Text(
+          l10n.medStopConfirmBody(
+            plan.drug,
+            formatLocalDate(materialL10n, now),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.medStopConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await runQuickAction(context, () async {
+      final repo = await ref.read(medicationsRepositoryProvider.future);
+      await repo.update(plan.id, {
+        'ended_at': now.toUtc().toIso8601String(),
+      });
+      ref.invalidate(caseBundleProvider(caseId));
+    });
   }
 
   @override
@@ -95,6 +158,15 @@ class PrescriptionTile extends ConsumerWidget {
                     plan: plan,
                   ),
                 ),
+                // Only while it is actually running: on an ended course it
+                // would silently move an end date that is already set, which
+                // is an edit, not a stop.
+                if (isActive)
+                  MenuAction(
+                    icon: Icons.stop_circle_outlined,
+                    label: l10n.medStopAction,
+                    onTap: () => unawaited(_confirmStop(context, ref)),
+                  ),
               ],
               editLabel: l10n.medEditAction,
               onEdit: () => showPrescriptionSheet(
@@ -153,17 +225,28 @@ class PrescriptionTile extends ConsumerWidget {
           if (isActive && canEdit)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton.tonalIcon(
-                  onPressed: () => showAdministrationSheet(
-                    context,
-                    caseId: caseId,
-                    plan: plan,
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: () => showAdministrationSheet(
+                      context,
+                      caseId: caseId,
+                      plan: plan,
+                    ),
+                    icon: const Icon(Icons.vaccines_outlined, size: 18),
+                    label: Text(l10n.medLogDose),
                   ),
-                  icon: const Icon(Icons.vaccines_outlined, size: 18),
-                  label: Text(l10n.medLogDose),
-                ),
+                  // Beside the dose button, not only in the menu: giving and
+                  // stopping are the two things a running course is for, and
+                  // burying one of them is what sent carers to delete.
+                  TextButton.icon(
+                    onPressed: () => unawaited(_confirmStop(context, ref)),
+                    icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                    label: Text(l10n.medStopAction),
+                  ),
+                ],
               ),
             ),
         ],

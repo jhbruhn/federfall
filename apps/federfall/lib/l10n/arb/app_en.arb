@@ -1728,6 +1728,20 @@
     "@medDeleteAction": { "description": "Menu/dialog action that deletes a medication record" },
     "medMenuTooltip": "Options",
     "@medMenuTooltip": { "description": "Tooltip on a medication entry's menu" },
+    "medStopAction": "Stop medication",
+    "@medStopAction": { "description": "Action that ends a running prescription now, without deleting it" },
+    "medStopConfirmTitle": "Stop medication?",
+    "@medStopConfirmTitle": { "description": "Title of the confirmation before ending a prescription" },
+    "medStopConfirmBody": "{drug} is recorded as ending on {date}. The prescription and every logged dose are kept \u2014 it simply stops being proposed as due. The end date can be changed or removed again under \u201cEdit\u201d.",
+    "@medStopConfirmBody": {
+        "description": "Body of the confirmation before ending a prescription, naming the drug and the date about to be written",
+        "placeholders": {
+            "drug": { "type": "String" },
+            "date": { "type": "String" }
+        }
+    },
+    "medStopConfirmAction": "Stop",
+    "@medStopConfirmAction": { "description": "Confirm button that writes the prescription's end date" },
     "doseGivenAt": "Given on",
     "@doseGivenAt": { "description": "Label for the date a dose was given" },
     "prescriptionEventLabel": "Prescribed {drug}",

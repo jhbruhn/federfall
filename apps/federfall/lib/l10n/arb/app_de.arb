@@ -843,6 +843,16 @@
     "medEditAction": "Bearbeiten",
     "medDeleteAction": "Löschen",
     "medMenuTooltip": "Optionen",
+    "medStopAction": "Medikation beenden",
+    "medStopConfirmTitle": "Medikation beenden?",
+    "medStopConfirmBody": "{drug} wird zum {date} als beendet eingetragen. Die Verordnung und alle protokollierten Dosen bleiben erhalten \u2014 sie wird nur nicht mehr als f\u00e4llig vorgeschlagen. Das Enddatum l\u00e4sst sich \u00fcber \u201eBearbeiten\u201c \u00e4ndern oder wieder entfernen.",
+    "@medStopConfirmBody": {
+        "placeholders": {
+            "drug": { "type": "String" },
+            "date": { "type": "String" }
+        }
+    },
+    "medStopConfirmAction": "Beenden",
     "doseGivenAt": "Gegeben am",
     "prescriptionEventLabel": "Verordnet: {drug}",
     "@prescriptionEventLabel": {

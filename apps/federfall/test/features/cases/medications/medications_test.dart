@@ -1124,6 +1124,87 @@ void main() {
       expect(find.widgetWithText(FilledButton, 'Log dose'), findsNothing);
     });
 
+    testWidgets('stopping a course writes an end date and deletes nothing', (
+      tester,
+    ) async {
+      when(
+        () => medications.update('m1', any()),
+      ).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'Baytril'),
+      );
+
+      await pump(
+        tester,
+        const PrescriptionTile(
+          plan: Medication(id: 'm1', caseId: 'c1', drug: 'Baytril'),
+          caseId: 'c1',
+        ),
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Stop medication'));
+      await tester.pumpAndSettle();
+      // The confirmation names the drug and the date it is about to write.
+      expect(find.text('Stop medication?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Stop'));
+      await tester.pumpAndSettle();
+
+      final data =
+          verify(() => medications.update('m1', captureAny())).captured.single
+              as Map<String, dynamic>;
+      final ended = DateTime.parse(data['ended_at']! as String);
+      expect(ended.isUtc, isTrue);
+      expect(
+        ended.difference(DateTime.now().toUtc()).abs(),
+        lessThan(const Duration(minutes: 1)),
+      );
+      // The whole point: the prescription survives, so the doses logged
+      // against it keep the plan they belong to.
+      verifyNever(() => medications.delete(any()));
+    });
+
+    testWidgets('cancelling the confirmation leaves the course running', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const PrescriptionTile(
+          plan: Medication(id: 'm1', caseId: 'c1', drug: 'Baytril'),
+          caseId: 'c1',
+        ),
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Stop medication'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      verifyNever(() => medications.update(any(), any()));
+    });
+
+    testWidgets('an ended course offers no stop, in the row or the menu', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        PrescriptionTile(
+          plan: Medication(
+            id: 'm1',
+            caseId: 'c1',
+            drug: 'Baytril',
+            endedAt: DateTime.utc(2020),
+          ),
+          caseId: 'c1',
+        ),
+      );
+
+      expect(find.text('Stop medication'), findsNothing);
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      // Editing it is still the way to move an end date that is already set.
+      expect(find.text('Edit'), findsOneWidget);
+      expect(find.text('Stop medication'), findsNothing);
+    });
+
     testWidgets('administration tile shows the dose and deletes', (
       tester,
     ) async {
