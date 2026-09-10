@@ -3,6 +3,7 @@ library;
 
 export 'package:federfall/theme/app_spacing.dart';
 export 'package:federfall/theme/app_theme.dart';
+export 'package:federfall/ui/confirm_dialog.dart';
 export 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show fileCacheKey;
 // The shared kit, named symbol by symbol rather than as a bare
 // `export 'package:zugvogel_ui/zugvogel_ui.dart'`. That is not a style

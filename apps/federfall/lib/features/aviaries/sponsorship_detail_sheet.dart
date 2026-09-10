@@ -261,28 +261,15 @@ class _ActionsState extends ConsumerState<_Actions> {
   Future<void> _end() async {
     final l10n = context.l10n;
     final materialL10n = MaterialLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.sponsorshipEndNowConfirmTitle),
-        content: Text(
-          l10n.sponsorshipEndNowConfirmBody(
-            formatLocalDate(materialL10n, DateTime.now()),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.sponsorshipEndNowConfirmAction),
-          ),
-        ],
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.sponsorshipEndNowConfirmTitle,
+      message: l10n.sponsorshipEndNowConfirmBody(
+        formatLocalDate(materialL10n, DateTime.now()),
       ),
+      confirmLabel: l10n.sponsorshipEndNowConfirmAction,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     setState(() {
       _busy = true;

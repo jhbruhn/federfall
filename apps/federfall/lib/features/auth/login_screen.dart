@@ -769,6 +769,11 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
           child: Text(l10n.actionCancel),
         ),
         FilledButton(
+          // Its natural width, for the reason [showConfirmDialog] documents:
+          // the app theme's full-width FilledButton would take the whole
+          // action row and push Cancel onto a line of its own. This dialog
+          // holds a field and a busy state, so it cannot use that helper.
+          style: FilledButton.styleFrom(minimumSize: kNaturalButtonSize),
           onPressed: _busy ? null : _submit,
           child: Text(l10n.authResetSendAction),
         ),

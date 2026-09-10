@@ -99,28 +99,14 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
     final l10n = context.l10n;
     final members = ref.read(orgMembersProvider).value ?? const <AppUser>[];
     final target = members.where((m) => m.id == _carerId).firstOrNull;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.placementHandoffConfirmTitle),
-        content: Text(
-          l10n.placementHandoffConfirmBody(
-            target == null ? '?' : memberLabel(target),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.placementHandoffConfirmAction),
-          ),
-        ],
+    return showConfirmDialog(
+      context,
+      title: l10n.placementHandoffConfirmTitle,
+      message: l10n.placementHandoffConfirmBody(
+        target == null ? '?' : memberLabel(target),
       ),
+      confirmLabel: l10n.placementHandoffConfirmAction,
     );
-    return confirmed ?? false;
   }
 
   Future<void> _save() async {

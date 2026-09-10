@@ -90,6 +90,9 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          // The real theme, not the bare default: its full-width FilledButton
+          // is what the tile's button row has to survive.
+          theme: AppTheme.light,
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -1139,6 +1142,26 @@ void main() {
           plan: Medication(id: 'm1', caseId: 'c1', drug: 'Baytril'),
           caseId: 'c1',
         ),
+      );
+
+      // The two row buttons are a pair: same line, same height, same insets.
+      // The theme's full-width filled button would stack them, and a plain
+      // TextButton beside a filled one is 12/16 against 16/24 — a different
+      // shape at the same height. Only the colour should tell them apart.
+      final give = tester.getRect(
+        find.widgetWithText(FilledButton, 'Log dose'),
+      );
+      final stop = tester.getRect(
+        find.widgetWithText(TextButton, 'Stop medication'),
+      );
+      expect(stop.top, give.top);
+      expect(stop.height, give.height);
+      final giveIcon = tester.getRect(find.byIcon(Icons.vaccines_outlined));
+      final stopIcon = tester.getRect(find.byIcon(Icons.stop_circle_outlined));
+      expect(stopIcon.left - stop.left, giveIcon.left - give.left);
+      expect(
+        stop.right - tester.getRect(find.text('Stop medication')).right,
+        give.right - tester.getRect(find.text('Log dose')).right,
       );
 
       await tester.tap(find.widgetWithText(TextButton, 'Stop medication'));

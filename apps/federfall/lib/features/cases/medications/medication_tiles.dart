@@ -76,29 +76,16 @@ class PrescriptionTile extends ConsumerWidget {
     final l10n = context.l10n;
     final materialL10n = MaterialLocalizations.of(context);
     final now = DateTime.now();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.medStopConfirmTitle),
-        content: Text(
-          l10n.medStopConfirmBody(
-            plan.drug,
-            formatLocalDate(materialL10n, now),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.actionCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.medStopConfirmAction),
-          ),
-        ],
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.medStopConfirmTitle,
+      message: l10n.medStopConfirmBody(
+        plan.drug,
+        formatLocalDate(materialL10n, now),
       ),
+      confirmLabel: l10n.medStopConfirmAction,
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
     await runQuickAction(context, () async {
       final repo = await ref.read(medicationsRepositoryProvider.future);
       await repo.update(plan.id, {
@@ -230,6 +217,12 @@ class PrescriptionTile extends ConsumerWidget {
                 runSpacing: AppSpacing.xs,
                 children: [
                   FilledButton.tonalIcon(
+                    // Its natural width: it shares the row now, and the
+                    // theme's full-width default would put „beenden" on a
+                    // line of its own under a slab.
+                    style: FilledButton.styleFrom(
+                      minimumSize: kNaturalButtonSize,
+                    ),
                     onPressed: () => showAdministrationSheet(
                       context,
                       caseId: caseId,
@@ -242,6 +235,12 @@ class PrescriptionTile extends ConsumerWidget {
                   // stopping are the two things a running course is for, and
                   // burying one of them is what sent carers to delete.
                   TextButton.icon(
+                    // Shaped like the button beside it; only the colour says
+                    // which of the two is the primary act.
+                    style: TextButton.styleFrom(
+                      minimumSize: kNaturalButtonSize,
+                      padding: kPairedButtonPadding,
+                    ),
                     onPressed: () => unawaited(_confirmStop(context, ref)),
                     icon: const Icon(Icons.stop_circle_outlined, size: 18),
                     label: Text(l10n.medStopAction),

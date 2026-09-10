@@ -121,6 +121,12 @@ abstract final class AppTheme {
         border: OutlineInputBorder(),
         filled: true,
       ),
+      // Size.fromHeight is Size(double.infinity, 48): every FilledButton in
+      // the app is full-width by default. That is deliberate and load-bearing
+      // — it is the whole of what makes `PrimaryButton` fill a form, and
+      // twelve forms are built on it. Where a filled button SHARES a row it is
+      // wrong, and the button must ask for [kNaturalButtonSize] back; see that
+      // const for why.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(48),
@@ -151,3 +157,26 @@ abstract final class AppTheme {
     );
   }
 }
+
+/// What a [FilledButton] must ask for when it may NOT stretch.
+///
+/// [AppTheme] gives every one of them an infinite minimum width (see the
+/// `filledButtonTheme` above). Anywhere a filled button shares a row — an
+/// [AlertDialog]'s action bar, a pair of buttons under a timeline entry — that
+/// width takes the whole row and pushes its neighbour onto a line of its own,
+/// so the pair reads as a small link stranded above a full-width slab
+/// (federfall-78k6.9). Pass this as `minimumSize` there.
+///
+/// 64 is Material's own minimum width; the 48 keeps the touch target the
+/// theme entry is really there for, so the button still matches the plain
+/// [TextButton] beside it.
+const kNaturalButtonSize = Size(64, 48);
+
+/// Material's own padding for a filled or outlined button carrying a leading
+/// icon (16 before, 24 after).
+///
+/// A [TextButton] is tighter than that — 12 and 16 — so the secondary half of
+/// an action pair comes out a visibly different shape from the filled button
+/// beside it even at the same height. Pass this as its `padding` so the two
+/// differ only in colour, which is the distinction meant to carry.
+const kPairedButtonPadding = EdgeInsetsDirectional.fromSTEB(16, 0, 24, 0);
