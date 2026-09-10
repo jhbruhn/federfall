@@ -20,7 +20,7 @@ dependencies:
   zugvogel_data:
     git:
       url: https://github.com/jhbruhn/zugvogel.git
-      ref: 030c35addc1622daf167212ec5c87c16fdff4696
+      ref: 7c747d6fddd1d25ba0de5f64b627c79c2a55c85e
       path: packages/zugvogel_data
 
 dev_dependencies:

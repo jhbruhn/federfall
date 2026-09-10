@@ -1,21 +1,16 @@
 import 'package:federfall/l10n/l10n.dart';
-import 'package:federfall/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 /// A cancel/confirm dialog, resolving to false when it is dismissed.
 ///
-/// Exists because a bare `FilledButton` cannot be used in an [AlertDialog] in
-/// this app. `AppTheme`'s `filledButtonTheme` gives every one of them
-/// `minimumSize: Size.fromHeight(48)` — an *infinite* minimum width — which is
-/// what makes `PrimaryButton` fill a form and is load-bearing for the twelve
-/// forms built on it. In an action row it is wrong: the confirm button takes
-/// the dialog's whole width, which overflows the row and drops Cancel onto a
-/// line of its own, so the pair reads as a small text link stranded above a
-/// full-width slab instead of two buttons side by side.
-///
-/// So the confirm button gets its natural width back, scoped to the dialog.
-/// Use this rather than hand-rolling the pair — every hand-rolled one in this
-/// app had the same defect (federfall-78k6.9).
+/// One spelling of a pair this app had written four times by hand, all four
+/// with the same defect: the theme used to give every [FilledButton] an
+/// infinite minimum width, so the confirm took the dialog's whole action bar
+/// and pushed Cancel onto a line of its own (federfall-78k6.9). That is fixed
+/// at the source now — the theme's default is Material's, and `PrimaryButton`
+/// carries its own full width — so this no longer has to correct anything. It
+/// stays because the pair, its Cancel label and its dismissed-means-false
+/// contract are worth having in one place.
 ///
 /// Not for a dialog that destroys something: `confirmAndDelete` and
 /// `DestructiveDialog` own that, and their confirm carries weight and colour
@@ -38,7 +33,6 @@ Future<bool> showConfirmDialog(
           child: Text(l10n.actionCancel),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(minimumSize: kNaturalButtonSize),
           onPressed: () => Navigator.of(dialogContext).pop(true),
           child: Text(confirmLabel),
         ),

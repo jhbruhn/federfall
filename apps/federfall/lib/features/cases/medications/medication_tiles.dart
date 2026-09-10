@@ -217,12 +217,6 @@ class PrescriptionTile extends ConsumerWidget {
                 runSpacing: AppSpacing.xs,
                 children: [
                   FilledButton.tonalIcon(
-                    // Its natural width: it shares the row now, and the
-                    // theme's full-width default would put „beenden" on a
-                    // line of its own under a slab.
-                    style: FilledButton.styleFrom(
-                      minimumSize: kNaturalButtonSize,
-                    ),
                     onPressed: () => showAdministrationSheet(
                       context,
                       caseId: caseId,
@@ -238,7 +232,6 @@ class PrescriptionTile extends ConsumerWidget {
                     // Shaped like the button beside it; only the colour says
                     // which of the two is the primary act.
                     style: TextButton.styleFrom(
-                      minimumSize: kNaturalButtonSize,
                       padding: kPairedButtonPadding,
                     ),
                     onPressed: () => unawaited(_confirmStop(context, ref)),

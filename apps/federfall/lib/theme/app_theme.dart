@@ -121,15 +121,17 @@ abstract final class AppTheme {
         border: OutlineInputBorder(),
         filled: true,
       ),
-      // Size.fromHeight is Size(double.infinity, 48): every FilledButton in
-      // the app is full-width by default. That is deliberate and load-bearing
-      // — it is the whole of what makes `PrimaryButton` fill a form, and
-      // twelve forms are built on it. Where a filled button SHARES a row it is
-      // wrong, and the button must ask for [kNaturalButtonSize] back; see that
-      // const for why.
+      // A 48-tall touch target and Material's own minimum width — NOT
+      // `Size.fromHeight(48)`, which is Size(double.infinity, 48) and made
+      // every filled button in the app full-width. That default was here to
+      // make `PrimaryButton` fill a form; the button now carries that width
+      // itself (zugvogel 7c747d6), so this no longer has to buy it for twelve
+      // forms at the cost of every button that SHARES a row — a dialog's
+      // confirm took the whole action bar and pushed Cancel onto a line of
+      // its own (federfall-78k6.9).
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size(64, 48),
         ),
       ),
       // Filled rather than outlined: a subtle tonal surface that stays present
@@ -157,20 +159,6 @@ abstract final class AppTheme {
     );
   }
 }
-
-/// What a [FilledButton] must ask for when it may NOT stretch.
-///
-/// [AppTheme] gives every one of them an infinite minimum width (see the
-/// `filledButtonTheme` above). Anywhere a filled button shares a row — an
-/// [AlertDialog]'s action bar, a pair of buttons under a timeline entry — that
-/// width takes the whole row and pushes its neighbour onto a line of its own,
-/// so the pair reads as a small link stranded above a full-width slab
-/// (federfall-78k6.9). Pass this as `minimumSize` there.
-///
-/// 64 is Material's own minimum width; the 48 keeps the touch target the
-/// theme entry is really there for, so the button still matches the plain
-/// [TextButton] beside it.
-const kNaturalButtonSize = Size(64, 48);
 
 /// Material's own padding for a filled or outlined button carrying a leading
 /// icon (16 before, 24 after).

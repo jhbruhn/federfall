@@ -277,16 +277,7 @@ class _DoseCalculatorPanelState extends ConsumerState<DoseCalculatorPanel> {
                     : const SizedBox.shrink(),
               ),
               const SizedBox(width: AppSpacing.sm),
-              // The app theme makes filled buttons full-width
-              // (`minimumSize: Size.fromHeight(48)`, i.e. an infinite minimum
-              // width). That is right for a form's primary action but
-              // unsatisfiable for a non-flex child of a Row — it fails layout
-              // and the Card's clip swallows the whole panel — so this one
-              // asks for the Material default width.
               FilledButton.tonal(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(64, 48),
-                ),
                 onPressed: widget.enabled && result.hasAmount
                     ? () => widget.onApply((
                         amount: result.amount!,
