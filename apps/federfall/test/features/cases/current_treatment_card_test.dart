@@ -1,3 +1,4 @@
+import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/current_treatment_card.dart';
@@ -5,10 +6,14 @@ import 'package:federfall/features/cases/medications/medication_routes_providers
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart' hide Finder;
+import 'package:mocktail/mocktail.dart';
+
+class MockMedicationsRepo extends Mock implements PbMedicationsRepository {}
 
 const _codes = [
   Condition(id: 'cond1', label: 'Fracture'),
@@ -16,6 +21,12 @@ const _codes = [
 ];
 
 void main() {
+  setUpAll(() => registerFallbackValue(<String, dynamic>{}));
+
+  late MockMedicationsRepo medications;
+
+  setUp(() => medications = MockMedicationsRepo());
+
   Future<void> pump(
     WidgetTester tester, {
     List<CaseCondition> conditions = const [],
@@ -32,6 +43,7 @@ void main() {
         nextDoseByMedicationProvider('c1').overrideWith((_) async => nextDue),
         canEditCaseProvider('c1').overrideWith((_) async => canEdit),
         conditionsProvider.overrideWith((_) async => _codes),
+        medicationsRepositoryProvider.overrideWith((_) async => medications),
         medicationRoutesProvider.overrideWith(
           (_) async => const [
             MedicationRoute(id: 'mr_subcut', label: 'Subcutaneous'),
@@ -165,7 +177,7 @@ void main() {
       expect(find.text('Dehydration'), findsNothing);
     });
 
-    testWidgets('a read-only viewer gets the facts and no dose button', (
+    testWidgets('a read-only viewer gets the facts and neither verb', (
       tester,
     ) async {
       await pump(
@@ -175,6 +187,53 @@ void main() {
       );
       expect(find.text('Baytril'), findsOneWidget);
       expect(find.byIcon(Icons.vaccines_outlined), findsNothing);
+      expect(find.byIcon(Icons.stop_circle_outlined), findsNothing);
+    });
+
+    testWidgets('a course can be stopped from the card itself', (
+      tester,
+    ) async {
+      // The same act the timeline tile offers, through the same
+      // confirmStopMedication — this card is where a carer establishes what
+      // the bird is on, so it is where they realise a course should end.
+      when(
+        () => medications.update('m1', any()),
+      ).thenAnswer(
+        (_) async => const Medication(id: 'm1', caseId: 'c1', drug: 'Baytril'),
+      );
+
+      await pump(
+        tester,
+        plans: const [Medication(id: 'm1', caseId: 'c1', drug: 'Baytril')],
+      );
+
+      await tester.tap(find.byIcon(Icons.stop_circle_outlined));
+      await tester.pumpAndSettle();
+      // Confirmed, not immediate: nothing here shows that stopping takes the
+      // course off the worklist and the dose reminders with it.
+      expect(find.text('Stop medication?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Stop'));
+      await tester.pumpAndSettle();
+
+      final data =
+          verify(() => medications.update('m1', captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(DateTime.parse(data['ended_at']! as String).isUtc, isTrue);
+      verifyNever(() => medications.delete(any()));
+    });
+
+    testWidgets('cancelling the confirmation leaves the course running', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        plans: const [Medication(id: 'm1', caseId: 'c1', drug: 'Baytril')],
+      );
+      await tester.tap(find.byIcon(Icons.stop_circle_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      verifyNever(() => medications.update(any(), any()));
     });
   });
 }

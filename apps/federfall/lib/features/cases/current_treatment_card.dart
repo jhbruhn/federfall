@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
 import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
+import 'package:federfall/features/cases/medications/stop_medication.dart';
 import 'package:federfall/features/worklist/worklist_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -176,12 +179,16 @@ class _DiagnosisChip extends StatelessWidget {
   }
 }
 
-/// One running course: what it is, when the next dose falls, and the one verb
-/// that belongs on a summary.
+/// One running course: what it is, when the next dose falls, and the two verbs
+/// a course is for — give a dose, or stop it.
 ///
-/// Only "give". Stopping a course lives on the timeline's own tile, where the
-/// confirmation can name the date and the record it is about to change; a
-/// summary is the wrong place to end a treatment from.
+/// Both, not just "give". Stopping also lives on the timeline's own tile, and
+/// the duplication is deliberate for the same reason recording an outcome has
+/// two homes (federfall-m1z): this card is where a carer establishes what the
+/// bird is on, so it is where they realise a course should end. Sending them
+/// to the History tab to act on what they just read here is the trip this card
+/// exists to remove. Both entry points call [confirmStopMedication], so they
+/// cannot come to ask different questions or write different things.
 class _RunningCourse extends ConsumerWidget {
   const _RunningCourse({
     required this.plan,
@@ -260,7 +267,7 @@ class _RunningCourse extends ConsumerWidget {
               ],
             ),
           ),
-          if (canEdit)
+          if (canEdit) ...[
             IconButton(
               icon: const Icon(Icons.vaccines_outlined),
               tooltip: l10n.medLogDose,
@@ -270,6 +277,23 @@ class _RunningCourse extends ConsumerWidget {
                 plan: plan,
               ),
             ),
+            // Icon-only, matching the dose button beside it: several courses
+            // stack here, and a pair of labelled buttons per row would push
+            // the regimen they belong to off the card. The label lives in the
+            // tooltip and in the confirmation, which names the drug.
+            IconButton(
+              icon: const Icon(Icons.stop_circle_outlined),
+              tooltip: l10n.medStopAction,
+              onPressed: () => unawaited(
+                confirmStopMedication(
+                  context,
+                  ref,
+                  plan: plan,
+                  caseId: caseId,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

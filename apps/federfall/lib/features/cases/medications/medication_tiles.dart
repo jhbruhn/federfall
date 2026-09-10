@@ -7,14 +7,14 @@ import 'package:federfall/features/cases/medications/administration_sheet.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/medications/medications_providers.dart';
 import 'package:federfall/features/cases/medications/prescription_sheet.dart';
+import 'package:federfall/features/cases/medications/stop_medication.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:zugvogel_ui/zugvogel_ui.dart'
-    show confirmAndDelete, runQuickAction;
+import 'package:zugvogel_ui/zugvogel_ui.dart' show confirmAndDelete;
 
 /// A prescription (medication plan) as a chronology event (FED-4.6): drug,
 /// dose, route and frequency, a controlled-drug badge, and a menu to log a
@@ -50,49 +50,6 @@ class PrescriptionTile extends ConsumerWidget {
         ref.invalidate(caseBundleProvider(caseId));
       },
     );
-  }
-
-  /// Ends the course as of now, after a confirmation that names the date it is
-  /// about to write and says the record is kept.
-  ///
-  /// Deliberately not a delete and deliberately not a trip through the
-  /// prescription sheet. Stopping a course early is the one change somebody
-  /// makes without wanting to edit anything, and the only way to express it
-  /// used to be the sheet's `ended_at` field — a form with a dozen inputs, a
-  /// cycle preview and a dose calculator for a one-word decision. Carers
-  /// reached for delete instead, which destroys the record that the bird was
-  /// on the drug at all while leaving its administrations behind, so the case
-  /// ends up with logged doses of a prescription it never had.
-  ///
-  /// Confirmed rather than immediate, unlike the timeline's other one-tap
-  /// actions: the write is invisible where it matters most. Nothing on this
-  /// screen shows that the plan has quietly left the worklist, the Today
-  /// screen and the on-device dose reminders — the `medication_due` view drops
-  /// an ended prescription server-side (1700000024) — so a stray tap would
-  /// stop a bird's antibiotics with no cue that it had. The dialog is not a
-  /// destructive one: nothing is deleted, and clearing the date under
-  /// „Bearbeiten“ makes the course run again.
-  Future<void> _confirmStop(BuildContext context, WidgetRef ref) async {
-    final l10n = context.l10n;
-    final materialL10n = MaterialLocalizations.of(context);
-    final now = DateTime.now();
-    final confirmed = await showConfirmDialog(
-      context,
-      title: l10n.medStopConfirmTitle,
-      message: l10n.medStopConfirmBody(
-        plan.drug,
-        formatLocalDate(materialL10n, now),
-      ),
-      confirmLabel: l10n.medStopConfirmAction,
-    );
-    if (!confirmed || !context.mounted) return;
-    await runQuickAction(context, () async {
-      final repo = await ref.read(medicationsRepositoryProvider.future);
-      await repo.update(plan.id, {
-        'ended_at': now.toUtc().toIso8601String(),
-      });
-      ref.invalidate(caseBundleProvider(caseId));
-    });
   }
 
   @override
@@ -152,7 +109,14 @@ class PrescriptionTile extends ConsumerWidget {
                   MenuAction(
                     icon: Icons.stop_circle_outlined,
                     label: l10n.medStopAction,
-                    onTap: () => unawaited(_confirmStop(context, ref)),
+                    onTap: () => unawaited(
+                      confirmStopMedication(
+                        context,
+                        ref,
+                        plan: plan,
+                        caseId: caseId,
+                      ),
+                    ),
                   ),
               ],
               editLabel: l10n.medEditAction,
@@ -234,7 +198,14 @@ class PrescriptionTile extends ConsumerWidget {
                     style: TextButton.styleFrom(
                       padding: kPairedButtonPadding,
                     ),
-                    onPressed: () => unawaited(_confirmStop(context, ref)),
+                    onPressed: () => unawaited(
+                      confirmStopMedication(
+                        context,
+                        ref,
+                        plan: plan,
+                        caseId: caseId,
+                      ),
+                    ),
                     icon: const Icon(Icons.stop_circle_outlined, size: 18),
                     label: Text(l10n.medStopAction),
                   ),
