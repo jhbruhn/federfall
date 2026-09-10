@@ -17,6 +17,9 @@ class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 class MockCaseConditionsRepo extends Mock
     implements PbCaseConditionsRepository {}
 
+class MockCaseActivityRepo extends Mock
+    implements PbCaseLastActivityRepository {}
+
 AppUser _user(String id) =>
     AppUser(id: id, email: '$id@example.org', role: UserRole.carer);
 
@@ -27,6 +30,7 @@ void main() {
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
   late MockCaseConditionsRepo conditions;
+  late MockCaseActivityRepo activity;
   late StreamController<AppUser?> authChanges;
   // A counter, not `verify(...).callCount`: mocktail marks calls as verified,
   // so a second verify in the same test counts only what happened since the
@@ -39,6 +43,8 @@ void main() {
     cases = MockCasesRepo();
     animals = MockAnimalsRepo();
     conditions = MockCaseConditionsRepo();
+    activity = MockCaseActivityRepo();
+    when(() => activity.byCases(any())).thenAnswer((_) async => const []);
     when(
       () => conditions.byCases(
         any(),
@@ -72,12 +78,20 @@ void main() {
         // The REAL currentUserProvider, driven through its repository — the
         // selectAsync behaviour under test lives in that provider's plumbing,
         // so overriding it would test nothing.
+        //
+        // The rest are here only because this drives the REAL CaseBrowseFeed
+        // to count its refetches, so every repository that feed resolves has
+        // to be stubbed. Adding a dependency to CaseBrowseFeed.build breaks
+        // this file, twice over now — if that is why you are reading this,
+        // add the mock below and move on; nothing about the dependency is
+        // under test here.
         authRepositoryProvider.overrideWith((ref) async => auth),
         casesRepositoryProvider.overrideWith((ref) async => cases),
         animalsRepositoryProvider.overrideWith((ref) async => animals),
         caseConditionsRepositoryProvider.overrideWith(
           (ref) async => conditions,
         ),
+        caseActivityRepositoryProvider.overrideWith((ref) async => activity),
       ],
     );
     addTearDown(container.dispose);

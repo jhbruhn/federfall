@@ -12,7 +12,6 @@ IconData worklistIcon(WorklistKind kind) => switch (kind) {
   WorklistKind.vetAppointment => Icons.local_hospital_outlined,
   WorklistKind.followUpDue => Icons.event_repeat_outlined,
   WorklistKind.quarantineEnding => Icons.shield_outlined,
-  WorklistKind.staleCase => Icons.history_outlined,
 };
 
 /// Section heading for a group of items of one [kind].
@@ -22,7 +21,6 @@ String worklistGroupLabel(AppLocalizations l10n, WorklistKind kind) =>
       WorklistKind.vetAppointment => l10n.worklistGroupAppointments,
       WorklistKind.followUpDue => l10n.worklistGroupFollowUps,
       WorklistKind.quarantineEnding => l10n.worklistGroupQuarantine,
-      WorklistKind.staleCase => l10n.worklistGroupStale,
     };
 
 /// Row title — the case number and animal name (whichever are present),
@@ -41,9 +39,6 @@ String worklistItemDetail(
   DateTime now, {
   bool showDrug = true,
 }) => switch (item.kind) {
-  WorklistKind.staleCase => l10n.worklistStaleDays(
-    now.difference(item.dueAt).inDays,
-  ),
   WorklistKind.medicationDue =>
     item.drug == null || !showDrug
         ? relativeDueLabel(l10n, item.dueAt, now)

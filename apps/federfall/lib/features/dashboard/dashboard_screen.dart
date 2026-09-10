@@ -174,19 +174,15 @@ class _WorklistPreview extends ConsumerWidget {
     final showError =
         error != null && !(items != null && isNetworkError(error));
     final due = items ?? const <WorklistItem>[];
-    // The headline counts obligations, not rows: a quiet case is worth
-    // surfacing but nobody owes it anything today (federfall-9m9n).
-    //
-    // The same split orders the preview. The worklist is sorted soonest-due
-    // first, and a case that has been quiet for 39 days carries a `dueAt` 39
-    // days old — so under a plain date sort the quiet cases took the whole
-    // preview and a dose due this afternoon fell off the end of it. Within
-    // each half the date order stands.
-    final actionable = due.where((i) => i.kind.isDue).toList();
-    final quiet = due.where((i) => !i.kind.isDue).toList();
-    final preview = [...actionable, ...quiet];
-    final dueCount = actionable.length;
-    final quietCount = quiet.length;
+    // Every item now has a due moment and a verb, so the count is just the
+    // length and the date order is the whole order. Both used to be split in
+    // two, to keep quiet cases out of the headline (federfall-9m9n) and out
+    // of the front of a preview they otherwise filled — a case quiet for 39
+    // days carried a `dueAt` 39 days old and sorted above this afternoon's
+    // dose. There are no quiet cases on the worklist any more
+    // (federfall-78k6.4).
+    final preview = due;
+    final dueCount = due.length;
 
     // The narrow layout adds no chrome when nothing is due, so it must not pop
     // a card in while the first load is still in flight either.
@@ -224,12 +220,7 @@ class _WorklistPreview extends ConsumerWidget {
               // progress bar above is the whole message.
               (_, null) => null,
               _ when due.isEmpty => Text(l10n.worklistEmpty),
-              _ => Text(
-                [
-                  if (dueCount > 0) l10n.worklistDueCount(dueCount),
-                  if (quietCount > 0) l10n.worklistQuietCount(quietCount),
-                ].join(' · '),
-              ),
+              _ => Text(l10n.worklistDueCount(dueCount)),
             },
             trailing: showError
                 ? TextButton(
@@ -255,7 +246,7 @@ class _WorklistPreview extends ConsumerWidget {
             // Deliberately uncapped, unlike the rows: a round is a DRUG, not a
             // bird, so the list is short by construction, and hiding one would
             // hide the act rather than shorten a list.
-            for (final round in groupMedicationDuesByDrug(actionable))
+            for (final round in groupMedicationDuesByDrug(due))
               if (round.isRound) _DoseRoundRow(round: round),
             for (final item in preview.take(_previewMax))
               WorklistTile(item: item, now: now),

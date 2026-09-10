@@ -307,6 +307,7 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
             c,
             state.animalsById[c.animal],
             diagnoses: state.diagnosesByCase[c.id] ?? const [],
+            lastActivity: state.lastActivityByCase[c.id],
             // Redundant in the "mine" scope — every case is already the
             // signed-in user's — and under a carer filter, where the app bar
             // already names them.
@@ -746,6 +747,7 @@ class _CaseTile extends ConsumerWidget {
     this.medicalCase,
     this.animal, {
     this.diagnoses = const [],
+    this.lastActivity,
     this.showCarer = false,
     this.showStatus = false,
     this.selected = false,
@@ -756,6 +758,9 @@ class _CaseTile extends ConsumerWidget {
 
   /// The case's unresolved diagnoses, in recorded order — the subtitle.
   final List<CaseCondition> diagnoses;
+
+  /// When anything last happened on this case, or null when unknown.
+  final DateTime? lastActivity;
 
   /// Whether to name the active carer (only useful in the all-cases scope; in
   /// "mine" every case is the signed-in user's, so it would be redundant).
@@ -811,24 +816,49 @@ class _CaseTile extends ConsumerWidget {
     ].join(' · ');
     final carerId = medicalCase.activeCarer;
     final hasCarer = showCarer && carerId != null && carerId.isNotEmpty;
+    final quietDays = _quietDays;
 
     return ListTile(
       selected: selected,
-      isThreeLine: hasCarer,
+      isThreeLine: hasCarer || quietDays != null,
       leading: AnimalAvatar(animalId: medicalCase.animal, radius: 20),
       title: Text(title),
-      subtitle: summary.isEmpty && !hasCarer
+      subtitle: summary.isEmpty && !hasCarer && quietDays == null
           ? null
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (summary.isNotEmpty) Text(summary),
                 if (hasCarer) CarerLine(carerId),
+                // Subdued and last: a quiet case is worth noticing, never an
+                // accusation. It used to be a full row in a section of its own
+                // on the Today screen, which is where it read as a task
+                // nobody could finish (federfall-78k6.4).
+                if (quietDays != null)
+                  Text(
+                    l10n.caseStaleDays(quietDays),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
               ],
             ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.go(AppRoutes.caseDetail(medicalCase.id)),
     );
+  }
+
+  /// Whole days since anything happened on this case, once that passes
+  /// [caseQuietAfter] — else null, and the row says nothing.
+  ///
+  /// Only for a case still in progress: a disposed case is meant to be quiet,
+  /// and marking every closed row would say nothing about any of them.
+  int? get _quietDays {
+    if (medicalCase.status == CaseStatus.disposed) return null;
+    final last = lastActivity;
+    if (last == null) return null;
+    final days = DateTime.now().difference(last);
+    return days < caseQuietAfter ? null : days.inDays;
   }
 
   /// A diagnosis's display label: its code-list entry's, else its free text,

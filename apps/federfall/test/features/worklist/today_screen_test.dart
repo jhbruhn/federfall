@@ -43,16 +43,16 @@ void main() {
         drug: 'Meloxicam',
       ),
       WorklistItem(
-        kind: WorklistKind.staleCase,
+        kind: WorklistKind.quarantineEnding,
         caseId: 'c2',
         caseNumber: '2026-002',
-        dueAt: _now.subtract(const Duration(days: 9)),
-        severity: WorklistSeverity.overdue,
+        dueAt: _now,
+        severity: WorklistSeverity.upcoming,
       ),
     ]);
 
     expect(find.text('Medications due'), findsOneWidget);
-    expect(find.text('Inactive cases'), findsOneWidget);
+    expect(find.text('Quarantine ending'), findsOneWidget);
     // Title combines case number and animal name.
     expect(find.text('2026-001 · Flora'), findsOneWidget);
     expect(find.text('2026-002'), findsOneWidget);
@@ -124,11 +124,11 @@ void main() {
 
     await _pump(tester, [
       WorklistItem(
-        kind: WorklistKind.staleCase,
+        kind: WorklistKind.quarantineEnding,
         caseId: 'c1',
         caseNumber: '2026-001',
-        dueAt: _now.subtract(const Duration(days: 9)),
-        severity: WorklistSeverity.overdue,
+        dueAt: _now,
+        severity: WorklistSeverity.upcoming,
       ),
     ]);
 

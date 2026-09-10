@@ -42,6 +42,7 @@ Future<List<CaseQuery>> _pump(
   List<Case> Function(CaseQuery query)? rowsFor,
   Map<String, Animal> animalsById = const {},
   Map<String, List<CaseCondition>> diagnosesByCase = const {},
+  Map<String, DateTime> lastActivityByCase = const {},
   List<Condition> codes = const [],
   List<AdmissionReason> reasons = const [],
   AppUser? user,
@@ -71,6 +72,7 @@ Future<List<CaseQuery>> _pump(
             cases: cases,
             animalsById: animalsById,
             diagnosesByCase: diagnosesByCase,
+            lastActivityByCase: lastActivityByCase,
             rowsFor: rowsFor,
             onQuery: asked.add,
             hasMore: hasMore,
@@ -416,6 +418,77 @@ void main() {
 
     expect(asked.last.condition, 'Katzenbiss');
     expect(asked.last.outcome, DispositionType.released);
+  });
+
+  group('quiet marker (federfall-78k6.4)', () {
+    const bird = Case(
+      id: 'c1',
+      animal: 'a1',
+      caseNumber: '2026-001',
+      status: CaseStatus.inCare,
+    );
+    const pigeon = Animal(id: 'a1', species: 'Columba livia', name: 'Bruno');
+
+    testWidgets('a case nobody has touched for a fortnight says so', (
+      tester,
+    ) async {
+      // It used to be a row in an "Inactive cases" section on Today, which is
+      // where it read as a task nobody could finish. Here it is a note on the
+      // case it is about.
+      await _pump(
+        tester,
+        cases: const [bird],
+        animalsById: const {'a1': pigeon},
+        lastActivityByCase: {
+          'c1': DateTime.now().subtract(const Duration(days: 14)),
+        },
+      );
+      expect(find.text('No activity for 14 days'), findsOneWidget);
+    });
+
+    testWidgets('a case touched this week says nothing', (tester) async {
+      await _pump(
+        tester,
+        cases: const [bird],
+        animalsById: const {'a1': pigeon},
+        lastActivityByCase: {
+          'c1': DateTime.now().subtract(const Duration(days: 2)),
+        },
+      );
+      expect(find.textContaining('No activity'), findsNothing);
+    });
+
+    testWidgets('a disposed case is meant to be quiet', (tester) async {
+      // Marking every closed row would say nothing about any of them.
+      await _pump(
+        tester,
+        cases: const [
+          Case(
+            id: 'c2',
+            animal: 'a1',
+            caseNumber: '2026-002',
+            status: CaseStatus.disposed,
+          ),
+        ],
+        animalsById: const {'a1': pigeon},
+        initialQuery: const CaseQuery(activity: CaseActivity.all),
+        lastActivityByCase: {
+          'c2': DateTime.now().subtract(const Duration(days: 90)),
+        },
+      );
+      expect(find.textContaining('No activity'), findsNothing);
+    });
+
+    testWidgets('an unknown last activity says nothing either', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        cases: const [bird],
+        animalsById: const {'a1': pigeon},
+      );
+      expect(find.textContaining('No activity'), findsNothing);
+    });
   });
 
   group('row subtitle (federfall-78k6.5)', () {

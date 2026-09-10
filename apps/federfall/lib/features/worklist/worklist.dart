@@ -2,22 +2,24 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 
 /// The kinds of derived task surfaced on the worklist (UX Phase D, cr3.1).
+///
+/// Every kind here has a due moment and a verb. That is the whole rule, and it
+/// is what a carer meant by asking for tasks that can be finished in one tap
+/// (federfall-78k6.3).
+///
+/// There used to be a `staleCase` kind — an active case nobody had touched for
+/// a week. It was already half-demoted behind an `isDue` flag so it would not
+/// inflate the due count (federfall-9m9n), which was the tell: a thing that
+/// has to be excluded from the count of tasks is not a task. Nothing on the
+/// row could clear it either, short of opening the case and writing something,
+/// so a bird that was simply doing fine accused its carer every morning
+/// (federfall-78k6.4). Staleness is a property of the caseload, and it now
+/// lives on the case list, where the cases are.
 enum WorklistKind {
   medicationDue,
   vetAppointment,
   followUpDue,
   quarantineEnding,
-  staleCase;
-
-  /// Whether this kind is something somebody has to *do*, as opposed to a
-  /// case merely worth a look.
-  ///
-  /// A stale case is a nudge: nothing was scheduled and nothing is overdue,
-  /// the case has just been quiet. Counting it as a due task is how a carer
-  /// with one overdue dose came to read "5 tasks due" (federfall-9m9n) — so
-  /// the distinction lives here, on the kind, rather than being re-derived by
-  /// each screen that needs it.
-  bool get isDue => this != WorklistKind.staleCase;
 }
 
 /// Whether an item is already past its due moment or merely approaching it.
@@ -167,30 +169,23 @@ const followUpDueWindow = Duration(days: 7);
 /// differently for no structural reason would be the surprise.
 const vetAppointmentWindow = Duration(days: 7);
 
-/// How long an active case may go untouched before it counts as "stale".
-const staleThreshold = Duration(days: 7);
-
 /// Builds the carer's worklist from cases they are responsible for plus the
 /// medications/doses on those cases, as of [now]. Pure and PocketBase-free so
 /// it can be unit-tested directly.
 ///
 /// [cases] should already be scoped to the relevant set (the provider passes
-/// the carer's own active cases). [lastActivityByCase] maps a case id to the
-/// newest activity on it (from the case_activity view); a case missing from the
-/// map is never flagged stale. Items are returned soonest-due first.
+/// the carer's own active cases). Items are returned soonest-due first.
 List<WorklistItem> buildWorklist({
   required List<Case> cases,
   required List<MedicationDue> medicationsDue,
   required DateTime now,
   List<FollowUp> followUps = const [],
   List<VetAppointment> appointments = const [],
-  Map<String, DateTime?> lastActivityByCase = const {},
   Map<String, DateTime?> quarantineUntilByCase = const {},
   Map<String, String?> animalNameById = const {},
   Duration medicationWindow = medicationDueWindow,
   Duration followUpWindow = followUpDueWindow,
   Duration appointmentWindow = vetAppointmentWindow,
-  Duration staleAfter = staleThreshold,
 }) {
   final items = <WorklistItem>[];
   final casesById = {for (final c in cases) c.id: c};
@@ -306,23 +301,6 @@ List<WorklistItem> buildWorklist({
         caseNumber: c.caseNumber,
         animalName: animalNameById[c.animal],
         appointment: a,
-      ),
-    );
-  }
-
-  // Active cases untouched for longer than the threshold.
-  final staleBefore = now.subtract(staleAfter);
-  for (final c in cases) {
-    final last = lastActivityByCase[c.id];
-    if (last == null || !last.isBefore(staleBefore)) continue;
-    items.add(
-      WorklistItem(
-        kind: WorklistKind.staleCase,
-        caseId: c.id,
-        dueAt: last,
-        severity: WorklistSeverity.overdue,
-        caseNumber: c.caseNumber,
-        animalName: animalNameById[c.animal],
       ),
     );
   }

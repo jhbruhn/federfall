@@ -30,7 +30,6 @@ class TodayScreen extends ConsumerStatefulWidget {
     WorklistKind.vetAppointment,
     WorklistKind.followUpDue,
     WorklistKind.quarantineEnding,
-    WorklistKind.staleCase,
   ];
 
   @override

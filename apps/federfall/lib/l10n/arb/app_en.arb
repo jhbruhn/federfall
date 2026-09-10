@@ -412,11 +412,6 @@
       "description": "Subtitle on the dashboard Today card: how many worklist items are due",
       "placeholders": { "count": { "type": "int" } }
     },
-    "worklistQuietCount": "{count, plural, =1{1 case quiet} other{{count} cases quiet}}",
-    "@worklistQuietCount": {
-      "description": "Subtitle on the dashboard Today card: how many worklist items are inactivity notices rather than due tasks",
-      "placeholders": { "count": { "type": "int" } }
-    },
     "worklistGroupMeds": "Medications due",
     "@worklistGroupMeds": { "description": "Worklist group heading for due medications" },
     "worklistGroupAppointments": "Vet appointments",
@@ -427,8 +422,6 @@
     "@worklistGroupQuarantine": { "description": "Worklist group heading for ending quarantines" },
     "worklistQuarantineEndsToday": "Ends today",
     "@worklistQuarantineEndsToday": { "description": "Worklist detail line for a quarantine ending today" },
-    "worklistGroupStale": "Inactive cases",
-    "@worklistGroupStale": { "description": "Worklist group heading for cases without recent activity" },
     "worklistUnnumberedCase": "Unnumbered case",
     "@worklistUnnumberedCase": { "description": "Row title fallback when a case has no case number" },
     "worklistOverdueHours": "{hours, plural, one{Overdue by 1 h} other{Overdue by {hours} h}}",
@@ -529,9 +522,9 @@
         "description": "Relative due time a day or more out",
         "placeholders": { "days": { "type": "int" } }
     },
-    "worklistStaleDays": "{days, plural, one{No activity for 1 day} other{No activity for {days} days}}",
-    "@worklistStaleDays": {
-        "description": "How long a stale case has gone untouched",
+    "caseStaleDays": "{days, plural, one{No activity for 1 day} other{No activity for {days} days}}",
+    "@caseStaleDays": {
+        "description": "How long a case has gone untouched, on its row in the case browser",
         "placeholders": { "days": { "type": "int" } }
     },
     "animalsTitle": "Animals",

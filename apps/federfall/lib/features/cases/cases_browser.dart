@@ -34,6 +34,13 @@ Map<String, Disposition> terminalDispositionByCase(
 /// deliberately omitted for now.)
 enum CaseActivity { active, closed, all }
 
+/// How long an active case may go untouched before its row says so.
+///
+/// It was `staleThreshold` in the pure worklist layer, where it drove a task
+/// nobody could complete. Here it only decides whether a row carries a quiet
+/// line, so being wrong by a day costs nothing (federfall-78k6.4).
+const caseQuietAfter = Duration(days: 7);
+
 /// The current filter/search state of the all-cases browser (FED-7.4). Plain
 /// value object held as widget state; [CaseBrowseFeed] resolves it against the
 /// server.
@@ -278,6 +285,7 @@ class CaseBrowseState {
     this.cases = const [],
     this.animalsById = const {},
     this.diagnosesByCase = const {},
+    this.lastActivityByCase = const {},
     this.cursor,
     this.hasMore = false,
     this.loadingMore = false,
@@ -296,6 +304,10 @@ class CaseBrowseState {
   /// The diagnoses still in force on each loaded case, in recorded order — the
   /// row's subtitle (federfall-78k6.5). A case with none is simply absent.
   final Map<String, List<CaseCondition>> diagnosesByCase;
+
+  /// When anything last happened on each loaded case (`case_activity`), for
+  /// the row's quiet-for-N-days marker (federfall-78k6.4).
+  final Map<String, DateTime> lastActivityByCase;
 
   /// Where the next page resumes from — see [PbReadOnlyRepository.page] on why
   /// this is a cursor and not a page number.
@@ -319,6 +331,7 @@ typedef _CasePage = ({
   List<Case> cases,
   Map<String, Animal> animalsById,
   Map<String, List<CaseCondition>> diagnosesByCase,
+  Map<String, DateTime> lastActivityByCase,
   PbCursor? cursor,
   bool hasMore,
 });
@@ -352,15 +365,17 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
 
     if (query.matchesNothing) return CaseBrowseState(browse: browse);
 
-    final (casesRepo, animalsRepo, conditionsRepo) = await (
+    final (casesRepo, animalsRepo, conditionsRepo, activityRepo) = await (
       ref.watch(casesRepositoryProvider.future),
       ref.watch(animalsRepositoryProvider.future),
       ref.watch(caseConditionsRepositoryProvider.future),
+      ref.watch(caseActivityRepositoryProvider.future),
     ).waitUnwrapped;
     final loaded = await _load(
       casesRepo,
       animalsRepo,
       conditionsRepo,
+      activityRepo,
       browse,
       after: null,
     );
@@ -369,6 +384,7 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
       cases: loaded.cases,
       animalsById: loaded.animalsById,
       diagnosesByCase: loaded.diagnosesByCase,
+      lastActivityByCase: loaded.lastActivityByCase,
       cursor: loaded.cursor,
       hasMore: loaded.hasMore,
     );
@@ -402,21 +418,24 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
         cases: current.cases,
         animalsById: current.animalsById,
         diagnosesByCase: current.diagnosesByCase,
+        lastActivityByCase: current.lastActivityByCase,
         cursor: current.cursor,
         hasMore: current.hasMore,
         loadingMore: true,
       ),
     );
     try {
-      final (casesRepo, animalsRepo, conditionsRepo) = await (
+      final (casesRepo, animalsRepo, conditionsRepo, activityRepo) = await (
         ref.read(casesRepositoryProvider.future),
         ref.read(animalsRepositoryProvider.future),
         ref.read(caseConditionsRepositoryProvider.future),
+        ref.read(caseActivityRepositoryProvider.future),
       ).waitUnwrapped;
       final next = await _load(
         casesRepo,
         animalsRepo,
         conditionsRepo,
+        activityRepo,
         current.browse,
         after: current.cursor,
       );
@@ -428,6 +447,10 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
           diagnosesByCase: {
             ...current.diagnosesByCase,
             ...next.diagnosesByCase,
+          },
+          lastActivityByCase: {
+            ...current.lastActivityByCase,
+            ...next.lastActivityByCase,
           },
           cursor: next.cursor,
           hasMore: next.hasMore,
@@ -443,6 +466,7 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
           cases: current.cases,
           animalsById: current.animalsById,
           diagnosesByCase: current.diagnosesByCase,
+          lastActivityByCase: current.lastActivityByCase,
           cursor: current.cursor,
           hasMore: current.hasMore,
           pageError: error,
@@ -459,7 +483,8 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
   /// the same shape the intake map uses. The diagnoses are a third, for the
   /// same reason and one more: a back-relation expand is capped per row
   /// (`pbExpandListCap`), so a case with many diagnoses would silently show a
-  /// truncated set. Both are issued together — neither depends on the other —
+  /// truncated set. Last activity is a fourth, for the quiet marker
+  /// (federfall-78k6.4). All are issued together — none depends on another —
   /// and only over the page's own ids, never the collection.
   ///
   /// "One page" means one *server* page, except under the outcome facet, where
@@ -475,6 +500,7 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
     CasesRepository casesRepo,
     PbAnimalsRepository animalsRepo,
     PbCaseConditionsRepository conditionsRepo,
+    PbCaseLastActivityRepository activityRepo,
     CaseBrowseQuery browse, {
     required PbCursor? after,
   }) async {
@@ -501,7 +527,7 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
     } while (cases.isEmpty && hasMore && pages < maxPages);
 
     final caseIds = [for (final c in cases) c.id];
-    final (animals, diagnoses) = await (
+    final (animals, diagnoses, activity) = await (
       animalsRepo.byIds(
         cases.map((c) => c.animal).where((id) => id.isNotEmpty),
         // `species` is no longer drawn on a row, but the animal still carries
@@ -510,12 +536,16 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
         fields: 'id,species,name,photo',
       ),
       _diagnosesFor(conditionsRepo, caseIds),
+      activityRepo.byCases(caseIds),
     ).waitUnwrapped;
 
     return (
       cases: cases,
       animalsById: {for (final a in animals) a.id: a},
       diagnosesByCase: diagnoses,
+      lastActivityByCase: {
+        for (final a in activity) a.id: ?a.lastActivity,
+      },
       cursor: cursor,
       hasMore: hasMore,
     );
@@ -572,6 +602,7 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
           cases: latest.cases,
           animalsById: latest.animalsById,
           diagnosesByCase: diagnoses,
+          lastActivityByCase: latest.lastActivityByCase,
           cursor: latest.cursor,
           hasMore: latest.hasMore,
           pageError: latest.pageError,

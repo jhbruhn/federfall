@@ -17,7 +17,7 @@ part 'worklist_providers.g.dart';
 /// Scope is the carer's own active cases (`active_carer == me`, not disposed).
 /// Each source is one query — medications-due via the `medication_due` view
 /// (next-due computed server-side), open rechecks and animals via single
-/// filtered lists, last-activity via the `case_activity` view — all issued
+/// filtered lists — all issued
 /// concurrently and folded into the pure [buildWorklist]. Returns an empty list
 /// when signed out.
 /// The base collections feeding the worklist, for live-sync. The
@@ -77,7 +77,6 @@ class WorklistSource {
     this.medicationsDue = const [],
     this.followUps = const [],
     this.appointments = const [],
-    this.lastActivityByCase = const {},
     this.quarantineUntilByCase = const {},
     this.animalNameById = const {},
   });
@@ -90,7 +89,6 @@ class WorklistSource {
   /// Unresolved vet appointments on those cases — including ones beyond the
   /// worklist's own window, which the reminder planner still needs.
   final List<VetAppointment> appointments;
-  final Map<String, DateTime?> lastActivityByCase;
   final Map<String, DateTime?> quarantineUntilByCase;
   final Map<String, String?> animalNameById;
 }
@@ -107,23 +105,28 @@ Future<WorklistSource> worklistSource(Ref ref) async {
   if (me == null) return const WorklistSource();
 
   // Repositories all share the resolved client; resolve them together.
+  //
+  // Five and then one, not six: zugvogel_core defines `waitUnwrapped` per
+  // arity and has no six-tuple overload. These are provider reads of a client
+  // that is already resolved, so the extra hop costs nothing — this used to be
+  // a seven-tuple, and the seventh was the `case_activity` read that went with
+  // the stale-case kind (federfall-78k6.4).
   final (
     casesRepo,
     medDueRepo,
-    activityRepo,
     animalsRepo,
     followUpsRepo,
     quarantineRepo,
-    appointmentsRepo,
   ) = await (
     ref.watch(casesRepositoryProvider.future),
     ref.watch(medicationDueRepositoryProvider.future),
-    ref.watch(caseActivityRepositoryProvider.future),
     ref.watch(animalsRepositoryProvider.future),
     ref.watch(followUpsRepositoryProvider.future),
     ref.watch(caseQuarantineRepositoryProvider.future),
-    ref.watch(vetAppointmentsRepositoryProvider.future),
   ).waitUnwrapped;
+  final appointmentsRepo = await ref.watch(
+    vetAppointmentsRepositoryProvider.future,
+  );
 
   // Asked of the server, not filtered on the device (federfall-trep): this
   // used to read EVERY case the caller may see — org-wide for a coordinator —
@@ -149,10 +152,9 @@ Future<WorklistSource> worklistSource(Ref ref) async {
   // `waitUnwrapped` rather than `.wait`, which would report a dropped
   // connection as a ParallelWaitError the UI cannot recognise as one
   // (federfall-s5mm).
-  final (medicationsDue, followUps, activity, animals, quarantine) = await (
+  final (medicationsDue, followUps, animals, quarantine) = await (
     medDueRepo.mine(me),
     followUpsRepo.openForCarer(me),
-    activityRepo.all(),
     animalsRepo.byIds(animalIds),
     quarantineRepo.all(),
   ).waitUnwrapped;
@@ -182,7 +184,6 @@ Future<WorklistSource> worklistSource(Ref ref) async {
     medicationsDue: medicationsDue,
     followUps: followUps,
     appointments: appointments,
-    lastActivityByCase: {for (final a in activity) a.id: a.lastActivity},
     quarantineUntilByCase: {for (final q in quarantine) q.id: q.until},
     animalNameById: {for (final a in animals) a.id: a.name},
   );
@@ -196,7 +197,6 @@ Future<List<WorklistItem>> worklist(Ref ref) async {
     medicationsDue: source.medicationsDue,
     followUps: source.followUps,
     appointments: source.appointments,
-    lastActivityByCase: source.lastActivityByCase,
     quarantineUntilByCase: source.quarantineUntilByCase,
     animalNameById: source.animalNameById,
     now: DateTime.now(),

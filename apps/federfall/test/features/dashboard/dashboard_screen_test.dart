@@ -263,7 +263,7 @@ void main() {
     });
   });
 
-  group('Today headline counts obligations (federfall-9m9n)', () {
+  group('Today headline (federfall-9m9n, federfall-78k6.4)', () {
     const summary = DashboardSummary(
       activeCount: 4,
       intakesThisYear: 7,
@@ -273,7 +273,6 @@ void main() {
     WorklistItem med(String id) => WorklistItem(
       kind: WorklistKind.medicationDue,
       caseId: id,
-      // Later than the stale items below, so a plain date sort would bury it.
       dueAt: DateTime(2026, 6, 23, 9),
       severity: WorklistSeverity.overdue,
       caseNumber: id,
@@ -281,51 +280,26 @@ void main() {
       drug: 'Metacam',
     );
 
-    WorklistItem stale(String id) => WorklistItem(
-      kind: WorklistKind.staleCase,
-      caseId: id,
-      dueAt: DateTime(2026, 5, 15),
-      severity: WorklistSeverity.overdue,
-      caseNumber: id,
-      animalName: 'Bruno',
-    );
+    // This group used to guard a split: quiet cases were counted and ordered
+    // apart from due tasks, because summing the list said "5 tasks due" when
+    // one dose was owed behind four staleness notices, and because a case
+    // quiet for 39 days carried a `dueAt` 39 days old and sorted above this
+    // afternoon's dose. Both were containment for a kind that no longer
+    // exists — a stale case is not on the worklist at all now
+    // (federfall-78k6.4) — so what is left to pin is that the headline counts
+    // the list and the date order is the whole order.
+    testWidgets('the headline counts every item, because each is owed', (
+      tester,
+    ) async {
+      await _pump(tester, summary, worklist: [med('c1'), med('c2')]);
 
-    // The reported shape: one overdue dose behind four staleness notices.
-    List<WorklistItem> oneDoseFourQuiet() => [
-      stale('c1'),
-      stale('c2'),
-      stale('c3'),
-      stale('c4'),
-      med('c5'),
-    ];
-
-    testWidgets('a quiet case is not a task due', (tester) async {
-      await _pump(tester, summary, worklist: oneDoseFourQuiet());
-
-      // One dose is owed; four cases have merely been quiet. Summing the
-      // list said "5 tasks due" and a carer read five obligations.
-      expect(find.text('1 task due · 4 cases quiet'), findsOneWidget);
-      expect(find.text('5 tasks due'), findsNothing);
+      expect(find.text('2 tasks due'), findsOneWidget);
+      expect(find.textContaining('quiet'), findsNothing);
     });
 
-    testWidgets('nothing owed reads as quiet, not as due', (tester) async {
-      await _pump(tester, summary, worklist: [stale('c1'), stale('c2')]);
-
-      expect(find.text('2 cases quiet'), findsOneWidget);
-      expect(find.textContaining('due'), findsNothing);
-    });
-
-    testWidgets('the preview leads with what is owed', (tester) async {
-      await _pump(tester, summary, worklist: oneDoseFourQuiet());
-
-      // The worklist is sorted soonest-`dueAt` first and a long-quiet case
-      // carries an old one, so the dose sorted behind all four — and the
-      // preview shows only four rows, so the one real task fell off it
-      // entirely. It leads now, and a quiet case is what gets cut.
-      final dose = tester.getRect(find.textContaining('Metacam'));
-      final firstQuiet = tester.getRect(find.textContaining('Bruno').first);
-      expect(dose.top, lessThan(firstQuiet.top));
-      expect(find.textContaining('Bruno'), findsNWidgets(3));
+    testWidgets('one item reads in the singular', (tester) async {
+      await _pump(tester, summary, worklist: [med('c1')]);
+      expect(find.text('1 task due'), findsOneWidget);
     });
   });
 

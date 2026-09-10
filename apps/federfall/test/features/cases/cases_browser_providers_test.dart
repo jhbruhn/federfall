@@ -16,6 +16,9 @@ class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
 class MockCaseConditionsRepo extends Mock
     implements PbCaseConditionsRepository {}
 
+class MockCaseActivityRepo extends Mock
+    implements PbCaseLastActivityRepository {}
+
 Case _case(String id, {String animal = 'a1'}) => Case(id: id, animal: animal);
 
 void main() {
@@ -23,6 +26,7 @@ void main() {
   late MockAnimalsRepo animals;
   late MockDispositionsRepo dispositions;
   late MockCaseConditionsRepo conditions;
+  late MockCaseActivityRepo activity;
 
   setUpAll(() => registerFallbackValue(const CaseBrowseQuery()));
 
@@ -31,6 +35,8 @@ void main() {
     animals = MockAnimalsRepo();
     dispositions = MockDispositionsRepo();
     conditions = MockCaseConditionsRepo();
+    activity = MockCaseActivityRepo();
+    when(() => activity.byCases(any())).thenAnswer((_) async => const []);
     when(
       () => animals.byIds(any(), fields: any(named: 'fields')),
     ).thenAnswer((_) async => const []);
@@ -68,6 +74,7 @@ void main() {
         caseConditionsRepositoryProvider.overrideWith(
           (ref) async => conditions,
         ),
+        caseActivityRepositoryProvider.overrideWith((ref) async => activity),
         currentUserProvider.overrideWith((ref) async => null),
       ],
     );

@@ -17,6 +17,7 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
     this.cases = const [],
     this.animalsById = const {},
     this.diagnosesByCase = const {},
+    this.lastActivityByCase = const {},
     this.rowsFor,
     this.onQuery,
     this.hasMore = false,
@@ -29,6 +30,10 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
   /// The unresolved diagnoses each row draws (federfall-78k6.5), keyed by
   /// case id.
   final Map<String, List<CaseCondition>> diagnosesByCase;
+
+  /// When anything last happened on each case — the row's quiet marker
+  /// (federfall-78k6.4).
+  final Map<String, DateTime> lastActivityByCase;
 
   /// Stands in for the server's answer to a particular query, for the handful
   /// of behaviours that genuinely turn on the result changing with the filter
@@ -57,6 +62,7 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
       cases: rowsFor?.call(query) ?? cases,
       animalsById: animalsById,
       diagnosesByCase: diagnosesByCase,
+      lastActivityByCase: lastActivityByCase,
       hasMore: hasMore,
     );
   }

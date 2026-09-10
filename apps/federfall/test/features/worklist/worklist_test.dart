@@ -150,10 +150,10 @@ void main() {
       final groups = groupMedicationDuesByDrug([
         item('Baytril', 1),
         WorklistItem(
-          kind: WorklistKind.staleCase,
+          kind: WorklistKind.quarantineEnding,
           caseId: 'c9',
           dueAt: _now,
-          severity: WorklistSeverity.overdue,
+          severity: WorklistSeverity.upcoming,
         ),
       ]);
 
@@ -379,38 +379,15 @@ void main() {
     });
   });
 
-  group('buildWorklist — stale cases', () {
-    test('a case untouched past the threshold is flagged stale', () {
-      final last = _now.subtract(const Duration(days: 10));
-      final items = buildWorklist(
-        cases: [_case('c1')],
-        medicationsDue: const [],
-        lastActivityByCase: {'c1': last},
-        now: _now,
-      );
-      expect(items.single.kind, WorklistKind.staleCase);
-      expect(items.single.severity, WorklistSeverity.overdue);
-      expect(items.single.dueAt, last);
-    });
-
-    test('a recently-touched case is not stale', () {
-      final items = buildWorklist(
-        cases: [_case('c1')],
-        medicationsDue: const [],
-        lastActivityByCase: {'c1': _now.subtract(const Duration(days: 2))},
-        now: _now,
-      );
-      expect(items, isEmpty);
-    });
-
-    test('a case absent from the activity map is never stale', () {
-      final items = buildWorklist(
-        cases: [_case('c1')],
-        medicationsDue: const [],
-        now: _now,
-      );
-      expect(items, isEmpty);
-    });
+  test('an untouched case is no longer a worklist item at all', () {
+    // It used to be a `staleCase` row nobody could clear (federfall-78k6.4).
+    // Staleness is a property of the caseload and now lives on the case list.
+    final items = buildWorklist(
+      cases: [_case('c1')],
+      medicationsDue: const [],
+      now: _now,
+    );
+    expect(items, isEmpty);
   });
 
   test('items are sorted soonest-due first', () {
