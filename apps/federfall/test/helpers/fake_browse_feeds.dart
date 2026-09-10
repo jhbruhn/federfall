@@ -16,6 +16,7 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
   FakeCaseBrowseFeed({
     this.cases = const [],
     this.animalsById = const {},
+    this.diagnosesByCase = const {},
     this.rowsFor,
     this.onQuery,
     this.hasMore = false,
@@ -24,6 +25,10 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
 
   final List<Case> cases;
   final Map<String, Animal> animalsById;
+
+  /// The unresolved diagnoses each row draws (federfall-78k6.5), keyed by
+  /// case id.
+  final Map<String, List<CaseCondition>> diagnosesByCase;
 
   /// Stands in for the server's answer to a particular query, for the handful
   /// of behaviours that genuinely turn on the result changing with the filter
@@ -51,6 +56,7 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
       browse: query.toBrowseQuery('me'),
       cases: rowsFor?.call(query) ?? cases,
       animalsById: animalsById,
+      diagnosesByCase: diagnosesByCase,
       hasMore: hasMore,
     );
   }

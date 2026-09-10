@@ -13,12 +13,16 @@ class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
 class MockDispositionsRepo extends Mock implements PbDispositionsRepository {}
 
+class MockCaseConditionsRepo extends Mock
+    implements PbCaseConditionsRepository {}
+
 Case _case(String id, {String animal = 'a1'}) => Case(id: id, animal: animal);
 
 void main() {
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
   late MockDispositionsRepo dispositions;
+  late MockCaseConditionsRepo conditions;
 
   setUpAll(() => registerFallbackValue(const CaseBrowseQuery()));
 
@@ -26,8 +30,16 @@ void main() {
     cases = MockCasesRepo();
     animals = MockAnimalsRepo();
     dispositions = MockDispositionsRepo();
+    conditions = MockCaseConditionsRepo();
     when(
       () => animals.byIds(any(), fields: any(named: 'fields')),
+    ).thenAnswer((_) async => const []);
+    when(
+      () => conditions.byCases(
+        any(),
+        fields: any(named: 'fields'),
+        openOnly: any(named: 'openOnly'),
+      ),
     ).thenAnswer((_) async => const []);
   });
 
@@ -53,12 +65,56 @@ void main() {
         dispositionsRepositoryProvider.overrideWith(
           (ref) async => dispositions,
         ),
+        caseConditionsRepositoryProvider.overrideWith(
+          (ref) async => conditions,
+        ),
         currentUserProvider.overrideWith((ref) async => null),
       ],
     );
     addTearDown(container.dispose);
     return container;
   }
+
+  test('a page fetches its own diagnoses, narrowed server-side', () async {
+    // federfall-trep's rule on this screen: the device receives the rows it is
+    // about to draw. Unresolved only, and over the page's own case ids — never
+    // the collection, and never narrowed here.
+    stubBrowse(() => PbPage(items: [_case('c1'), _case('c2')]));
+    when(
+      () => conditions.byCases(
+        any(),
+        fields: any(named: 'fields'),
+        openOnly: any(named: 'openOnly'),
+      ),
+    ).thenAnswer(
+      (_) async => const [
+        CaseCondition(id: 'x1', caseId: 'c1', freeText: 'Cat bite'),
+        CaseCondition(id: 'x2', caseId: 'c1', freeText: 'Fracture'),
+        CaseCondition(id: 'x3', caseId: 'c2', freeText: 'Lead'),
+      ],
+    );
+
+    final state = await makeContainer().read(
+      caseBrowseFeedProvider(const CaseQuery()).future,
+    );
+
+    // Grouped by case, and a case with none is simply absent.
+    expect(state.diagnosesByCase['c1']?.map((d) => d.freeText), [
+      'Cat bite',
+      'Fracture',
+    ]);
+    expect(state.diagnosesByCase['c2']?.map((d) => d.freeText), ['Lead']);
+
+    final asked = verify(
+      () => conditions.byCases(
+        captureAny(),
+        fields: any(named: 'fields'),
+        openOnly: captureAny(named: 'openOnly'),
+      ),
+    ).captured;
+    expect((asked[0] as Iterable<String>).toList(), ['c1', 'c2']);
+    expect(asked[1], isTrue);
+  });
 
   test('a dropped connection surfaces as itself, not wrapped', () {
     // federfall-s5mm, end to end on the busiest screen in the app. Gathered

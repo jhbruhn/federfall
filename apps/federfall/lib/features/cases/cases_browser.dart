@@ -277,6 +277,7 @@ class CaseBrowseState {
     required this.browse,
     this.cases = const [],
     this.animalsById = const {},
+    this.diagnosesByCase = const {},
     this.cursor,
     this.hasMore = false,
     this.loadingMore = false,
@@ -291,6 +292,10 @@ class CaseBrowseState {
 
   /// Only the animals of the loaded cases, projected to what a row shows.
   final Map<String, Animal> animalsById;
+
+  /// The diagnoses still in force on each loaded case, in recorded order — the
+  /// row's subtitle (federfall-78k6.5). A case with none is simply absent.
+  final Map<String, List<CaseCondition>> diagnosesByCase;
 
   /// Where the next page resumes from — see [PbReadOnlyRepository.page] on why
   /// this is a cursor and not a page number.
@@ -313,6 +318,7 @@ class CaseBrowseState {
 typedef _CasePage = ({
   List<Case> cases,
   Map<String, Animal> animalsById,
+  Map<String, List<CaseCondition>> diagnosesByCase,
   PbCursor? cursor,
   bool hasMore,
 });
@@ -346,15 +352,23 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
 
     if (query.matchesNothing) return CaseBrowseState(browse: browse);
 
-    final (casesRepo, animalsRepo) = await (
+    final (casesRepo, animalsRepo, conditionsRepo) = await (
       ref.watch(casesRepositoryProvider.future),
       ref.watch(animalsRepositoryProvider.future),
+      ref.watch(caseConditionsRepositoryProvider.future),
     ).waitUnwrapped;
-    final loaded = await _load(casesRepo, animalsRepo, browse, after: null);
+    final loaded = await _load(
+      casesRepo,
+      animalsRepo,
+      conditionsRepo,
+      browse,
+      after: null,
+    );
     return CaseBrowseState(
       browse: browse,
       cases: loaded.cases,
       animalsById: loaded.animalsById,
+      diagnosesByCase: loaded.diagnosesByCase,
       cursor: loaded.cursor,
       hasMore: loaded.hasMore,
     );
@@ -387,19 +401,22 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
         browse: current.browse,
         cases: current.cases,
         animalsById: current.animalsById,
+        diagnosesByCase: current.diagnosesByCase,
         cursor: current.cursor,
         hasMore: current.hasMore,
         loadingMore: true,
       ),
     );
     try {
-      final (casesRepo, animalsRepo) = await (
+      final (casesRepo, animalsRepo, conditionsRepo) = await (
         ref.read(casesRepositoryProvider.future),
         ref.read(animalsRepositoryProvider.future),
+        ref.read(caseConditionsRepositoryProvider.future),
       ).waitUnwrapped;
       final next = await _load(
         casesRepo,
         animalsRepo,
+        conditionsRepo,
         current.browse,
         after: current.cursor,
       );
@@ -408,6 +425,10 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
           browse: current.browse,
           cases: [...current.cases, ...next.cases],
           animalsById: {...current.animalsById, ...next.animalsById},
+          diagnosesByCase: {
+            ...current.diagnosesByCase,
+            ...next.diagnosesByCase,
+          },
           cursor: next.cursor,
           hasMore: next.hasMore,
         ),
@@ -421,6 +442,7 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
           browse: current.browse,
           cases: current.cases,
           animalsById: current.animalsById,
+          diagnosesByCase: current.diagnosesByCase,
           cursor: current.cursor,
           hasMore: current.hasMore,
           pageError: error,
@@ -429,11 +451,16 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
     }
   }
 
-  /// One page: the cases, then the animals they name.
+  /// One page: the cases, then the animals they name and the diagnoses they
+  /// carry.
   ///
   /// The animals are a second request rather than a relation expand because
   /// only two of their columns are ever drawn; `byIds` with a projection is
-  /// the same shape the intake map uses.
+  /// the same shape the intake map uses. The diagnoses are a third, for the
+  /// same reason and one more: a back-relation expand is capped per row
+  /// (`pbExpandListCap`), so a case with many diagnoses would silently show a
+  /// truncated set. Both are issued together — neither depends on the other —
+  /// and only over the page's own ids, never the collection.
   ///
   /// "One page" means one *server* page, except under the outcome facet, where
   /// [_refineToTerminalOutcome] can leave nothing of it (federfall-etd7): a
@@ -447,6 +474,7 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
   Future<_CasePage> _load(
     CasesRepository casesRepo,
     PbAnimalsRepository animalsRepo,
+    PbCaseConditionsRepository conditionsRepo,
     CaseBrowseQuery browse, {
     required PbCursor? after,
   }) async {
@@ -472,13 +500,30 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
       );
     } while (cases.isEmpty && hasMore && pages < maxPages);
 
-    final animals = await animalsRepo.byIds(
-      cases.map((c) => c.animal).where((id) => id.isNotEmpty),
-      fields: 'id,species,name,photo',
-    );
+    final caseIds = [for (final c in cases) c.id];
+    final (animals, diagnoses) = await (
+      animalsRepo.byIds(
+        cases.map((c) => c.animal).where((id) => id.isNotEmpty),
+        // `species` is no longer drawn on a row, but the animal still carries
+        // the row's title when the case is unnumbered and an unnamed bird
+        // falls back to it.
+        fields: 'id,species,name,photo',
+      ),
+      conditionsRepo.byCases(
+        caseIds,
+        fields: 'id,case,condition,free_text',
+        openOnly: true,
+      ),
+    ).waitUnwrapped;
+
+    final byCase = <String, List<CaseCondition>>{};
+    for (final d in diagnoses) {
+      (byCase[d.caseId] ??= []).add(d);
+    }
     return (
       cases: cases,
       animalsById: {for (final a in animals) a.id: a},
+      diagnosesByCase: byCase,
       cursor: cursor,
       hasMore: hasMore,
     );

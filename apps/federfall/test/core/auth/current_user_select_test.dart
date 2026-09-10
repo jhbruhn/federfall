@@ -14,6 +14,9 @@ class MockCasesRepo extends Mock implements PbCasesRepository {}
 
 class MockAnimalsRepo extends Mock implements PbAnimalsRepository {}
 
+class MockCaseConditionsRepo extends Mock
+    implements PbCaseConditionsRepository {}
+
 AppUser _user(String id) =>
     AppUser(id: id, email: '$id@example.org', role: UserRole.carer);
 
@@ -23,6 +26,7 @@ void main() {
   late MockAuthRepo auth;
   late MockCasesRepo cases;
   late MockAnimalsRepo animals;
+  late MockCaseConditionsRepo conditions;
   late StreamController<AppUser?> authChanges;
   // A counter, not `verify(...).callCount`: mocktail marks calls as verified,
   // so a second verify in the same test counts only what happened since the
@@ -34,6 +38,14 @@ void main() {
     auth = MockAuthRepo();
     cases = MockCasesRepo();
     animals = MockAnimalsRepo();
+    conditions = MockCaseConditionsRepo();
+    when(
+      () => conditions.byCases(
+        any(),
+        fields: any(named: 'fields'),
+        openOnly: any(named: 'openOnly'),
+      ),
+    ).thenAnswer((_) async => const []);
     authChanges = StreamController<AppUser?>.broadcast();
     addTearDown(authChanges.close);
 
@@ -63,6 +75,9 @@ void main() {
         authRepositoryProvider.overrideWith((ref) async => auth),
         casesRepositoryProvider.overrideWith((ref) async => cases),
         animalsRepositoryProvider.overrideWith((ref) async => animals),
+        caseConditionsRepositoryProvider.overrideWith(
+          (ref) async => conditions,
+        ),
       ],
     );
     addTearDown(container.dispose);

@@ -3315,6 +3315,36 @@ def main():
           browse(toks["a"], 'animal.species = "trep Hohltaube"')
           == {trep_case}, "fixture did not land")
 
+    # The row subtitle (federfall-78k6.5): one request per PAGE of cases,
+    # narrowed to the diagnoses still in force server-side. Asserted here
+    # because it is the one clause in that screen the Dart tests can only mock
+    # — an empty-date test that silently matched nothing would show every row
+    # with no diagnosis at all, which looks exactly like "this bird has none".
+    mk(T, "case_conditions", {"case": trep_case, "free_text": "trep Verheilt",
+                              "resolved_date": "2026-06-01 10:00:00.000Z",
+                              "org": ORG})
+    mk(T, "case_conditions", {"case": trep_plain,
+                              "free_text": "trep Zweitfall", "org": ORG})
+
+    def diagnoses(tok, flt):
+        return {c["free_text"] for c in listf(tok, "case_conditions", flt)
+                if c.get("free_text")}
+
+    page = f'(case = "{trep_case}" || case = "{trep_plain}")'
+    check("a page's diagnoses come back for every case in it",
+          diagnoses(CO, page) >= {"trep Katzenbiss", "trep Verheilt",
+                                  "trep Zweitfall"},
+          "the OR-over-case-ids page filter missed a row")
+    open_only = diagnoses(CO, f'{page} && resolved_date = ""')
+    check("an empty resolved_date is what narrows to the ones in force",
+          "trep Katzenbiss" in open_only and "trep Verheilt" not in open_only,
+          f'resolved_date = "" does not test an empty date: {open_only}')
+    # The resolved row sits on the FIRST OR term, so a clause that bound only
+    # to the last one would let it through here.
+    check("...and it applies to every case in the page, not just the last",
+          "trep Zweitfall" in open_only and "trep Verheilt" not in open_only,
+          "the resolved-date clause needs its own parentheses")
+
     # An explicit status set rather than `status != "disposed"` — a preference
     # in the repository, not a precaution (federfall-jt5u).
     open_set = browse(CO, f'(status = "in_care" || status = '

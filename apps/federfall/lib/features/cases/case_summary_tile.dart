@@ -11,6 +11,15 @@ import 'package:go_router/go_router.dart';
 /// by the animal lifetime record (FED-7.6) and the case overview's prior-cases
 /// list (blp.3). When [accessible] the row opens the full case; otherwise it is
 /// a non-tappable stub carrying a "no access" badge.
+///
+/// It keeps the status and the dates that the case BROWSER's row dropped
+/// (federfall-78k6.5), and the divergence is deliberate: there the default
+/// caseload is the active split, so "In Pflege" printed on nearly every row and
+/// distinguished nothing. Here every case is a past chapter of one bird's life
+/// and how each ended is the whole question — so do not "fix" this one to
+/// match. It also reads `case_summaries`, which is deliberately free of
+/// clinical detail (1700000016) and could not name a diagnosis even if this
+/// row wanted to.
 class CaseSummaryTile extends StatelessWidget {
   const CaseSummaryTile({
     required this.summary,

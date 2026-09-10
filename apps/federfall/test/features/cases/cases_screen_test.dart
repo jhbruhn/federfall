@@ -2,6 +2,7 @@ import 'package:federfall/core/auth/current_user.dart';
 // The FULL roster provider — the one the filter's carer picker reads (not
 // `placements_providers`' active-only namesake).
 import 'package:federfall/features/admin/admin_providers.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
@@ -40,6 +41,9 @@ Future<List<CaseQuery>> _pump(
   List<Case> cases = const [],
   List<Case> Function(CaseQuery query)? rowsFor,
   Map<String, Animal> animalsById = const {},
+  Map<String, List<CaseCondition>> diagnosesByCase = const {},
+  List<Condition> codes = const [],
+  List<AdmissionReason> reasons = const [],
   AppUser? user,
   CaseQuery? initialQuery,
   CaseQuery? pending,
@@ -66,6 +70,7 @@ Future<List<CaseQuery>> _pump(
           (_) => FakeCaseBrowseFeed(
             cases: cases,
             animalsById: animalsById,
+            diagnosesByCase: diagnosesByCase,
             rowsFor: rowsFor,
             onQuery: asked.add,
             hasMore: hasMore,
@@ -75,6 +80,8 @@ Future<List<CaseQuery>> _pump(
         currentUserProvider.overrideWith((ref) async => user),
         pendingCaseQueryProvider.overrideWith(() => _SeededPending(pending)),
         recordedConditionsProvider.overrideWith((ref) async => recorded),
+        conditionsProvider.overrideWith((ref) async => codes),
+        admissionReasonsProvider.overrideWith((ref) async => reasons),
         animalSpeciesProvider.overrideWith((ref) async => species),
         orgMembersProvider.overrideWith((ref) async => members),
       ],
@@ -409,6 +416,210 @@ void main() {
 
     expect(asked.last.condition, 'Katzenbiss');
     expect(asked.last.outcome, DispositionType.released);
+  });
+
+  group('row subtitle (federfall-78k6.5)', () {
+    const codes = [
+      Condition(id: 'cond1', label: 'Fracture'),
+      Condition(id: 'cond2', label: 'Lead poisoning'),
+    ];
+    // Carries a status, so the assertions that it is HIDDEN mean something.
+    const bird = Case(
+      id: 'c1',
+      animal: 'a1',
+      caseNumber: '2026-001',
+      status: CaseStatus.inCare,
+    );
+    const pigeon = Animal(id: 'a1', species: 'Columba livia', name: 'Bruno');
+
+    testWidgets('names the active diagnoses, not the species or status', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        cases: [bird],
+        animalsById: const {'a1': pigeon},
+        codes: codes,
+        diagnosesByCase: const {
+          'c1': [
+            CaseCondition(id: 'x1', caseId: 'c1', condition: 'cond1'),
+            CaseCondition(id: 'x2', caseId: 'c1', freeText: 'Cat bite'),
+          ],
+        },
+      );
+
+      // Two lines, two questions: which bird, and what is wrong with it. As
+      // one joined line nothing marked where the name stopped, and a phone
+      // truncated the diagnoses away first.
+      expect(find.text('Bruno · 2026-001'), findsOneWidget);
+      expect(find.text('Fracture · Cat bite'), findsOneWidget);
+      // The species repeats the name beside it; the status is the default
+      // caseload and printed on nearly every row.
+      expect(find.textContaining('Columba livia'), findsNothing);
+      expect(find.textContaining('In care'), findsNothing);
+    });
+
+    testWidgets('a case with no diagnosis keeps just the bird', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        cases: [bird],
+        animalsById: const {'a1': pigeon},
+        codes: codes,
+      );
+      expect(find.text('Bruno · 2026-001'), findsOneWidget);
+      expect(find.text('Fracture'), findsNothing);
+    });
+
+    testWidgets('with no diagnosis the row says why the bird came in', (
+      tester,
+    ) async {
+      // Not filler: it is the same question answered with what exists before
+      // anyone has examined the bird. Plenty of cases never get a diagnosis
+      // typed, and without this those rows lost their subtitle entirely.
+      await _pump(
+        tester,
+        cases: const [
+          Case(
+            id: 'c3',
+            animal: 'a1',
+            caseNumber: '2026-003',
+            status: CaseStatus.inCare,
+            admissionReasons: ['ar1', 'ar2'],
+          ),
+        ],
+        animalsById: const {'a1': pigeon},
+        codes: codes,
+        reasons: const [
+          AdmissionReason(id: 'ar1', label: 'Collision'),
+          AdmissionReason(id: 'ar2', label: 'Cat attack'),
+        ],
+      );
+      expect(find.text('Collision · Cat attack'), findsOneWidget);
+    });
+
+    testWidgets('a diagnosis supersedes the admission reason', (
+      tester,
+    ) async {
+      // Once the bird has been diagnosed, why it was brought in is history —
+      // printing both would re-crowd the line this split exists to clear.
+      await _pump(
+        tester,
+        cases: const [
+          Case(
+            id: 'c4',
+            animal: 'a1',
+            caseNumber: '2026-004',
+            status: CaseStatus.inCare,
+            admissionReasons: ['ar1'],
+          ),
+        ],
+        animalsById: const {'a1': pigeon},
+        codes: codes,
+        reasons: const [AdmissionReason(id: 'ar1', label: 'Collision')],
+        diagnosesByCase: const {
+          'c4': [CaseCondition(id: 'x9', caseId: 'c4', condition: 'cond1')],
+        },
+      );
+      expect(find.text('Fracture'), findsOneWidget);
+      expect(find.textContaining('Collision'), findsNothing);
+    });
+
+    testWidgets('the status comes back once the list may hold closed cases', (
+      tester,
+    ) async {
+      // Under the active split the word is on every row and separates
+      // nothing; once closed cases can appear it is what tells them apart.
+      await _pump(
+        tester,
+        cases: [bird],
+        animalsById: const {'a1': pigeon},
+        codes: codes,
+        initialQuery: const CaseQuery(activity: CaseActivity.all),
+      );
+      expect(find.text('In care'), findsOneWidget);
+    });
+
+    testWidgets('an unnamed bird is called by its species instead', (
+      tester,
+    ) async {
+      // Most birds here are never named. Without the fallback the row read as
+      // a case number over a bare list of diagnoses, with nothing at all
+      // saying what the animal was.
+      await _pump(
+        tester,
+        cases: const [
+          Case(
+            id: 'c2',
+            animal: 'a2',
+            caseNumber: '2026-002',
+            status: CaseStatus.inCare,
+          ),
+        ],
+        animalsById: const {'a2': Animal(id: 'a2', species: 'Hohltaube')},
+        codes: codes,
+        diagnosesByCase: const {
+          'c2': [CaseCondition(id: 'x3', caseId: 'c2', condition: 'cond2')],
+        },
+      );
+      expect(find.text('Hohltaube · 2026-002'), findsOneWidget);
+      expect(find.text('Lead poisoning'), findsOneWidget);
+    });
+
+    testWidgets('an unnumbered case is titled by its bird, and says it once', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        cases: const [Case(id: 'c2', animal: 'a2')],
+        animalsById: const {'a2': Animal(id: 'a2', species: 'Hohltaube')},
+        codes: codes,
+        diagnosesByCase: const {
+          'c2': [CaseCondition(id: 'x3', caseId: 'c2', condition: 'cond2')],
+        },
+      );
+      // The title is the bird alone — no separator dangling off a number
+      // that does not exist yet.
+      expect(find.text('Hohltaube'), findsOneWidget);
+      expect(find.text('Lead poisoning'), findsOneWidget);
+    });
+
+    testWidgets('a named bird never has its species appended', (
+      tester,
+    ) async {
+      // The half of the request that stands: beside a name the species only
+      // repeated it.
+      await _pump(
+        tester,
+        cases: [bird],
+        animalsById: const {'a1': pigeon},
+        codes: codes,
+      );
+      expect(find.text('Bruno · 2026-001'), findsOneWidget);
+      expect(find.textContaining('Columba livia'), findsNothing);
+    });
+
+    testWidgets('a diagnosis whose code-list entry is gone is dropped', (
+      tester,
+    ) async {
+      // `condition` is an optional relation PocketBase BLANKS rather than
+      // cascades, so a row can name nothing at all. It must not render an id.
+      await _pump(
+        tester,
+        cases: [bird],
+        animalsById: const {'a1': pigeon},
+        codes: codes,
+        diagnosesByCase: const {
+          'c1': [
+            CaseCondition(id: 'x4', caseId: 'c1', condition: 'deleted'),
+            CaseCondition(id: 'x5', caseId: 'c1', condition: 'cond1'),
+          ],
+        },
+      );
+      expect(find.text('Fracture'), findsOneWidget);
+      expect(find.textContaining('deleted'), findsNothing);
+    });
   });
 
   testWidgets('the species picker offers the org vocabulary, not the page', (

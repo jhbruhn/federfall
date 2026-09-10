@@ -5,6 +5,7 @@ import 'dart:async';
 // roster). The filter wants the FULL roster — see `_carerOptions`.
 import 'package:federfall/features/admin/admin_providers.dart' as admin;
 import 'package:federfall/features/animals/animal_avatar.dart';
+import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
@@ -291,10 +292,14 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
           return _CaseTile(
             c,
             state.animalsById[c.animal],
+            diagnoses: state.diagnosesByCase[c.id] ?? const [],
             // Redundant in the "mine" scope — every case is already the
             // signed-in user's — and under a carer filter, where the app bar
             // already names them.
             showCarer: _query.allScope && _query.carer == null,
+            // The status earns its place only when it contradicts what the
+            // caseload filter already implies — see [_CaseTile.showStatus].
+            showStatus: _query.activity != CaseActivity.active,
             selected: c.id == selectedId,
           );
         },
@@ -680,36 +685,115 @@ String _fmt(DateTime d) =>
     '${d.month.toString().padLeft(2, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
 
-class _CaseTile extends StatelessWidget {
+/// One row of the case browser: the bird, and what is wrong with it.
+///
+/// The subtitle used to be "Name · Art · In Pflege" and a carer asked for both
+/// of the last two back out (federfall-78k6.5). They were right about both.
+/// The species repeated the name beside it; the status is near-constant,
+/// because the default caseload IS the active split, so it printed on almost
+/// every row and separated nothing. What a carer scanning the list actually
+/// wants is what each bird is being treated for.
+///
+/// The species is not gone, though — it STANDS IN for a name the bird does not
+/// have. The objection was that it was redundant next to one, and most birds
+/// here never get named: without the fallback those rows read as a case number
+/// over a bare list of diagnoses, with nothing saying what the animal is. So
+/// [_birdLabel] is "the name, else the species".
+///
+/// **The bird owns the title and the diagnoses own the subtitle.** They were
+/// briefly one `·`-joined line — "Bruno · Fracture · Cat bite" — and that line
+/// does not read: nothing marks where the bird stops and the complaint starts,
+/// and on a phone it truncates from the right, so the diagnoses are the half
+/// that disappears. Splitting them puts the two questions a carer scans for on
+/// their own lines and makes the case number, not the diagnosis, the thing a
+/// narrow screen drops.
+///
+/// The title is bird-first, unlike `caseTitleLabel`'s "2026-001 · Bella" — that
+/// one names a case in a notification or a worklist row, where the case is the
+/// subject. Here the list is of birds, and the number is how you cite one
+/// afterwards.
+///
+/// A case with no diagnosis recorded falls back to its **admission reasons**,
+/// which is not a filler: it is the same question answered with the evidence
+/// that exists before anyone has examined the bird. Plenty of cases never get
+/// a diagnosis typed at all, and without the fallback those rows lost their
+/// subtitle entirely and the list came out ragged. At least one reason is
+/// required by the intake wizard, so in practice every row has something to
+/// say. The two never appear together — once a bird has been diagnosed, why it
+/// was brought in is history, and printing both would re-crowd the line this
+/// change exists to clear.
+///
+/// This row is NOT `CaseSummaryTile`, which draws a case on the animal's
+/// lifetime record and in the prior-cases list. That one keeps its status and
+/// its dates and should not be "fixed" to match: there the cases are historical
+/// and the status is the whole point.
+class _CaseTile extends ConsumerWidget {
   const _CaseTile(
     this.medicalCase,
     this.animal, {
+    this.diagnoses = const [],
     this.showCarer = false,
+    this.showStatus = false,
     this.selected = false,
   });
 
   final Case medicalCase;
   final Animal? animal;
 
+  /// The case's unresolved diagnoses, in recorded order — the subtitle.
+  final List<CaseCondition> diagnoses;
+
   /// Whether to name the active carer (only useful in the all-cases scope; in
   /// "mine" every case is the signed-in user's, so it would be redundant).
   final bool showCarer;
+
+  /// Whether to state the lifecycle status.
+  ///
+  /// False under the default "active" caseload, where the filter already says
+  /// it and the word is on every row. True once the list may hold a closed or
+  /// disposed case, where the status is the thing that distinguishes rows.
+  final bool showStatus;
 
   /// Highlighted when its detail is open in the adjacent pane (two-pane).
   final bool selected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final status = medicalCase.status;
-    // An unnumbered case is titled by its animal instead of a placeholder —
-    // "Neuer Fall" in the list read like a create action (federfall-dai). The
-    // animal then leaves the subtitle so it isn't shown twice.
+    // An unnumbered case is titled by its animal alone rather than a
+    // placeholder — "Neuer Fall" in the list read like a create action
+    // (federfall-dai).
     final number = medicalCase.caseNumber;
-    final title = number ?? _animalLabel ?? l10n.worklistUnnumberedCase;
+    final titleParts = [?_birdLabel, ?number];
+    final title = titleParts.isEmpty
+        ? l10n.worklistUnnumberedCase
+        : titleParts.join(' · ');
+
+    // Resolved from the org's code list, which is one small cached row set —
+    // not per page and not per row. A free-text diagnosis needs no lookup at
+    // all, and a row whose code-list entry has since been deleted keeps the
+    // free text or drops out rather than rendering a raw id.
+    final codes = ref.watch(conditionsByIdProvider).value ?? const {};
+    final labels = <String>[
+      for (final d in diagnoses) ?_labelOf(d, codes),
+    ];
+    // Both code lists are small, org-wide and cached — resolved per row costs
+    // nothing, and neither is fetched per page.
+    final reasonsById =
+        ref.watch(admissionReasonsByIdProvider).value ??
+        const <String, AdmissionReason>{};
+    final reasons = labels.isNotEmpty
+        ? const <String>[]
+        : <String>[
+            for (final id in medicalCase.admissionReasons)
+              ?reasonsById[id]?.label,
+          ];
+
     final summary = [
-      if (number != null) ?_animalLabel,
-      if (status != null) caseStatusLabel(l10n, status),
+      if (showStatus && status != null) caseStatusLabel(l10n, status),
+      ...labels,
+      ...reasons,
     ].join(' · ');
     final carerId = medicalCase.activeCarer;
     final hasCarer = showCarer && carerId != null && carerId.isNotEmpty;
@@ -733,14 +817,24 @@ class _CaseTile extends StatelessWidget {
     );
   }
 
-  /// "Name · Species" (or just species) for the animal behind the case.
-  String? get _animalLabel {
-    final a = animal;
-    if (a == null) return null;
-    final name = a.name;
-    if (name != null && name.isNotEmpty) {
-      return a.species.isEmpty ? name : '$name · ${a.species}';
-    }
-    return a.species.isEmpty ? null : a.species;
+  /// A diagnosis's display label: its code-list entry's, else its free text,
+  /// else nothing at all.
+  static String? _labelOf(CaseCondition d, Map<String, Condition> codes) {
+    final code = d.condition == null ? null : codes[d.condition];
+    if (code != null) return code.label;
+    final free = d.freeText?.trim();
+    return (free == null || free.isEmpty) ? null : free;
+  }
+
+  /// What this row calls the bird: its name, else its species, else nothing.
+  ///
+  /// The species is the fallback rather than a permanent companion: beside a
+  /// name it only repeated it, which is what the carer asked to lose, but a
+  /// bird that was never named has nothing else to be called.
+  String? get _birdLabel {
+    final name = animal?.name;
+    if (name != null && name.isNotEmpty) return name;
+    final species = animal?.species;
+    return (species == null || species.isEmpty) ? null : species;
   }
 }

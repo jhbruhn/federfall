@@ -50,9 +50,17 @@ class PbCaseConditionsRepository extends PbRepository<CaseCondition> {
   /// reads a couple of columns off the full record.
   static const int _byCasesChunkSize = 100;
 
+  /// [openOnly] narrows to the diagnoses still in force — `resolved_date`
+  /// empty — server-side. The case browser's row subtitle wants exactly those
+  /// and nothing else (federfall-78k6.5), and a long case accumulates resolved
+  /// ones it would otherwise pull down a page at a time; federfall-trep's rule
+  /// is that a list screen receives the rows it is about to draw. The flock
+  /// rollup leaves it false: it dates each diagnosis against a residency
+  /// window, so a resolved one is still evidence.
   Future<List<CaseCondition>> byCases(
     Iterable<String> caseIds, {
     String? fields,
+    bool openOnly = false,
   }) async {
     final wanted = caseIds.toSet().toList();
     if (wanted.isEmpty) return const [];
@@ -69,8 +77,12 @@ class PbCaseConditionsRepository extends PbRepository<CaseCondition> {
         clauses.add('case = {:c$i}');
         params['c$i'] = chunk[i];
       }
+      // The case clauses are ORed, so the resolved-date test has to sit
+      // OUTSIDE their parentheses or it would only apply to the last one.
+      final cases = clauses.join(' || ');
+      final filter = openOnly ? '($cases) && resolved_date = ""' : cases;
       chunks.add(
-        list(filter: filterExpr(clauses.join(' || '), params), fields: fields),
+        list(filter: filterExpr(filter, params), fields: fields),
       );
     }
     final results = await Future.wait(chunks);
