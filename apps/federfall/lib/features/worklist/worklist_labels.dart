@@ -46,15 +46,15 @@ String worklistItemDetail(
   ),
   WorklistKind.medicationDue =>
     item.drug == null || !showDrug
-        ? _relativeDue(l10n, item.dueAt, now)
-        : '${item.drug} · ${_relativeDue(l10n, item.dueAt, now)}',
+        ? relativeDueLabel(l10n, item.dueAt, now)
+        : '${item.drug} · ${relativeDueLabel(l10n, item.dueAt, now)}',
   WorklistKind.vetAppointment => _withPrefix(
     item.appointment?.vet,
-    _relativeDue(l10n, item.dueAt, now),
+    relativeDueLabel(l10n, item.dueAt, now),
   ),
   WorklistKind.followUpDue => _withPrefix(
     item.followUp?.note,
-    _relativeDue(l10n, item.dueAt, now),
+    relativeDueLabel(l10n, item.dueAt, now),
   ),
   // Only ever today's: [buildWorklist] admits no other day, so there is no
   // "ended N days ago" phrasing left to pick between.
@@ -68,7 +68,11 @@ String _withPrefix(String? prefix, String relative) =>
 
 /// A relative phrase for [due] vs [now]: "Due in N h/days" ahead, or
 /// "Overdue by N h/days" once past.
-String _relativeDue(AppLocalizations l10n, DateTime due, DateTime now) {
+///
+/// Public because the case's current-treatment card says the same thing about
+/// the same `medication_due` row (federfall-78k6.2). Two wordings for one fact
+/// is how a carer comes to believe the two screens disagree.
+String relativeDueLabel(AppLocalizations l10n, DateTime due, DateTime now) {
   if (due.isAfter(now)) {
     final diff = due.difference(now);
     if (diff.inHours < 24) {

@@ -1728,6 +1728,17 @@
     "@medDeleteAction": { "description": "Menu/dialog action that deletes a medication record" },
     "medMenuTooltip": "Options",
     "@medMenuTooltip": { "description": "Tooltip on a medication entry's menu" },
+    "caseSectionCurrentTreatment": "Current treatment",
+    "@caseSectionCurrentTreatment": { "description": "Heading of the card at the top of the case overview stating what the bird is being treated for and with" },
+    "treatmentDiagnosesHeading": "Diagnoses",
+    "@treatmentDiagnosesHeading": { "description": "Sub-heading over the unresolved diagnoses on the current-treatment card" },
+    "treatmentMedicationsHeading": "Medication",
+    "@treatmentMedicationsHeading": { "description": "Sub-heading over the running prescriptions on the current-treatment card" },
+    "treatmentNextDose": "Next dose: {relative}",
+    "@treatmentNextDose": {
+        "description": "The next-due time of a running course, on the current-treatment card",
+        "placeholders": { "relative": { "type": "String" } }
+    },
     "medStopAction": "Stop medication",
     "@medStopAction": { "description": "Action that ends a running prescription now, without deleting it" },
     "medStopConfirmTitle": "Stop medication?",

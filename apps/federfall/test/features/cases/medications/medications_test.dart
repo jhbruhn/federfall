@@ -26,6 +26,8 @@ class MockAdministrationsRepo extends Mock
 
 class MockWeightsRepo extends Mock implements PbWeightsRepository {}
 
+class MockMedicationDueRepo extends Mock implements PbMedicationDueRepository {}
+
 /// Two other open cases the signed-in carer holds, for the group picker. The
 /// second bird is unnamed, so its row falls back to the species — the same
 /// title the worklist builds.
@@ -1068,6 +1070,57 @@ void main() {
       expect(body['medication'], 'm1');
       expect(body['administered_by'], 'u1');
       expect(body['route'], 'mr_subcut');
+    });
+  });
+
+  group('nextDoseByMedication (federfall-78k6.2)', () {
+    test('a case with no prescriptions never asks the view', () async {
+      final due = MockMedicationDueRepo();
+      final container = ProviderContainer(
+        overrides: [
+          medicationsForCaseProvider('c1').overrideWith((_) async => const []),
+          medicationDueRepositoryProvider.overrideWith((_) async => due),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(
+        await container.read(nextDoseByMedicationProvider('c1').future),
+        isEmpty,
+      );
+      verifyNever(() => due.forCase(any()));
+    });
+
+    test('invalidating the case bundle re-reads the due times', () async {
+      // The whole reason this provider watches medicationsForCase. Logging a
+      // dose invalidates only the bundle; without the dependency the card
+      // would keep naming the dose that had just been given.
+      final due = MockMedicationDueRepo();
+      when(() => due.forCase('c1')).thenAnswer(
+        (_) async => const [
+          MedicationDue(id: 'm1', caseId: 'c1', drug: 'Baytril'),
+        ],
+      );
+      var built = 0;
+      final container = ProviderContainer(
+        overrides: [
+          medicationsForCaseProvider('c1').overrideWith((_) async {
+            built++;
+            return const [Medication(id: 'm1', caseId: 'c1', drug: 'Baytril')];
+          }),
+          medicationDueRepositoryProvider.overrideWith((_) async => due),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(nextDoseByMedicationProvider('c1').future);
+      expect(built, 1);
+      verify(() => due.forCase('c1')).called(1);
+
+      container.invalidate(medicationsForCaseProvider('c1'));
+      await container.read(nextDoseByMedicationProvider('c1').future);
+      expect(built, 2);
+      verify(() => due.forCase('c1')).called(1);
     });
   });
 

@@ -441,6 +441,19 @@ class PbMedicationDueRepository extends PbReadOnlyRepository<MedicationDue> {
     ),
     sort: 'next_due',
   );
+
+  /// The running courses on ONE case, soonest-due first — what the case's
+  /// current-treatment card reads.
+  ///
+  /// No `next_due != ""` clause, unlike [mine]: the worklist wants the doses
+  /// somebody has to give, while the card states what the bird is ON. A course
+  /// with no computed next dose (an as-needed prescription) is still running
+  /// and still belongs on it. Ended courses are already absent — the view
+  /// drops them (1700000024).
+  Future<List<MedicationDue>> forCase(String caseId) => list(
+    filter: filterExpr('case_id = {:c}', {'c': caseId}),
+    sort: 'next_due',
+  );
 }
 
 /// Repository over the `exams` collection (structured physical exams, FED-4.8).

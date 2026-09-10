@@ -19,6 +19,7 @@ import 'package:federfall/features/cases/case_timeline.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/current_treatment_card.dart';
 import 'package:federfall/features/cases/disposition/disposition_providers.dart';
 import 'package:federfall/features/cases/disposition/disposition_sheet.dart';
 import 'package:federfall/features/cases/edit_case_intake_sheet.dart';
@@ -494,6 +495,11 @@ class _OverviewTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
+          // First: what the bird is being treated for and with is the most
+          // time-critical thing on this tab, and it renders nothing when
+          // there is none of it. The weight trend is reference, not action,
+          // so it follows (federfall-78k6.2).
+          CurrentTreatmentCard(caseId: medicalCase.id),
           WeightTrendChart.forCase(medicalCase.id),
           _IntakeSection(medicalCase: medicalCase, animal: animal),
           _CasePhotoGallery(caseId: medicalCase.id),

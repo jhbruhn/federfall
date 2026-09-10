@@ -18,6 +18,38 @@ Future<List<Medication>> medicationsForCase(Ref ref, String caseId) =>
       return repo.forCase(caseId);
     });
 
+/// The server's own view of the courses running on a case, soonest-due first
+/// (`medication_due`), keyed for the current-treatment card.
+///
+/// It is read for the next-due times only — which courses are running comes
+/// from [medicationsForCase], off the case bundle that is already fetched, so
+/// the card still states the treatment when this one is slow or fails. Both
+/// agree on what "running" means; the view drops an ended course server-side
+/// (1700000024) and `PrescriptionTile` applies the same predicate.
+///
+/// [medicationsForCase] is watched rather than merely trusted, and that is
+/// load-bearing: it is what makes a case-bundle invalidation — a dose logged,
+/// a course stopped, a realtime event — refresh the due times along with
+/// everything else. `invalidateCaseTimeline` and the administration sheet both
+/// invalidate only the bundle, so without this dependency the card would go on
+/// naming the dose that had just been given. Watching it also skips the request
+/// on a case with no prescriptions at all.
+@riverpod
+Future<Map<String, DateTime>> nextDoseByMedication(
+  Ref ref,
+  String caseId,
+) async {
+  final plans = await ref.watch(medicationsForCaseProvider(caseId).future);
+  if (plans.isEmpty) return const {};
+  final repo = await ref.watch(medicationDueRepositoryProvider.future);
+  final due = await repo.forCase(caseId);
+  return {
+    // The view's own id IS the prescription's — the same identity buildWorklist
+    // relies on to reconstruct a plan from a due row.
+    for (final d in due) d.id: ?d.nextDue,
+  };
+}
+
 /// Doses administered on a case, most recent first (FED-4.6).
 @riverpod
 Future<List<MedicationAdministration>> administrationsForCase(
