@@ -321,3 +321,42 @@ int localDaysBetween(DateTime a, DateTime b) {
     lb.day,
   ).difference(DateTime(la.year, la.month, la.day)).inDays;
 }
+
+/// The stable identity of one worklist row, for a same-day dismissal
+/// (federfall-78k6.3).
+///
+/// Kind, case and due moment — deliberately not the underlying record's id.
+/// The point of a dismissal is "not this, not today"; once the row's due moment
+/// MOVES (a dose given, so the plan's next-due advances) it is a different
+/// obligation and must come back. Keying on the prescription id instead would
+/// hide every future dose of that drug.
+String worklistDismissalKey(WorklistItem item) =>
+    '${item.kind.name}|${item.caseId}|${item.dueAt.toUtc().toIso8601String()}';
+
+/// The local calendar day [at] falls on, as a comparable key.
+///
+/// A dismissal lasts for the rest of the carer's own day, so the day it belongs
+/// to is a LOCAL date — the same reasoning that makes [localDaysBetween]
+/// compare local dates rather than raw UTC instants.
+String localDayKey(DateTime at) {
+  final local = at.toLocal();
+  final month = local.month.toString().padLeft(2, '0');
+  final day = local.day.toString().padLeft(2, '0');
+  return '${local.year}-$month-$day';
+}
+
+/// [items] without the rows dismissed for today.
+///
+/// Pure and separate from the store so the filter is testable without
+/// SharedPreferences, and so the store stays the only thing that knows a
+/// dismissal expires.
+List<WorklistItem> withoutDismissed(
+  List<WorklistItem> items,
+  Set<String> dismissed,
+) {
+  if (dismissed.isEmpty) return items;
+  return [
+    for (final item in items)
+      if (!dismissed.contains(worklistDismissalKey(item))) item,
+  ];
+}

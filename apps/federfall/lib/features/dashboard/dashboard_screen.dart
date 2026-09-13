@@ -249,7 +249,11 @@ class _WorklistPreview extends ConsumerWidget {
             for (final round in groupMedicationDuesByDrug(due))
               if (round.isRound) _DoseRoundRow(round: round),
             for (final item in preview.take(_previewMax))
-              WorklistTile(item: item, now: now),
+              WorklistTile(
+                key: ValueKey(worklistDismissalKey(item)),
+                item: item,
+                now: now,
+              ),
             if (due.isNotEmpty) const SizedBox(height: AppSpacing.xs),
           ],
         ],

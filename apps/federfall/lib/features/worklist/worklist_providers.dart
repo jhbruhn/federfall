@@ -5,6 +5,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/worklist/worklist.dart';
+import 'package:federfall/features/worklist/worklist_dismissals.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -189,16 +190,30 @@ Future<WorklistSource> worklistSource(Ref ref) async {
   );
 }
 
+/// The rows to show: everything derived from [worklistSource], minus the ones
+/// this device dismissed earlier today (federfall-78k6.3).
+///
+/// The dismissals are applied HERE rather than in each surface so the dashboard
+/// teaser and its due count agree with the Today screen — a row hidden on one
+/// and counted on the other would read as a bug in the count.
 @riverpod
 Future<List<WorklistItem>> worklist(Ref ref) async {
+  final dismissals = ref.watch(worklistDismissalsProvider.notifier);
+  // Watched for the rebuild; the notifier above answers whether a dismissal is
+  // still today's. Both, because a notifier alone does not re-emit on state.
+  ref.watch(worklistDismissalsProvider);
   final source = await ref.watch(worklistSourceProvider.future);
-  return buildWorklist(
-    cases: source.cases,
-    medicationsDue: source.medicationsDue,
-    followUps: source.followUps,
-    appointments: source.appointments,
-    quarantineUntilByCase: source.quarantineUntilByCase,
-    animalNameById: source.animalNameById,
-    now: DateTime.now(),
+  final now = DateTime.now();
+  return withoutDismissed(
+    buildWorklist(
+      cases: source.cases,
+      medicationsDue: source.medicationsDue,
+      followUps: source.followUps,
+      appointments: source.appointments,
+      quarantineUntilByCase: source.quarantineUntilByCase,
+      animalNameById: source.animalNameById,
+      now: now,
+    ),
+    dismissals.effective(now),
   );
 }

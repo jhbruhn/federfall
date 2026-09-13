@@ -405,4 +405,69 @@ void main() {
     expect(items.first.kind, WorklistKind.medicationDue);
     expect(items.last.kind, WorklistKind.quarantineEnding);
   });
+
+  group('same-day dismissal (federfall-78k6.3)', () {
+    WorklistItem item({
+      WorklistKind kind = WorklistKind.medicationDue,
+      String caseId = 'c1',
+      DateTime? dueAt,
+    }) => WorklistItem(
+      kind: kind,
+      caseId: caseId,
+      dueAt: dueAt ?? _now,
+      severity: WorklistSeverity.upcoming,
+    );
+
+    test('the key separates kind, case and due moment', () {
+      expect(
+        worklistDismissalKey(item()),
+        isNot(worklistDismissalKey(item(kind: WorklistKind.followUpDue))),
+      );
+      expect(
+        worklistDismissalKey(item()),
+        isNot(worklistDismissalKey(item(caseId: 'c2'))),
+      );
+      expect(
+        worklistDismissalKey(item()),
+        isNot(
+          worklistDismissalKey(
+            item(dueAt: _now.add(const Duration(hours: 8))),
+          ),
+        ),
+      );
+    });
+
+    test('the same row dismissed in two zones is the same key', () {
+      // The key stamps the due moment in UTC, so a carer's own offset cannot
+      // make one row look like two.
+      final utc = item(dueAt: _now.toUtc());
+      expect(worklistDismissalKey(item()), worklistDismissalKey(utc));
+    });
+
+    test('a dose given brings the row back, because its due moment moved', () {
+      final before = item();
+      final after = item(dueAt: _now.add(const Duration(hours: 12)));
+      final dismissed = {worklistDismissalKey(before)};
+
+      expect(withoutDismissed([before], dismissed), isEmpty);
+      expect(withoutDismissed([after], dismissed), [after]);
+    });
+
+    test('only the dismissed rows are dropped', () {
+      final a = item();
+      final b = item(caseId: 'c2');
+      expect(withoutDismissed([a, b], {worklistDismissalKey(b)}), [a]);
+      expect(withoutDismissed([a, b], const {}), [a, b]);
+    });
+
+    test('the day key is the local calendar day, zero-padded', () {
+      expect(localDayKey(DateTime(2026, 9, 5, 23, 30)), '2026-09-05');
+      // A UTC instant is read in the carer's own zone, the same rule
+      // localDaysBetween follows.
+      expect(
+        localDayKey(DateTime(2026, 9, 5, 23, 30).toUtc()),
+        '2026-09-05',
+      );
+    });
+  });
 }

@@ -203,6 +203,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     required bool expanded,
     bool showDrug = true,
   }) => WorklistTile(
+    // Keyed so a dismissed row's state cannot slide onto the row that takes
+    // its place when the list re-derives.
+    key: ValueKey(worklistDismissalKey(item)),
     item: item,
     now: now,
     showDrug: showDrug,

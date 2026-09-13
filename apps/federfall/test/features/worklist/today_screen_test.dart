@@ -1,7 +1,7 @@
 import 'package:federfall/features/worklist/today_screen.dart';
 import 'package:federfall/features/worklist/worklist.dart';
+import 'package:federfall/features/worklist/worklist_dismissals.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
-import 'package:federfall/features/worklist/worklist_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
@@ -10,10 +10,40 @@ import 'package:flutter_test/flutter_test.dart';
 
 final _now = DateTime(2026, 6, 24, 12);
 
-Future<void> _pump(WidgetTester tester, List<WorklistItem> items) async {
+/// Stands in for the real store so a screen test never reaches
+/// SharedPreferences — the store's own expiry rules are covered in
+/// `worklist_dismissals_test.dart`, and mocking the prefs channel here would
+/// let the unrelated server/connection providers start resolving.
+class _FakeDismissals extends WorklistDismissals {
+  final dismissed = <String>{};
+
+  @override
+  Future<Set<String>> build() async => dismissed;
+
+  @override
+  Future<void> dismiss(String key) async {
+    dismissed.add(key);
+    state = AsyncData({...dismissed});
+  }
+
+  @override
+  Future<void> restore(String key) async {
+    dismissed.remove(key);
+    state = AsyncData({...dismissed});
+  }
+}
+
+Future<_FakeDismissals> _pump(
+  WidgetTester tester,
+  List<WorklistItem> items,
+) async {
+  final dismissals = _FakeDismissals();
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [worklistProvider.overrideWith((ref) async => items)],
+      overrides: [
+        worklistProvider.overrideWith((ref) async => items),
+        worklistDismissalsProvider.overrideWith(() => dismissals),
+      ],
       child: const MaterialApp(
         locale: Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -23,6 +53,7 @@ Future<void> _pump(WidgetTester tester, List<WorklistItem> items) async {
     ),
   );
   await tester.pumpAndSettle();
+  return dismissals;
 }
 
 void main() {
@@ -79,8 +110,8 @@ void main() {
     expect(find.byTooltip('Log dose'), findsOneWidget);
   });
 
-  testWidgets('a vet appointment names the practice and offers no quick '
-      'action — attending it means writing the outcome, which is the sheet', (
+  testWidgets('a vet appointment names the practice and can be marked kept '
+      'from the row, with cancelling behind the overflow (federfall-78k6.3)', (
     tester,
   ) async {
     await _pump(tester, [
@@ -103,15 +134,92 @@ void main() {
     expect(find.text('Vet appointments'), findsOneWidget);
     expect(find.text('2026-004 · Otto'), findsOneWidget);
     expect(find.textContaining('Dr. Meyer'), findsOneWidget);
-    // Scoped to the tile: the app bar carries a back button of its own.
-    expect(
-      find.descendant(
-        of: find.byType(WorklistTile),
-        matching: find.byType(IconButton),
+    expect(find.byTooltip('Mark as attended'), findsOneWidget);
+
+    // The visit that did NOT happen is one level down, so the row's own tap
+    // target stays the common answer.
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel appointment'), findsOneWidget);
+  });
+
+  testWidgets('no row falls back to a chevron (federfall-78k6.3)', (
+    tester,
+  ) async {
+    // The chevron only ever meant "this kind has no verb". Every kind has one
+    // now, so its presence anywhere is the regression.
+    await _pump(tester, [
+      WorklistItem(
+        kind: WorklistKind.medicationDue,
+        caseId: 'c1',
+        dueAt: _now,
+        severity: WorklistSeverity.upcoming,
+        drug: 'Meloxicam',
+        medication: const Medication(id: 'm1', caseId: 'c1', drug: 'Meloxicam'),
       ),
-      findsNothing,
+      WorklistItem(
+        kind: WorklistKind.followUpDue,
+        caseId: 'c2',
+        dueAt: _now,
+        severity: WorklistSeverity.upcoming,
+        followUp: FollowUp(id: 'f1', caseId: 'c2', dueAt: _now),
+      ),
+      WorklistItem(
+        kind: WorklistKind.vetAppointment,
+        caseId: 'c3',
+        dueAt: _now,
+        severity: WorklistSeverity.upcoming,
+        appointment: VetAppointment(id: 'v1', caseId: 'c3', startsAt: _now),
+      ),
+      WorklistItem(
+        kind: WorklistKind.quarantineEnding,
+        caseId: 'c4',
+        dueAt: _now,
+        severity: WorklistSeverity.upcoming,
+      ),
+    ]);
+
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+  });
+
+  testWidgets('a quarantine ending is acknowledged, not "ended" — the row '
+      'goes quiet for the day (federfall-78k6.3)', (tester) async {
+    final item = WorklistItem(
+      kind: WorklistKind.quarantineEnding,
+      caseId: 'c1',
+      caseNumber: '2026-002',
+      dueAt: _now,
+      severity: WorklistSeverity.upcoming,
     );
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    final dismissals = await _pump(tester, [item]);
+
+    await tester.tap(find.byTooltip('Got it'));
+    await tester.pumpAndSettle();
+
+    expect(dismissals.dismissed, {worklistDismissalKey(item)});
+    expect(find.text('Hidden until tomorrow'), findsOneWidget);
+  });
+
+  testWidgets('swiping a row dismisses it, and the snackbar takes it back', (
+    tester,
+  ) async {
+    final item = WorklistItem(
+      kind: WorklistKind.followUpDue,
+      caseId: 'c1',
+      caseNumber: '2026-003',
+      dueAt: _now,
+      severity: WorklistSeverity.upcoming,
+      followUp: FollowUp(id: 'f1', caseId: 'c1', dueAt: _now),
+    );
+    final dismissals = await _pump(tester, [item]);
+
+    await tester.drag(find.text('2026-003'), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    expect(dismissals.dismissed, {worklistDismissalKey(item)});
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(dismissals.dismissed, isEmpty);
   });
 
   testWidgets('wide screens show the worklist beside a selection placeholder', (
