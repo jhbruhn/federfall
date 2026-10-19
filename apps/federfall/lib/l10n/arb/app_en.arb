@@ -530,6 +530,17 @@
     "@vetAppointmentDeleteTitle": { "description": "Title of the delete-appointment confirmation" },
     "vetAppointmentDeleteConfirm": "Delete this vet appointment?",
     "@vetAppointmentDeleteConfirm": { "description": "Body of the delete-appointment confirmation" },
+    "vetAppointmentAttachmentsLabel": "Attachments",
+    "@vetAppointmentAttachmentsLabel": { "description": "Label over the X-rays, photos and files attached to a vet appointment" },
+    "vetAppointmentAddImage": "Choose image",
+    "vetAppointmentTakePhoto": "Take photo",
+    "vetAppointmentAddFile": "Choose file",
+    "@vetAppointmentAddFile": { "description": "Button that picks any file (mostly a PDF report) to attach to a vet appointment" },
+    "vetAppointmentFileUnsupported": "File type not supported: {names}",
+    "@vetAppointmentFileUnsupported": {
+        "description": "Snackbar when picked files are not of an accepted type",
+        "placeholders": { "names": { "type": "String" } }
+    },
     "worklistDueInHours": "{hours, plural, one{Due in 1 h} other{Due in {hours} h}}",
     "@worklistDueInHours": {
         "description": "Relative due time within a day",
@@ -2240,7 +2251,7 @@
     "microscopyAttachmentsLabel": "Attachments",
     "microscopyAddVideo": "Add video",
     "microscopyRecordVideo": "Record video",
-    "microscopyOpenFailed": "The attachment could not be opened",
+    "attachmentOpenFailed": "The attachment could not be opened",
     "microscopyCreateDiagnosis": "Create diagnosis",
     "microscopyCreateDiagnosisFor": "Create diagnosis: {finding}",
     "@microscopyCreateDiagnosisFor": {

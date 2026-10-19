@@ -3,6 +3,7 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
+import 'package:federfall/features/cases/vet_appointments/vet_appointment_attachments.dart';
 import 'package:federfall/features/cases/vet_appointments/vet_appointment_calendar.dart';
 import 'package:federfall/features/cases/vet_appointments/vet_appointment_sheet.dart';
 import 'package:federfall/features/reminders/reminder_settings.dart';
@@ -213,6 +214,10 @@ class VetAppointmentTile extends ConsumerWidget {
               outcome: outcome,
               label: l10n.vetAppointmentOutcomeLabel,
             ),
+          if (appointment.attachments.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            VetAppointmentAttachments(appointment: appointment),
+          ],
           _StatusChip(
             appointment: appointment,
             attended: attended,

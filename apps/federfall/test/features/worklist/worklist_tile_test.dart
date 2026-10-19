@@ -32,7 +32,8 @@ void main() {
     administrations = _MockAdministrations();
     weights = _MockWeights();
     when(() => administrations.create(any())).thenAnswer(
-      (_) async => const MedicationAdministration(id: 'a1', caseId: 'c1', drug: 'x'),
+      (_) async =>
+          const MedicationAdministration(id: 'a1', caseId: 'c1', drug: 'x'),
     );
     when(() => administrations.delete(any())).thenAnswer((_) async {});
     when(() => weights.forCase(any())).thenAnswer((_) async => const []);
@@ -66,7 +67,9 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
-            body: ListView(children: [WorklistTile(item: item, now: _now)]),
+            body: ListView(
+              children: [WorklistTile(item: item, now: _now)],
+            ),
           ),
         ),
       ),

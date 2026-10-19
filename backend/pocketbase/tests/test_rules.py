@@ -2721,6 +2721,41 @@ def main():
                            "attended_at": "2026-08-06 13:10:00.000Z"})
     check("owner can add the outcome afterwards", s == 200, f"status {s}")
 
+    # attachments (federfall-hw63): the first file field that admits more than
+    # images — the Befund arrives as a PDF — but still an ALLOWLIST, because
+    # the 1700000048 stored-XSS reasoning applies to every file field. Content
+    # is sniffed, so the filename/declared type cannot smuggle markup in.
+    va_path = f"/api/collections/vet_appointments/records/{va['id']}"
+    s, d = upload_file("PATCH", va_path, toks["a"], "attachments",
+                       "evil.svg", "image/svg+xml", _SVG)
+    check("SVG upload to vet_appointments.attachments is rejected", s >= 400,
+          f"{s} {d}")
+    s, d = upload_file("PATCH", va_path, toks["a"], "attachments",
+                       "befund.txt", "text/plain",
+                       b"<html><body><script>alert(1)</script></body></html>")
+    check("HTML disguised as .txt is rejected (content is sniffed)", s >= 400,
+          f"{s} {d}")
+    s, d = upload_file("PATCH", va_path, toks["a"], "attachments",
+                       "roentgen.png", "image/png", _PNG_1X1)
+    check("an X-ray image uploads to vet_appointments.attachments",
+          s == 200 and len(d.get("attachments") or []) == 1, f"{s} {d}")
+    s, d = upload_file("PATCH", va_path, toks["a"], "attachments+",
+                       "befund.pdf", "application/pdf",
+                       b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n")
+    check("a PDF report is accepted alongside it",
+          s == 200 and len(d.get("attachments") or []) == 2, f"{s} {d}")
+    va_png = next(f for f in d["attachments"] if f.endswith(".png"))
+    va_file = f"/api/files/vet_appointments/{va['id']}/{va_png}"
+    check("vet appointment attachment URL WITHOUT a token is rejected",
+          file_status(va_file) != 200, file_status(va_file))
+    check("the owner's file token serves it",
+          file_status(f"{va_file}?token={file_token(toks['a'])}") == 200)
+    check("a same-org outsider's file token does NOT serve it",
+          file_status(f"{va_file}?token={file_token(td)}") != 200)
+    check("the 200x200 thumb is generated (thumbs whitelist)",
+          file_status(f"{va_file}?thumb=200x200&token={file_token(toks['a'])}")
+          == 200)
+
     # reminder_lead_minutes: PocketBase has no null for a number field, and it
     # skips min/max validation for a zero on an optional field — so 0 IS
     # accepted and is indistinguishable from "never set". That is precisely why

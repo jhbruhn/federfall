@@ -948,11 +948,16 @@ void main() {
           'reason': 'Röntgen Flügel',
           'outcome': 'Fraktur verheilt',
           'attended_at': '2026-08-06 13:10:00.000Z',
+          'attachments': ['roentgen_ab12cd34ef.png', 'befund_0123456789.pdf'],
           'created_by': 'u1',
           'org': 'org1',
         }),
       );
       expect(a.caseId, 'c1');
+      expect(a.attachments, [
+        'roentgen_ab12cd34ef.png',
+        'befund_0123456789.pdf',
+      ]);
       expect(a.startsAt, DateTime.utc(2026, 8, 6, 12, 30));
       expect(a.vet, 'Tierklinik Dr. Meyer');
       expect(a.reason, 'Röntgen Flügel');
@@ -971,6 +976,7 @@ void main() {
           'cancelled_at': '2026-08-05 09:00:00.000Z',
         }),
       );
+      expect(a.attachments, isEmpty);
       expect(a.attendedAt, isNull);
       expect(a.cancelledAt, DateTime.utc(2026, 8, 5, 9));
     });

@@ -17,6 +17,7 @@ dependencies:
     path: ../../packages/federfall_data
   federfall_models:
     path: ../../packages/federfall_models
+  file_picker: ^13.1.0
   fl_chart: ^1.2.0
   flutter:
     sdk: flutter

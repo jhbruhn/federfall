@@ -1,5 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/journal/journal_providers.dart';
+import 'package:federfall/features/cases/vet_appointments/vet_appointment_attachments.dart';
 import 'package:federfall/features/reminders/reminder_lead.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
@@ -7,6 +9,8 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 /// Opens the vet-appointment add/edit form. Pass [appointment] to edit;
 /// [focusOutcome] scrolls the outcome field into focus, for the
@@ -63,7 +67,17 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
   Duration? _lead;
   late bool _muted;
 
+  /// Stored attachments kept on save; removing one drops it, because the
+  /// survivors are sent as the field's new value.
+  late final List<String> _existingAttachments;
+  final _newAttachments = <XFile>[];
+
   bool get _isEditing => widget.appointment != null;
+
+  int get _slotsLeft =>
+      kVetAppointmentMaxAttachments -
+      _existingAttachments.length -
+      _newAttachments.length;
 
   @override
   void initState() {
@@ -86,6 +100,7 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
     final leadMinutes = a?.reminderLeadMinutes;
     _lead = leadMinutes == null ? null : Duration(minutes: leadMinutes);
     _muted = a?.reminderMuted ?? false;
+    _existingAttachments = [...?a?.attachments];
   }
 
   @override
@@ -141,6 +156,56 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
     markDirty();
   }
 
+  /// Stages [picked], capped at the slots left — the server rejects an
+  /// eleventh file outright, so the cap belongs here rather than in a failed
+  /// save after the upload.
+  void _stage(List<XFile> picked) {
+    if (picked.isEmpty) return;
+    setState(() => _newAttachments.addAll(picked.take(_slotsLeft)));
+    markDirty();
+  }
+
+  Future<void> _pickImages() async =>
+      _stage(await ref.read(imagePickerProvider).pickMultiImage());
+
+  Future<void> _takePhoto() async {
+    final shot = await ref
+        .read(imagePickerProvider)
+        .pickImage(source: ImageSource.camera);
+    if (shot != null) _stage([shot]);
+  }
+
+  Future<void> _pickFiles() async {
+    final picked = await ref.read(documentPickerProvider).pickFiles();
+    if (!mounted) return;
+    final rejected = [
+      for (final f in picked)
+        if (!isAcceptedVetAttachment(pickedFileName(f))) pickedFileName(f),
+    ];
+    if (rejected.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.vetAppointmentFileUnsupported(rejected.join(', ')),
+          ),
+        ),
+      );
+    }
+    _stage([
+      for (final f in picked)
+        if (isAcceptedVetAttachment(pickedFileName(f))) f,
+    ]);
+  }
+
+  Future<List<http.MultipartFile>> _multipart() async => [
+    for (final file in _newAttachments)
+      http.MultipartFile.fromBytes(
+        'attachments',
+        await file.readAsBytes(),
+        filename: pickedFileName(file),
+      ),
+  ];
+
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
@@ -159,16 +224,21 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
         'reminder_muted': _muted,
       };
 
+      final files = await _multipart();
       final existing = widget.appointment;
       if (existing == null) {
-        await repo.create({
+        await repo.createWithFiles({
           ...body,
           'case': widget.caseId,
           'created_by': user.id,
           'org': org,
-        });
+        }, files);
       } else {
-        await repo.update(existing.id, body);
+        await repo.updateWithFiles(existing.id, {
+          ...body,
+          // The survivors; the new uploads are appended on top.
+          'attachments': _existingAttachments,
+        }, files);
       }
 
       ref
@@ -228,6 +298,25 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
               textCapitalization: TextCapitalization.sentences,
             ),
           ],
+          const SizedBox(height: AppSpacing.md),
+          _AttachmentsEditor(
+            appointmentId: widget.appointment?.id,
+            existing: _existingAttachments,
+            added: _newAttachments,
+            enabled: !isBusy,
+            canAdd: _slotsLeft > 0,
+            onRemoveExisting: (name) {
+              setState(() => _existingAttachments.remove(name));
+              markDirty();
+            },
+            onRemoveAdded: (file) {
+              setState(() => _newAttachments.remove(file));
+              markDirty();
+            },
+            onPickImages: _pickImages,
+            onTakePhoto: _takePhoto,
+            onPickFiles: _pickFiles,
+          ),
           const Divider(height: AppSpacing.lg),
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -245,6 +334,121 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The attachments section of the form: pictures in the shared photo strip,
+/// every other file as a named chip, then the three ways to add one.
+///
+/// Split in two because the shared strip only knows images and videos — a PDF
+/// handed to it would be fetched as a "thumbnail", i.e. downloaded whole, and
+/// then fail to decode.
+class _AttachmentsEditor extends ConsumerWidget {
+  const _AttachmentsEditor({
+    required this.appointmentId,
+    required this.existing,
+    required this.added,
+    required this.enabled,
+    required this.canAdd,
+    required this.onRemoveExisting,
+    required this.onRemoveAdded,
+    required this.onPickImages,
+    required this.onTakePhoto,
+    required this.onPickFiles,
+  });
+
+  final String? appointmentId;
+  final List<String> existing;
+  final List<XFile> added;
+  final bool enabled;
+  final bool canAdd;
+  final ValueChanged<String> onRemoveExisting;
+  final ValueChanged<XFile> onRemoveAdded;
+  final VoidCallback onPickImages;
+  final VoidCallback onTakePhoto;
+  final VoidCallback onPickFiles;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final repo = ref.watch(vetAppointmentsRepositoryProvider).value;
+    final id = appointmentId;
+
+    final existingImages = existing.where(isPreviewableImage).toList();
+    final existingFiles = existing.where((f) => !isPreviewableImage(f));
+    final addedImages = added
+        .where((f) => isPreviewableImage(pickedFileName(f)))
+        .toList();
+    final addedFiles = added.where(
+      (f) => !isPreviewableImage(pickedFileName(f)),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.vetAppointmentAttachmentsLabel,
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        if (existingImages.isNotEmpty || addedImages.isNotEmpty)
+          EditablePhotoStrip(
+            existing: existingImages,
+            newPhotos: addedImages,
+            thumbUrl: repo == null || id == null
+                ? null
+                : (f) => repo.fileUrl(id, f, thumb: '200x200'),
+            onRemoveExisting: enabled
+                ? (i) => onRemoveExisting(existingImages[i])
+                : null,
+            onRemoveNew: enabled ? (i) => onRemoveAdded(addedImages[i]) : null,
+          ),
+        if (existingFiles.isNotEmpty || addedFiles.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                for (final f in existingFiles)
+                  AttachmentFileChip(
+                    key: ValueKey(f),
+                    name: attachmentDisplayName(f),
+                    onRemove: enabled ? () => onRemoveExisting(f) : null,
+                  ),
+                for (final f in addedFiles)
+                  AttachmentFileChip(
+                    key: ObjectKey(f),
+                    name: pickedFileName(f),
+                    onRemove: enabled ? () => onRemoveAdded(f) : null,
+                  ),
+              ],
+            ),
+          ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          children: [
+            OutlinedButton.icon(
+              onPressed: enabled && canAdd ? onPickImages : null,
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(l10n.vetAppointmentAddImage),
+            ),
+            OutlinedButton.icon(
+              onPressed: enabled && canAdd ? onTakePhoto : null,
+              icon: const Icon(Icons.photo_camera_outlined),
+              label: Text(l10n.vetAppointmentTakePhoto),
+            ),
+            OutlinedButton.icon(
+              onPressed: enabled && canAdd ? onPickFiles : null,
+              icon: const Icon(Icons.attach_file),
+              label: Text(l10n.vetAppointmentAddFile),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

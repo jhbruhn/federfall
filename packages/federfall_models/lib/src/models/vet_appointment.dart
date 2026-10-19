@@ -40,6 +40,12 @@ abstract class VetAppointment with _$VetAppointment {
     /// Separate from [reminderLeadMinutes] so un-muting restores the previously
     /// chosen lead instead of silently falling back to the default.
     @Default(false) bool reminderMuted,
+
+    /// Up to ten files from the visit — an X-ray, a photo, and most often the
+    /// written Befund as a PDF. The first file field here that is not
+    /// image-only (1700000094), so a reader must ask whether a name is a
+    /// picture before requesting a thumbnail of it.
+    @Default(<String>[]) List<String> attachments,
     String? createdBy,
     String? org,
     DateTime? created,
@@ -66,6 +72,7 @@ abstract class VetAppointment with _$VetAppointment {
       // negative from arriving, so 0 is the whole of "not set".
       reminderLeadMinutes: pbCount(d['reminder_lead_minutes']),
       reminderMuted: pbBool(d['reminder_muted']),
+      attachments: pbStringList(d['attachments']),
       createdBy: pbString(d['created_by']),
       org: pbString(d['org']),
       created: pbDate(d['created']),
