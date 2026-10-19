@@ -7,8 +7,6 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 
 /// Opens the egg-laying form as a modal bottom sheet. Pass [egg] to edit an
 /// existing record; omit it to log a new one. Resolves to `true` on save.
@@ -52,17 +50,9 @@ class _EggEntrySheetState extends ConsumerState<EggEntrySheet>
   late EggFate _fate;
   late bool _uncertain;
 
-  /// Server-side photos kept on save (edit only); removing one drops it.
-  late final List<String> _existingPhotos;
-
-  /// Freshly picked photos to upload.
-  final _newPhotos = <XFile>[];
+  late final AttachmentDraft _photos;
 
   bool get _isEditing => widget.egg != null;
-
-  int get _photoCount => _existingPhotos.length + _newPhotos.length;
-
-  int get _photoSlotsLeft => EggEntrySheet.maxPhotos - _photoCount;
 
   @override
   void initState() {
@@ -74,33 +64,21 @@ class _EggEntrySheetState extends ConsumerState<EggEntrySheet>
     _fertility = egg?.fertility ?? EggFertility.unknown;
     _fate = egg?.fate ?? EggFate.unknown;
     _uncertain = egg?.attribution == EggAttribution.presumed;
-    _existingPhotos = [...?egg?.photos];
+    _photos = AttachmentDraft(
+      field: 'photos',
+      max: EggEntrySheet.maxPhotos,
+      existing: egg?.photos ?? const [],
+      onChanged: () {
+        setState(() {});
+        markDirty();
+      },
+    );
   }
 
   @override
   void dispose() {
     _notesController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickPhotos() async {
-    final picker = ref.read(imagePickerProvider);
-    final picked = await picker.pickMultiImage();
-    if (picked.isNotEmpty) {
-      // The server rejects a fourth file outright, so cap the selection here
-      // rather than let the save fail after the upload.
-      setState(() => _newPhotos.addAll(picked.take(_photoSlotsLeft)));
-      markDirty();
-    }
-  }
-
-  Future<void> _takePhoto() async {
-    final picker = ref.read(imagePickerProvider);
-    final shot = await picker.pickImage(source: ImageSource.camera);
-    if (shot != null) {
-      setState(() => _newPhotos.add(shot));
-      markDirty();
-    }
   }
 
   Future<void> _pickDate() async {
@@ -116,36 +94,13 @@ class _EggEntrySheetState extends ConsumerState<EggEntrySheet>
     markDirty();
   }
 
-  Future<List<http.MultipartFile>> _multipartPhotos() async {
-    final files = <http.MultipartFile>[];
-    for (final photo in _newPhotos) {
-      files.add(
-        http.MultipartFile.fromBytes(
-          'photos',
-          await photo.readAsBytes(),
-          filename: photo.name,
-        ),
-      );
-    }
-    return files;
-  }
-
-  /// Resolves stored photo thumbnails; null until the repository (and, on
-  /// create, the record) exists.
-  Uri Function(String)? _thumbUrl() {
-    final repo = ref.watch(eggRecordsRepositoryProvider).value;
-    final eggId = widget.egg?.id;
-    if (repo == null || eggId == null) return null;
-    return (filename) => repo.fileUrl(eggId, filename, thumb: '200x200');
-  }
-
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
     final ok = await runSave(() async {
       final (user, org) = await requireUserOrg();
       final repo = await ref.read(eggRecordsRepositoryProvider.future);
-      final files = await _multipartPhotos();
+      final files = await _photos.multipart();
       final notes = _notesController.text.trim();
       final egg = widget.egg;
       final attribution = _uncertain
@@ -175,7 +130,7 @@ class _EggEntrySheetState extends ConsumerState<EggEntrySheet>
           'notes': notes,
           // Setting the field to the survivors drops any removed photo; the
           // new uploads are appended on top.
-          'photos': _existingPhotos,
+          'photos': _photos.existing,
         }, files);
       }
 
@@ -260,35 +215,36 @@ class _EggEntrySheetState extends ConsumerState<EggEntrySheet>
           const SizedBox(height: AppSpacing.sm),
           Text(l10n.eggPhotosLabel, style: theme.textTheme.labelLarge),
           const SizedBox(height: AppSpacing.xs),
-          if (_photoCount > 0)
+          if (!_photos.isEmpty)
             EditablePhotoStrip(
-              existing: _existingPhotos,
-              newPhotos: _newPhotos,
-              thumbUrl: _thumbUrl(),
+              existing: _photos.existing,
+              newPhotos: _photos.added,
+              thumbUrl: storedThumbUrl(
+                ref.watch(eggRecordsRepositoryProvider).value,
+                widget.egg?.id,
+              ),
               onRemoveExisting: isBusy
                   ? null
-                  : (i) {
-                      setState(() => _existingPhotos.removeAt(i));
-                      markDirty();
-                    },
+                  : (i) => _photos.removeExisting(_photos.existing[i]),
               onRemoveNew: isBusy
                   ? null
-                  : (i) {
-                      setState(() => _newPhotos.removeAt(i));
-                      markDirty();
-                    },
+                  : (i) => _photos.removeAdded(_photos.added[i]),
             ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.sm,
             children: [
               OutlinedButton.icon(
-                onPressed: isBusy || _photoSlotsLeft == 0 ? null : _pickPhotos,
+                onPressed: isBusy || !_photos.canAdd
+                    ? null
+                    : () => _photos.pickImages(ref.read(imagePickerProvider)),
                 icon: const Icon(Icons.photo_library_outlined),
                 label: Text(l10n.eggAddPhoto),
               ),
               OutlinedButton.icon(
-                onPressed: isBusy || _photoSlotsLeft == 0 ? null : _takePhoto,
+                onPressed: isBusy || !_photos.canAdd
+                    ? null
+                    : () => _photos.takePhoto(ref.read(imagePickerProvider)),
                 icon: const Icon(Icons.photo_camera_outlined),
                 label: Text(l10n.eggTakePhoto),
               ),

@@ -10,7 +10,6 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 /// Opens the microscopy add/edit form. Pass [sample] (and its [findings]) to
@@ -49,6 +48,10 @@ class MicroscopySheet extends ConsumerStatefulWidget {
   final String caseId;
   final MicroscopySample? sample;
   final List<MicroscopyFinding> findings;
+
+  /// PocketBase caps `microscopy_samples.attachments` at five files
+  /// (1700000073).
+  static const int maxAttachments = 5;
 
   @override
   ConsumerState<MicroscopySheet> createState() => _MicroscopySheetState();
@@ -91,9 +94,7 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
   final Map<String, MicroscopySeverity> _grades = {};
   final List<_FreeRow> _freeRows = [];
 
-  /// Stored attachments kept on save (edit only); removing one drops it.
-  late final List<String> _existingAttachments;
-  final _newFiles = <XFile>[];
+  late final AttachmentDraft _attachments;
 
   /// Set once the user has tried to save, so a required-field error only
   /// appears after they asked for something impossible — not the moment the
@@ -107,6 +108,8 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
 
   bool get _isEditing => widget.sample != null;
 
+  ImagePicker get _picker => ref.read(imagePickerProvider);
+
   @override
   void initState() {
     super.initState();
@@ -119,7 +122,15 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
     _method = s?.method;
     _examinedBy = s?.examinedBy;
     _noFindings = s?.noFindings ?? false;
-    _existingAttachments = [...?s?.attachments];
+    _attachments = AttachmentDraft(
+      field: 'attachments',
+      max: MicroscopySheet.maxAttachments,
+      existing: s?.attachments ?? const [],
+      onChanged: () {
+        setState(() {});
+        markDirty();
+      },
+    );
     for (final f in widget.findings) {
       final severity = f.severity;
       if (severity == null) continue;
@@ -262,51 +273,6 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
     }
   }
 
-  Future<void> _addPhotos() async {
-    final picked = await ref.read(imagePickerProvider).pickMultiImage();
-    if (picked.isEmpty) return;
-    setState(() => _newFiles.addAll(picked));
-    markDirty();
-  }
-
-  Future<void> _capturePhoto() async {
-    final shot = await ref
-        .read(imagePickerProvider)
-        .pickImage(source: ImageSource.camera);
-    if (shot == null) return;
-    setState(() => _newFiles.add(shot));
-    markDirty();
-  }
-
-  Future<void> _addVideo(ImageSource source) async {
-    // No new dependency: image_picker already covers both ends of this.
-    final clip = await ref.read(imagePickerProvider).pickVideo(source: source);
-    if (clip == null) return;
-    setState(() => _newFiles.add(clip));
-    markDirty();
-  }
-
-  Future<List<http.MultipartFile>> _multipartFiles() async {
-    final files = <http.MultipartFile>[];
-    for (final file in _newFiles) {
-      files.add(
-        http.MultipartFile.fromBytes(
-          'attachments',
-          await file.readAsBytes(),
-          filename: file.name,
-        ),
-      );
-    }
-    return files;
-  }
-
-  Uri Function(String)? _thumbUrl() {
-    final repo = ref.watch(microscopySamplesRepositoryProvider).value;
-    final id = widget.sample?.id;
-    if (repo == null || id == null) return null;
-    return (filename) => repo.fileUrl(id, filename, thumb: '200x200');
-  }
-
   Future<void> _save() async {
     final probe = _sampleType;
     // A faecal sample was prepared one way or the other, and which one decides
@@ -328,7 +294,7 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
     final ok = await runSave(() async {
       final (user, _) = await requireUserOrg();
       final repo = await ref.read(microscopySamplesRepositoryProvider.future);
-      final files = await _multipartFiles();
+      final files = await _attachments.multipart();
       final existing = widget.sample;
 
       // Who looked down the microscope. On a new in-house record that is the
@@ -370,7 +336,7 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
         ],
         // The survivors; anything omitted is dropped server-side. Always sent
         // on an edit, so removing the last attachment actually removes it.
-        if (existing != null) 'keep_attachments': _existingAttachments,
+        if (existing != null) 'keep_attachments': _attachments.existing,
       }, attachments: files);
       ref.invalidate(caseBundleProvider(widget.caseId));
     });
@@ -383,6 +349,7 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
     final theme = Theme.of(context);
     final types = ref.watch(microscopyFindingTypesProvider);
     final applicable = _applicableTypes(types.value ?? const []);
+    final canAdd = !isBusy && _attachments.canAdd;
 
     return guardUnsavedChanges(
       child: SheetScaffold(
@@ -588,23 +555,21 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
             style: theme.textTheme.titleSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
-          if (_existingAttachments.isNotEmpty || _newFiles.isNotEmpty)
+          if (!_attachments.isEmpty)
             EditablePhotoStrip(
-              existing: _existingAttachments,
-              newPhotos: _newFiles,
-              thumbUrl: _thumbUrl(),
+              existing: _attachments.existing,
+              newPhotos: _attachments.added,
+              thumbUrl: storedThumbUrl(
+                ref.watch(microscopySamplesRepositoryProvider).value,
+                widget.sample?.id,
+              ),
               onRemoveExisting: isBusy
                   ? null
-                  : (i) {
-                      setState(() => _existingAttachments.removeAt(i));
-                      markDirty();
-                    },
+                  : (i) =>
+                        _attachments.removeExisting(_attachments.existing[i]),
               onRemoveNew: isBusy
                   ? null
-                  : (i) {
-                      setState(() => _newFiles.removeAt(i));
-                      markDirty();
-                    },
+                  : (i) => _attachments.removeAdded(_attachments.added[i]),
             ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
@@ -612,22 +577,32 @@ class _MicroscopySheetState extends ConsumerState<MicroscopySheet>
             runSpacing: AppSpacing.sm,
             children: [
               OutlinedButton.icon(
-                onPressed: isBusy ? null : _addPhotos,
+                onPressed: canAdd
+                    ? () => _attachments.pickImages(_picker)
+                    : null,
                 icon: const Icon(Icons.photo_library_outlined),
                 label: Text(l10n.photoAddAction),
               ),
               OutlinedButton.icon(
-                onPressed: isBusy ? null : _capturePhoto,
+                onPressed: canAdd
+                    ? () => _attachments.takePhoto(_picker)
+                    : null,
                 icon: const Icon(Icons.photo_camera_outlined),
                 label: Text(l10n.photoCaptureAction),
               ),
+              // No new dependency: image_picker already covers both ends of
+              // this.
               OutlinedButton.icon(
-                onPressed: isBusy ? null : () => _addVideo(ImageSource.gallery),
+                onPressed: canAdd
+                    ? () => _attachments.pickVideo(_picker, ImageSource.gallery)
+                    : null,
                 icon: const Icon(Icons.video_library_outlined),
                 label: Text(l10n.microscopyAddVideo),
               ),
               OutlinedButton.icon(
-                onPressed: isBusy ? null : () => _addVideo(ImageSource.camera),
+                onPressed: canAdd
+                    ? () => _attachments.pickVideo(_picker, ImageSource.camera)
+                    : null,
                 icon: const Icon(Icons.videocam_outlined),
                 label: Text(l10n.microscopyRecordVideo),
               ),

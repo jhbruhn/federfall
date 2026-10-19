@@ -6,6 +6,7 @@ import 'package:federfall_data/federfall_data.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
@@ -92,6 +93,94 @@ class DocumentPicker {
 final documentPickerProvider = Provider<DocumentPicker>(
   (ref) => const DocumentPicker(),
 );
+
+/// The files of one file field while a form edits them: the [existing]
+/// filenames still stored on the record, and the [added] files picked since.
+///
+/// Every form with attachments — journal, vaccination, egg record, microscopy,
+/// vet appointment, intake — used to restate this: pick, cap at the server's
+/// `maxSelect`, remove, and turn the new files into multipart parts. A save
+/// sends [existing] as the field's value (which is what drops a removed file)
+/// and [multipart] on top.
+///
+/// [onChanged] runs after every change the user made, so the owning form can
+/// `setState` and mark itself dirty; it is not called for a pick that came
+/// back empty.
+class AttachmentDraft {
+  AttachmentDraft({
+    required this.field,
+    required this.max,
+    required this.onChanged,
+    Iterable<String> existing = const [],
+  }) : existing = [...existing];
+
+  /// The record's file field, e.g. `attachments` or `photos`.
+  final String field;
+
+  /// The field's `maxSelect`. The server rejects one file more outright, so
+  /// the cap belongs at staging time rather than in a failed save after the
+  /// upload.
+  final int max;
+
+  final VoidCallback onChanged;
+
+  final List<String> existing;
+  final List<XFile> added = [];
+
+  int get slotsLeft => max - existing.length - added.length;
+
+  bool get canAdd => slotsLeft > 0;
+
+  bool get isEmpty => existing.isEmpty && added.isEmpty;
+
+  /// Stages [picked], capped at the slots left.
+  void stage(Iterable<XFile> picked) {
+    final take = picked.take(slotsLeft).toList();
+    if (take.isEmpty) return;
+    added.addAll(take);
+    onChanged();
+  }
+
+  Future<void> pickImages(ImagePicker picker) async =>
+      stage(await picker.pickMultiImage());
+
+  Future<void> takePhoto(ImagePicker picker) async =>
+      stage([?await picker.pickImage(source: ImageSource.camera)]);
+
+  Future<void> pickVideo(ImagePicker picker, ImageSource source) async =>
+      stage([?await picker.pickVideo(source: source)]);
+
+  void removeExisting(String filename) {
+    existing.remove(filename);
+    onChanged();
+  }
+
+  void removeAdded(XFile file) {
+    added.remove(file);
+    onChanged();
+  }
+
+  /// The [added] files as multipart parts on [field].
+  Future<List<http.MultipartFile>> multipart() async => [
+    for (final file in added)
+      http.MultipartFile.fromBytes(
+        field,
+        await file.readAsBytes(),
+        filename: pickedFileName(file),
+      ),
+  ];
+}
+
+/// Resolves a stored file's 200x200 thumbnail for an edit form's photo strip;
+/// `null` until [repo] has resolved, and on create, where there is no record
+/// (and so nothing stored) yet.
+Uri Function(String)? storedThumbUrl(
+  PbReadOnlyRepository<Object?>? repo,
+  String? recordId,
+) {
+  if (repo == null || recordId == null) return null;
+  return (filename) => repo.fileUrl(recordId, filename, thumb: '200x200');
+}
 
 /// Opens stored attachment [filename] of record [recordId] in [repo]'s
 /// collection — the one way every protected file field here is opened.

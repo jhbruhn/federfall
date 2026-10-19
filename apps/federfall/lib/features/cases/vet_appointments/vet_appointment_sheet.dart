@@ -9,8 +9,6 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 
 /// Opens the vet-appointment add/edit form. Pass [appointment] to edit;
 /// [focusOutcome] scrolls the outcome field into focus, for the
@@ -67,17 +65,9 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
   Duration? _lead;
   late bool _muted;
 
-  /// Stored attachments kept on save; removing one drops it, because the
-  /// survivors are sent as the field's new value.
-  late final List<String> _existingAttachments;
-  final _newAttachments = <XFile>[];
+  late final AttachmentDraft _attachments;
 
   bool get _isEditing => widget.appointment != null;
-
-  int get _slotsLeft =>
-      kVetAppointmentMaxAttachments -
-      _existingAttachments.length -
-      _newAttachments.length;
 
   @override
   void initState() {
@@ -100,7 +90,15 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
     final leadMinutes = a?.reminderLeadMinutes;
     _lead = leadMinutes == null ? null : Duration(minutes: leadMinutes);
     _muted = a?.reminderMuted ?? false;
-    _existingAttachments = [...?a?.attachments];
+    _attachments = AttachmentDraft(
+      field: 'attachments',
+      max: kVetAppointmentMaxAttachments,
+      existing: a?.attachments ?? const [],
+      onChanged: () {
+        setState(() {});
+        markDirty();
+      },
+    );
   }
 
   @override
@@ -156,25 +154,6 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
     markDirty();
   }
 
-  /// Stages [picked], capped at the slots left — the server rejects an
-  /// eleventh file outright, so the cap belongs here rather than in a failed
-  /// save after the upload.
-  void _stage(List<XFile> picked) {
-    if (picked.isEmpty) return;
-    setState(() => _newAttachments.addAll(picked.take(_slotsLeft)));
-    markDirty();
-  }
-
-  Future<void> _pickImages() async =>
-      _stage(await ref.read(imagePickerProvider).pickMultiImage());
-
-  Future<void> _takePhoto() async {
-    final shot = await ref
-        .read(imagePickerProvider)
-        .pickImage(source: ImageSource.camera);
-    if (shot != null) _stage([shot]);
-  }
-
   Future<void> _pickFiles() async {
     final picked = await ref.read(documentPickerProvider).pickFiles();
     if (!mounted) return;
@@ -191,20 +170,11 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
         ),
       );
     }
-    _stage([
+    _attachments.stage([
       for (final f in picked)
         if (isAcceptedVetAttachment(pickedFileName(f))) f,
     ]);
   }
-
-  Future<List<http.MultipartFile>> _multipart() async => [
-    for (final file in _newAttachments)
-      http.MultipartFile.fromBytes(
-        'attachments',
-        await file.readAsBytes(),
-        filename: pickedFileName(file),
-      ),
-  ];
 
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
@@ -224,7 +194,7 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
         'reminder_muted': _muted,
       };
 
-      final files = await _multipart();
+      final files = await _attachments.multipart();
       final existing = widget.appointment;
       if (existing == null) {
         await repo.createWithFiles({
@@ -237,7 +207,7 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
         await repo.updateWithFiles(existing.id, {
           ...body,
           // The survivors; the new uploads are appended on top.
-          'attachments': _existingAttachments,
+          'attachments': _attachments.existing,
         }, files);
       }
 
@@ -301,20 +271,12 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
           const SizedBox(height: AppSpacing.md),
           _AttachmentsEditor(
             appointmentId: widget.appointment?.id,
-            existing: _existingAttachments,
-            added: _newAttachments,
+            draft: _attachments,
             enabled: !isBusy,
-            canAdd: _slotsLeft > 0,
-            onRemoveExisting: (name) {
-              setState(() => _existingAttachments.remove(name));
-              markDirty();
-            },
-            onRemoveAdded: (file) {
-              setState(() => _newAttachments.remove(file));
-              markDirty();
-            },
-            onPickImages: _pickImages,
-            onTakePhoto: _takePhoto,
+            onPickImages: () =>
+                _attachments.pickImages(ref.read(imagePickerProvider)),
+            onTakePhoto: () =>
+                _attachments.takePhoto(ref.read(imagePickerProvider)),
             onPickFiles: _pickFiles,
           ),
           const Divider(height: AppSpacing.lg),
@@ -347,24 +309,16 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
 class _AttachmentsEditor extends ConsumerWidget {
   const _AttachmentsEditor({
     required this.appointmentId,
-    required this.existing,
-    required this.added,
+    required this.draft,
     required this.enabled,
-    required this.canAdd,
-    required this.onRemoveExisting,
-    required this.onRemoveAdded,
     required this.onPickImages,
     required this.onTakePhoto,
     required this.onPickFiles,
   });
 
   final String? appointmentId;
-  final List<String> existing;
-  final List<XFile> added;
+  final AttachmentDraft draft;
   final bool enabled;
-  final bool canAdd;
-  final ValueChanged<String> onRemoveExisting;
-  final ValueChanged<XFile> onRemoveAdded;
   final VoidCallback onPickImages;
   final VoidCallback onTakePhoto;
   final VoidCallback onPickFiles;
@@ -372,15 +326,14 @@ class _AttachmentsEditor extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final repo = ref.watch(vetAppointmentsRepositoryProvider).value;
-    final id = appointmentId;
+    final canAdd = enabled && draft.canAdd;
 
-    final existingImages = existing.where(isImageAttachment).toList();
-    final existingFiles = existing.where((f) => !isImageAttachment(f));
-    final addedImages = added
+    final existingImages = draft.existing.where(isImageAttachment).toList();
+    final existingFiles = draft.existing.where((f) => !isImageAttachment(f));
+    final addedImages = draft.added
         .where((f) => isImageAttachment(pickedFileName(f)))
         .toList();
-    final addedFiles = added.where(
+    final addedFiles = draft.added.where(
       (f) => !isImageAttachment(pickedFileName(f)),
     );
 
@@ -396,13 +349,16 @@ class _AttachmentsEditor extends ConsumerWidget {
           EditablePhotoStrip(
             existing: existingImages,
             newPhotos: addedImages,
-            thumbUrl: repo == null || id == null
-                ? null
-                : (f) => repo.fileUrl(id, f, thumb: '200x200'),
+            thumbUrl: storedThumbUrl(
+              ref.watch(vetAppointmentsRepositoryProvider).value,
+              appointmentId,
+            ),
             onRemoveExisting: enabled
-                ? (i) => onRemoveExisting(existingImages[i])
+                ? (i) => draft.removeExisting(existingImages[i])
                 : null,
-            onRemoveNew: enabled ? (i) => onRemoveAdded(addedImages[i]) : null,
+            onRemoveNew: enabled
+                ? (i) => draft.removeAdded(addedImages[i])
+                : null,
           ),
         if (existingFiles.isNotEmpty || addedFiles.isNotEmpty)
           Padding(
@@ -415,13 +371,13 @@ class _AttachmentsEditor extends ConsumerWidget {
                   AttachmentFileChip(
                     key: ValueKey(f),
                     name: attachmentDisplayName(f),
-                    onRemove: enabled ? () => onRemoveExisting(f) : null,
+                    onRemove: enabled ? () => draft.removeExisting(f) : null,
                   ),
                 for (final f in addedFiles)
                   AttachmentFileChip(
                     key: ObjectKey(f),
                     name: pickedFileName(f),
-                    onRemove: enabled ? () => onRemoveAdded(f) : null,
+                    onRemove: enabled ? () => draft.removeAdded(f) : null,
                   ),
               ],
             ),
@@ -432,17 +388,17 @@ class _AttachmentsEditor extends ConsumerWidget {
           runSpacing: AppSpacing.xs,
           children: [
             OutlinedButton.icon(
-              onPressed: enabled && canAdd ? onPickImages : null,
+              onPressed: canAdd ? onPickImages : null,
               icon: const Icon(Icons.photo_library_outlined),
               label: Text(l10n.vetAppointmentAddImage),
             ),
             OutlinedButton.icon(
-              onPressed: enabled && canAdd ? onTakePhoto : null,
+              onPressed: canAdd ? onTakePhoto : null,
               icon: const Icon(Icons.photo_camera_outlined),
               label: Text(l10n.vetAppointmentTakePhoto),
             ),
             OutlinedButton.icon(
-              onPressed: enabled && canAdd ? onPickFiles : null,
+              onPressed: canAdd ? onPickFiles : null,
               icon: const Icon(Icons.attach_file),
               label: Text(l10n.vetAppointmentAddFile),
             ),

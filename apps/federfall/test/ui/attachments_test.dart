@@ -1,12 +1,19 @@
+import 'dart:typed_data';
+
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockRepo extends Mock implements PbReadOnlyRepository<Object?> {}
+
+class MockPicker extends Mock implements ImagePicker {}
+
+XFile _file(String path) => XFile.fromData(Uint8List.fromList([1]), path: path);
 
 void main() {
   group('attachmentKindOf', () {
@@ -106,5 +113,61 @@ void main() {
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
       },
     );
+  });
+
+  group('AttachmentDraft', () {
+    late int changes;
+    late MockPicker picker;
+
+    setUp(() {
+      changes = 0;
+      picker = MockPicker();
+    });
+
+    AttachmentDraft draft({int max = 3, List<String> existing = const []}) =>
+        AttachmentDraft(
+          field: 'photos',
+          max: max,
+          existing: existing,
+          onChanged: () => changes++,
+        );
+
+    test('a pick is capped at the slots the server has left', () async {
+      final d = draft(existing: ['a.jpg']);
+      when(() => picker.pickMultiImage()).thenAnswer(
+        (_) async => [_file('1.jpg'), _file('2.jpg'), _file('3.jpg')],
+      );
+
+      await d.pickImages(picker);
+
+      expect(d.added.map((f) => f.path), ['1.jpg', '2.jpg']);
+      expect(d.canAdd, isFalse);
+      expect(changes, 1);
+    });
+
+    test('a pick that came back empty changes nothing', () async {
+      final d = draft();
+      when(
+        () => picker.pickImage(source: ImageSource.camera),
+      ).thenAnswer((_) async => null);
+
+      await d.takePhoto(picker);
+
+      expect(d.isEmpty, isTrue);
+      expect(changes, 0);
+    });
+
+    test('removing a stored file leaves only the survivors to send', () {
+      final d = draft(existing: ['a.jpg', 'b.jpg'])..removeExisting('a.jpg');
+      expect(d.existing, ['b.jpg']);
+      expect(changes, 1);
+    });
+
+    test("the new files become parts on the record's own field", () async {
+      final d = draft()..stage([_file('x.png')]);
+      final parts = await d.multipart();
+      expect(parts.single.field, 'photos');
+      expect(parts.single.filename, 'x.png');
+    });
   });
 }

@@ -6,8 +6,6 @@ import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 
 /// Opens the journal-entry form as a modal bottom sheet. Exactly one of
 /// [caseId] / [aviaryId] must be set — a case-scoped clinical note or an
@@ -46,6 +44,10 @@ class JournalEntrySheet extends ConsumerStatefulWidget {
   final String? aviaryId;
   final JournalEntry? entry;
 
+  /// PocketBase caps `journal_entries.attachments` at twenty files
+  /// (1700000007).
+  static const int maxAttachments = 20;
+
   @override
   ConsumerState<JournalEntrySheet> createState() => _JournalEntrySheetState();
 }
@@ -55,11 +57,7 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
   late final TextEditingController _textController;
   late DateTime _entryAt;
 
-  /// Server-side attachments kept on save (edit only); removing one drops it.
-  late final List<String> _existingPhotos;
-
-  /// Freshly picked photos to upload.
-  final _newPhotos = <XFile>[];
+  late final AttachmentDraft _photos;
 
   bool get _isEditing => widget.entry != null;
 
@@ -72,31 +70,21 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
         entry?.entryAt?.toLocal() ??
         entry?.created?.toLocal() ??
         DateTime.now();
-    _existingPhotos = [...?entry?.attachments];
+    _photos = AttachmentDraft(
+      field: 'attachments',
+      max: JournalEntrySheet.maxAttachments,
+      existing: entry?.attachments ?? const [],
+      onChanged: () {
+        setState(() {});
+        markDirty();
+      },
+    );
   }
 
   @override
   void dispose() {
     _textController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickPhotos() async {
-    final picker = ref.read(imagePickerProvider);
-    final picked = await picker.pickMultiImage();
-    if (picked.isNotEmpty) {
-      setState(() => _newPhotos.addAll(picked));
-      markDirty();
-    }
-  }
-
-  Future<void> _takePhoto() async {
-    final picker = ref.read(imagePickerProvider);
-    final shot = await picker.pickImage(source: ImageSource.camera);
-    if (shot != null) {
-      setState(() => _newPhotos.add(shot));
-      markDirty();
-    }
   }
 
   Future<void> _pickDate() async {
@@ -107,36 +95,13 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
     }
   }
 
-  Future<List<http.MultipartFile>> _multipartPhotos() async {
-    final files = <http.MultipartFile>[];
-    for (final photo in _newPhotos) {
-      files.add(
-        http.MultipartFile.fromBytes(
-          'attachments',
-          await photo.readAsBytes(),
-          filename: photo.name,
-        ),
-      );
-    }
-    return files;
-  }
-
-  /// Resolves stored attachment thumbnails; null until the repository (and, on
-  /// create, the record) exists.
-  Uri Function(String)? _thumbUrl() {
-    final repo = ref.watch(journalRepositoryProvider).value;
-    final entryId = widget.entry?.id;
-    if (repo == null || entryId == null) return null;
-    return (filename) => repo.fileUrl(entryId, filename, thumb: '200x200');
-  }
-
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
     final ok = await runSave(() async {
       final (user, org) = await requireUserOrg();
       final repo = await ref.read(journalRepositoryProvider.future);
-      final files = await _multipartPhotos();
+      final files = await _photos.multipart();
       final entry = widget.entry;
 
       if (entry == null) {
@@ -154,7 +119,7 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
           'entry_at': _entryAt.toUtc().toIso8601String(),
           // Setting the field to the survivors drops any removed attachments;
           // the new uploads are appended on top.
-          'attachments': _existingPhotos,
+          'attachments': _photos.existing,
         }, files);
       }
 
@@ -195,35 +160,36 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
             onPick: _pickDate,
           ),
           const SizedBox(height: AppSpacing.md),
-          if (_existingPhotos.isNotEmpty || _newPhotos.isNotEmpty)
+          if (!_photos.isEmpty)
             EditablePhotoStrip(
-              existing: _existingPhotos,
-              newPhotos: _newPhotos,
-              thumbUrl: _thumbUrl(),
+              existing: _photos.existing,
+              newPhotos: _photos.added,
+              thumbUrl: storedThumbUrl(
+                ref.watch(journalRepositoryProvider).value,
+                widget.entry?.id,
+              ),
               onRemoveExisting: isBusy
                   ? null
-                  : (i) {
-                      setState(() => _existingPhotos.removeAt(i));
-                      markDirty();
-                    },
+                  : (i) => _photos.removeExisting(_photos.existing[i]),
               onRemoveNew: isBusy
                   ? null
-                  : (i) {
-                      setState(() => _newPhotos.removeAt(i));
-                      markDirty();
-                    },
+                  : (i) => _photos.removeAdded(_photos.added[i]),
             ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.sm,
             children: [
               OutlinedButton.icon(
-                onPressed: isBusy ? null : _pickPhotos,
+                onPressed: isBusy || !_photos.canAdd
+                    ? null
+                    : () => _photos.pickImages(ref.read(imagePickerProvider)),
                 icon: const Icon(Icons.photo_library_outlined),
                 label: Text(l10n.journalAddPhotos),
               ),
               OutlinedButton.icon(
-                onPressed: isBusy ? null : _takePhoto,
+                onPressed: isBusy || !_photos.canAdd
+                    ? null
+                    : () => _photos.takePhoto(ref.read(imagePickerProvider)),
                 icon: const Icon(Icons.photo_camera_outlined),
                 label: Text(l10n.journalTakePhoto),
               ),

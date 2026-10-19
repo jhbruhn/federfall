@@ -25,7 +25,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 /// True when both dates are set and the animal was "found" on a later day
@@ -92,7 +91,15 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
   // once loaded. Kept so submit can skip the per-case update when the carer
   // left the default untouched (the backend hook already applies it).
   int? _orgDefaultQuarantineDays;
-  final _intakePhotos = <XFile>[];
+  // `cases.intake_photos` is capped at twenty files (1700000004).
+  late final _intakePhotos = AttachmentDraft(
+    field: 'intake_photos',
+    max: 20,
+    onChanged: () {
+      _touch();
+      setState(() {});
+    },
+  );
   final Set<String> _reasons = {};
   AgeClass? _ageClass;
   // Default both intake dates to today (the common case); still editable and
@@ -280,7 +287,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
     finderPhone: _finderPhone.text,
     finderEmail: _finderEmail.text,
     finderCity: _finderCity.text,
-    photoPaths: [for (final p in _intakePhotos) p.path],
+    photoPaths: [for (final p in _intakePhotos.added) p.path],
     withExam: _withExam,
   );
 
@@ -415,7 +422,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       _findGeo = draft.findGeo;
       _findCity = draft.findCity;
       _findRegion = draft.findRegion;
-      _intakePhotos
+      _intakePhotos.added
         ..clear()
         ..addAll(photos);
       _withExam = draft.withExam;
@@ -459,37 +466,6 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
         _findLocationController.text = picked.address;
       }
     });
-  }
-
-  Future<void> _addPhotos() async {
-    final picked = await ref.read(imagePickerProvider).pickMultiImage();
-    if (picked.isEmpty) return;
-    _touch();
-    setState(() => _intakePhotos.addAll(picked));
-  }
-
-  Future<void> _capturePhoto() async {
-    final shot = await ref
-        .read(imagePickerProvider)
-        .pickImage(source: ImageSource.camera);
-    if (shot == null) return;
-    _touch();
-    setState(() => _intakePhotos.add(shot));
-  }
-
-  /// The staged intake photos as multipart files on the `intake_photos` field.
-  Future<List<http.MultipartFile>> _intakePhotoFiles() async {
-    final files = <http.MultipartFile>[];
-    for (final photo in _intakePhotos) {
-      files.add(
-        http.MultipartFile.fromBytes(
-          'intake_photos',
-          await photo.readAsBytes(),
-          filename: photo.name,
-        ),
-      );
-    }
-    return files;
   }
 
   /// Builds the finder contact fields, or `null` when the carer left the
@@ -592,7 +568,7 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
 
       final created = await casesRepo.intake(
         payload,
-        photos: await _intakePhotoFiles(),
+        photos: await _intakePhotos.multipart(),
         idempotencyKey: _idempotencyKey,
       );
 
@@ -1032,14 +1008,14 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
           ),
         ),
         StagedPhotos(
-          photos: _intakePhotos,
+          photos: _intakePhotos.added,
+          // Not gated on canAdd: StagedPhotos' enabled also governs removal,
+          // and the draft caps a pick at the slots left anyway.
           enabled: !_busy,
-          onAdd: _addPhotos,
-          onCapture: _capturePhoto,
-          onRemove: (i) {
-            _touch();
-            setState(() => _intakePhotos.removeAt(i));
-          },
+          onAdd: () => _intakePhotos.pickImages(ref.read(imagePickerProvider)),
+          onCapture: () =>
+              _intakePhotos.takePhoto(ref.read(imagePickerProvider)),
+          onRemove: (i) => _intakePhotos.removeAdded(_intakePhotos.added[i]),
         ),
         const SizedBox(height: AppSpacing.md),
         AppTextField(
