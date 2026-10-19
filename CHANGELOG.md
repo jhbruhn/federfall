@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/jhbruhn/federfall/compare/v1.6.0...v1.7.0) (2026-10-19)
+
+
+### Features
+
+* **cases:** attach X-rays, photos and files to a vet appointment ([caa5945](https://github.com/jhbruhn/federfall/commit/caa5945af43a1f2c8f6caa0f709dbac2618cd045))
+* **worklist:** every task on Today can be finished in one tap ([812aa6c](https://github.com/jhbruhn/federfall/commit/812aa6c3305bb2897c6eb009c7bbb9d9f7941714))
+
 ## [1.6.0](https://github.com/jhbruhn/federfall/compare/v1.5.1...v1.6.0) (2026-09-10)
 
 
