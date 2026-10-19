@@ -82,68 +82,13 @@ class JournalEntryTile extends ConsumerWidget {
           Text(entry.text, style: theme.textTheme.bodyLarge),
           if (entry.attachments.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            _AttachmentStrip(entry: entry),
+            AttachmentStrip(
+              repo: ref.watch(journalRepositoryProvider).value,
+              recordId: entry.id,
+              files: entry.attachments,
+            ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-/// Thumbnails of an entry's photo attachments; tapping one opens it full-size.
-class _AttachmentStrip extends ConsumerWidget {
-  const _AttachmentStrip({required this.entry});
-
-  final JournalEntry entry;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(journalRepositoryProvider).value;
-    if (repo == null) {
-      return const SizedBox(
-        height: 96,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // Attachments are a Protected file field (FED-8.1), but the access token is
-    // appended at download time (ProtectedFileCacheManager), so the URLs here
-    // stay token-free and cached thumbnails render without a token mint.
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: entry.attachments.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) {
-          final filename = entry.attachments[i];
-          final thumb = repo.fileUrl(entry.id, filename, thumb: '200x200');
-          return Semantics(
-            button: true,
-            label: context.l10n.photoViewLabel(i + 1, entry.attachments.length),
-            child: GestureDetector(
-              // Opaque, not the default deferToChild: the thumbnail only
-              // reports a hit once CachedFileImage has decoded a frame, so
-              // while loading (or after a load failure) the tap would be
-              // silently swallowed (federfall-ltfw).
-              behavior: HitTestBehavior.opaque,
-              onTap: () => unawaited(
-                showImageViewer(
-                  context,
-                  imageUrls: [
-                    for (final f in entry.attachments)
-                      repo.fileUrl(entry.id, f).toString(),
-                  ],
-                  initialIndex: i,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CachedFileImage(url: thumb, width: 96, height: 96),
-              ),
-            ),
-          );
-        },
       ),
     );
   }

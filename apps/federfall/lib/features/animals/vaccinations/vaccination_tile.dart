@@ -124,7 +124,11 @@ class VaccinationTile extends ConsumerWidget {
             Text(notes, style: theme.textTheme.bodyMedium),
           if (vaccination.attachments.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            VaccinationImageStrip(vaccination: vaccination),
+            AttachmentStrip(
+              repo: ref.watch(vaccinationsRepositoryProvider).value,
+              recordId: vaccination.id,
+              files: vaccination.attachments,
+            ),
           ],
         ],
       ),
@@ -192,68 +196,6 @@ class VaccinationMenu extends ConsumerWidget {
       onDelete: vaccinationDeletableBy(vaccination, me)
           ? () => _delete(context, ref)
           : null,
-    );
-  }
-}
-
-/// Thumbnails of a vaccination's images — a vial label, or a paper Impfausweis
-/// that came with the bird. Tapping one opens it full-size.
-class VaccinationImageStrip extends ConsumerWidget {
-  const VaccinationImageStrip({required this.vaccination, super.key});
-
-  final Vaccination vaccination;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(vaccinationsRepositoryProvider).value;
-    if (repo == null) {
-      return const SizedBox(
-        height: 96,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // `attachments` is a protected file field (1700000087), but the access
-    // token is appended at download time (ProtectedFileCacheManager), so these
-    // URLs stay token-free and cached thumbnails render without minting one.
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: vaccination.attachments.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) => Semantics(
-          button: true,
-          label: context.l10n.photoViewLabel(
-            i + 1,
-            vaccination.attachments.length,
-          ),
-          child: GestureDetector(
-            onTap: () => unawaited(
-              showImageViewer(
-                context,
-                imageUrls: [
-                  for (final f in vaccination.attachments)
-                    repo.fileUrl(vaccination.id, f).toString(),
-                ],
-                initialIndex: i,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedFileImage(
-                url: repo.fileUrl(
-                  vaccination.id,
-                  vaccination.attachments[i],
-                  thumb: '200x200',
-                ),
-                width: 96,
-                height: 96,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

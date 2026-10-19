@@ -375,13 +375,13 @@ class _AttachmentsEditor extends ConsumerWidget {
     final repo = ref.watch(vetAppointmentsRepositoryProvider).value;
     final id = appointmentId;
 
-    final existingImages = existing.where(isPreviewableImage).toList();
-    final existingFiles = existing.where((f) => !isPreviewableImage(f));
+    final existingImages = existing.where(isImageAttachment).toList();
+    final existingFiles = existing.where((f) => !isImageAttachment(f));
     final addedImages = added
-        .where((f) => isPreviewableImage(pickedFileName(f)))
+        .where((f) => isImageAttachment(pickedFileName(f)))
         .toList();
     final addedFiles = added.where(
-      (f) => !isPreviewableImage(pickedFileName(f)),
+      (f) => !isImageAttachment(pickedFileName(f)),
     );
 
     return Column(

@@ -4,7 +4,6 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/conditions/condition_entry_sheet.dart';
-import 'package:federfall/features/cases/microscopy/microscopy_attachment.dart';
 import 'package:federfall/features/cases/microscopy/microscopy_providers.dart';
 import 'package:federfall/features/cases/microscopy/microscopy_sheet.dart';
 import 'package:federfall/features/cases/timeline_item.dart';
@@ -160,7 +159,11 @@ class MicroscopyTile extends ConsumerWidget {
           ],
           if (sample.attachments.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            _AttachmentStrip(sample: sample),
+            AttachmentStrip(
+              repo: ref.watch(microscopySamplesRepositoryProvider).value,
+              recordId: sample.id,
+              files: sample.attachments,
+            ),
           ],
           // An OFFER, never a side effect: a positive finding is evidence, the
           // diagnosis is a human call, and the seeded conditions list already
@@ -207,75 +210,5 @@ class MicroscopyTile extends ConsumerWidget {
       return typesById[type]?.label ?? '';
     }
     return f.freeText ?? '';
-  }
-}
-
-/// Thumbnails of a sample's attachments. A video gets an icon placeholder and
-/// opens externally — see [openMicroscopyAttachment].
-class _AttachmentStrip extends ConsumerWidget {
-  const _AttachmentStrip({required this.sample});
-
-  final MicroscopySample sample;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(microscopySamplesRepositoryProvider).value;
-    if (repo == null) {
-      return const SizedBox(
-        height: 96,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: sample.attachments.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) {
-          final filename = sample.attachments[i];
-          final isVideo = isVideoAttachment(filename);
-          return Semantics(
-            button: true,
-            label: context.l10n.photoViewLabel(
-              i + 1,
-              sample.attachments.length,
-            ),
-            child: GestureDetector(
-              // Opaque, not deferToChild: the thumbnail only reports a hit
-              // once it has decoded a frame, so a tap while loading would be
-              // swallowed (federfall-ltfw).
-              behavior: HitTestBehavior.opaque,
-              onTap: () => unawaited(
-                openMicroscopyAttachment(
-                  context,
-                  ref,
-                  sampleId: sample.id,
-                  attachments: sample.attachments,
-                  index: i,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                // Never a thumbnail request for a video: `?thumb=` on a
-                // non-image serves the ORIGINAL, i.e. the whole clip.
-                child: isVideo
-                    ? const VideoAttachmentThumb(size: 96)
-                    : CachedFileImage(
-                        url: repo.fileUrl(
-                          sample.id,
-                          filename,
-                          thumb: '200x200',
-                        ),
-                        width: 96,
-                        height: 96,
-                      ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
   }
 }

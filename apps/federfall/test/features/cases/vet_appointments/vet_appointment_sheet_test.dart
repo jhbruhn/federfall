@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
-import 'package:federfall/features/cases/vet_appointments/vet_appointment_attachments.dart';
 import 'package:federfall/features/cases/vet_appointments/vet_appointment_sheet.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';

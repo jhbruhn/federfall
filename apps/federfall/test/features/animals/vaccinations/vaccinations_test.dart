@@ -411,7 +411,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(VaccinationImageStrip), findsOneWidget);
+      expect(find.byType(AttachmentStrip), findsOneWidget);
       // The URLs stay token-free — the access token is appended at download
       // time by the cache manager.
       verify(

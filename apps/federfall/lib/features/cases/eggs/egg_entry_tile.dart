@@ -84,7 +84,11 @@ class EggEntryTile extends ConsumerWidget {
             Text(notes, style: theme.textTheme.bodyMedium),
           if (egg.photos.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            EggPhotoStrip(egg: egg),
+            AttachmentStrip(
+              repo: ref.watch(eggRecordsRepositoryProvider).value,
+              recordId: egg.id,
+              files: egg.photos,
+            ),
           ],
         ],
       ),
@@ -173,60 +177,6 @@ class EggEntryMenu extends ConsumerWidget {
       ],
       deleteLabel: l10n.eggDeleteAction,
       onDelete: eggDeletableBy(egg, me) ? () => _delete(context, ref) : null,
-    );
-  }
-}
-
-/// Thumbnails of an egg record's photos; tapping one opens it full-size.
-class EggPhotoStrip extends ConsumerWidget {
-  const EggPhotoStrip({required this.egg, super.key});
-
-  final EggRecord egg;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(eggRecordsRepositoryProvider).value;
-    if (repo == null) {
-      return const SizedBox(
-        height: 96,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // `photos` is a Protected file field (1700000056), but the access token is
-    // appended at download time (ProtectedFileCacheManager), so the URLs here
-    // stay token-free and cached thumbnails render without minting one.
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: egg.photos.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) => Semantics(
-          button: true,
-          label: context.l10n.photoViewLabel(i + 1, egg.photos.length),
-          child: GestureDetector(
-            onTap: () => unawaited(
-              showImageViewer(
-                context,
-                imageUrls: [
-                  for (final f in egg.photos)
-                    repo.fileUrl(egg.id, f).toString(),
-                ],
-                initialIndex: i,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedFileImage(
-                url: repo.fileUrl(egg.id, egg.photos[i], thumb: '200x200'),
-                width: 96,
-                height: 96,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
