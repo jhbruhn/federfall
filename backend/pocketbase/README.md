@@ -1,6 +1,6 @@
 # Federfall — PocketBase backend (containerized)
 
-Self-hosted [PocketBase](https://pocketbase.io) **v0.39.8**, run entirely via Docker —
+Self-hosted [PocketBase](https://pocketbase.io) **v0.41.1**, run entirely via Docker —
 no host binary, no `.env` files. Orchestration lives in the **repo-root compose stack**
 (`../../docker-compose.yml` + `../../docker-compose.override.yml`); this directory only
 holds the committed schema (migrations + hooks), the report templates and the backend
@@ -186,11 +186,16 @@ that copy.
 
 ## Upgrading PocketBase
 
-Bump the version in **two** places, then rebuild:
+The PocketBase binary is not fetched here. It comes from zugvogel's base image, so an
+upgrade happens there first:
 
-1. root `Dockerfile` → `ARG PB_VERSION=...` (also update the per-arch `PB_SHA256`
-   values in the `pbfetch` stage from the release's `checksums.txt`)
-2. root `docker-compose.yml` → `app.build.args.PB_VERSION`
+1. In zugvogel's `Dockerfile`, bump `PB_VERSION` (it appears twice) and the per-arch
+   `PB_SHA256` values from the release's `checksums.txt`. Since 0.41.0 releases live on
+   `ganigeorgiev.com`, not GitHub; the URL that Dockerfile fetches from is upstream's
+   stable one for image maintainers.
+2. Push, and let zugvogel's CI publish `ghcr.io/jhbruhn/zugvogel-pb-base:sha-<commit>`.
+3. Here, point `ARG ZUGVOGEL_PB_BASE` in the root `Dockerfile` at that tag and run
+   `tests/run.sh` (and `tests/run_cron.sh`) against it. Eiermann takes the same pin.
 
 (The compose `image:` tag is `federfall:latest` — it names the app image, which is
 versioned by release-please, not by PocketBase, so it is not bumped here.)

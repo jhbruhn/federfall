@@ -18,7 +18,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PB_DIR="$(cd "$HERE/.." && pwd)"
 ROOT="$(cd "$PB_DIR/../.." && pwd)"
-IMAGE="federfall-pocketbase:0.39.8"
+IMAGE="federfall-pocketbase:test"
 PORT="${FED_TEST_PORT:-8098}"
 NAME="fed_cron_$$"
 DATA="$(mktemp -d)"

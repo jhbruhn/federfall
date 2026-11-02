@@ -245,7 +245,7 @@ A user may **edit** a case (and add weights/meds/journal/placements) if:
 ## 8. Architecture & tech stack
 
 ### Backend — PocketBase (self-hosted)
-- Latest stable PocketBase (v0.39.x line), single Go binary, SQLite + local file storage.
+- Latest stable PocketBase (v0.41.x line), single Go binary, SQLite + local file storage.
 - **Schema as versioned migrations**, committed to the repo (reproducible across dev/prod).
 - **Extension:** start with **JS hooks (`pb_hooks`)** for case-number generation, quarantine-date defaults, share-on-handoff logic, and report aggregation endpoints. Move to the Go framework only if a real performance/complexity ceiling appears.
 - **Auth:** password collection + OIDC; add Nextcloud as a custom OIDC provider when ready. MFA available (encourage for supervisors).

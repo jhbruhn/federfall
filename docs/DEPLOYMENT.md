@@ -288,8 +288,9 @@ docker compose -f docker-compose.yml up -d --build
 ```
 
 Database migrations are applied automatically when the new container starts.
-To move to a newer PocketBase, bump `PB_VERSION` in the root `Dockerfile` (and its
-per-arch `PB_SHA256` checksums) and in `docker-compose.yml`, then run the same command.
+The PocketBase version comes with the app: each release pins it (through the
+`ZUGVOGEL_PB_BASE` base image in the root `Dockerfile`), so updating Federfall is also how
+PocketBase gets updated. There is nothing separate to bump.
 
 ## Sign-in options
 

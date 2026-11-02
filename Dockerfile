@@ -13,7 +13,9 @@
 #   (default = full)  → backend + the production Flutter web bundle baked in.
 #                       This is what the compose stack ships.
 #
-# Bump PB_VERSION here and in the root docker-compose.yml to upgrade PocketBase.
+# PocketBase is NOT versioned here: upgrading it means a new zugvogel base image
+# and a bump of this pin (see backend/pocketbase/README.md, "Upgrading
+# PocketBase").
 # The shared PocketBase runtime: the binary, the zv_* hook libraries, the Typst
 # report base and the migrate-before-serve entrypoint. Published from zugvogel.
 #
@@ -26,7 +28,7 @@
 # per-arch checksums. Those existed identically in eiermann's Dockerfile: two
 # places to bump, and a JSVM whose behaviour differs between versions in ways
 # that have cost real time.
-ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-98c011a36e43606db42b771ad7e791ade347e3b9
+ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-442b15d243e07ac18b13f2f965f7662436b64e19
 
 # ── Flutter web build stage ────────────────────────────────────────────────────
 # Self-installed, version-pinned Flutter SDK (mirrors the pinned-fetch pattern —
@@ -91,7 +93,8 @@ RUN cd /src/apps/federfall && flutter build web --wasm --release \
 
 # ── Typst fetch stage ───────────────────────────────────────────────────────────
 # Typst ships a single static Rust binary; fetch + verify the pinned release.
-# Same rigor as pbfetch above, EXCEPT Typst does not publish a checksums.txt —
+# Same rigor as the base image's PocketBase fetch, EXCEPT Typst does not publish
+# a checksums.txt —
 # these SHA256s were computed by hand from the v0.15.0 release assets (there is
 # no upstream file to diff a version bump against, so bumping TYPST_VERSION
 # means re-downloading and re-hashing both arches yourself).
