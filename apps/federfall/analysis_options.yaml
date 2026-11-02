@@ -9,6 +9,10 @@ analyzer:
     - lib/l10n/gen/*
     - "**/*.g.dart"
     - "**/*.freezed.dart"
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
 linter:
   rules:
     public_member_api_docs: false
