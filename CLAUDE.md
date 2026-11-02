@@ -92,7 +92,7 @@ failures here. **Touching `pb_hooks/` needs `backend/pocketbase/tests/run.sh`** 
 ~2 min): the analyzer and `flutter test` cannot see a hook at all, and the failure this
 refactor risks most — a `require` resolving in the wrong JSVM context — surfaces only as a
 generic 400 at request time. `flutter test --coverage` on the app
-must stay above 75% (CI's `min_coverage` gate in `.github/workflows/ci.yml`, hand-written
+must stay at or above 80% (CI's `min_coverage` gate in `.github/workflows/ci.yml`, hand-written
 code only — generated files are excluded); check before committing if you touched
 `apps/federfall/lib/`.
 
