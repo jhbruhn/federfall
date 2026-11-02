@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.1](https://github.com/jhbruhn/federfall/compare/v1.7.0...v1.7.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **deps:** newest patch/minor of every dependency, go_router 18 ([341f245](https://github.com/jhbruhn/federfall/commit/341f245cf725bb277bd819a3eba402240241edf8))
+* **deps:** zugvogel f4f0f2e — pocketbase 0.25, cached_network_image 4 ([7cb7328](https://github.com/jhbruhn/federfall/commit/7cb732812b2b7c1febb0a8dd8e07d7a9a71b947a))
+
 ## [1.7.0](https://github.com/jhbruhn/federfall/compare/v1.6.0...v1.7.0) (2026-10-19)
 
 
