@@ -16,7 +16,7 @@ workspace:
 # usb_serial 0.5.2 (pulled in transitively for unified_esc_pos_printer's
 # Android USB support) is unmaintained since 2024-07 and its android/
 # build.gradle still calls the Gradle-9-removed `jcenter()` DSL method,
-# breaking the Android build outright (this project pins Gradle 9.0.0).
+# breaking the Android build outright (this project pins Gradle 9.x).
 # AppsDevTeam/usbserial is a same-name fork under active maintenance
 # (v0.6.0-v0.8.0) that fixes the Gradle file (AGP -> 8.12.1, jcenter() ->
 # mavenCentral()). Diffed its lib/ against the hosted 0.5.2: the API surface
