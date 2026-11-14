@@ -1,9 +1,9 @@
 import 'package:federfall/features/cases/exams/exam_tile.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_models/federfall_models.dart' hide Finder;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   Future<void> pump(
@@ -15,7 +15,7 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           locale: const Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: ExamTile(

@@ -3,9 +3,9 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The single account menu shown on every top-level destination
 /// (federfall-dri). Collapses what used to be a row of bare app-bar icons

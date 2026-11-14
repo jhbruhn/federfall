@@ -1,8 +1,8 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:latlong2/latlong.dart';
+import 'package:material_ui/material_ui.dart' show DateTimeRange;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'intake_map_providers.g.dart';

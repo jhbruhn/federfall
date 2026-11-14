@@ -6,8 +6,8 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Opens the member management sheet (UX Phase A): change a member's role,
 /// activate/deactivate, or remove them. Resolves to `true` if anything changed

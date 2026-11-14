@@ -8,9 +8,9 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/theme/app_theme.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart' hide Finder;
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockAdministrationsRepo extends Mock
@@ -47,7 +47,7 @@ void main() {
         child: MaterialApp(
           theme: AppTheme.light,
           locale: Locale(locale),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
@@ -253,7 +253,7 @@ void main() {
           child: MaterialApp(
             theme: AppTheme.light,
             locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: SingleChildScrollView(
@@ -342,7 +342,7 @@ void main() {
           child: MaterialApp(
             theme: AppTheme.light,
             locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: AdministrationSheet(caseId: 'c1', plan: plan),
@@ -384,7 +384,7 @@ void main() {
           child: MaterialApp(
             theme: AppTheme.light,
             locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: Builder(
@@ -441,7 +441,7 @@ void main() {
           child: MaterialApp(
             theme: AppTheme.light,
             locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const Scaffold(
               body: AdministrationSheet(

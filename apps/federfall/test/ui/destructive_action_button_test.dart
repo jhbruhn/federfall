@@ -1,7 +1,7 @@
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// federfall-qo8f: the destructive confirm must never be distinguishable from
 /// Cancel by colour alone (WCAG 2.1 SC 1.4.1). These assert the *shape*, which
@@ -11,7 +11,7 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
     MaterialApp(
       theme: AppTheme.light,
       locale: const Locale('en'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: Center(child: child)),
     ),

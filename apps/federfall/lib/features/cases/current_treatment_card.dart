@@ -11,8 +11,8 @@ import 'package:federfall/features/worklist/worklist_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// „Aktuelle Behandlung" — what this bird is being treated FOR and WITH, at the
 /// top of the case overview (federfall-78k6.2).

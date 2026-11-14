@@ -1,8 +1,8 @@
 import 'package:federfall/features/animals/vaccinations/vaccinations_providers.dart'
     show vaccineLabelsProvider;
 import 'package:federfall/l10n/l10n.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A free-text field with suggestions from the `vaccine_labels` view — the same
 /// editable-dropdown shape `SpeciesField` uses, and for the same reason: the

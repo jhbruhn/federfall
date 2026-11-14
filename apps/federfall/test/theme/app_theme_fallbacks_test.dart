@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:federfall/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// federfall-sbtx: web has no system fonts, so a codepoint no bundled family
 /// covers makes the engine fetch a Noto slice from fonts.gstatic.com — which

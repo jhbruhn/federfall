@@ -44,8 +44,8 @@ ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-2adb744950b4780a0ddc8a
 # no third-party prebuilt image). The fat build stage is discarded.
 FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS flutterbuild
 
-# Keep in sync with the repo's pinned Flutter (apps/federfall: flutter ^3.44.0).
-ARG FLUTTER_VERSION=3.44.3
+# Keep in sync with the repo's pinned Flutter (apps/federfall: flutter ^3.50.0).
+ARG FLUTTER_VERSION=3.50.0
 
 # TAR_OPTIONS: the SDK's cached archives carry their builder's uid (397546 for
 # the gradle wrapper), and tar-as-root restores it. Rootless podman maps only a

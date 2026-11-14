@@ -28,8 +28,8 @@ import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/case_deep_link_resolver.dart';
 import 'package:federfall/routing/not_found_screen.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
     show

@@ -2,8 +2,8 @@ import 'package:federfall/core/auth/roles.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/gen/app_localizations.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Turns an [AuditEvent] into something a screen can lay out.
 ///

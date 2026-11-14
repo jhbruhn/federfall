@@ -1,7 +1,7 @@
 import 'package:federfall/features/cases/animal_species_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The species field: a Material 3 editable dropdown. The caret opens the full
 /// list of kinds the org has recorded (`animal_species` view); typing filters

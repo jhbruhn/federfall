@@ -6,8 +6,8 @@ import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Adds a new animal directly into an aviary as a permanent resident (zoi) —
 /// an animal that never had an acute case. This is the *only* case-less create

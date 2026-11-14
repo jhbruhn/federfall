@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zugvogel_ui/zugvogel_ui.dart';
 
 // This theme stays federfall's own (eiermann-d2a.13), unlike the widgets it

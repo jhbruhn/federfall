@@ -4,8 +4,8 @@ import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Weight trend over time (FED-4.4 / 5yg.5): a line chart of weight
 /// measurements — a single case's window ([WeightTrendChart.forCase]) or an

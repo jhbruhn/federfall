@@ -4,8 +4,8 @@ import 'package:federfall/features/reminders/reminders.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -33,7 +33,7 @@ class App extends ConsumerWidget {
       // design language and stays the fallback for anything we don't ship —
       // see `resolveAppLocale`.
       localeListResolutionCallback: (locales, _) => resolveAppLocale(locales),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: ref.watch(routerProvider),
       // Above the router, so the offline strip is one instance for the whole

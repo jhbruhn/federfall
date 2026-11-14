@@ -4,9 +4,9 @@ import 'package:federfall/features/cases/weights/weights_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Opens the weight add/edit form as a modal bottom sheet. Pass [weight] to
 /// edit an existing measurement; omit it to add one. Resolves to `true` on

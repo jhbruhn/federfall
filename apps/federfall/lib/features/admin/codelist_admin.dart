@@ -4,8 +4,8 @@ import 'package:federfall/features/admin/codelist_delete.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A multi-select over a fixed vocabulary, rendered as a chip group in the
 /// code-list sheet and as badges on the tile.

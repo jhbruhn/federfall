@@ -4,9 +4,9 @@ import 'package:federfall/features/admin/audit/audit_labels.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/gen/app_localizations.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:material_ui/material_ui.dart';
 
 AuditEvent _event({
   AuditAction? action = AuditAction.caseUpdated,

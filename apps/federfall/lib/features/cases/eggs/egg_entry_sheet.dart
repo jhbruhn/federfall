@@ -5,8 +5,8 @@ import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Opens the egg-laying form as a modal bottom sheet. Pass [egg] to edit an
 /// existing record; omit it to log a new one. Resolves to `true` on save.

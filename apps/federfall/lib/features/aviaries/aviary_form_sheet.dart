@@ -6,9 +6,9 @@ import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Create/edit an aviary (FED-6.1). Coordinators/supervisors only (the server
 /// rules enforce it). Pass [aviary] to edit, omit to create.

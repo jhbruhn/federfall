@@ -13,10 +13,10 @@ import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/back_or_home.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// Reporting statistics (FED-7.2 / federfall-nmwi): intakes over time against

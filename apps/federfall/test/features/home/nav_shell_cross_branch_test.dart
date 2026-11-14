@@ -15,9 +15,9 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/router.dart';
 import 'package:federfall_models/federfall_models.dart' hide Finder;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
     show
         AuthStatus,
@@ -92,7 +92,7 @@ Future<ProviderContainer> _pumpPhone(WidgetTester tester) async {
       child: Consumer(
         builder: (context, ref, _) => MaterialApp.router(
           locale: const Locale('de'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: ref.watch(routerProvider),
         ),

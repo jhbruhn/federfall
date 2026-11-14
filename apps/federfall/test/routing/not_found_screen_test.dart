@@ -1,14 +1,14 @@
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/not_found_screen.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   Future<void> pump(WidgetTester tester, {Uri? uri}) async {
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: NotFoundScreen(uri: uri),
       ),

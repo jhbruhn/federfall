@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:federfall/l10n/gen/app_localizations.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
     show OnlineStatus, onlineStatusProvider;
 

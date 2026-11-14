@@ -8,9 +8,9 @@ import 'package:federfall/features/dashboard/dashboard_screen.dart';
 import 'package:federfall/features/worklist/worklist_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/router.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
     show
         AuthStatus,
@@ -66,7 +66,7 @@ Future<void> _pump(WidgetTester tester, {required Size size}) async {
       child: Consumer(
         builder: (context, ref, _) => MaterialApp.router(
           locale: const Locale('de'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: ref.watch(routerProvider),
         ),

@@ -6,8 +6,8 @@ import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Edit an animal's identity (UX Phase B): name, species and sex. These are
 /// write-once at intake today; this lets a carer fix a typo'd species or fill

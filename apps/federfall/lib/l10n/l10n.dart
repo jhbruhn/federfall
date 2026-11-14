@@ -1,11 +1,25 @@
 import 'package:federfall/l10n/gen/app_localizations.dart';
-import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 export 'package:federfall/l10n/gen/app_localizations.dart';
 
 extension AppLocalizationsX on BuildContext {
   AppLocalizations get l10n => AppLocalizations.of(this);
 }
+
+/// The delegates every `MaterialApp` in this app is given: its own strings
+/// plus `material_ui`'s Material, Cupertino and widgets localizations.
+///
+/// NOT `AppLocalizations.localizationsDelegates`. gen-l10n still writes that
+/// list against `flutter_localizations`, whose `MaterialLocalizations` is the
+/// legacy framework type — a different class from the one `material_ui`'s
+/// widgets look up. Handing it to a `material_ui` `MaterialApp` compiles, runs,
+/// and quietly leaves every Material string (date pickers, "Cancel", tooltips)
+/// on the English default.
+const appLocalizationsDelegates = <LocalizationsDelegate<dynamic>>[
+  AppLocalizations.delegate,
+  ...GlobalMaterialLocalizations.delegates,
+];
 
 /// The locale the app falls back to when the device asks for a language we do
 /// not ship: German is the design language, and every string is written in it

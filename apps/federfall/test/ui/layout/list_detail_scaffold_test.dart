@@ -1,6 +1,6 @@
 import 'package:federfall/ui/layout/list_detail_scaffold.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> _pumpAt(WidgetTester tester, Size size) async {
   await tester.pumpWidget(

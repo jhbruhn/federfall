@@ -7,7 +7,7 @@ import 'package:federfall/features/cases/markings/marking_types_providers.dart';
 import 'package:federfall/features/cases/medications/medication_routes_providers.dart';
 import 'package:federfall/features/cases/microscopy/microscopy_providers.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The org's diagnosis vocabulary — the only list with a description, a
 /// notifiable flag and a contagious flag on top of the shared

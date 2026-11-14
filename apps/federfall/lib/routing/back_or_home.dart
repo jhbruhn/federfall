@@ -1,6 +1,6 @@
 import 'package:federfall/routing/app_routes.dart';
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Leaves a screen that is normally *pushed* over the navigation shell — the
 /// management hub, statistics, the worklist, the profile.

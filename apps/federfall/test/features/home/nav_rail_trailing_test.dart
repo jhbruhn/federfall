@@ -1,6 +1,6 @@
 import 'package:federfall/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Guards the layout shape the nav shell uses for the rail's bottom-aligned
 /// account menu: `Expanded` + `Align` inside `NavigationRail.trailing` (the

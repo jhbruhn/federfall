@@ -1,9 +1,8 @@
 import 'dart:io';
 
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Strips `//` line and `///` doc comments, so the sweeps below apply to code
 /// and not to the places that legitimately *discuss* the banned spellings.

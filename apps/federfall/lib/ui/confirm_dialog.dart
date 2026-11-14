@@ -1,5 +1,5 @@
 import 'package:federfall/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A cancel/confirm dialog, resolving to false when it is dismissed.
 ///

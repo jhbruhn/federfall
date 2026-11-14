@@ -6,8 +6,8 @@ import 'package:federfall/features/statistics/period_selector.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Opens the annual-report export sheet (federfall-dk0c): pick a period, then
@@ -86,7 +86,7 @@ class _AnnualReportSheetState extends ConsumerState<AnnualReportSheet> {
       );
       // The sheet has done its job; leaving it up over the share result reads
       // as if the export were still pending.
-      if (navigator.mounted) unawaited(navigator.maybePop());
+      if (navigator.mounted) navigator.maybePop();
     } on Object catch (e, stackTrace) {
       reportCaughtError(e, stackTrace);
       if (!mounted) return;

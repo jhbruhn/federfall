@@ -1,8 +1,8 @@
 import 'package:federfall/features/statistics/period_selector.dart';
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<StatsPeriod?> _pumpAndPick(
   WidgetTester tester,
@@ -14,7 +14,7 @@ Future<StatsPeriod?> _pumpAndPick(
   await tester.pumpWidget(
     MaterialApp(
       locale: const Locale('en'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: PeriodSelector(

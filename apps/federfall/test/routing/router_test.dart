@@ -21,10 +21,10 @@ import 'package:federfall/routing/router.dart';
 import 'package:federfall_data/federfall_data.dart';
 // Hide the domain Finder model so flutter_test's Finder (used below) wins.
 import 'package:federfall_models/federfall_models.dart' hide Finder;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
     show
@@ -105,7 +105,7 @@ Future<ProviderContainer> _pumpContainer(
           // real app.
           restorationScopeId: 'app',
           locale: const Locale('de'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: ref.watch(routerProvider),
         ),
@@ -591,7 +591,7 @@ class _RestorableAppState extends State<_RestorableApp> {
       builder: (context, ref, _) => MaterialApp.router(
         restorationScopeId: 'app',
         locale: const Locale('de'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: ref.watch(routerProvider),
       ),

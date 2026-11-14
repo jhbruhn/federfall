@@ -1,7 +1,7 @@
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/features/worklist/worklist.dart';
 import 'package:federfall/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Display helpers for worklist items — kept beside the pure [WorklistItem] so
 /// l10n stays out of the computation layer (the cases_labels pattern).

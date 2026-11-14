@@ -4,8 +4,8 @@ import 'package:federfall/features/cases/medications/medication_routes_providers
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// What a vaccination form asks, held in one place so the single-animal sheet
 /// and the batch sheet cannot drift apart. One is "this bird got this shot",

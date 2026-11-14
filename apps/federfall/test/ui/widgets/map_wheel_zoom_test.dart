@@ -1,9 +1,9 @@
 import 'package:federfall/ui/ui.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Enough delta to cross the widget's per-step threshold in one event, as a
 /// mouse notch does (Linux reports ~53px per notch).

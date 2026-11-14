@@ -10,9 +10,9 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/back_or_home.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The groups the hub sorts its sections into. A flat list of eight entries
 /// reads as one undifferentiated pile; grouping says *what kind* of setting

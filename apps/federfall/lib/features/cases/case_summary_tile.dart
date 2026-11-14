@@ -4,8 +4,8 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A terse, tappable row for one [CaseSummary] (number · status · date). Shared
 /// by the animal lifetime record (FED-7.6) and the case overview's prior-cases

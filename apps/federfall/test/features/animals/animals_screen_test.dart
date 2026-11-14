@@ -3,9 +3,9 @@ import 'package:federfall/features/animals/animals_providers.dart';
 import 'package:federfall/features/animals/animals_screen.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Longer than the search field's debounce. `pumpAndSettle` alone would not
 /// get there: a pending Timer schedules no frame, so it stops before the
@@ -51,7 +51,7 @@ Future<void> _pump(
       ],
       child: const MaterialApp(
         locale: Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: AnimalsScreen(),
       ),

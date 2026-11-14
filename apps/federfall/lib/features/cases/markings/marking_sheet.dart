@@ -5,8 +5,8 @@ import 'package:federfall/features/cases/markings/markings_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Opens the apply/edit-marking form. Markings belong to [animalId]; when
 /// applied during a treatment episode, [caseId] records it (null when managed
@@ -286,7 +286,6 @@ class _MarkingTypeField extends ConsumerWidget {
       _ => DropdownButtonFormField<String>(
         decoration: decoration,
         items: const [],
-        onChanged: null,
       ),
     };
   }

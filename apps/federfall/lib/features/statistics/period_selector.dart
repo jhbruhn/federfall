@@ -1,8 +1,8 @@
 import 'package:federfall/features/statistics/statistics_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The years offered behind the period control's "earlier years" picker: every
 /// year with a recorded intake, newest first, minus the two the segmented

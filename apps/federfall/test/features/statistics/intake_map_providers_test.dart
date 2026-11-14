@@ -2,9 +2,9 @@ import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/statistics/intake_map_providers.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart' show DateTimeRange;
 import 'package:mocktail/mocktail.dart';
 
 class MockCasesRepo extends Mock implements PbCasesRepository {}

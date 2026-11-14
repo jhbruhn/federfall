@@ -8,10 +8,10 @@ import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Round animal portrait for the detail headers (ctw.7). Shows the animal's
 /// photo — filled at intake from the first admission photo — or a pets

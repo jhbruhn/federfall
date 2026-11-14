@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zugvogel_ui/zugvogel_ui.dart';
 
 // The two pure containers moved to zugvogel_ui (eiermann-d2a.13):

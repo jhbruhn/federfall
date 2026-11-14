@@ -2,8 +2,8 @@ import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Intakes over time (federfall-nmwi): one bar per day of the selected month,
 /// per month of the selected year, or per calendar year over all time — with

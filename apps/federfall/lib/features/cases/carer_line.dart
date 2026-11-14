@@ -1,8 +1,8 @@
 import 'package:federfall/features/cases/placements/placements_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A muted "👤 Name" line naming the active carer of a case (federfall-127).
 ///

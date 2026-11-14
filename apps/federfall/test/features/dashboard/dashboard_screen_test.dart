@@ -13,10 +13,10 @@ import 'package:federfall_data/federfall_data.dart';
 // `Finder` here is flutter_test's, so hide the models' unrelated PII record of
 // the same name (the mirror image of the usual clash — see CLAUDE.md).
 import 'package:federfall_models/federfall_models.dart' hide Finder;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 AppUser _user(String id, {String? name, UserRole role = UserRole.carer}) =>
     AppUser(
@@ -51,7 +51,7 @@ Future<void> _pump(
       ],
       child: const MaterialApp(
         locale: Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: DashboardScreen(),
       ),
@@ -178,7 +178,7 @@ void main() {
           container: container,
           child: const MaterialApp(
             locale: Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: DashboardScreen(),
           ),
@@ -572,7 +572,7 @@ void main() {
           container: container,
           child: MaterialApp.router(
             locale: const Locale('en'),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             routerConfig: router,
           ),

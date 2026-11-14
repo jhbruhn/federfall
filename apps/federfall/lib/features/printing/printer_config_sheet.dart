@@ -6,8 +6,8 @@ import 'package:federfall/features/printing/printer_service.dart';
 import 'package:federfall/features/printing/printer_settings.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Configure the receipt printer (federfall-i0wq): scan and pick a device (or
 /// hand-enter a network host:port — `scanAll` may not surface a TCP printer

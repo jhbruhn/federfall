@@ -4,8 +4,8 @@ import 'package:federfall/core/error/error_message.dart';
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/case_intake_draft_store.dart';
 import 'package:federfall/l10n/l10n.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Asks the user to confirm signing out — one accidental tap must not end the
 /// session (and purge the photo cache). Returns whether they confirmed.

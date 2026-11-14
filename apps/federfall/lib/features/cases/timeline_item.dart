@@ -1,5 +1,5 @@
 import 'package:federfall/ui/ui.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One row in the case chronology. Every event kind — milestones and journal
 /// entries alike — renders through this so they share a single visual language:

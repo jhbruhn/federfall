@@ -9,9 +9,9 @@ import 'package:federfall/routing/app_routes.dart';
 import 'package:federfall/routing/route_selection.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_models/federfall_models.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zugvogel_pb_client/zugvogel_pb_client.dart' show LiveRefresh;
 
 /// Aviary registry (FED-6.1): the org's aviaries with their keeper, location
@@ -106,10 +106,10 @@ class _AviaryTile extends ConsumerWidget {
     final subtitle = [
       if (keeper != null) memberLabel(keeper),
       ?aviary.location,
-      if (capacity != null)
-        residents == null
-            ? l10n.aviaryCapacityValue(capacity)
-            : l10n.aviaryOccupancyOfCapacity(residents, capacity)
+      if (capacity != null && residents == null)
+        l10n.aviaryCapacityValue(capacity)
+      else if (capacity != null && residents != null)
+        l10n.aviaryOccupancyOfCapacity(residents, capacity)
       else if (residents != null && residents > 0)
         l10n.aviaryOccupancy(residents),
       if (!aviary.active) l10n.aviaryInactive,

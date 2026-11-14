@@ -1,7 +1,7 @@
 import 'package:federfall/features/cases/cases_labels.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/theme/app_spacing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The most days of the WHOLE course drawn as markers.
 ///
