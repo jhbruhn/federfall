@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3](https://github.com/jhbruhn/federfall/compare/v1.7.2...v1.7.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **deps:** Gradle 9.5.0, AGP 9.3.1, KGP 2.4.20 for Flutter 3.50 ([cceb252](https://github.com/jhbruhn/federfall/commit/cceb252439e2779ff70649495153131b6a5dbf95))
+
 ## [1.7.2](https://github.com/jhbruhn/federfall/compare/v1.7.1...v1.7.2) (2026-11-14)
 
 
