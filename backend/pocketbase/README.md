@@ -194,7 +194,8 @@ upgrade happens there first:
    `ganigeorgiev.com`, not GitHub; the URL that Dockerfile fetches from is upstream's
    stable one for image maintainers.
 2. Push, and let zugvogel's CI publish `ghcr.io/jhbruhn/zugvogel-pb-base:sha-<commit>`.
-3. Here, point `ARG ZUGVOGEL_PB_BASE` in the root `Dockerfile` at that tag and run
+3. Here, point `ARG ZUGVOGEL_PB_BASE` in the root `Dockerfile` at that tag — as
+   `tag@sha256:<digest>`, the tag's multi-arch index digest (federfall-c2zg) — and run
    `tests/run.sh` (and `tests/run_cron.sh`) against it. Eiermann takes the same pin.
 
 (The compose `image:` tag is `federfall:latest` — it names the app image, which is

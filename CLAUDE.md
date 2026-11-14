@@ -124,9 +124,11 @@ providers, and thirteen `zv_*.js` hook libraries — live in
 - **Dart**: `zugvogel_core` / `zugvogel_data` / `zugvogel_pb_client` / `zugvogel_ui`,
   pinned by COMMIT in `apps/federfall/pubspec.yaml` + both package pubspecs (all three
   must name the same commit).
-- **Backend**: `ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-<commit>` in the
-  `Dockerfile`. The base image brings the PocketBase binary, the `zv_*.js` libraries, the
-  Typst report base and a `migrate up`-then-`serve` entrypoint.
+- **Backend**: `ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-<commit>@sha256:<index digest>`
+  in the `Dockerfile` (every `FROM` carries a digest, and every Action is pinned to a commit
+  SHA with its version in a comment — federfall-c2zg; a bump moves both halves). The
+  base image brings the PocketBase binary, the `zv_*.js` libraries, the Typst report base
+  and a `migrate up`-then-`serve` entrypoint.
 
 The pins move independently on purpose (a Dart change does not touch the image), but they
 must stay COMPATIBLE: both halves speak `/api/federfall/info`, so check the image commit

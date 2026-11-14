@@ -28,12 +28,21 @@
 # per-arch checksums. Those existed identically in eiermann's Dockerfile: two
 # places to bump, and a JSVM whose behaviour differs between versions in ways
 # that have cost real time.
-ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-442b15d243e07ac18b13f2f965f7662436b64e19
+#
+# federfall-c2zg — and pinned by DIGEST as well: a tag is only a name the
+# registry can re-point (a re-run of zugvogel's publish, or anyone holding push
+# rights), while `tag@sha256:` makes the build refuse anything but the exact
+# bytes. Every FROM here carries one. The digest is the multi-arch INDEX
+# (amd64 + arm64 — the release builds both natively), so bumping means taking
+# the new tag's index digest, e.g. from the `Docker-Content-Digest` header of
+# its manifest (`docker buildx imagetools inspect <tag>` prints it as Digest),
+# never a single platform's.
+ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-442b15d243e07ac18b13f2f965f7662436b64e19@sha256:7b64234bea3f18bd38b1637873dcc8236ff02d10451c727cf1ccaac8c8bd60d0
 
 # ── Flutter web build stage ────────────────────────────────────────────────────
 # Self-installed, version-pinned Flutter SDK (mirrors the pinned-fetch pattern —
 # no third-party prebuilt image). The fat build stage is discarded.
-FROM debian:bookworm-slim AS flutterbuild
+FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS flutterbuild
 
 # Keep in sync with the repo's pinned Flutter (apps/federfall: flutter ^3.44.0).
 ARG FLUTTER_VERSION=3.44.3
@@ -103,7 +112,7 @@ RUN cd /src/apps/federfall && flutter build web --wasm --release \
 # these SHA256s were computed by hand from the v0.15.0 release assets (there is
 # no upstream file to diff a version bump against, so bumping TYPST_VERSION
 # means re-downloading and re-hashing both arches yourself).
-FROM alpine:3.20 AS typstfetch
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS typstfetch
 ARG TYPST_VERSION=0.15.0
 ARG TARGETARCH
 RUN apk add --no-cache wget xz ca-certificates
