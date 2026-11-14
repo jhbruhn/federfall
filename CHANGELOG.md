@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.7.2](https://github.com/jhbruhn/federfall/compare/v1.7.1...v1.7.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* a corrected retry under the same idempotency key is refused, not swallowed ([bebbcae](https://github.com/jhbruhn/federfall/commit/bebbcaec43da5fb934b72d8dff2eefc4d4fdde92))
+* **backend:** OAuth2 createData can no longer choose a new user's role ([fa84a3f](https://github.com/jhbruhn/federfall/commit/fa84a3f0dee5ded9effb2e6a9808be43c9451ccc))
+* **deps:** Flutter 3.50, Material from package:material_ui, zugvogel bbdc89d ([7e14a46](https://github.com/jhbruhn/federfall/commit/7e14a466cf543dcdc7f57f0977d4730588e0ff82))
+* **deps:** zugvogel 2adb744 — the Dart pin follows the base image ([86da62b](https://github.com/jhbruhn/federfall/commit/86da62b96dd05c057f5aa9b75038e94bfdbb292c))
+* **deps:** zugvogel c11e717 — the Dart pin follows the base image ([7a11038](https://github.com/jhbruhn/federfall/commit/7a110385f192dc7e5e0004dbe79f7ed59edae94e))
+
 ## [1.7.1](https://github.com/jhbruhn/federfall/compare/v1.7.0...v1.7.1) (2026-11-02)
 
 
