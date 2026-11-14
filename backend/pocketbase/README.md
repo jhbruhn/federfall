@@ -1,6 +1,6 @@
 # Federfall — PocketBase backend (containerized)
 
-Self-hosted [PocketBase](https://pocketbase.io) **v0.41.1**, run entirely via Docker —
+Self-hosted [PocketBase](https://pocketbase.io) **v0.42.1**, run entirely via Docker —
 no host binary, no `.env` files. Orchestration lives in the **repo-root compose stack**
 (`../../docker-compose.yml` + `../../docker-compose.override.yml`); this directory only
 holds the committed schema (migrations + hooks), the report templates and the backend
