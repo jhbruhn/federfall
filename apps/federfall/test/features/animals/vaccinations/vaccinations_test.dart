@@ -664,5 +664,48 @@ void main() {
       expect(keys.first, isNotNull);
       expect(keys.first, keys.last);
     });
+
+    testWidgets('a key the server refuses as reused (federfall-lebw) says the '
+        'first attempt landed, and the next save is a NEW write', (
+      tester,
+    ) async {
+      var attempt = 0;
+      final keys = <String?>[];
+      when(
+        () => repo.vaccinateBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((inv) async {
+        keys.add(inv.namedArguments[#idempotencyKey] as String?);
+        if (attempt++ == 0) {
+          throw const RepositoryException(
+            'reused',
+            kind: RepositoryErrorKind.validation,
+            statusCode: 409,
+            serverCodes: [idempotencyKeyReusedCode],
+          );
+        }
+        return 2;
+      });
+
+      await pumpBatch(tester);
+      await tester.enterText(find.byType(TextField).first, 'Colombovac PMV');
+      await tester.tap(find.text('Vaccinate 2 birds'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('already saved by an earlier attempt'),
+        findsOneWidget,
+      );
+      // Nothing resubmitted behind the user's back.
+      expect(keys, hasLength(1));
+
+      await tester.tap(find.text('Vaccinate 2 birds'));
+      await tester.pumpAndSettle();
+      expect(keys, hasLength(2));
+      expect(keys.last, isNot(keys.first));
+    });
   });
 }

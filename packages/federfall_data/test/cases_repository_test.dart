@@ -425,6 +425,32 @@ void main() {
       );
     });
 
+    test('a 409 is the key-reused refusal (federfall-lebw), carrying its '
+        'code so the app can say what happened', () async {
+      when(
+        () => pb.send<Map<String, dynamic>>(
+          any(),
+          method: any(named: 'method'),
+          body: any(named: 'body'),
+          files: any(named: 'files'),
+        ),
+      ).thenThrow(ClientException(statusCode: 409));
+
+      await expectLater(
+        () => repo.intake({}, idempotencyKey: 'k1'),
+        throwsA(
+          isA<RepositoryException>()
+              .having((e) => e.statusCode, 'statusCode', 409)
+              .having(
+                (e) => e.serverCodes,
+                'serverCodes',
+                [idempotencyKeyReusedCode],
+              )
+              .having(isIdempotencyKeyReused, 'isIdempotencyKeyReused', true),
+        ),
+      );
+    });
+
     test('translates a ClientException into RepositoryException', () async {
       when(
         () => pb.send<Map<String, dynamic>>(

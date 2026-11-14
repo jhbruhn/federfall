@@ -91,7 +91,12 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
   /// timeout resubmits the SAME key, so the server replays the committed batch
   /// instead of prescribing the course twice — which would make every dose fall
   /// due twice on the worklist.
-  final String _idempotencyKey = newIdempotencyKey();
+  ///
+  /// Until the server refuses it as reused for a DIFFERENT body
+  /// (federfall-lebw): the first attempt then committed with its old values,
+  /// so the sheet takes a fresh key and the error says that saving again
+  /// writes a second, separate entry — the user decides, nothing resubmits.
+  String _idempotencyKey = newIdempotencyKey();
 
   bool get _isEditing => widget.plan != null;
 
@@ -235,7 +240,16 @@ class _PrescriptionSheetState extends ConsumerState<PrescriptionSheet>
         // One transaction for the whole group, this case included: N saves from
         // here would leave a course half prescribed on a dropped connection,
         // and a bird with no row is a bird that never comes up as due.
-        await repo.prescribeBatch(group, body, idempotencyKey: _idempotencyKey);
+        try {
+          await repo.prescribeBatch(
+            group,
+            body,
+            idempotencyKey: _idempotencyKey,
+          );
+        } on RepositoryException catch (e) {
+          if (isIdempotencyKeyReused(e)) _idempotencyKey = newIdempotencyKey();
+          rethrow;
+        }
         for (final id in group) {
           ref.invalidate(caseBundleProvider(id));
         }

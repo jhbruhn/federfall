@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall_data/src/idempotent_write.dart';
 import 'package:federfall_data/src/pb_repository.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -155,7 +156,7 @@ class PbVaccinationsRepository extends PbRepository<Vaccination> {
         kind: RepositoryErrorKind.unknownOutcome,
       );
     } on ClientException catch (e) {
-      throw RepositoryException.fromClient(e);
+      throw idempotentWriteException(e);
     }
   }
 }
@@ -247,7 +248,7 @@ class PbMedicationsRepository extends PbRepository<Medication> {
         kind: RepositoryErrorKind.unknownOutcome,
       );
     } on ClientException catch (e) {
-      throw RepositoryException.fromClient(e);
+      throw idempotentWriteException(e);
     }
   }
 
@@ -328,7 +329,7 @@ class PbMedicationAdministrationsRepository
         kind: RepositoryErrorKind.unknownOutcome,
       );
     } on ClientException catch (e) {
-      throw RepositoryException.fromClient(e);
+      throw idempotentWriteException(e);
     }
   }
 

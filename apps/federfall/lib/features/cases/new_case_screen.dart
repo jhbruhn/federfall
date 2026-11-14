@@ -127,6 +127,8 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
   // timeout resubmits the SAME key, so the backend replays the committed
   // intake instead of creating a duplicate (federfall-3ty3). Restoring a draft
   // adopts its key, which extends that guarantee across a crash mid-submit.
+  // Replaced only when the server refuses it as reused for a DIFFERENT body
+  // (federfall-lebw) — see the catch in [_create].
   String _idempotencyKey = newIdempotencyKey();
 
   // Draft persistence (federfall-t2is): the in-progress wizard is written to
@@ -605,10 +607,19 @@ class _NewCaseScreenState extends ConsumerState<NewCaseScreen>
       context.go(AppRoutes.caseDetail(created.caseId));
     } on RepositoryException catch (e) {
       if (!mounted) return;
+      // federfall-lebw: an earlier attempt under this key COMMITTED, with the
+      // values it had then, and this corrected one was refused rather than
+      // silently answered with the first result. The old key would keep
+      // answering 409, so take a fresh one — but do not resubmit: the message
+      // says the intake already exists and that saving again makes a second
+      // one, and the user decides. The draft picks up the new key.
+      final reused = isIdempotencyKeyReused(e);
+      if (reused) _idempotencyKey = newIdempotencyKey();
       setState(() {
         _busy = false;
         _error = errorMessage(l10n, e);
       });
+      if (reused) _touch();
     } on Object catch (error, stackTrace) {
       reportCaughtError(error, stackTrace);
       if (!mounted) return;

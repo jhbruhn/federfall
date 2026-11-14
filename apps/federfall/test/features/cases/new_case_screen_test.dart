@@ -250,6 +250,58 @@ void main() {
     expect(keys.first, keys.last);
   });
 
+  testWidgets('a key the server refuses as reused (federfall-lebw) is '
+      'replaced, and the user is told the first intake landed', (
+    tester,
+  ) async {
+    var calls = 0;
+    when(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+      ),
+    ).thenAnswer((_) async {
+      calls++;
+      if (calls == 1) {
+        throw const RepositoryException(
+          'reused',
+          kind: RepositoryErrorKind.validation,
+          statusCode: 409,
+          serverCodes: [idempotencyKeyReusedCode],
+        );
+      }
+      return (caseId: 'c1', animalId: 'a1');
+    });
+
+    await pump(tester);
+    await tapNext(tester);
+    await pickInjury(tester);
+    await tapNext(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('already saved by an earlier attempt'),
+      findsOneWidget,
+    );
+    // Nothing resubmitted on its own: a second intake is the user's call.
+    expect(calls, 1);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Create case'));
+    await tester.pumpAndSettle();
+
+    final keys = verify(
+      () => cases.intake(
+        any(),
+        photos: any(named: 'photos'),
+        idempotencyKey: captureAny(named: 'idempotencyKey'),
+      ),
+    ).captured.cast<String>();
+    expect(keys, hasLength(2));
+    expect(keys.last, isNot(keys.first));
+  });
+
   testWidgets('opens the exam sheet after intake when opted in', (
     tester,
   ) async {

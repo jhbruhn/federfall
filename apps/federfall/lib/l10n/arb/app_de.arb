@@ -13,6 +13,7 @@
     "errorNotFound": "Nicht gefunden",
     "errorValidation": "Die Daten konnten nicht gespeichert werden",
     "errorUnknownOutcome": "Der Server hat nicht rechtzeitig geantwortet – deine Änderung wurde möglicherweise trotzdem gespeichert. Prüfe die Liste, bevor du es erneut versuchst, um Duplikate zu vermeiden.",
+    "errorIdempotencyKeyReused": "Dieser Eintrag wurde bei einem früheren Versuch bereits gespeichert – mit den Angaben von damals. Deine späteren Änderungen wurden nicht gespeichert. Prüfe zuerst den gespeicherten Eintrag: Erneutes Speichern legt jetzt einen zweiten, eigenen Eintrag an.",
     "notFoundTitle": "Seite nicht gefunden",
     "notFoundGoHome": "Zur Startseite",
     "actionRetry": "Erneut versuchen",

@@ -81,7 +81,12 @@ class _BatchAdministrationSheetState
   /// One key for this sheet's whole lifetime: pressing save again after a
   /// timeout resubmits the SAME key, so the server replays the committed round
   /// instead of recording the group as dosed twice.
-  final String _idempotencyKey = newIdempotencyKey();
+  ///
+  /// Until the server refuses it as reused for a DIFFERENT body
+  /// (federfall-lebw): the first attempt then committed with its old values,
+  /// so the sheet takes a fresh key and the error says that saving again
+  /// writes a second, separate entry — the user decides, nothing resubmits.
+  String _idempotencyKey = newIdempotencyKey();
 
   int _saved = 0;
 
@@ -221,14 +226,19 @@ class _BatchAdministrationSheetState
         });
       }
 
-      _saved = await repo.administerBatch(
-        doses,
-        {
-          'administered_at': _administeredAt.toUtc().toIso8601String(),
-          'notes': trimToNull(_notes) ?? '',
-        },
-        idempotencyKey: _idempotencyKey,
-      );
+      try {
+        _saved = await repo.administerBatch(
+          doses,
+          {
+            'administered_at': _administeredAt.toUtc().toIso8601String(),
+            'notes': trimToNull(_notes) ?? '',
+          },
+          idempotencyKey: _idempotencyKey,
+        );
+      } on RepositoryException catch (e) {
+        if (isIdempotencyKeyReused(e)) _idempotencyKey = newIdempotencyKey();
+        rethrow;
+      }
 
       for (final due in chosen) {
         ref.invalidate(caseBundleProvider(due.caseId));

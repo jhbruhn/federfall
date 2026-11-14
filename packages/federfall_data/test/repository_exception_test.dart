@@ -24,4 +24,36 @@ void main() {
       expect(e.cause, isA<ClientException>());
     });
   });
+
+  group('idempotentWriteException (federfall-lebw)', () {
+    RepositoryException of(int status) =>
+        idempotentWriteException(ClientException(statusCode: status));
+
+    test('a 409 is the key-reused refusal, whatever its data says', () {
+      final e = of(409);
+      expect(e.statusCode, 409);
+      expect(e.kind, RepositoryErrorKind.validation);
+      expect(e.serverCodes, [idempotencyKeyReusedCode]);
+      expect(e.cause, isA<ClientException>());
+      expect(isIdempotencyKeyReused(e), isTrue);
+    });
+
+    test('everything else is translated exactly as fromClient does', () {
+      for (final status in [0, 400, 403, 404, 500]) {
+        final e = of(status);
+        expect(
+          e.kind,
+          RepositoryException.fromClient(
+            ClientException(statusCode: status),
+          ).kind,
+        );
+        expect(isIdempotencyKeyReused(e), isFalse);
+      }
+    });
+
+    test('isIdempotencyKeyReused is false for anything else', () {
+      expect(isIdempotencyKeyReused(Exception('x')), isFalse);
+      expect(isIdempotencyKeyReused(const RepositoryException('x')), isFalse);
+    });
+  });
 }

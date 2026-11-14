@@ -1,4 +1,5 @@
 import 'package:federfall/l10n/gen/app_localizations.dart';
+import 'package:federfall_data/federfall_data.dart';
 import 'package:zugvogel_ui/zugvogel_ui.dart';
 
 // The shared widgets moved to zugvogel_ui (eiermann-d2a.9), and none of them
@@ -16,7 +17,12 @@ import 'package:zugvogel_ui/zugvogel_ui.dart';
 /// Built per `BuildContext` (see `defaultZugvogelStrings` in `bootstrap`) so a
 /// locale change re-reads the app's own localizations rather than replaying a
 /// language frozen at startup.
-class FederfallStrings implements ZugvogelStrings {
+///
+/// It is also the app's [ServerCodeStrings]: a backend refusal that names its
+/// reason as a code (see `RepositoryException.serverCodes`) is turned into a
+/// sentence here, so every surface that renders an error through the shared
+/// `errorMessage` — including `FormSheetState.runSave` — says it the same way.
+class FederfallStrings implements ZugvogelStrings, ServerCodeStrings {
   const FederfallStrings(this._l10n);
 
   final AppLocalizations _l10n;
@@ -113,4 +119,12 @@ class FederfallStrings implements ZugvogelStrings {
 
   @override
   String get imageShareFailed => _l10n.imageShareFailed;
+
+  @override
+  String? serverErrorFor(String code) => switch (code) {
+    // federfall-lebw: a keyed write retried with changed values after the
+    // first attempt already committed.
+    idempotencyKeyReusedCode => _l10n.errorIdempotencyKeyReused,
+    _ => null,
+  };
 }

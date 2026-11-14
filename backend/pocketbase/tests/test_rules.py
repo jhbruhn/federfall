@@ -160,6 +160,17 @@ def stamp(**delta):
     return when.strftime("%Y-%m-%d %H:%M:%S.000Z")
 
 
+def check_idempotent_conflict(label, s, d):
+    """federfall-lebw: the same idempotency key with a different body is a 409
+    carrying `idempotency_key_reused` as a `data` KEY — the one part of an
+    ApiError PocketBase passes through verbatim, and what the client keys on
+    besides the status."""
+    check(f"{label}: same key + different body is a 409",
+          s == 409, f"{s} {d}")
+    check(f"{label}: ...naming idempotency_key_reused",
+          "idempotency_key_reused" in ((d or {}).get("data") or {}), d)
+
+
 def oidc_code(claims):
     """The authorization code fake_oidc.py turns back into [claims]: the code IS
     the identity (base64url JSON), so a test signs in as whoever it describes."""
@@ -3900,6 +3911,40 @@ def main():
           f"{s} {bv2}")
     check("...and writes no second row",
           len(listf(T, "vaccinations", f'animal = "{bv_birds[0]}"')) == 1)
+    # federfall-lebw: the key alone no longer replays. Go hands the body over as
+    # a map with random iteration order, so a replay must match on CONTENT —
+    # the same fields in another order are the same request.
+    s, bv3 = req("POST", bv_url, toks["b"], {
+        "idempotency_key": "bv-key-1",
+        "vaccination": dict(reversed(list(BV_SHOT.items()))),
+        "animals": bv_birds,
+    })
+    check("a replay with the same body in another key order still replays",
+          s == 200 and bv3 == bv, f"{s} {bv3}")
+    s, d = req("POST", bv_url, toks["b"], {
+        "animals": bv_birds, "vaccination": dict(BV_SHOT, batch="C-LEBW-1"),
+        "idempotency_key": "bv-key-1",
+    })
+    check_idempotent_conflict("vaccinate-batch", s, d)
+    check("...and nothing of the corrected batch was written",
+          not listf(T, "vaccinations", 'batch = "C-LEBW-1"')
+          and len(listf(T, "vaccinations", f'animal = "{bv_birds[0]}"')) == 1,
+          [(r.get("batch"), r.get("vaccine")) for r in
+           listf(T, "vaccinations", f'animal = "{bv_birds[0]}"')])
+    # Rows from before 1700000095 carry no fingerprint and keep replaying on
+    # the key alone — refusing them would break a retry that worked yesterday.
+    s, _ = req("POST", "/api/collections/idempotency_keys/records", T, {
+        "endpoint": "vaccinate_batch", "key": "bv-legacy", "user": B,
+        "response": {"created": 0, "ids": ["legacy"]},
+        "expires_at": stamp(hours=1),
+    })
+    check("setup: a pre-fingerprint key row", s == 200, f"status {s}")
+    s, d = req("POST", bv_url, toks["b"], {
+        "animals": bv_birds, "vaccination": dict(BV_SHOT, batch="anything"),
+        "idempotency_key": "bv-legacy",
+    })
+    check("a key row without a fingerprint still replays, whatever the body",
+          s == 200 and (d or {}).get("ids") == ["legacy"], f"{s} {d}")
 
     # The point of the whole route: a refusal leaves NOTHING behind.
     s, d = req("POST", bv_url, toks["b"], {
@@ -4062,6 +4107,13 @@ def main():
     check("a replayed batch returns the SAME rows", s == 200 and bp2 == bp,
           f"{s} {bp2}")
     check("...and writes no second plan",
+          len(listf(T, "medications", f'case = "{bp_cases[0]}"')) == 1)
+    s, d = req("POST", bp_url, toks["a"], {
+        "cases": bp_cases, "medication": dict(BP_PLAN, dose_rate=8),
+        "idempotency_key": "bp-key-1",
+    })
+    check_idempotent_conflict("prescribe-batch", s, d)
+    check("...and writes nothing",
           len(listf(T, "medications", f'case = "{bp_cases[0]}"')) == 1)
 
     # A refusal leaves NOTHING behind — the reason the route exists.
@@ -4265,6 +4317,14 @@ def main():
     check("...and writes no second dose",
           len(listf(T, "medication_administrations",
                     f'medication = "{ba_plans[0]}" && dose = 2.45')) == 1)
+    s, d = req("POST", ba_url, toks["a"], {
+        "doses": ba_doses(ba_plans, dose=2.5), "administration": BA_ROUND,
+        "idempotency_key": "ba-key-1",
+    })
+    check_idempotent_conflict("administer-batch", s, d)
+    check("...and doses nothing",
+          not listf(T, "medication_administrations",
+                    f'medication = "{ba_plans[0]}" && dose = 2.5'))
 
     # A refusal leaves NOTHING behind.
     s, d = req("POST", ba_url, toks["a"], {
@@ -4424,6 +4484,25 @@ def main():
           len(mcase.get("intake_photos") or []) == 1, mcase.get("intake_photos"))
     check("multipart intake parsed the jsonPayload fields",
           mcase.get("intake_notes") == "with photo", mcase.get("intake_notes"))
+
+    # federfall-lebw — a multipart intake carries its key INSIDE the JSON
+    # payload, and its photos beside it. An identical retry re-uploads the same
+    # file and must replay; a different photo set is a different intake.
+    mp_body = {"species": "Stadttaube", "name": "FotoIdem",
+               "case": {"intake_notes": "keyed photo"},
+               "idempotency_key": "mp-idem-1"}
+    s, mp1 = multipart_intake(toks["a"], mp_body)
+    check("keyed multipart intake succeeds",
+          s == 200 and bool(mp1 and mp1.get("id")), f"status {s}")
+    s, mp2 = multipart_intake(toks["a"], mp_body)
+    check("an identical multipart retry (same photo) replays",
+          s == 200 and bool(mp2) and mp1 and mp2.get("id") == mp1["id"],
+          f"{s} {mp2}")
+    s, _ = multipart_intake(toks["a"], mp_body, filename="other.png")
+    check("the same key with a different photo is a 409", s == 409,
+          f"status {s}")
+    check("...and none of it made a second bird",
+          len(listf(T, "animals", 'name = "FotoIdem"')) == 1)
 
     # federfall-v1yh: the first intake photo is promoted to animals.photo in
     # the same transaction. cases.intake_photos is case-scoped while
@@ -5262,6 +5341,16 @@ def main():
           len(listf(T, "animals", 'name = "Idem"')) == 1)
     check("replay created no second weight row",
           len(listf(T, "weights", f'case = "{i1["id"]}"')) == 1)
+    # federfall-lebw: the carer corrects the weight after a timed-out (but
+    # committed) attempt and taps save again with the screen's same key.
+    s, d = req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Stadttaube", "name": "Idem", "weight_g": 112,
+        "idempotency_key": ikey,
+    })
+    check_idempotent_conflict("intake", s, d)
+    check("...and the correction created nothing",
+          len(listf(T, "animals", 'name = "Idem"')) == 1
+          and len(listf(T, "weights", f'case = "{i1["id"]}"')) == 1)
     # Keys are scoped per user: another carer reusing the same key gets their
     # OWN intake, never user A's stored response.
     s, i3 = req("POST", "/api/federfall/intake", toks["b"], {
@@ -6706,11 +6795,16 @@ def main():
           and len(audit_for(ic["id"], "case.created")) == 0, "duplicated")
 
     before_n = audit_count()
-    req("POST", "/api/federfall/intake", toks["a"], {
-        "species": "Türkentaube", "idempotency_key": "audit-intake-1",
+    # The SAME body: a replay. (A different one is a 409 since federfall-lebw,
+    # which logs nothing either, but would not exercise the replay path.)
+    s, _ = req("POST", "/api/federfall/intake", toks["a"], {
+        "species": "Türkentaube", "name": "Nils",
+        "finder": {"last_name": "Vertraulich", "phone": "0151 2222"},
+        "weight_g": 280, "idempotency_key": "audit-intake-1",
+        "case": {"intake_notes": "gefunden am Deich"},
     })
     check("replaying the idempotency key logs nothing new",
-          audit_count() == before_n, "replay logged")
+          s == 200 and audit_count() == before_n, f"status {s}, replay logged?")
 
     # An exam replaces its findings wholesale; the event says how many there
     # were and how many were abnormal, not one row per finding.

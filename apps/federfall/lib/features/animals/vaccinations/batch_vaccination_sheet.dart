@@ -61,7 +61,12 @@ class _BatchVaccinationSheetState extends ConsumerState<BatchVaccinationSheet>
   /// timeout resubmits the SAME key, so the server replays the committed batch
   /// instead of vaccinating the flock twice (federfall-3ty3's guarantee, which
   /// matters more here than anywhere — a duplicate is N duplicates).
-  final String _idempotencyKey = newIdempotencyKey();
+  ///
+  /// Until the server refuses it as reused for a DIFFERENT body
+  /// (federfall-lebw): the first attempt then committed with its old values,
+  /// so the sheet takes a fresh key and the error says that saving again
+  /// writes a second, separate entry — the user decides, nothing resubmits.
+  String _idempotencyKey = newIdempotencyKey();
 
   @override
   void initState() {
@@ -96,13 +101,18 @@ class _BatchVaccinationSheetState extends ConsumerState<BatchVaccinationSheet>
 
     final ok = await runSave(() async {
       final repo = await ref.read(vaccinationsRepositoryProvider.future);
-      _saved = await repo.vaccinateBatch(
-        [for (final a in chosen) a.id],
-        _model.payload(),
-        // One act, one key: a retry after a timeout replays the committed
-        // batch instead of vaccinating the flock a second time.
-        idempotencyKey: _idempotencyKey,
-      );
+      try {
+        _saved = await repo.vaccinateBatch(
+          [for (final a in chosen) a.id],
+          _model.payload(),
+          // One act, one key: a retry after a timeout replays the committed
+          // batch instead of vaccinating the flock a second time.
+          idempotencyKey: _idempotencyKey,
+        );
+      } on RepositoryException catch (e) {
+        if (isIdempotencyKeyReused(e)) _idempotencyKey = newIdempotencyKey();
+        rethrow;
+      }
 
       for (final animal in chosen) {
         ref.invalidate(vaccinationsForAnimalProvider(animal.id));

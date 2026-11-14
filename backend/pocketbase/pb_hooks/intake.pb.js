@@ -30,6 +30,9 @@
 //                    after a timeout whose first request actually committed —
 //                    returns the stored response instead of creating a second
 //                    animal+case. See 1700000050_intake_idempotency.js.
+//                    The same key with a DIFFERENT body (photos included,
+//                    by name and size) is a 409 — federfall-lebw,
+//                    lib_idempotency.js.
 //
 // org and active_carer always come from the authenticated user (mirroring the
 // cases createRule `active_carer = @request.auth.id`); the case_number/status
@@ -64,24 +67,31 @@ routerAdd(
 
     // Idempotent replay: a key seen before (per user) means the intake already
     // committed — hand back the stored response, write nothing.
-    const idemKey = str(body.idempotency_key);
-    if (idemKey.length > 64) {
-      throw new BadRequestError("idempotency_key too long.");
-    }
+    // The SAME key with a DIFFERENT body is a 409 instead (federfall-lebw): the
+    // first attempt landed and this one would be silently dropped. See
+    // lib_idempotency.js.
+    const idem = require(`${__hooks}/lib_idempotency.js`);
+    const idemKey = idem.keyOf(body);
+    // Fingerprinted for the replay check (lib_idempotency.js). The photos are
+    // part of what was sent, so they are described by name and size — an
+    // identical retry re-uploads the same files and matches, while adding or
+    // swapping one is a different intake. Their BYTES are not hashed (a
+    // re-encoded upload is the same photo), nor anything PocketBase assigns
+    // on upload (the stored name carries a random suffix).
+    const idemHash = idem.fingerprint(
+      body,
+      photos.map((f) => [String(f.originalName), Number(f.size)]),
+      ["intake_photos"],
+    );
     if (idemKey) {
-      let prior = null;
-      try {
-        prior = e.app.findFirstRecordByFilter(
-          "idempotency_keys",
-          "endpoint = 'intake' && user = {:u} && key = {:k}",
-          { u: auth.id, k: idemKey },
-        );
-      } catch (_) {
-        // no prior request with this key — proceed normally
-      }
-      if (prior) {
-        return e.json(200, prior.get("response"));
-      }
+      const prior = idem.replay(
+        e.app,
+        "intake",
+        auth.id,
+        idemKey,
+        idemHash,
+      );
+      if (prior !== null) return e.json(200, prior);
     }
 
     const caseData =
@@ -240,24 +250,11 @@ routerAdd(
       // either everything above committed together with the key, or nothing
       // did. The unique (endpoint, user, key) index makes a concurrent
       // duplicate roll back whole instead of double-creating.
-      if (idemKey) {
-        const idem = new Record(tx.findCollectionByNameOrId("idempotency_keys"));
-        idem.set("endpoint", "intake");
-        idem.set("key", idemKey);
-        idem.set("user", auth.id);
-        idem.set("response", {
-          id: rec.id,
-          animal: rec.getString("animal"),
-          case_number: rec.getString("case_number"),
-        });
-        // Retry protection only needs to outlive a retry window; the purge
-        // cron below reaps expired rows. PB compares "YYYY-MM-DD HH:MM:SS".
-        idem.set(
-          "expires_at",
-          new Date(Date.now() + 24 * 3600000).toISOString().replace("T", " "),
-        );
-        tx.save(idem);
-      }
+      idem.remember(tx, "intake", auth.id, idemKey, idemHash, {
+        id: rec.id,
+        animal: rec.getString("animal"),
+        case_number: rec.getString("case_number"),
+      });
 
       // federfall-qt96.4 — ONE event for the whole intake. This route never
       // fires request hooks (everything above is tx.save), and even if it did,

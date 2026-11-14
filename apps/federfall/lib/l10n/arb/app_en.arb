@@ -40,6 +40,10 @@
     "@errorUnknownOutcome": {
         "description": "Shown when a write timed out client-side but may have been committed server-side, so a blind retry could duplicate it"
     },
+    "errorIdempotencyKeyReused": "This entry was already saved by an earlier attempt — with the values it had then. Your later changes were not saved. Check the saved entry first: saving again now creates a second, separate entry.",
+    "@errorIdempotencyKeyReused": {
+        "description": "Shown when a keyed write (intake, batch prescription, dose round, flock vaccination) is retried with changed values after an earlier attempt already committed (HTTP 409 idempotency_key_reused). The changed values were NOT saved; the next save is a new, separate write."
+    },
     "notFoundTitle": "Page not found",
     "@notFoundTitle": {
         "description": "App bar title of the 404 screen for unmatched routes"

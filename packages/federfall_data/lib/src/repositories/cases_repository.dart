@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:federfall_data/src/idempotent_write.dart';
 import 'package:federfall_data/src/pb_repository.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:http/http.dart' as http;
@@ -474,7 +475,7 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
         kind: RepositoryErrorKind.unknownOutcome,
       );
     } on ClientException catch (e) {
-      throw RepositoryException.fromClient(e);
+      throw idempotentWriteException(e);
     }
   }
 }

@@ -169,24 +169,21 @@ routerAdd(
 
     // Idempotent replay: a key seen before (per user) means the batch already
     // committed — hand back the stored response, prescribe nothing again.
-    const idemKey = str(body.idempotency_key);
-    if (idemKey.length > 64) {
-      throw new BadRequestError("idempotency_key too long.");
-    }
+    // The SAME key with a DIFFERENT body is a 409 instead (federfall-lebw): the
+    // first attempt landed and this one would be silently dropped. See
+    // lib_idempotency.js.
+    const idem = require(`${__hooks}/lib_idempotency.js`);
+    const idemKey = idem.keyOf(body);
+    const idemHash = idem.fingerprint(body);
     if (idemKey) {
-      let prior = null;
-      try {
-        prior = e.app.findFirstRecordByFilter(
-          "idempotency_keys",
-          "endpoint = 'prescribe_batch' && user = {:u} && key = {:k}",
-          { u: auth.id, k: idemKey },
-        );
-      } catch (_) {
-        // no prior request with this key — proceed normally
-      }
-      if (prior) {
-        return e.json(200, prior.get("response"));
-      }
+      const prior = idem.replay(
+        e.app,
+        "prescribe_batch",
+        auth.id,
+        idemKey,
+        idemHash,
+      );
+      if (prior !== null) return e.json(200, prior);
     }
 
     const createdIds = [];
@@ -308,21 +305,10 @@ routerAdd(
       // either every row committed together with the key, or none did. The
       // unique (endpoint, user, key) index makes a concurrent duplicate roll
       // back whole instead of prescribing the course twice.
-      if (idemKey) {
-        const idem = new Record(tx.findCollectionByNameOrId("idempotency_keys"));
-        idem.set("endpoint", "prescribe_batch");
-        idem.set("key", idemKey);
-        idem.set("user", auth.id);
-        idem.set("response", { created: createdIds.length, ids: createdIds });
-        // Retry protection only needs to outlive a retry window; the purge cron
-        // in intake.pb.js reaps expired rows for every endpoint. PB compares
-        // "YYYY-MM-DD HH:MM:SS".
-        idem.set(
-          "expires_at",
-          new Date(Date.now() + 24 * 3600000).toISOString().replace("T", " "),
-        );
-        tx.save(idem);
-      }
+      idem.remember(tx, "prescribe_batch", auth.id, idemKey, idemHash, {
+        created: createdIds.length,
+        ids: createdIds,
+      });
     });
 
     return e.json(200, { created: createdIds.length, ids: createdIds });

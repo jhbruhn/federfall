@@ -10,6 +10,7 @@ library;
 export 'package:zugvogel_data/zugvogel_data.dart'
     show RepositoryErrorKind, RepositoryException, newIdempotencyKey;
 
+export 'src/idempotent_write.dart';
 export 'src/pb_repository.dart';
 export 'src/repositories/admission_reasons_repository.dart';
 export 'src/repositories/animal_species_repository.dart';

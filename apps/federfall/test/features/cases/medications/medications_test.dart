@@ -736,6 +736,55 @@ void main() {
       verifyNever(() => medications.create(any()));
     });
 
+    testWidgets('a key refused as reused (federfall-lebw) is replaced, and '
+        'the user is told the first batch landed', (tester) async {
+      final keys = <String?>[];
+      when(
+        () => medications.prescribeBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((inv) async {
+        keys.add(inv.namedArguments[#idempotencyKey] as String?);
+        if (keys.length == 1) {
+          throw const RepositoryException(
+            'reused',
+            kind: RepositoryErrorKind.validation,
+            statusCode: 409,
+            serverCodes: [idempotencyKeyReusedCode],
+          );
+        }
+        return 3;
+      });
+
+      await pump(
+        tester,
+        const PrescriptionSheet(caseId: 'c1'),
+        others: _others,
+      );
+      await tester.enterText(find.byType(TextField).first, 'Baycox');
+      await turnOnGroup(tester);
+      await tester.tap(find.text('C-2 · Bruno'));
+      await tester.pumpAndSettle();
+      final submit = find.widgetWithText(FilledButton, 'Add for 2 cases');
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('already saved by an earlier attempt'),
+        findsOneWidget,
+      );
+      expect(keys, hasLength(1));
+
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(keys, hasLength(2));
+      expect(keys.last, isNot(keys.first));
+    });
+
     testWidgets('the group switch alone is not a batch', (tester) async {
       // Turning it on and ticking nobody means one prescription for this case.
       // The batch route would accept a single case, but going through it would
@@ -951,6 +1000,51 @@ void main() {
       // Only the moment is shared.
       expect((call[1] as Map<String, dynamic>)['administered_at'], isNotEmpty);
       expect(call[2], isNotEmpty);
+    });
+
+    testWidgets('a key refused as reused (federfall-lebw) is replaced, and '
+        'the user is told the first round landed', (tester) async {
+      final keys = <String?>[];
+      when(
+        () => administrations.administerBatch(
+          any(),
+          any(),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((inv) async {
+        keys.add(inv.namedArguments[#idempotencyKey] as String?);
+        if (keys.length == 1) {
+          throw const RepositoryException(
+            'reused',
+            kind: RepositoryErrorKind.validation,
+            statusCode: 409,
+            serverCodes: [idempotencyKeyReusedCode],
+          );
+        }
+        return 2;
+      });
+
+      await pumpRound(
+        tester,
+        [due('c1'), due('c2')],
+        weights: [weight('c1', 245), weight('c2', 300)],
+      );
+      final submit = find.widgetWithText(FilledButton, 'Log 2 doses');
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('already saved by an earlier attempt'),
+        findsOneWidget,
+      );
+      expect(keys, hasLength(1));
+
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(keys, hasLength(2));
+      expect(keys.last, isNot(keys.first));
     });
 
     testWidgets('a stale weight prefills nothing and says why', (tester) async {
