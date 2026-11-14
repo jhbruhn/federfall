@@ -15,8 +15,21 @@
 // its seeded org, its audit action, and the sentence somebody sees when their
 // account is not permitted to register.
 
-onRecordAuthWithOAuth2Request((e) =>
-  require(`${__hooks}/zv_oauth2_provisioning.js`).provision(e, {
+onRecordAuthWithOAuth2Request((e) => {
+  // federfall-j3t5 — the client's `createData` is DISCARDED before the library
+  // sees it. The library merges its own fields over it with Object.assign, which
+  // replaces a plain `role` but not PocketBase's field-modifier keys: `role+`,
+  // `+role`, `role-`, `org+` survive the merge, and PocketBase applies them
+  // AFTER the plain key, so `{"role+": "supervisor"}` made any first-time
+  // arrival an active supervisor (users.createRule passes on the oauth2 context
+  // and nothing re-checks the role afterwards). Every field a provisioned
+  // account needs is decided server-side by the library, and the app never
+  // sends createData, so there is nothing legitimate to lose. Keep this even
+  // once the base image fixes the merge: it is what makes the guarantee
+  // independent of the library's next change. Asserted by test_rules.py's
+  // [oauth2 provisioning] block through a real OAuth2 round trip.
+  e.createData = {};
+  return require(`${__hooks}/zv_oauth2_provisioning.js`).provision(e, {
     envPrefix: "FEDERFALL",
     // Written by this app's own migration, which is why the id is the app's to
     // state rather than the library's to know.
@@ -38,5 +51,5 @@ onRecordAuthWithOAuth2Request((e) =>
     forbiddenMessage: "Your account is not permitted to register.",
     audit: require(`${__hooks}/lib_audit.js`),
     auditAction: "oauth2.user_provisioned",
-  }),
-);
+  });
+});

@@ -160,6 +160,110 @@ def stamp(**delta):
     return when.strftime("%Y-%m-%d %H:%M:%S.000Z")
 
 
+def oidc_code(claims):
+    """The authorization code fake_oidc.py turns back into [claims]: the code IS
+    the identity (base64url JSON), so a test signs in as whoever it describes."""
+    return base64.urlsafe_b64encode(json.dumps(claims).encode()).decode()
+
+
+def oauth2_sign_in(sub, create_data=None, groups=None):
+    """One complete OAuth2 sign-in through run.sh's fake OIDC provider, as the
+    app would make it — plus whatever `createData` a hostile client adds.
+    Returns (status, auth record or the error body)."""
+    claims = {"sub": sub, "email": f"{sub}@idp.test", "email_verified": True,
+              "name": sub}
+    if groups is not None:
+        claims["groups"] = groups
+    body = {
+        "provider": "oidc", "code": oidc_code(claims),
+        # PKCE: PocketBase forwards it to the token endpoint, which ignores it.
+        "codeVerifier": "v" * 43,
+        "redirectURL": "http://localhost/redirect",
+    }
+    if create_data is not None:
+        body["createData"] = create_data
+    s, d = req("POST", "/api/collections/users/auth-with-oauth2", body=body)
+    return s, ((d or {}).get("record") if s == 200 else d)
+
+
+def oauth2_provisioning(T, other_org):
+    """federfall-j3t5 (+ most of federfall-8qz): what a first OAuth2 sign-in is
+    provisioned as, asserted through a REAL round trip.
+
+    MUST run after a `users` record exists: on an empty table the first arrival
+    is legitimately the bootstrap supervisor, which would make every escalation
+    assertion below vacuous (and the bootstrap path is not under test here).
+
+    The escalation: zv_oauth2_provisioning.js merged its own fields over the
+    client's `createData` with Object.assign, which overrides a plain `role` but
+    not PocketBase's field-modifier keys — and PocketBase applies those AFTER the
+    plain key, so `{"role+": "supervisor"}` produced an active supervisor.
+    oauth2_provisioning.pb.js now discards createData outright; every variant of
+    every server-decided field must still land as the default."""
+    print("\n[oauth2 provisioning]")
+    s, d = req("GET", "/api/collections/users/records?perPage=1", T)
+    check("setup: users exist before any OAuth2 sign-in (no bootstrap)",
+          s == 200 and (d or {}).get("totalItems", 0) > 0, f"{s} {d}")
+
+    s, rec = oauth2_sign_in("oauth-plain")
+    check("a first OAuth2 sign-in completes against the fake provider",
+          s == 200 and isinstance(rec, dict), f"{s} {rec}")
+    rec = rec if isinstance(rec, dict) else {}
+    check("...and is provisioned a walled-off guest in the seeded org",
+          rec.get("role") == "guest" and rec.get("org") == ORG
+          and rec.get("is_active") is True, rec)
+    check("...with the IdP-verified email, verified",
+          rec.get("email") == "oauth-plain@idp.test"
+          and rec.get("verified") is True, rec)
+
+    hostile = [
+        ("role", {"role": "supervisor"}),
+        ("role+", {"role+": "supervisor"}),
+        ("+role", {"+role": "supervisor"}),
+        ("role-", {"role-": "guest"}),
+        ("org+", {"org+": other_org}),
+        ("org", {"org": other_org}),
+        ("is_active", {"is_active": False}),
+        ("all at once", {"role": "supervisor", "role+": "supervisor",
+                         "+role": "coordinator", "role-": "guest",
+                         "org+": other_org}),
+    ]
+    for i, (label, cd) in enumerate(hostile):
+        s, rec = oauth2_sign_in(f"oauth-hostile-{i}", cd)
+        rec = rec if isinstance(rec, dict) else {}
+        # Read it back as the superuser too: the auth response is what the
+        # client saw, the stored row is what the access rules will see.
+        stored = {}
+        if rec.get("id"):
+            _, stored = req("GET", f"/api/collections/users/records/{rec['id']}", T)
+            stored = stored or {}
+        check(f"createData {label!s} cannot escalate: lands as guest in the "
+              f"seeded org",
+              s == 200 and stored.get("role") == "guest"
+              and stored.get("org") == ORG and stored.get("is_active") is True,
+              f"{s} response={rec} stored={stored}")
+
+    # The group mapping still decides a role — discarding createData must not
+    # have discarded the server's own decision with it.
+    s, rec = oauth2_sign_in("oauth-carer", {"role+": "supervisor"},
+                            groups=["federfall-carers"])
+    rec = rec if isinstance(rec, dict) else {}
+    check("a mapped IdP group still provisions its role (carer), createData "
+          "or not", s == 200 and rec.get("role") == "carer"
+          and rec.get("org") == ORG, f"{s} {rec}")
+    s, rec = oauth2_sign_in("oauth-nogroup", groups=["somebody-elses-group"])
+    rec = rec if isinstance(rec, dict) else {}
+    check("an unmapped IdP group lands as guest", s == 200
+          and rec.get("role") == "guest", f"{s} {rec}")
+
+    # A second sign-in of an already-provisioned identity is a plain login: it
+    # must neither re-provision nor honour createData on the way through.
+    s, rec = oauth2_sign_in("oauth-plain", {"role+": "supervisor"})
+    rec = rec if isinstance(rec, dict) else {}
+    check("signing in again as an existing OAuth2 user stays a guest",
+          s == 200 and rec.get("role") == "guest", f"{s} {rec}")
+
+
 def main():
     T = admin_token()
 
@@ -240,6 +344,10 @@ def main():
     COORD = mkuser(T, "coord@f.local", "coordinator")["id"]
     INACTIVE = mkuser(T, "inactive@f.local", "carer", active=False)["id"]
     animal = mk(T, "animals", {"species": "Stadttaube", "org": ORG})["id"]
+
+    # Right after the fixtures: the users above are what stops the first OAuth2
+    # arrival from being the bootstrap supervisor.
+    oauth2_provisioning(T, mk(T, "organisations", {"name": "OAuth-Orga"})["id"])
 
     # ── hooks: case_number / quarantine / status ────────────────────────────
     print("\n[hooks: case create]")

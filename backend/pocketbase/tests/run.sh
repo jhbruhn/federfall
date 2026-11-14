@@ -6,7 +6,8 @@
 # against it, then tears everything down. Exit code propagates from the suite.
 #
 # Usage:  backend/pocketbase/tests/run.sh
-# Env:    FED_TEST_PORT (default 8097)
+# Env:    FED_TEST_PORT (default 8097), FED_TEST_OIDC_PORT (default 8197) — the
+#         host port of the fake OIDC provider (fake_oidc.py)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -18,8 +19,11 @@ NAME="fed_test_$$"
 DATA="$(mktemp -d)"
 ADMIN_EMAIL="admin@federfall.local"
 ADMIN_PASS="Admin12345!"
+OIDC_PORT="${FED_TEST_OIDC_PORT:-8197}"
+OIDC_PID=""
 
 cleanup() {
+  [ -n "$OIDC_PID" ] && kill "$OIDC_PID" >/dev/null 2>&1 || true
   docker rm -f "$NAME" >/dev/null 2>&1 || true
   # Files under $DATA/storage are created by the container as root, so the host
   # user can't rm them directly — clear the contents from inside a container
@@ -69,6 +73,24 @@ docker run --rm \
   -v "$DATA:/pb/pb_data" \
   "$IMAGE" superuser upsert "$ADMIN_EMAIL" "$ADMIN_PASS"
 
+# ── The fake OIDC provider (federfall-j3t5 / federfall-8qz) ──────────────────
+# fake_oidc.py answers the two server-to-server calls PocketBase makes during
+# auth-with-oauth2 (token + userinfo), so the suite can complete a real OAuth2
+# sign-in and assert what provisioning made of it. It runs on the HOST, and the
+# container reaches it as host.containers.internal: podman defines that name
+# itself, and docker (CI) is told to with `--add-host ...:host-gateway` below —
+# podman accepts the same flag, so one invocation serves both.
+echo "==> Starting fake OIDC provider on :$OIDC_PORT"
+python3 "$HERE/fake_oidc.py" "$OIDC_PORT" &
+OIDC_PID=$!
+for _ in $(seq 1 40); do
+  curl -sf --noproxy '*' "http://127.0.0.1:$OIDC_PORT/health" >/dev/null && break
+  sleep 0.25
+done
+curl -sf --noproxy '*' "http://127.0.0.1:$OIDC_PORT/health" >/dev/null \
+  || { echo "fake OIDC provider never came up on :$OIDC_PORT"; exit 1; }
+OIDC_URL="http://host.containers.internal:$OIDC_PORT"
+
 echo "==> Starting server on :$PORT"
 # A runtime map source is prescribed too (federfall-el1f): raster mode with an
 # attribution and a provider API key, plus a style URL for the *other* mode that
@@ -81,20 +103,22 @@ echo "==> Starting server on :$PORT"
 # upstream then failed" — which is the only way to prove a coordinate check
 # non-vacuous without standing up a stub geocoder.
 #
-# Two dummy OAuth2 providers are registered so /api/federfall/info has
-# something to report scopes for (federfall-lnz3): a generic OIDC one, which
-# must be told to ask for the groups scope because a group mapping is
-# configured below, and a social one, which must NOT be (an unknown scope
-# fails the whole authorization request there). Nothing ever signs in through
-# either — the credentials are fake — this only exercises the settings + info
-# hooks.
+# Two OAuth2 providers are registered so /api/federfall/info has something to
+# report scopes for (federfall-lnz3): a generic OIDC one, which must be told to
+# ask for the groups scope because a group mapping is configured below, and a
+# social one, which must NOT be (an unknown scope fails the whole authorization
+# request there). The OIDC one's token + userinfo endpoints are the fake
+# provider above, so test_rules.py's [oauth2 provisioning] block signs in
+# through it for real; its authorize URL stays unresolvable, because only a
+# browser would ever visit it. Nothing signs in through the social one.
 docker run -d --name "$NAME" -p "$PORT:8090" \
+  --add-host=host.containers.internal:host-gateway \
   -e FEDERFALL_OAUTH2_PROVIDERS=oidc,google \
   -e FEDERFALL_OAUTH2_OIDC_CLIENT_ID=test-client \
   -e FEDERFALL_OAUTH2_OIDC_CLIENT_SECRET=test-secret \
   -e FEDERFALL_OAUTH2_OIDC_AUTH_URL=https://id.invalid/authorize \
-  -e FEDERFALL_OAUTH2_OIDC_TOKEN_URL=https://id.invalid/token \
-  -e FEDERFALL_OAUTH2_OIDC_USERINFO_URL=https://id.invalid/userinfo \
+  -e FEDERFALL_OAUTH2_OIDC_TOKEN_URL="$OIDC_URL/token" \
+  -e FEDERFALL_OAUTH2_OIDC_USERINFO_URL="$OIDC_URL/userinfo" \
   -e FEDERFALL_OAUTH2_GOOGLE_CLIENT_ID=test-client \
   -e FEDERFALL_OAUTH2_GOOGLE_CLIENT_SECRET=test-secret \
   -e FEDERFALL_OIDC_CARER_GROUP=federfall-carers \
