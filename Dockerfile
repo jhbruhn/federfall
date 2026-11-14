@@ -37,7 +37,7 @@
 # the new tag's index digest, e.g. from the `Docker-Content-Digest` header of
 # its manifest (`docker buildx imagetools inspect <tag>` prints it as Digest),
 # never a single platform's.
-ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-442b15d243e07ac18b13f2f965f7662436b64e19@sha256:7b64234bea3f18bd38b1637873dcc8236ff02d10451c727cf1ccaac8c8bd60d0
+ARG ZUGVOGEL_PB_BASE=ghcr.io/jhbruhn/zugvogel-pb-base:sha-2adb744950b4780a0ddc8aecc238992501a915b5@sha256:ba592701d9b7408e7ddec4a0a3f2f0099bfcb130c8d965c6cdabda33c8a05c0c
 
 # ── Flutter web build stage ────────────────────────────────────────────────────
 # Self-installed, version-pinned Flutter SDK (mirrors the pinned-fetch pattern —
