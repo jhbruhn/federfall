@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0](https://github.com/jhbruhn/federfall/compare/v1.7.4...v1.8.0) (2026-11-15)
+
+
+### Features
+
+* **cases:** attach PDFs to journal entries ([1ff4a44](https://github.com/jhbruhn/federfall/commit/1ff4a44581bcf0ec2f2589bc6390183de6bc844f))
+
+
+### Bug Fixes
+
+* **l10n:** tell an external transfer apart from a handoff and a release ([b8fcf1d](https://github.com/jhbruhn/federfall/commit/b8fcf1d0e7167d46ab6a0c74e0118050add5244d))
+
 ## [1.7.4](https://github.com/jhbruhn/federfall/compare/v1.7.3...v1.7.4) (2026-11-15)
 
 
