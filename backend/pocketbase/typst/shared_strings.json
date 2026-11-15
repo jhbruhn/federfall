@@ -34,7 +34,7 @@
       "placed_in_aviary": "In Voliere untergebracht",
       "died": "Verstorben",
       "euthanized": "Eingeschläfert",
-      "transferred": "Übergeben",
+      "transferred": "Abgegeben (extern)",
       "returned_to_owner": "An Besitzer zurück"
     },
     "reportColumns": {
@@ -64,7 +64,7 @@
       "placed_in_aviary": "Placed in aviary",
       "died": "Died",
       "euthanized": "Euthanized",
-      "transferred": "Transferred",
+      "transferred": "Transferred (external)",
       "returned_to_owner": "Returned to owner"
     },
     "reportColumns": {

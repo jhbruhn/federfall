@@ -150,7 +150,7 @@ void main() {
       // Correct the outcome: released -> transferred.
       await tester.tap(find.text('Released'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Transferred').last);
+      await tester.tap(find.text('Transferred (external)').last);
       await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(FilledButton, 'Record outcome'));

@@ -167,7 +167,7 @@ void main() {
 
     // Name shows in the app bar and the identity card.
     expect(find.text('Pip'), findsWidgets);
-    expect(find.text('Released'), findsOneWidget);
+    expect(find.text('No longer in care'), findsOneWidget);
     expect(find.textContaining('DE-1234'), findsOneWidget);
     expect(find.text('2026-001'), findsOneWidget);
     expect(find.text('2026-009'), findsOneWidget);
