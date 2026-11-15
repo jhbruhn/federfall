@@ -1,6 +1,7 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
+import 'package:federfall/ui/attachments.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'case_photo_gallery.g.dart';
@@ -15,8 +16,9 @@ class CasePhoto {
   final DateTime? sortAt;
 }
 
-/// Every photo attached to a case — intake photos and journal attachments —
-/// as one chronological gallery (oldest first), consolidating the sources
+/// Every photo attached to a case — intake photos and the images among the
+/// journal attachments — as one chronological gallery (oldest first),
+/// consolidating the sources
 /// that used to render as separate inline strips
 /// (federfall-ui-prefers-unified-consistent-views).
 ///
@@ -39,8 +41,11 @@ Future<List<CasePhoto>> caseGallery(Ref ref, String caseId) async {
         full: casesRepo.fileUrl(caseId, filename),
         sortAt: intakeAt,
       ),
+    // A journal entry may also carry a PDF (federfall-8qwo): it is not a
+    // photo, its `?thumb=` would serve the whole file, and the image viewer
+    // cannot decode it — it stays on its timeline tile as a file chip.
     for (final entry in journal)
-      for (final filename in entry.attachments)
+      for (final filename in entry.attachments.where(isImageAttachment))
         CasePhoto(
           thumb: journalRepo.fileUrl(entry.id, filename, thumb: '200x200'),
           full: journalRepo.fileUrl(entry.id, filename),

@@ -1,5 +1,6 @@
 import 'package:federfall/data/repository_providers.dart';
 import 'package:federfall/features/cases/cases_providers.dart';
+import 'package:federfall/features/cases/journal/journal_attachments.dart';
 import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
@@ -29,10 +30,10 @@ Future<bool?> showJournalEntrySheet(
   );
 }
 
-/// Form for creating or editing a dated journal entry with photo attachments
-/// (FED-4.7 / journal CRUD; dual-parent since federfall-d5co.2). On edit it
-/// shows the existing attachments — each removable — and appends any newly
-/// picked photos via a multipart update.
+/// Form for creating or editing a dated journal entry with photo and PDF
+/// attachments (FED-4.7 / journal CRUD; dual-parent since federfall-d5co.2;
+/// PDF since federfall-8qwo). On edit it shows the existing attachments — each
+/// removable — and appends any newly picked files via a multipart update.
 class JournalEntrySheet extends ConsumerStatefulWidget {
   const JournalEntrySheet({this.caseId, this.aviaryId, this.entry, super.key})
     : assert(
@@ -44,10 +45,6 @@ class JournalEntrySheet extends ConsumerStatefulWidget {
   final String? aviaryId;
   final JournalEntry? entry;
 
-  /// PocketBase caps `journal_entries.attachments` at twenty files
-  /// (1700000007).
-  static const int maxAttachments = 20;
-
   @override
   ConsumerState<JournalEntrySheet> createState() => _JournalEntrySheetState();
 }
@@ -57,7 +54,7 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
   late final TextEditingController _textController;
   late DateTime _entryAt;
 
-  late final AttachmentDraft _photos;
+  late final AttachmentDraft _attachments;
 
   bool get _isEditing => widget.entry != null;
 
@@ -70,9 +67,9 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
         entry?.entryAt?.toLocal() ??
         entry?.created?.toLocal() ??
         DateTime.now();
-    _photos = AttachmentDraft(
+    _attachments = AttachmentDraft(
       field: 'attachments',
-      max: JournalEntrySheet.maxAttachments,
+      max: kJournalMaxAttachments,
       existing: entry?.attachments ?? const [],
       onChanged: () {
         setState(() {});
@@ -101,7 +98,7 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
     final ok = await runSave(() async {
       final (user, org) = await requireUserOrg();
       final repo = await ref.read(journalRepositoryProvider.future);
-      final files = await _photos.multipart();
+      final files = await _attachments.multipart();
       final entry = widget.entry;
 
       if (entry == null) {
@@ -119,7 +116,7 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
           'entry_at': _entryAt.toUtc().toIso8601String(),
           // Setting the field to the survivors drops any removed attachments;
           // the new uploads are appended on top.
-          'attachments': _photos.existing,
+          'attachments': _attachments.existing,
         }, files);
       }
 
@@ -160,38 +157,47 @@ class _JournalEntrySheetState extends ConsumerState<JournalEntrySheet>
             onPick: _pickDate,
           ),
           const SizedBox(height: AppSpacing.md),
-          if (!_photos.isEmpty)
-            EditablePhotoStrip(
-              existing: _photos.existing,
-              newPhotos: _photos.added,
-              thumbUrl: storedThumbUrl(
-                ref.watch(journalRepositoryProvider).value,
-                widget.entry?.id,
-              ),
-              onRemoveExisting: isBusy
-                  ? null
-                  : (i) => _photos.removeExisting(_photos.existing[i]),
-              onRemoveNew: isBusy
-                  ? null
-                  : (i) => _photos.removeAdded(_photos.added[i]),
+          DraftAttachmentList(
+            draft: _attachments,
+            thumbUrl: storedThumbUrl(
+              ref.watch(journalRepositoryProvider).value,
+              widget.entry?.id,
             ),
+            enabled: !isBusy,
+          ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
             children: [
               OutlinedButton.icon(
-                onPressed: isBusy || !_photos.canAdd
+                onPressed: isBusy || !_attachments.canAdd
                     ? null
-                    : () => _photos.pickImages(ref.read(imagePickerProvider)),
+                    : () => _attachments.pickImages(
+                        ref.read(imagePickerProvider),
+                      ),
                 icon: const Icon(Icons.photo_library_outlined),
                 label: Text(l10n.journalAddPhotos),
               ),
               OutlinedButton.icon(
-                onPressed: isBusy || !_photos.canAdd
+                onPressed: isBusy || !_attachments.canAdd
                     ? null
-                    : () => _photos.takePhoto(ref.read(imagePickerProvider)),
+                    : () =>
+                          _attachments.takePhoto(ref.read(imagePickerProvider)),
                 icon: const Icon(Icons.photo_camera_outlined),
                 label: Text(l10n.journalTakePhoto),
+              ),
+              OutlinedButton.icon(
+                onPressed: isBusy || !_attachments.canAdd
+                    ? null
+                    : () => pickDocumentsInto(
+                        context,
+                        ref,
+                        _attachments,
+                        accepts: isAcceptedJournalAttachment,
+                      ),
+                icon: const Icon(Icons.attach_file),
+                label: Text(l10n.journalAddFile),
               ),
             ],
           ),

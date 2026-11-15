@@ -1,7 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/case_photo_gallery.dart';
+import 'package:federfall/features/cases/cases_providers.dart';
 import 'package:federfall/features/cases/journal/journal_entry_sheet.dart';
 import 'package:federfall/features/cases/journal/journal_entry_tile.dart';
+import 'package:federfall/features/cases/journal/journal_providers.dart';
 import 'package:federfall/l10n/l10n.dart';
 import 'package:federfall/ui/ui.dart';
 import 'package:federfall_data/federfall_data.dart';
@@ -9,10 +14,15 @@ import 'package:federfall_models/federfall_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockJournalRepo extends Mock implements PbJournalRepository {}
+
+class MockCasesRepo extends Mock implements PbCasesRepository {}
+
+class MockDocumentPicker extends Mock implements DocumentPicker {}
 
 void main() {
   setUpAll(() {
@@ -21,9 +31,11 @@ void main() {
   });
 
   late MockJournalRepo journal;
+  late MockDocumentPicker documents;
 
   setUp(() {
     journal = MockJournalRepo();
+    documents = MockDocumentPicker();
     when(
       () => journal.fileUrl(any(), any(), thumb: any(named: 'thumb')),
     ).thenReturn(Uri.parse('http://localhost/x.jpg'));
@@ -37,6 +49,7 @@ void main() {
               const AppUser(id: 'u1', email: 'me@x.org', org: 'org1'),
         ),
         journalRepositoryProvider.overrideWith((ref) async => journal),
+        documentPickerProvider.overrideWithValue(documents),
       ],
     );
     addTearDown(container.dispose);
@@ -66,6 +79,35 @@ void main() {
       );
 
       expect(find.text('Ate well today'), findsOneWidget);
+    });
+
+    testWidgets('a PDF is a named chip, never a thumbnail request', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const JournalEntryTile(
+          entry: JournalEntry(
+            id: 'j1',
+            caseId: 'c1',
+            text: 'Laborbefund',
+            attachments: ['labor_0123456789.pdf', 'wunde_abcdefghij.jpg'],
+          ),
+          caseId: 'c1',
+        ),
+      );
+
+      expect(find.widgetWithText(InputChip, 'labor.pdf'), findsOneWidget);
+      verify(
+        () => journal.fileUrl('j1', 'wunde_abcdefghij.jpg', thumb: '200x200'),
+      ).called(greaterThan(0));
+      verifyNever(
+        () => journal.fileUrl(
+          'j1',
+          'labor_0123456789.pdf',
+          thumb: any(named: 'thumb'),
+        ),
+      );
     });
   });
 
@@ -159,6 +201,109 @@ void main() {
               as Map<String, dynamic>;
       expect(captured['text'], 'Updated note');
       expect(captured['attachments'], ['b.jpg']);
+    });
+
+    testWidgets('a picked PDF is uploaded with the entry', (tester) async {
+      when(() => journal.createWithFiles(any(), any())).thenAnswer(
+        (_) async => const JournalEntry(id: 'j9', caseId: 'c1', text: 'x'),
+      );
+      when(() => documents.pickFiles()).thenAnswer(
+        (_) async => [
+          XFile.fromData(Uint8List.fromList([1]), path: 'befund.pdf'),
+        ],
+      );
+
+      await pump(tester, const JournalEntrySheet(caseId: 'c1'));
+      await tester.enterText(find.byType(TextField), 'Befund ist da');
+      await tester.tap(find.text('Add PDF'));
+      await tester.pumpAndSettle();
+
+      // A non-image is a named chip in the form, not a photo-strip tile.
+      expect(find.widgetWithText(InputChip, 'befund.pdf'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      final files =
+          verify(
+                () => journal.createWithFiles(any(), captureAny()),
+              ).captured.single
+              as List<http.MultipartFile>;
+      expect(files.map((f) => f.filename), ['befund.pdf']);
+      expect(files.single.field, 'attachments');
+    });
+
+    testWidgets('a picked file the journal does not take is refused by name', (
+      tester,
+    ) async {
+      when(() => documents.pickFiles()).thenAnswer(
+        (_) async => [
+          XFile.fromData(Uint8List.fromList([1]), path: 'arztbrief.docx'),
+          XFile.fromData(Uint8List.fromList([1]), path: 'befund.pdf'),
+        ],
+      );
+
+      await pump(tester, const JournalEntrySheet(caseId: 'c1'));
+      await tester.tap(find.text('Add PDF'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('File type not supported: arztbrief.docx'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(InputChip, 'arztbrief.docx'), findsNothing);
+      expect(find.widgetWithText(InputChip, 'befund.pdf'), findsOneWidget);
+    });
+  });
+
+  group('caseGallery', () {
+    test('leaves a journal PDF out of the photo gallery', () async {
+      final cases = MockCasesRepo();
+      Uri url(String id, String f, {String? thumb}) =>
+          Uri.parse('http://localhost/$id/$f${thumb == null ? '' : '?t'}');
+      when(
+        () => cases.fileUrl(any(), any(), thumb: any(named: 'thumb')),
+      ).thenAnswer(
+        (i) => url(
+          i.positionalArguments[0] as String,
+          i.positionalArguments[1] as String,
+          thumb: i.namedArguments[#thumb] as String?,
+        ),
+      );
+      when(
+        () => journal.fileUrl(any(), any(), thumb: any(named: 'thumb')),
+      ).thenAnswer(
+        (i) => url(
+          i.positionalArguments[0] as String,
+          i.positionalArguments[1] as String,
+          thumb: i.namedArguments[#thumb] as String?,
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          caseByIdProvider('c1').overrideWith(
+            (ref) async => const Case(id: 'c1', animal: 'a1'),
+          ),
+          journalForCaseProvider('c1').overrideWith(
+            (ref) async => const [
+              JournalEntry(
+                id: 'j1',
+                caseId: 'c1',
+                text: 'x',
+                attachments: ['wunde.jpg', 'labor.pdf'],
+              ),
+            ],
+          ),
+          casesRepositoryProvider.overrideWith((ref) async => cases),
+          journalRepositoryProvider.overrideWith((ref) async => journal),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final photos = await container.read(caseGalleryProvider('c1').future);
+
+      expect(photos.map((p) => p.full.path), ['/j1/wunde.jpg']);
     });
   });
 

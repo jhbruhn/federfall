@@ -540,8 +540,8 @@
     "vetAppointmentTakePhoto": "Take photo",
     "vetAppointmentAddFile": "Choose file",
     "@vetAppointmentAddFile": { "description": "Button that picks any file (mostly a PDF report) to attach to a vet appointment" },
-    "vetAppointmentFileUnsupported": "File type not supported: {names}",
-    "@vetAppointmentFileUnsupported": {
+    "attachmentFileUnsupported": "File type not supported: {names}",
+    "@attachmentFileUnsupported": {
         "description": "Snackbar when picked files are not of an accepted type",
         "placeholders": { "names": { "type": "String" } }
     },
@@ -1085,6 +1085,8 @@
         }
     },
     "journalTakePhoto": "Take photo",
+    "journalAddFile": "Add PDF",
+    "@journalAddFile": { "description": "Button that picks a PDF (or an image file) to attach to a journal entry" },
     "@journalTakePhoto": { "description": "Button that captures a photo with the camera" },
     "journalEditTitle": "Edit journal entry",
     "@journalEditTitle": { "description": "Title of the edit journal-entry sheet" },

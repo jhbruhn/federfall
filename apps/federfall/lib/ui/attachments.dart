@@ -14,6 +14,7 @@ import 'package:zugvogel_pb_client/zugvogel_pb_client.dart'
 import 'package:zugvogel_ui/zugvogel_ui.dart'
     show
         CachedFileImage,
+        EditablePhotoStrip,
         VideoAttachmentThumb,
         isVideoAttachment,
         showImageViewer;
@@ -169,6 +170,110 @@ class AttachmentDraft {
         filename: pickedFileName(file),
       ),
   ];
+}
+
+/// Lets the user pick files with the [DocumentPicker] and stages the ones
+/// [accepts] admits into [draft]. The rest are refused by name in a snackbar,
+/// so a wrong pick is explained before the upload rather than surfacing as a
+/// failed save; the server sniffs the content and stays the authority.
+Future<void> pickDocumentsInto(
+  BuildContext context,
+  WidgetRef ref,
+  AttachmentDraft draft, {
+  required bool Function(String nameOrPath) accepts,
+}) async {
+  final picked = await ref.read(documentPickerProvider).pickFiles();
+  if (!context.mounted) return;
+  final rejected = [
+    for (final f in picked)
+      if (!accepts(pickedFileName(f))) pickedFileName(f),
+  ];
+  if (rejected.isNotEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.l10n.attachmentFileUnsupported(rejected.join(', ')),
+        ),
+      ),
+    );
+  }
+  draft.stage([
+    for (final f in picked)
+      if (accepts(pickedFileName(f))) f,
+  ]);
+}
+
+/// The files of an [AttachmentDraft] in an edit form: pictures in the shared
+/// photo strip, every other file as a removable named chip.
+///
+/// Split in two because the shared strip only knows images — a PDF handed to
+/// it would be fetched as a "thumbnail", i.e. downloaded whole, and then fail
+/// to decode. Draws nothing while the draft is empty.
+class DraftAttachmentList extends StatelessWidget {
+  const DraftAttachmentList({
+    required this.draft,
+    required this.thumbUrl,
+    required this.enabled,
+    super.key,
+  });
+
+  final AttachmentDraft draft;
+
+  /// See [storedThumbUrl].
+  final Uri Function(String)? thumbUrl;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final existingImages = draft.existing.where(isImageAttachment).toList();
+    final existingFiles = draft.existing.where((f) => !isImageAttachment(f));
+    final addedImages = draft.added
+        .where((f) => isImageAttachment(pickedFileName(f)))
+        .toList();
+    final addedFiles = draft.added.where(
+      (f) => !isImageAttachment(pickedFileName(f)),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (existingImages.isNotEmpty || addedImages.isNotEmpty)
+          EditablePhotoStrip(
+            existing: existingImages,
+            newPhotos: addedImages,
+            thumbUrl: thumbUrl,
+            onRemoveExisting: enabled
+                ? (i) => draft.removeExisting(existingImages[i])
+                : null,
+            onRemoveNew: enabled
+                ? (i) => draft.removeAdded(addedImages[i])
+                : null,
+          ),
+        if (existingFiles.isNotEmpty || addedFiles.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                for (final f in existingFiles)
+                  AttachmentFileChip(
+                    key: ValueKey(f),
+                    name: attachmentDisplayName(f),
+                    onRemove: enabled ? () => draft.removeExisting(f) : null,
+                  ),
+                for (final f in addedFiles)
+                  AttachmentFileChip(
+                    key: ObjectKey(f),
+                    name: pickedFileName(f),
+                    onRemove: enabled ? () => draft.removeAdded(f) : null,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 /// Resolves a stored file's 200x200 thumbnail for an edit form's photo strip;

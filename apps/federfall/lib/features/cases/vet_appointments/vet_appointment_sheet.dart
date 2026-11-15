@@ -154,27 +154,12 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
     markDirty();
   }
 
-  Future<void> _pickFiles() async {
-    final picked = await ref.read(documentPickerProvider).pickFiles();
-    if (!mounted) return;
-    final rejected = [
-      for (final f in picked)
-        if (!isAcceptedVetAttachment(pickedFileName(f))) pickedFileName(f),
-    ];
-    if (rejected.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.vetAppointmentFileUnsupported(rejected.join(', ')),
-          ),
-        ),
-      );
-    }
-    _attachments.stage([
-      for (final f in picked)
-        if (isAcceptedVetAttachment(pickedFileName(f))) f,
-    ]);
-  }
+  Future<void> _pickFiles() => pickDocumentsInto(
+    context,
+    ref,
+    _attachments,
+    accepts: isAcceptedVetAttachment,
+  );
 
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
@@ -300,12 +285,8 @@ class _VetAppointmentSheetState extends ConsumerState<VetAppointmentSheet>
   }
 }
 
-/// The attachments section of the form: pictures in the shared photo strip,
-/// every other file as a named chip, then the three ways to add one.
-///
-/// Split in two because the shared strip only knows images and videos — a PDF
-/// handed to it would be fetched as a "thumbnail", i.e. downloaded whole, and
-/// then fail to decode.
+/// The attachments section of the form: the staged and stored files, then the
+/// three ways to add one.
 class _AttachmentsEditor extends ConsumerWidget {
   const _AttachmentsEditor({
     required this.appointmentId,
@@ -328,15 +309,6 @@ class _AttachmentsEditor extends ConsumerWidget {
     final l10n = context.l10n;
     final canAdd = enabled && draft.canAdd;
 
-    final existingImages = draft.existing.where(isImageAttachment).toList();
-    final existingFiles = draft.existing.where((f) => !isImageAttachment(f));
-    final addedImages = draft.added
-        .where((f) => isImageAttachment(pickedFileName(f)))
-        .toList();
-    final addedFiles = draft.added.where(
-      (f) => !isImageAttachment(pickedFileName(f)),
-    );
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -345,43 +317,14 @@ class _AttachmentsEditor extends ConsumerWidget {
           style: Theme.of(context).textTheme.labelLarge,
         ),
         const SizedBox(height: AppSpacing.xs),
-        if (existingImages.isNotEmpty || addedImages.isNotEmpty)
-          EditablePhotoStrip(
-            existing: existingImages,
-            newPhotos: addedImages,
-            thumbUrl: storedThumbUrl(
-              ref.watch(vetAppointmentsRepositoryProvider).value,
-              appointmentId,
-            ),
-            onRemoveExisting: enabled
-                ? (i) => draft.removeExisting(existingImages[i])
-                : null,
-            onRemoveNew: enabled
-                ? (i) => draft.removeAdded(addedImages[i])
-                : null,
+        DraftAttachmentList(
+          draft: draft,
+          thumbUrl: storedThumbUrl(
+            ref.watch(vetAppointmentsRepositoryProvider).value,
+            appointmentId,
           ),
-        if (existingFiles.isNotEmpty || addedFiles.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xs),
-            child: Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.xs,
-              children: [
-                for (final f in existingFiles)
-                  AttachmentFileChip(
-                    key: ValueKey(f),
-                    name: attachmentDisplayName(f),
-                    onRemove: enabled ? () => draft.removeExisting(f) : null,
-                  ),
-                for (final f in addedFiles)
-                  AttachmentFileChip(
-                    key: ObjectKey(f),
-                    name: pickedFileName(f),
-                    onRemove: enabled ? () => draft.removeAdded(f) : null,
-                  ),
-              ],
-            ),
-          ),
+          enabled: enabled,
+        ),
         const SizedBox(height: AppSpacing.sm),
         Wrap(
           spacing: AppSpacing.sm,

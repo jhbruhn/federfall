@@ -1139,6 +1139,63 @@ def main():
     )
     check("PNG upload to journal_entries.attachments still works",
           s == 200 and bool(d.get("attachments")), f"{s} {d}")
+    # federfall-8qwo: PDF joins the journal's allowlist (1700000096) — and
+    # nothing else does. Content is sniffed, so markup cannot ride in on a
+    # .pdf name, and a Word file stays out (the journal is narrower than the
+    # vet appointment list).
+    s, d = upload_file(
+        "PATCH", f"/api/collections/journal_entries/records/{je['id']}",
+        tc, "attachments+", "labor.pdf", "application/pdf",
+        b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n",
+    )
+    je_pdf = next((f for f in (d or {}).get("attachments") or []
+                   if f.endswith(".pdf")), None)
+    check("PDF upload to journal_entries.attachments is accepted",
+          s == 200 and je_pdf is not None, f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/journal_entries/records/{je['id']}",
+        tc, "attachments+", "evil.pdf", "application/pdf", _HTML,
+    )
+    check("HTML disguised as .pdf is rejected on journal_entries (sniffed)",
+          s >= 400, f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/journal_entries/records/{je['id']}",
+        tc, "attachments+", "brief.docx",
+        "application/vnd.openxmlformats-officedocument."
+        "wordprocessingml.document",
+        b"PK\x03\x04" + b"\x00" * 64,
+    )
+    check("a non-PDF document is still rejected on journal_entries",
+          s >= 400, f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/cases/records/{case}",
+        ta, "intake_photos", "labor.pdf", "application/pdf",
+        b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n",
+    )
+    check("PDF upload to cases.intake_photos is still rejected",
+          s >= 400, f"{s} {d}")
+    s, d = upload_file(
+        "PATCH", f"/api/collections/animals/records/{animal}",
+        ta, "photo", "labor.pdf", "application/pdf",
+        b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n",
+    )
+    check("PDF upload to animals.photo is still rejected", s >= 400,
+          f"{s} {d}")
+    # PocketBase serves a PDF `inline`, but every file response carries
+    # `Content-Security-Policy: default-src 'none'; sandbox`: the document gets
+    # an opaque origin and no script, so even a PDF opened in the app's own
+    # origin cannot reach its session. THAT is what keeps 8a5 fixed for a
+    # non-image type (verified on 0.39.8) — pin it, so a PocketBase upgrade
+    # that drops the header turns this red instead of silently reopening it.
+    if je_pdf:
+        s, _, h = req_bytes(
+            "GET", f"/api/files/journal_entries/{je['id']}/{je_pdf}"
+                   f"?token={file_token(tc)}")
+        csp = {k.lower(): v for k, v in h.items()}.get(
+            "content-security-policy", "")
+        check("a served PDF is sandboxed by its CSP",
+              s == 200 and "sandbox" in csp
+              and "default-src 'none'" in csp, f"{s} {csp!r}")
 
     # ── egg_records (federfall-4agw.1) ──────────────────────────────────────
     # Egg-laying is an animal identity-layer ledger (5yg.4's stance for
