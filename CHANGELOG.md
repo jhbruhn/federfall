@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.4](https://github.com/jhbruhn/federfall/compare/v1.7.3...v1.7.4) (2026-11-15)
+
+
+### Bug Fixes
+
+* **deps:** upgrade locked dependencies within constraints ([7b9e31c](https://github.com/jhbruhn/federfall/commit/7b9e31c152ede52b8cc1af736c8123c5e363a2a1))
+* **deps:** zugvogel a1c5561, pocketbase 0.26, flutter_local_notifications 23, very_good_analysis 11 ([cb6ccb6](https://github.com/jhbruhn/federfall/commit/cb6ccb62bde20c03a25209dc659c73339626d302))
+
 ## [1.7.3](https://github.com/jhbruhn/federfall/compare/v1.7.2...v1.7.3) (2026-11-14)
 
 
