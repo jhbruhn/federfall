@@ -68,14 +68,14 @@ class PrefsCaseIntakeDraftStore implements CaseIntakeDraftStore {
 
   @override
   Future<void> write(CaseIntakeDraft draft) async =>
-      (await SharedPreferences.getInstance()).setString(
+      await (await SharedPreferences.getInstance()).setString(
         _key,
         draft.withoutPhotoPaths().encode(),
       );
 
   @override
   Future<void> clear() async =>
-      (await SharedPreferences.getInstance()).remove(_key);
+      await (await SharedPreferences.getInstance()).remove(_key);
 }
 
 /// Selects the right [CaseIntakeDraftStore] for the current platform, exactly

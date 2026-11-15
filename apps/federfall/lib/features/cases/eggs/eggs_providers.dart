@@ -17,7 +17,7 @@ const int kClutchGapDays = 5;
 @riverpod
 Future<List<EggRecord>> eggsForAnimal(Ref ref, String animalId) async {
   final repo = await ref.watch(eggRecordsRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// The laying events that fall inside a case's own window, newest first — the
@@ -33,7 +33,7 @@ Future<List<EggRecord>> eggsForCase(Ref ref, String caseId) async {
   final bundle = await ref.watch(caseBundleProvider(caseId).future);
   final eggs = await caseBundleList(ref, caseId, (b) => b.eggs, () async {
     final repo = await ref.watch(eggRecordsRepositoryProvider.future);
-    return repo.forAnimal(bundle.medicalCase.animal);
+    return await repo.forAnimal(bundle.medicalCase.animal);
   });
   return eggsInCaseWindow(eggs, bundle);
 }
@@ -65,7 +65,7 @@ Future<List<Animal>> eggCoResidents(
   if (ids.isEmpty) return const [];
 
   final animals = await ref.watch(animalsRepositoryProvider.future);
-  return Future.wait(ids.map(animals.getOne));
+  return await Future.wait(ids.map(animals.getOne));
 }
 
 /// Narrows a lifetime of laying events to the ones belonging to [bundle]'s

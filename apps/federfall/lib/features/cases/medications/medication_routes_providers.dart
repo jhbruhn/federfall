@@ -12,7 +12,7 @@ part 'medication_routes_providers.g.dart';
 @Riverpod(keepAlive: true)
 Future<List<MedicationRoute>> medicationRoutes(Ref ref) async {
   final repo = await ref.watch(medicationRoutesRepositoryProvider.future);
-  return repo.codelist();
+  return await repo.codelist();
 }
 
 /// Medication-route code-list entries keyed by id, for label lookup.

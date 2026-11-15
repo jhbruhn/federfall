@@ -70,7 +70,7 @@ class PbGeocodingRepository implements GeocodingRepository {
 
   @override
   Future<List<GeoResult>> forward(String query) async {
-    return _guard(() async {
+    return await _guard(() async {
       final res = await pb.send<Map<String, dynamic>>(
         '/api/federfall/geocode',
         query: {'q': query},
@@ -82,7 +82,7 @@ class PbGeocodingRepository implements GeocodingRepository {
 
   @override
   Future<GeoResult?> reverse(double lat, double lon) async {
-    return _guard(() async {
+    return await _guard(() async {
       final res = await pb.send<Map<String, dynamic>>(
         '/api/federfall/geocode/reverse',
         query: {'lat': '$lat', 'lon': '$lon'},

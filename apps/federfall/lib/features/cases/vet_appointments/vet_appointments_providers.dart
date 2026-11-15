@@ -10,5 +10,5 @@ part 'vet_appointments_providers.g.dart';
 Future<List<VetAppointment>> vetAppointmentsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.vetAppointments, () async {
       final repo = await ref.watch(vetAppointmentsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });

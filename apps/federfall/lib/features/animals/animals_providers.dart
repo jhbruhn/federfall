@@ -202,7 +202,7 @@ Future<List<CaseSummary>> caseSummariesForAnimal(
   String animalId,
 ) async {
   final repo = await ref.watch(caseSummariesRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// One animal's residency history (1700000052), newest stay first — the
@@ -211,7 +211,7 @@ Future<List<CaseSummary>> caseSummariesForAnimal(
 @riverpod
 Future<List<AviaryStay>> aviaryStaysForAnimal(Ref ref, String animalId) async {
   final repo = await ref.watch(aviaryStaysRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// One animal's full lifetime record (FED-7.6): identity, every marking, and

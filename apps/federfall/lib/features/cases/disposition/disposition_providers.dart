@@ -11,5 +11,5 @@ part 'disposition_providers.g.dart';
 Future<List<Disposition>> dispositionsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.dispositions, () async {
       final repo = await ref.watch(dispositionsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });

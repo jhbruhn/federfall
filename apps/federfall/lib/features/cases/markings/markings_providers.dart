@@ -10,7 +10,7 @@ part 'markings_providers.g.dart';
 @riverpod
 Future<List<Marking>> markingsForAnimal(Ref ref, String animalId) async {
   final repo = await ref.watch(markingsRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// The same lifetime markings viewed from a case (the timeline source),
@@ -20,7 +20,7 @@ Future<List<Marking>> markingsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.markings, () async {
       final bundle = await ref.watch(caseBundleProvider(caseId).future);
       final repo = await ref.watch(markingsRepositoryProvider.future);
-      return repo.forAnimal(bundle.medicalCase.animal);
+      return await repo.forAnimal(bundle.medicalCase.animal);
     });
 
 /// A re-identification candidate: an existing animal plus its active markings.
@@ -56,7 +56,7 @@ Future<List<ReidMatch>> reidSearch(Ref ref, String query) async {
     animalsById[animal.id] = animal;
   }
 
-  return Future.wait([
+  return await Future.wait([
     for (final animal in animalsById.values)
       markingsRepo
           .forAnimal(animal.id)

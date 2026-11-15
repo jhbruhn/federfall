@@ -99,7 +99,7 @@ class _PlacementSheetState extends ConsumerState<PlacementSheet>
     final l10n = context.l10n;
     final members = ref.read(orgMembersProvider).value ?? const <AppUser>[];
     final target = members.where((m) => m.id == _carerId).firstOrNull;
-    return showConfirmDialog(
+    return await showConfirmDialog(
       context,
       title: l10n.placementHandoffConfirmTitle,
       message: l10n.placementHandoffConfirmBody(

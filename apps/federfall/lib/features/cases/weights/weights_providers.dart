@@ -14,7 +14,7 @@ part 'weights_providers.g.dart';
 Future<List<Weight>> weightsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.weights, () async {
       final repo = await ref.watch(weightsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });
 
 /// Every weight for an animal across its whole life (5yg.5), oldest first —
@@ -22,7 +22,7 @@ Future<List<Weight>> weightsForCase(Ref ref, String caseId) =>
 @riverpod
 Future<List<Weight>> weightsForAnimal(Ref ref, String animalId) async {
   final repo = await ref.watch(weightsRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// The newest measurement in [weights], or null when there is none.

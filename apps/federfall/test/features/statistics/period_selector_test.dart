@@ -71,7 +71,7 @@ void main() {
     final picked = await _pumpAndPick(
       tester,
       const StatsPeriod(year: 2026, month: 3),
-      (tester) async => tester.tap(find.text('All time')),
+      (tester) async => await tester.tap(find.text('All time')),
     );
 
     expect(picked?.isAllTime, isTrue);
@@ -84,7 +84,7 @@ void main() {
     final picked = await _pumpAndPick(
       tester,
       const StatsPeriod(year: 2026, month: 3),
-      (tester) async => tester.tap(find.text('2025')),
+      (tester) async => await tester.tap(find.text('2025')),
     );
 
     expect(picked?.year, 2025);

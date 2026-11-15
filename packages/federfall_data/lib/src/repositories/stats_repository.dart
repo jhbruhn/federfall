@@ -338,7 +338,7 @@ class PbStatsRepository {
     int? month,
     int? tzOffsetMinutes,
   }) async {
-    return _guard(() async {
+    return await _guard(() async {
       final res = await pb.send<Map<String, dynamic>>(
         '/api/federfall/stats',
         query: {

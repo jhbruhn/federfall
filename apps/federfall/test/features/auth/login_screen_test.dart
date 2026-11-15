@@ -56,7 +56,7 @@ class FakeAuthRepository implements AuthRepository {
   Future<AppUser> signIn(String email, String password) async {
     lastEmail = email;
     lastPassword = password;
-    if (onSignIn != null) return onSignIn!(email, password);
+    if (onSignIn != null) return await onSignIn!(email, password);
     return const AppUser(id: 'u1', email: 'staff@example.org');
   }
 
@@ -84,7 +84,7 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<String> requestOtp(String email) async =>
-      onRequestOtp != null ? onRequestOtp!(email) : 'otp1';
+      onRequestOtp != null ? await onRequestOtp!(email) : 'otp1';
 
   @override
   Future<AppUser> authWithOtp({
@@ -93,7 +93,7 @@ class FakeAuthRepository implements AuthRepository {
     required String mfaId,
   }) async {
     lastOtpCode = code;
-    if (onAuthWithOtp != null) return onAuthWithOtp!(otpId, code, mfaId);
+    if (onAuthWithOtp != null) return await onAuthWithOtp!(otpId, code, mfaId);
     return const AppUser(id: 'u1', email: 'staff@example.org');
   }
 
@@ -116,7 +116,7 @@ class FakeAuthRepository implements AuthRepository {
   }) async {
     oauthProviderUsed = provider;
     oauthScopesUsed = scopes;
-    if (onSignInWithOAuth2 != null) return onSignInWithOAuth2!();
+    if (onSignInWithOAuth2 != null) return await onSignInWithOAuth2!();
     return const AppUser(id: 'u1', email: 'staff@example.org');
   }
 
@@ -129,7 +129,7 @@ class FakeAuthRepository implements AuthRepository {
   }) async {
     oauthProviderUsed = provider;
     oauthScopesUsed = scopes;
-    if (onSignInWithOAuth2 != null) return onSignInWithOAuth2!();
+    if (onSignInWithOAuth2 != null) return await onSignInWithOAuth2!();
     return const AppUser(id: 'u1', email: 'staff@example.org');
   }
 }

@@ -16,14 +16,14 @@ dependencies:
     path: ../federfall_models
   http: ^1.3.0
   meta: ^1.16.0
-  pocketbase: ^0.25.3
+  pocketbase: ^0.26.0
   zugvogel_data:
     git:
       url: https://github.com/jhbruhn/zugvogel.git
-      ref: c11e717a9ec24e1bcb3aadcbc941a0b25b3f388f
+      ref: a1c55612c488861f9800424efa594e9f3d77c737
       path: packages/zugvogel_data
 
 dev_dependencies:
   mocktail: ^1.0.5
   test: ^1.25.0
-  very_good_analysis: ^10.3.0
+  very_good_analysis: ^11.0.0

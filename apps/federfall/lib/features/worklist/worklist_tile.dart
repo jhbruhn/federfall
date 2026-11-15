@@ -86,7 +86,7 @@ class _WorklistTileState extends ConsumerState<WorklistTile> {
   /// does not determine a number on its own.
   Future<void> _giveDose() async {
     final plan = item.medication;
-    if (plan == null) return _openDoseSheet();
+    if (plan == null) return await _openDoseSheet();
 
     final l10n = context.l10n;
     final messenger = ScaffoldMessenger.of(context);

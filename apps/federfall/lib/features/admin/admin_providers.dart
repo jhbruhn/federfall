@@ -9,5 +9,5 @@ part 'admin_providers.g.dart';
 @riverpod
 Future<List<AppUser>> orgMembers(Ref ref) async {
   final repo = await ref.watch(usersRepositoryProvider.future);
-  return repo.members();
+  return await repo.members();
 }

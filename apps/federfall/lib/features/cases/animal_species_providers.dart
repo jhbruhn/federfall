@@ -9,5 +9,5 @@ part 'animal_species_providers.g.dart';
 @Riverpod(keepAlive: true)
 Future<List<String>> animalSpecies(Ref ref) async {
   final repo = await ref.watch(animalSpeciesRepositoryProvider.future);
-  return repo.all();
+  return await repo.all();
 }

@@ -19,7 +19,7 @@ Future<List<Vaccination>> vaccinationsForAnimal(
   String animalId,
 ) async {
   final repo = await ref.watch(vaccinationsRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// The shots that fall inside a case's own window, newest first — the case
@@ -39,7 +39,7 @@ Future<List<Vaccination>> vaccinationsForCase(Ref ref, String caseId) async {
     (b) => b.vaccinations,
     () async {
       final repo = await ref.watch(vaccinationsRepositoryProvider.future);
-      return repo.forAnimal(bundle.medicalCase.animal);
+      return await repo.forAnimal(bundle.medicalCase.animal);
     },
   );
   return vaccinationsInCaseWindow(shots, bundle);
@@ -54,7 +54,7 @@ Future<List<Vaccination>> vaccinationsForCase(Ref ref, String caseId) async {
 @riverpod
 Future<List<VaccineLabel>> vaccineLabels(Ref ref) async {
   final repo = await ref.watch(vaccineLabelsRepositoryProvider.future);
-  return repo.all();
+  return await repo.all();
 }
 
 /// Narrows a lifetime of shots to the ones belonging to [bundle]'s case: from

@@ -10,7 +10,7 @@ part 'conditions_providers.g.dart';
 Future<List<CaseCondition>> caseConditionsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.caseConditions, () async {
       final repo = await ref.watch(caseConditionsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });
 
 /// The full condition code list in picker order. Used to populate the picker
@@ -19,7 +19,7 @@ Future<List<CaseCondition>> caseConditionsForCase(Ref ref, String caseId) =>
 @riverpod
 Future<List<Condition>> conditions(Ref ref) async {
   final repo = await ref.watch(conditionsRepositoryProvider.future);
-  return repo.codelist();
+  return await repo.codelist();
 }
 
 /// Code-list entries keyed by id, for label/notifiable lookup.
@@ -44,5 +44,5 @@ Future<Map<String, Condition>> conditionsById(Ref ref) async {
 @riverpod
 Future<List<ConditionLabel>> recordedConditions(Ref ref) async {
   final repo = await ref.watch(conditionLabelsRepositoryProvider.future);
-  return repo.all();
+  return await repo.all();
 }

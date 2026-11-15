@@ -57,7 +57,7 @@ class PbCaseReportRepository {
       'lang': lang,
       if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',
     });
-    return _get(uri);
+    return await _get(uri);
   });
 
   /// The compiled receipt PNG bytes for [caseId] (federfall-i0wq), rendered
@@ -80,7 +80,7 @@ class PbCaseReportRepository {
       'lang': lang,
       if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',
     });
-    return _get(uri);
+    return await _get(uri);
   });
 
   /// The annual report for [year] (federfall-dk0c), rendered server-side by
@@ -118,7 +118,7 @@ class PbCaseReportRepository {
       'lang': lang,
       if (tzOffsetMinutes != null) 'tzOffsetMinutes': '$tzOffsetMinutes',
     });
-    return _get(uri);
+    return await _get(uri);
   }, timeout: timeout ?? const Duration(minutes: 2));
 
   Future<Uint8List> _get(Uri uri) async {

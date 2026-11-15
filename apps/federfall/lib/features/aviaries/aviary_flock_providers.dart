@@ -8,7 +8,7 @@ part 'aviary_flock_providers.g.dart';
 @riverpod
 Future<List<JournalEntry>> aviaryJournal(Ref ref, String aviaryId) async {
   final repo = await ref.watch(journalRepositoryProvider.future);
-  return repo.forAviary(aviaryId);
+  return await repo.forAviary(aviaryId);
 }
 
 /// One condition rolled up onto the flock timeline, paired with the resident

@@ -18,7 +18,7 @@ part 'cases_providers.g.dart';
 @riverpod
 Future<CaseBundle> caseBundle(Ref ref, String caseId) async {
   final repo = await ref.watch(casesRepositoryProvider.future);
-  return repo.bundle(caseId);
+  return await repo.bundle(caseId);
 }
 
 /// A single case by id (case detail) — served from the [caseBundle], so the
@@ -44,7 +44,7 @@ Future<List<T>> caseBundleList<T>(
   final bundle = await ref.watch(caseBundleProvider(caseId).future);
   final items = pick(bundle);
   if (items.length < pbExpandListCap) return items;
-  return fetchAll();
+  return await fetchAll();
 }
 
 /// Whether the current user may write to case [caseId] (edit it and its
@@ -71,7 +71,7 @@ Future<bool> canEditCase(Ref ref, String caseId) async {
 @riverpod
 Future<Animal> animalById(Ref ref, String id) async {
   final repo = await ref.watch(animalsRepositoryProvider.future);
-  return repo.getOne(id);
+  return await repo.getOne(id);
 }
 
 /// Every case for one animal (its admission history), newest first — used to
@@ -79,12 +79,12 @@ Future<Animal> animalById(Ref ref, String id) async {
 @riverpod
 Future<List<Case>> casesForAnimal(Ref ref, String animalId) async {
   final repo = await ref.watch(casesRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// The external finder linked to a case, by id (case detail).
 @riverpod
 Future<Finder> finderById(Ref ref, String id) async {
   final repo = await ref.watch(findersRepositoryProvider.future);
-  return repo.getOne(id);
+  return await repo.getOne(id);
 }

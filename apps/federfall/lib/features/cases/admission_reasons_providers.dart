@@ -10,7 +10,7 @@ part 'admission_reasons_providers.g.dart';
 @riverpod
 Future<List<AdmissionReason>> admissionReasons(Ref ref) async {
   final repo = await ref.watch(admissionReasonsRepositoryProvider.future);
-  return repo.codelist();
+  return await repo.codelist();
 }
 
 /// Admission-reason code-list entries keyed by id, for label lookup.

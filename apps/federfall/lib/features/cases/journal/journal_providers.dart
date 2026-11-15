@@ -11,7 +11,7 @@ part 'journal_providers.g.dart';
 Future<List<JournalEntry>> journalForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.journal, () async {
       final repo = await ref.watch(journalRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });
 
 /// Injectable image source, so tests can supply a fake picker.

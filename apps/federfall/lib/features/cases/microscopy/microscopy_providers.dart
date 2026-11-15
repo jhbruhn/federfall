@@ -10,7 +10,7 @@ part 'microscopy_providers.g.dart';
 Future<List<MicroscopySample>> microscopyForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.microscopySamples, () async {
       final repo = await ref.watch(microscopySamplesRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });
 
 /// Every graded finding across the case's samples, grouped by sample id for
@@ -28,7 +28,7 @@ Future<Map<String, List<MicroscopyFinding>>> microscopyFindingsForCase(
       final repo = await ref.watch(
         microscopyFindingsRepositoryProvider.future,
       );
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     },
   );
   final bySample = <String, List<MicroscopyFinding>>{};
@@ -46,7 +46,7 @@ Future<Map<String, List<MicroscopyFinding>>> microscopyFindingsForCase(
 @riverpod
 Future<List<MicroscopyFindingType>> microscopyFindingTypes(Ref ref) async {
   final repo = await ref.watch(microscopyFindingTypesRepositoryProvider.future);
-  return repo.codelist();
+  return await repo.codelist();
 }
 
 /// Vocabulary entries keyed by id, for the label lookup on a tile.

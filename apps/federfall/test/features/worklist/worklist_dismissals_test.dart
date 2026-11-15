@@ -19,7 +19,7 @@ void main() {
     addTearDown(container.dispose);
     // Awaited so the notifier has read the prefs before anything asks it.
     await container.read(worklistDismissalsProvider.future);
-    return container.read(worklistDismissalsProvider.notifier);
+    return await container.read(worklistDismissalsProvider.notifier);
   }
 
   test('a dismissal applies today and is persisted', () async {

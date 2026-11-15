@@ -89,7 +89,7 @@ class AnimalAvatar extends ConsumerWidget {
     WidgetRef ref, {
     required bool hasPhoto,
   }) async {
-    if (!hasPhoto) return _editPhoto(context, ref);
+    if (!hasPhoto) return await _editPhoto(context, ref);
     final l10n = context.l10n;
     // The avatar itself renders the 200x200 thumbnail; the viewer needs the
     // full-resolution file, so this is fetched separately rather than reusing

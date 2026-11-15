@@ -15,7 +15,7 @@ part 'medications_providers.g.dart';
 Future<List<Medication>> medicationsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.medications, () async {
       final repo = await ref.watch(medicationsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });
 
 /// The server's own view of the courses running on a case, soonest-due first
@@ -59,7 +59,7 @@ Future<List<MedicationAdministration>> administrationsForCase(
   final repo = await ref.watch(
     medicationAdministrationsRepositoryProvider.future,
   );
-  return repo.forCase(caseId);
+  return await repo.forCase(caseId);
 });
 
 /// One case the signed-in carer could also put on a course, with the bird it

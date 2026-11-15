@@ -11,7 +11,7 @@ part 'quarantine_providers.g.dart';
 Future<List<Quarantine>> quarantineForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.quarantines, () async {
       final repo = await ref.watch(quarantineRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });
 
 /// The current quarantine end per case (case id → end date), read from the

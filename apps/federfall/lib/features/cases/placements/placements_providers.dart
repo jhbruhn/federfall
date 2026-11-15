@@ -10,14 +10,14 @@ part 'placements_providers.g.dart';
 Future<List<Placement>> placementsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.placements, () async {
       final repo = await ref.watch(placementsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });
 
 /// Active staff members of the org, name-sorted — the carer/handoff pickers.
 @riverpod
 Future<List<AppUser>> orgMembers(Ref ref) async {
   final repo = await ref.watch(usersRepositoryProvider.future);
-  return repo.activeMembers();
+  return await repo.activeMembers();
 }
 
 /// Org members keyed by id, for resolving carer/from/to names on the timeline.

@@ -27,7 +27,7 @@ Future<List<Sponsorship>> sponsorshipsForAnimal(
   String animalId,
 ) async {
   final repo = await ref.watch(sponsorshipsRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// How many patronages [animalId] carries — a COUNT, never a name.
@@ -40,7 +40,7 @@ Future<List<Sponsorship>> sponsorshipsForAnimal(
 @riverpod
 Future<int> sponsorshipCountForAnimal(Ref ref, String animalId) async {
   final repo = await ref.watch(sponsorshipsRepositoryProvider.future);
-  return repo.countForAnimal(animalId);
+  return await repo.countForAnimal(animalId);
 }
 
 /// What the signed-in user may do about [animalId]'s patronages.

@@ -17,7 +17,11 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "de.jhbruhn.federfall"
-    compileSdk = flutter.compileSdkVersion
+    // 37, above Flutter's own 36: flutter_local_notifications 23 (and the
+    // androidx.core 1.19 it pulls in) publish AAR metadata demanding it. Only
+    // the compile SDK moves; targetSdk stays Flutter's. Drop back to
+    // `flutter.compileSdkVersion` once Flutter's default reaches 37.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

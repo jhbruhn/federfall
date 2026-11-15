@@ -51,5 +51,5 @@ Future<Organisation> currentOrganisation(Ref ref) async {
     throw const RepositoryException('the current user has no organisation');
   }
   final repo = await ref.watch(organisationsRepositoryProvider.future);
-  return repo.getOne(orgId);
+  return await repo.getOne(orgId);
 }

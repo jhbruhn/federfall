@@ -10,7 +10,7 @@ part 'exams_providers.g.dart';
 Future<List<Exam>> examsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.exams, () async {
       final repo = await ref.watch(examsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });
 
 /// Every exam recorded for an animal across its life, newest first — the
@@ -18,7 +18,7 @@ Future<List<Exam>> examsForCase(Ref ref, String caseId) =>
 @riverpod
 Future<List<Exam>> examsForAnimal(Ref ref, String animalId) async {
   final repo = await ref.watch(examsRepositoryProvider.future);
-  return repo.forAnimal(animalId);
+  return await repo.forAnimal(animalId);
 }
 
 /// Every by-system finding across the case's exams, grouped by exam id for
@@ -34,7 +34,7 @@ Future<Map<String, List<ExamFinding>>> examFindingsForCase(
     (b) => b.examFindings,
     () async {
       final repo = await ref.watch(examFindingsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     },
   );
   final byExam = <String, List<ExamFinding>>{};

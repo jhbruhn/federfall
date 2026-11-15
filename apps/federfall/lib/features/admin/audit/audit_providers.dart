@@ -142,5 +142,5 @@ Future<List<AuditEvent>> auditRequestSiblings(
 ) async {
   if (requestId.isEmpty) return const [];
   final repo = await ref.watch(auditEventsRepositoryProvider.future);
-  return repo.forRequest(requestId);
+  return await repo.forRequest(requestId);
 }

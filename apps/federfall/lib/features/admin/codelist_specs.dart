@@ -33,7 +33,7 @@ final conditionsCodelistSpec = CodelistSpec<Condition>(
   activeHelp: (l10n) => l10n.conditionActiveHelp,
   countReferences: (ref, c) async {
     final repo = await ref.read(caseConditionsRepositoryProvider.future);
-    return repo.countForCondition(c.id);
+    return await repo.countForCondition(c.id);
   },
   inUse: (l10n, count) => l10n.conditionCodelistInUse(count),
 );
@@ -58,7 +58,7 @@ final admissionReasonsCodelistSpec = CodelistSpec<AdmissionReason>(
   activeHelp: (l10n) => l10n.admissionReasonActiveHelp,
   countReferences: (ref, r) async {
     final repo = await ref.read(casesRepositoryProvider.future);
-    return repo.countForAdmissionReason(r.id);
+    return await repo.countForAdmissionReason(r.id);
   },
   inUse: (l10n, count) => l10n.admissionReasonCodelistInUse(count),
 );
@@ -82,7 +82,7 @@ final markingTypesCodelistSpec = CodelistSpec<MarkingType>(
   activeHelp: (l10n) => l10n.markingTypeActiveHelp,
   countReferences: (ref, t) async {
     final repo = await ref.read(markingsRepositoryProvider.future);
-    return repo.countForType(t.id);
+    return await repo.countForType(t.id);
   },
   inUse: (l10n, count) => l10n.markingTypeCodelistInUse(count),
   // The only list whose referencing relation (`markings.type`) is required —
@@ -130,7 +130,7 @@ final microscopyFindingTypesCodelistSpec = CodelistSpec<MicroscopyFindingType>(
   activeHelp: (l10n) => l10n.microscopyFindingTypeActiveHelp,
   countReferences: (ref, t) async {
     final repo = await ref.read(microscopyFindingsRepositoryProvider.future);
-    return repo.countForType(t.id);
+    return await repo.countForType(t.id);
   },
   inUse: (l10n, count) => l10n.microscopyFindingTypeCodelistInUse(count),
   // Left FALSE deliberately: `microscopy_findings.finding_type` is

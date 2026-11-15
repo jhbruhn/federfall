@@ -8,28 +8,28 @@ part 'aviaries_providers.g.dart';
 @riverpod
 Future<List<Aviary>> aviaries(Ref ref) async {
   final repo = await ref.watch(aviariesRepositoryProvider.future);
-  return repo.list(sort: 'name');
+  return await repo.list(sort: 'name');
 }
 
 /// Active aviaries only — the placement picker (FED-4.12), name-sorted.
 @riverpod
 Future<List<Aviary>> activeAviaries(Ref ref) async {
   final repo = await ref.watch(aviariesRepositoryProvider.future);
-  return repo.active();
+  return await repo.active();
 }
 
 /// A single aviary by id (aviary detail, FED-6.2).
 @riverpod
 Future<Aviary> aviaryById(Ref ref, String id) async {
   final repo = await ref.watch(aviariesRepositoryProvider.future);
-  return repo.getOne(id);
+  return await repo.getOne(id);
 }
 
 /// The animals currently resident in an aviary (FED-6.2), name-sorted.
 @riverpod
 Future<List<Animal>> aviaryResidents(Ref ref, String aviaryId) async {
   final repo = await ref.watch(animalsRepositoryProvider.future);
-  return repo.residentsOf(aviaryId);
+  return await repo.residentsOf(aviaryId);
 }
 
 /// Current resident count per aviary id, in one animals query — the registry

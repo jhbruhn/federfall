@@ -10,5 +10,5 @@ part 'follow_ups_providers.g.dart';
 Future<List<FollowUp>> followUpsForCase(Ref ref, String caseId) =>
     caseBundleList(ref, caseId, (b) => b.followUps, () async {
       final repo = await ref.watch(followUpsRepositoryProvider.future);
-      return repo.forCase(caseId);
+      return await repo.forCase(caseId);
     });

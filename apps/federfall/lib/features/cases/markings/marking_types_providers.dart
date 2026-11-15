@@ -10,7 +10,7 @@ part 'marking_types_providers.g.dart';
 @riverpod
 Future<List<MarkingType>> markingTypes(Ref ref) async {
   final repo = await ref.watch(markingTypesRepositoryProvider.future);
-  return repo.codelist();
+  return await repo.codelist();
 }
 
 /// Marking-type code-list entries keyed by id, for label lookup.

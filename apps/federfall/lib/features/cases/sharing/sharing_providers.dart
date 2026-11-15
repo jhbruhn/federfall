@@ -8,5 +8,5 @@ part 'sharing_providers.g.dart';
 @riverpod
 Future<List<CaseShare>> caseShares(Ref ref, String caseId) async {
   final repo = await ref.watch(caseSharesRepositoryProvider.future);
-  return repo.forCase(caseId);
+  return await repo.forCase(caseId);
 }
