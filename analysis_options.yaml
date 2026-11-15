@@ -5,4 +5,4 @@
 # and applies to every workspace member. Per-package lint rules live in each
 # package's own analysis_options.yaml (e.g. apps/federfall/analysis_options.yaml).
 plugins:
-  riverpod_lint: ^3.1.4
+  riverpod_lint: ^3.2.0
