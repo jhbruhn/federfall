@@ -72,6 +72,8 @@ services:
       DO_NOT_TRACK: "1"
       # offline: never fetch a tile; a cache miss renders as a plain tile.
       FFDEMO_TILES: ${FFDEMO_TILES:-}
+      # YYYY-MM-DD: the day the demo dataset is relative to (default: today).
+      FFDEMO_RUN_DAY: ${FFDEMO_RUN_DAY:-}
       # Set to 1 to force Chromium/OpenScreen's sandbox off (the entrypoint
       # does this by itself where user namespaces are unavailable).
       FFDEMO_NO_SANDBOX: ${FFDEMO_NO_SANDBOX:-}

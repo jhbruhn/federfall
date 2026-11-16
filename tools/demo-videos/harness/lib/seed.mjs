@@ -1,16 +1,18 @@
 // Data setup, through the real API. Every video starts on a FRESH backend
-// (backend.mjs → serve.sh), gets the base below, then runs its own setup().
+// (backend.mjs → serve.sh), gets a dataset (lib/dataset.mjs: "base" or the
+// lived-in "demo" org), then runs its own setup().
 //
 // The base is what every video needs: the organisation named in the run's
 // language, its code lists in that language (code lists are database rows,
 // seeded German by the migrations — an English video would otherwise show
-// German chips), and one account per role.
+// German chips), and one account per role. The demo dataset (data/demo/) is
+// seeded on top of it by the same Seed object.
 //
-// Where the full demo dataset (federfall-1h9z.3) plugs in: as more helpers on
-// the Seed object, called from a video's setup(). Rules for those helpers:
-// go through the routes whose hooks derive state (intake, dispositions,
-// placements) as the person who would do it; use the superuser only for what
-// no client may write (accounts, the organisation itself).
+// Rules for anything that seeds: go through the routes whose hooks derive
+// state (intake, dispositions, placements, the batch routes) as the person who
+// would do it; use the superuser only for what no client may write (accounts,
+// the organisation itself). The README's "Demo dataset" section lists the
+// places the demo dataset departs from that, and why.
 import { Api } from './backend.mjs';
 import { DemoError } from './util.mjs';
 import { CODE_LISTS, ORG_NAME, PEOPLE } from '../data/base.mjs';
@@ -24,9 +26,11 @@ export class Seed {
     this.log = log;
     this.people = {};
     this.sessions = {};
+    /** What the demo dataset seeded (record ids by cast name), or null. */
+    this.demo = null;
   }
 
-  /** A logged-in API client for one of the base people (`carer`, `supervisor`, …). */
+  /** A logged-in API client for one of the seeded people (`carer`, `supervisor`, …). */
   async as(role) {
     if (!this.sessions[role]) {
       const p = this.people[role];
@@ -34,6 +38,50 @@ export class Seed {
       this.sessions[role] = await Api.user(p.email, PASSWORD);
     }
     return this.sessions[role];
+  }
+
+  /**
+   * Everything a later video needs to carry on from this seeding: ids, and the
+   * session tokens (valid for 30 days, and still valid in every COPY of the
+   * data dir — reusing them is what keeps a video's setup from signing in
+   * again, which the backend's `*:auth` budget of 2 per 3 s would refuse).
+   */
+  state() {
+    return JSON.parse(JSON.stringify({
+      org: this.org,
+      people: this.people,
+      tokens: Object.fromEntries(Object.entries(this.sessions).map(([k, v]) => [k, v.token])),
+      suToken: this.su.token,
+      demo: this.demo,
+    }));
+  }
+
+  static restore({ locale, log }, state) {
+    const seed = new Seed({ su: new Api(state.suToken), locale, log });
+    seed.org = state.org;
+    seed.people = state.people;
+    seed.sessions = Object.fromEntries(Object.entries(state.tokens).map(([k, t]) => [k, new Api(t)]));
+    seed.demo = state.demo;
+    return seed;
+  }
+
+  /**
+   * Runs [fn] with the backend's request budgets raised, then puts back exactly
+   * the rules it found. A seeding is hundreds of writes in seconds, far past
+   * `*:create` (20 per 5 s) and `/api/` (300 per 10 s); the backend's own rule
+   * suite raises them the same way (tests/test_rules.py, "[rate limiting]").
+   * The recorded app then runs under the real budgets again.
+   */
+  async withoutRateLimits(fn) {
+    const settings = await this.su.get('/api/settings');
+    const original = settings.rateLimits;
+    const raised = { ...original, rules: original.rules.map((r) => ({ ...r, maxRequests: 1_000_000 })) };
+    await this.su.patch('/api/settings', { rateLimits: raised });
+    try {
+      return await fn();
+    } finally {
+      await this.su.patch('/api/settings', { rateLimits: original });
+    }
   }
 
   async base() {
@@ -55,19 +103,25 @@ export class Seed {
 
     // People. The supervisor already exists (bootstrapped from the env by the
     // backend's own hook); the others are created here.
-    for (const [role, p] of Object.entries(PEOPLE)) {
-      let user = (await this.su.list('users', `filter=${encodeURIComponent(`email="${p.email}"`)}`))[0];
+    await this.addPeople(PEOPLE);
+    return this;
+  }
+
+  /** Creates (or resets) accounts as the superuser: {key: {role, name, email, …}}. */
+  async addPeople(people) {
+    for (const [key, p] of Object.entries(people)) {
+      const { role, name, email, ...extra } = p;
+      let user = (await this.su.list('users', `filter=${encodeURIComponent(`email="${email}"`)}`))[0];
       if (!user) {
         user = await this.su.create('users', {
-          email: p.email, password: PASSWORD, passwordConfirm: PASSWORD, name: p.name,
-          role: p.role, org: org.id, is_active: true, verified: true, emailVisibility: true,
+          email, password: PASSWORD, passwordConfirm: PASSWORD, name,
+          role, org: this.org.id, is_active: true, verified: true, emailVisibility: true, ...extra,
         });
       } else {
-        user = await this.su.update('users', user.id, { name: p.name, password: PASSWORD, passwordConfirm: PASSWORD });
+        user = await this.su.update('users', user.id, { name, password: PASSWORD, passwordConfirm: PASSWORD, ...extra });
       }
-      this.people[role] = { ...p, id: user.id, password: PASSWORD };
+      this.people[key] = { ...p, id: user.id, password: PASSWORD };
     }
-    return this;
   }
 
   /** The active admission reasons, by label, in this locale. */

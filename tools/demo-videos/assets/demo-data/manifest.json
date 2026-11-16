@@ -1,0 +1,207 @@
+{
+  "about": "Placeholder attachments of the demo dataset (harness/data/demo). All of them were drawn by generate.mjs in this directory and are ours to publish. To use a real photo or document instead, replace the file (or point 'file' at a new one); 'name' is the file name the upload gets in each language, which is what the app shows. Every entry lists where the seeder uses it.",
+  "files": {
+    "photo-feral-pigeon": {
+      "file": "photo-feral-pigeon.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "fiete-aufnahme.jpg",
+        "en": "fiete-admission.jpg"
+      },
+      "usedBy": [
+        "Fiete: intake photo, so also his portrait (A4, B-series)"
+      ]
+    },
+    "photo-feral-pigeon-2": {
+      "file": "photo-feral-pigeon-2.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "fiete-tag-4.jpg",
+        "en": "fiete-day-4.jpg"
+      },
+      "usedBy": [
+        "Fiete: journal entry with a photo (B3)",
+        "Erna: intake photo, so her portrait"
+      ]
+    },
+    "photo-feral-pigeon-3": {
+      "file": "photo-feral-pigeon-3.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "gustav.jpg",
+        "en": "gustav.jpg"
+      },
+      "usedBy": [
+        "Gustav: intake photo of his first stay, so his portrait (the returning bird, C3/B4)"
+      ]
+    },
+    "photo-wood-pigeon": {
+      "file": "photo-wood-pigeon.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "ringeltaube.jpg",
+        "en": "wood-pigeon.jpg"
+      },
+      "usedBy": [
+        "Kora: intake photo (fresh intake)"
+      ]
+    },
+    "photo-crow": {
+      "file": "photo-crow.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "hedwig.jpg",
+        "en": "hedwig.jpg"
+      },
+      "usedBy": [
+        "Hedwig: intake photo",
+        "Kalle: intake photo"
+      ]
+    },
+    "photo-blackbird": {
+      "file": "photo-blackbird.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "amsel.jpg",
+        "en": "blackbird.jpg"
+      },
+      "usedBy": [
+        "Mika: intake photo",
+        "Momo: intake photo"
+      ]
+    },
+    "photo-sparrow": {
+      "file": "photo-sparrow.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "pieps.jpg",
+        "en": "pieps.jpg"
+      },
+      "usedBy": [
+        "Pieps: intake photo"
+      ]
+    },
+    "photo-magpie": {
+      "file": "photo-magpie.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "smilla.jpg",
+        "en": "smilla.jpg"
+      },
+      "usedBy": [
+        "Smilla: intake photo"
+      ]
+    },
+    "photo-jackdaw": {
+      "file": "photo-jackdaw.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "tjark.jpg",
+        "en": "tjark.jpg"
+      },
+      "usedBy": [
+        "Tjark: portrait (resident added straight to the outdoor aviary)"
+      ]
+    },
+    "photo-collared-dove": {
+      "file": "photo-collared-dove.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "tuerkentaube.jpg",
+        "en": "collared-dove.jpg"
+      },
+      "usedBy": [
+        "Frieda: intake photo",
+        "Wilma: intake photo"
+      ]
+    },
+    "photo-eggs": {
+      "file": "photo-eggs.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "gelege.jpg",
+        "en": "clutch.jpg"
+      },
+      "usedBy": [
+        "Erna: latest egg record (B8)"
+      ]
+    },
+    "xray-wing": {
+      "file": "xray-wing.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "roentgen-fluegel-links.jpg",
+        "en": "xray-left-wing.jpg"
+      },
+      "usedBy": [
+        "Hedwig: attended X-ray appointment (B6)"
+      ]
+    },
+    "microscopy-crop-swab": {
+      "file": "microscopy-crop-swab.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "kropfabstrich.jpg",
+        "en": "crop-swab.jpg"
+      },
+      "usedBy": [
+        "Fiete: crop swab at admission (B7)",
+        "Bruno: crop swab"
+      ]
+    },
+    "microscopy-fecal": {
+      "file": "microscopy-fecal.jpg",
+      "type": "image/jpeg",
+      "name": {
+        "de": "kotprobe-flotation.jpg",
+        "en": "fecal-flotation.jpg"
+      },
+      "usedBy": [
+        "Fiete: fecal flotation (B7)"
+      ]
+    },
+    "fecal-report": {
+      "file": {
+        "de": "fecal-report.de.pdf",
+        "en": "fecal-report.en.pdf"
+      },
+      "type": "application/pdf",
+      "name": {
+        "de": "befund-kotprobe.pdf",
+        "en": "fecal-test-report.pdf"
+      },
+      "usedBy": [
+        "Fiete: journal entry with a PDF (B3)",
+        "Fiete: attended vet appointment"
+      ]
+    },
+    "xray-report": {
+      "file": {
+        "de": "xray-report.de.pdf",
+        "en": "xray-report.en.pdf"
+      },
+      "type": "application/pdf",
+      "name": {
+        "de": "roentgenbefund.pdf",
+        "en": "xray-report.pdf"
+      },
+      "usedBy": [
+        "Hedwig: attended X-ray appointment (B6)"
+      ]
+    },
+    "referral": {
+      "file": {
+        "de": "referral.de.pdf",
+        "en": "referral.en.pdf"
+      },
+      "type": "application/pdf",
+      "name": {
+        "de": "vorstellung-abschlusskontrolle.pdf",
+        "en": "referral-final-check.pdf"
+      },
+      "usedBy": [
+        "Fiete: upcoming vet appointment, the one with an attachment (B6)"
+      ]
+    }
+  }
+}

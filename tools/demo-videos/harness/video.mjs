@@ -1,4 +1,5 @@
 // What a video script imports. See README.md, "Writing a video".
+import { DATASETS } from './lib/dataset.mjs';
 import { VIEWPORTS } from './lib/stage.mjs';
 
 const LOCALES = ['de', 'en'];
@@ -11,6 +12,7 @@ export function defineVideo(v) {
   for (const l of LOCALES) if (!v.title?.[l]) problems.push(`title.${l} is missing`);
   if (v.viewport && !VIEWPORTS[v.viewport]) problems.push(`viewport must be one of ${Object.keys(VIEWPORTS)}`);
   if (!v.signInAs) problems.push('signInAs is missing');
+  if (v.dataset && !DATASETS.includes(v.dataset)) problems.push(`dataset must be one of ${DATASETS}`);
   if (!Array.isArray(v.steps) || v.steps.length === 0) problems.push('steps are missing');
   (v.steps ?? []).forEach((st, i) => {
     if (typeof st.run !== 'function') problems.push(`step ${i + 1} has no run()`);
@@ -19,7 +21,7 @@ export function defineVideo(v) {
     }
   });
   if (problems.length) throw new Error(`video ${v.id ?? '?'}: ${problems.join('; ')}`);
-  return Object.freeze({ viewport: 'phone', ...v });
+  return Object.freeze({ viewport: 'phone', dataset: 'base', ...v });
 }
 
 /**

@@ -41,6 +41,7 @@ so `run --rm record A3` and `run --rm record record A3` are the same:
 | `record <ID…\|all> [--locale de,en]` | Records and exports. Default: both languages. |
 | `record … --no-export` | Records only (capture, cursor track, OpenScreen document in `out/work/`). |
 | `export <ID…\|all> [--locale …]` | Re-renders the last capture with the current look/document code, without driving the app again. For tuning the look. |
+| `check [--locale de,en] [--times N]` | Seeds the demo dataset from scratch N times per language, asserts its derived state (`harness/lib/verify.mjs`) and compares fingerprints. No recording. |
 | `list` | Lists the videos. |
 
 Environment (compose passes these through):
@@ -49,6 +50,7 @@ Environment (compose passes these through):
 |---|---|
 | `FFDEMO_TILES=offline` | Never fetch a map tile; a tile missing from the cache is drawn plain. |
 | `FFDEMO_NO_SANDBOX=1` | Force Chromium's/OpenScreen's sandbox off. Normally decided automatically (see "Docker"). |
+| `FFDEMO_RUN_DAY=YYYY-MM-DD` | The day the demo dataset is relative to (default: today, Europe/Berlin). Only a day in the past works (a disposition may not be dated in the future), and the app's own clock does not move — use it to compare seedings, not to record. |
 
 ## Output
 
@@ -90,9 +92,10 @@ Per video and language, the harness (`harness/`):
    volume; `serve.sh` stops PocketBase, copies a pristine migrated data dir
    into place and starts it again. The runner waits for that itself — it never
    relies on compose to order anything.
-2. **Seed.** `harness/lib/seed.mjs` as the superuser: names the organisation,
-   translates the code lists into the run's language, creates one account per
-   role. Then the video's own `setup()`.
+2. **Dataset.** The video's `dataset` (`base` or `demo`, see "Data") is
+   seeded through the API on the first video of each language, saved by
+   `serve.sh` as a template, and handed to every later video of that language
+   as a fresh copy (`harness/lib/dataset.mjs`). Then the video's own `setup()`.
 3. **Stage.** Xvfb at exactly the viewport's device-pixel size; Chromium headed
    in app mode at 0,0 (no tabs, no address bar, no window manager), so the X
    screen *is* the viewport. Semantics are switched on by clicking Flutter's
@@ -126,7 +129,8 @@ export default defineVideo({
   slug: 'markings',               // → B4-markings.de.mp4
   title: { de: 'Markierungen', en: 'Markings' },   // shown at the start
   viewport: 'phone',              // or 'desktop' (C7 only)
-  signInAs: 'carer',              // supervisor | coordinator | carer | carer2
+  dataset: 'demo',                // base (default) | demo — see "Data"
+  signInAs: 'carer',              // supervisor | coordinator | carer | carer2 (| guest in demo)
   assets: ['pigeon.svg'],         // files from assets/ to prepare before recording
   setup: async ({ seed, locale }) => { /* see "Data" */ },
   steps: [
@@ -233,28 +237,154 @@ screenshot and a semantics dump. A flaky step is a bug to find, not to retry.
 
 ### Data
 
-Every video starts on a **fresh backend** and gets the base
-(`harness/lib/seed.mjs`, `harness/data/base.mjs`): the organisation
-(„Wildvogelhilfe Elbmarsch"), its code lists in the run's language, and the
-people — Johanna Brandt (supervisor, bootstrapped by the backend itself),
-Malte Riedel (coordinator), Lena Vogt and Tarek Aydin (carers). All fictional;
-addresses use `.example`. Then `setup({ seed, locale })` adds what the video
-needs and may return data the steps read as `s.data`.
+Every video starts on a **fresh backend** holding one of two datasets, chosen
+with `dataset:` in `defineVideo` (default `base`):
 
-`seed.as(role)` is an API client signed in as that person; `seed.su` is the
-superuser; `seed.intakes(role, [...])` admits birds through the real intake
-route. Rules for new helpers (the demo dataset, federfall-1h9z.3, plugs in
-here):
+- **`base`** (`harness/lib/seed.mjs`, `harness/data/base.mjs`): the
+  organisation („Wildvogelhilfe Elbmarsch"), every code list in the run's
+  language, and the people — Johanna Brandt (supervisor, bootstrapped by the
+  backend itself), Malte Riedel (coordinator), Lena Vogt and Tarek Aydin
+  (carers). Nothing else: A3 needs an empty case list.
+- **`demo`** (`harness/data/demo/`): base plus a lived-in organisation — see
+  "Demo dataset" below. Every video except A3 should use it.
+
+Then `setup({ seed, locale })` adds what the video needs and may return data
+the steps read as `s.data`. It runs on a COPY, so what one video adds is
+never seen by the next.
+
+`seed.as(role)` is an API client signed in as that person (`supervisor`,
+`coordinator`, `carer`, `carer2`, and in `demo` also `guest`); `seed.su` is
+the superuser; `seed.intakes(role, [...])` admits birds through the real
+intake route; `seed.demo` holds the ids of everything the demo dataset seeded
+(`seed.demo.cases.fiete`, `seed.demo.animals.erna`, `seed.demo.aviaries.loft`,
+`seed.demo.medications.fieteDeworm`, `seed.demo.sponsorships.albers`, …).
+Rules for anything that seeds:
 
 - Go through the routes whose hooks derive state (intake, dispositions,
-  placements), as the person who would do it. Use the superuser only for what
-  no client may write (accounts, the organisation).
-- Code lists are database rows, seeded German by the migrations. Every list a
-  video shows needs its English labels in `CODE_LISTS`, or the English video
-  shows German chips. A row without a translation fails the setup.
-- Free text a viewer reads (species, notes) needs a `de` and an `en` value.
+  placements, the batch routes), as the person who would do it. Use the
+  superuser only for what no client may write (accounts, the organisation).
+- Code lists are database rows, seeded German by the migrations. Every list
+  has its English labels in `CODE_LISTS`; a row without a translation fails
+  the setup.
+- Free text a viewer reads (species, notes, names of organisations) needs a
+  `de` and an `en` value. German first, idiomatic; then English.
+- Select rows by the names in `harness/data/demo/cast.mjs` (import them), not
+  by spelling a name again.
 
-### Viewports
+## Demo dataset
+
+`harness/data/demo/`: `cast.mjs` (names — the interface videos use),
+`vocab.mjs` (species, places, drug catalogue, vaccines, vets), `stories.mjs`
+(the showcase birds), `bulk.mjs` (the history), `index.mjs` (the engine and
+one helper per kind of write), `clock.mjs` / `rng.mjs`. The check is
+`harness/lib/verify.mjs` (`check` command).
+
+**How it is built.** Stories and bulk do not write: they *schedule* each step
+at the moment it happened in the story, as the person who did it ("Lena weighs
+Fiete at 07:20 three days ago"), and the engine runs all ~1,500 steps in that
+order — ~1,600 API writes, **~9 s** (measured, rootless podman). Running in
+story order is what keeps case numbers chronological (they are assigned at
+creation per year of admission) and the audit log in a plausible order.
+Everything is relative to the run day; randomness is seeded, so the same run
+day gives the same data (`check` prints a fingerprint to prove it, plus a
+"structure" hash that must match between de and en).
+
+**Paid once per run and language**, not per video: the first `demo` video of
+a language seeds and `serve.sh` saves the data dir as template `demo-<locale>`;
+every later video gets a copy (a reset costs ~0.5 s). A template remembers its
+run day and is re-seeded if a run crosses midnight.
+
+**The people.** As in base, plus **Sven Kröger**, a guest who signed up and is
+waiting for a role (A2, C8). Lena is a carer *and* keeps the pigeon loft;
+Malte keeps the outdoor aviary.
+
+**Showcase birds** (12 open cases; everything else is closed):
+
+| Bird | Held by | What it is for | Videos |
+|---|---|---|---|
+| **Fiete** (feral pigeon) | Lena | The full timeline: 13 weights (238 → 292 g), two exams with findings, trichomonosis (resolved) and worms (contagious), three microscopy samples with photos, canker course with Faucalin (done), **the running deworming course (Nemakur) 5 days on / 2 off ×3 with a dose due today**, journal with a photo and a PDF, colour clip applied and removed, an attended vet visit (PDF) and **an upcoming one with an attachment**, a follow-up due today, intake photo + finder, edit share with Tarek | A1, A4, B1–B4, B6, B7, B11, C1 |
+| **Kora** (wood pigeon) | Lena | Admitted this morning: fresh intake, quarantine just started | A5, B5 |
+| **Hedwig** (carrion crow) | Lena | **Quarantine ends today**, **vet appointment this afternoon**, pain-relief dose (Plumadol) due, X-ray (image + PDF) on an attended visit, fracture | A5, B5, B6 |
+| **Gustav** (feral pigeon) | Lena | Released in spring wearing our ring **EM 0412**, back after a cat attack and recognised by it: reads *in care* again; antibiotic (Peravin) due tonight; follow-up today | B4, C3 |
+| **Bruno, Lotte, Mats** (young feral pigeons) | Lena | One find, **one group course** (prescribe-batch), seven **dose rounds** logged, the next one due today | A5, C1 |
+| **Mika** (blackbird) | Lena, from Tarek | **Handed over** (holiday cover): Tarek kept read access, sees the read-only badge | C2 |
+| **Hinkebein** (feral pigeon) | Tarek; lives in Lena's loft | Resident with two **patronages**, now ill: Lena admitted him, handed the case to Tarek — *in care* AND in an enclosure; his carer cannot see the patronages, his keeper can | C2, C4, C5 |
+| **Pieps** (house sparrow) | Tarek | **Ready for release** | A6, C3 |
+| **Tilda** (feral pigeon) | Tarek | Suspected **ornithosis — notifiable and contagious**; 21-day quarantine; lab follow-up; laid an egg during the case | B2, B5, B8 |
+| Ringo duplicate (racing pigeon, unnamed) | Malte | Second record of **Ringo** — same club ring **DV-DEMO-001** (deliberately not a valid club number), found with it, on both | B4, C11 |
+
+**Closed showcase cases:** **Momo** (blackbird, released 3 days ago), **Oskar**
+(buzzard, transferred to a raptor centre yesterday), **Wilma** (collared dove,
+died the night after admission) — C3. **Ringo** (racing pigeon, returned to its
+owner last year) — C11.
+
+**Aviaries.** *Taubenschlag / Pigeon loft* (Lena): **Erna** (lays eggs — six
+clutches, latest with a photo, swapped for dummy eggs; PMV primary + booster
+and a pox shot), **Frieda**, **Hinkebein**; Ole lived here until his release.
+*Außenvoliere / Outdoor aviary* (Malte): **Kalle** (crow), **Tjark** (jackdaw,
+added straight to the aviary, no case), **Smilla** (magpie, placed 12 days ago
+for flight training). Both have a flock log; residencies are dated to the
+story. The loft was vaccinated in one act (vaccinate-batch) — C4, B9.
+
+**Markings** (the station rings feral pigeons only): Gustav's release ring
+and Fiete's colour clip (removed) — both feral pigeons; the club ring both Ringo
+records arrived wearing, recorded as found with it.
+
+**Patronages** (7): Hinkebein — Familie Petersen 15 €/month, Ilse Brockmann
+50 € one-off; Erna — a nursery group 30 €/quarter **ending in the future**;
+Kalle — Henrik Jansen 120 €/year; Tjark — a school class 5 €/month; Frieda —
+Anke Lorenz 10 €/month, **ended**; Ole — Jonas Albers 20 €/month, still running
+although **Ole was released** (no keeper can reach it). Totals: 6 running,
+60,00 € a month, 50,00 € one-off — C5, C6.
+
+**Vocabulary.** Every code list in both languages; the drug catalogue
+with INVENTED product names, each with what it is for as its note:
+Plumadol (pain relief), Peravin (antibiotic), Faucalin (against
+trichomonads), Brontalis (antifungal), Nemakur (dewormer, 5 on / 2 off × 3),
+plus a balanced electrolyte solution. Clean demo doses: every concentration
+equals the rate, so the volume is 1 ml per kg. Vaccines are invented products
+too (Sentinova PMV, Sentinova Pocken/Pox) against the real diseases; org settings (14-day quarantine, 24
+months finder retention, contact details) — C9.
+
+**History.** ~214 cases last year and ~236 this year up to four days ago (430
+on the run day 2026-11-16), all closed: species weighted like an urban rescue
+(feral pigeons first), spring/summer peak of orphans and swifts, outcomes and
+stays by kind of bird, conditions per reason, find locations in public places
+around Hamburg and neighbouring towns, a few more intakes than last year in
+every month — C7, A6, the case browser and the registry.
+
+**What data cannot fix** (all measured on screen):
+
+- `created` is the server's clock. Every case's History tab shows a
+  **"Case created / Fall angelegt" milestone dated today** (the app reads
+  `cases.created`), and the case list never shows the "no activity for N days"
+  note (it reads `updated`). The **audit log** is all today, within the minute
+  the dataset was seeded (its rows read sensibly otherwise — real actors,
+  real actions, in story order).
+- **Time of day.** Dues are fixed times (doses at 07:00–09:00, Hedwig's
+  appointment at 15:30). Recorded in the afternoon, Today shows those as
+  "overdue by n h"; recorded early in the morning, some of "this morning's"
+  entries lie in the future.
+- `aviary_stays` is written by a hook with the server clock and has no client
+  API; the seeder re-dates those rows as the superuser (unaudited by design) so
+  residencies start when the story placed the bird.
+
+**Departures from "the real actors"**, all in tools/demo-videos: the request
+budgets are raised during seeding and restored before the template is saved
+(the backend's own test suite does the same); the superuser re-dates
+`aviary_stays` (above) and, as before, writes accounts and code-list labels —
+in an English run those relabels appear in the audit log as the superuser's.
+
+**Attachments** are placeholders drawn for this purpose:
+`assets/demo-data/` (`manifest.json` says which file is used where and under
+which name per language; `generate.mjs` regenerates them). Replace a file to
+use a real photo — no code change.
+
+**Per-video additions** belong in that video's `setup()`, not in the base
+dataset.
+
+
+## Viewports
 
 `harness/lib/stage.mjs`, `VIEWPORTS`:
 

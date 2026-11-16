@@ -1,4 +1,4 @@
-// One video in one language: fresh backend → seed → record → document → export.
+// One video in one language: fresh backend + dataset → setup → record → document → export.
 //
 // A run either ends with `<id>-<slug>.<locale>.mp4` in the output directory or
 // with a failure record and NO clip under that name (an older clip of the same
@@ -7,8 +7,8 @@
 import { mkdirSync, rmSync, writeFileSync, copyFileSync, appendFileSync, renameSync } from 'node:fs';
 import path from 'node:path';
 import { labels } from './arb.mjs';
-import { Api, BASE_URL, freshBackend } from './backend.mjs';
-import { Seed } from './seed.mjs';
+import { BASE_URL } from './backend.mjs';
+import { prepareDataset } from './dataset.mjs';
 import { Session } from './session.mjs';
 import { launchBrowser, logStream, Pointer, startCapture, startDisplay, VIEWPORTS } from './stage.mjs';
 import { cursorTrack, exportClip, writeDocument } from './openscreen.mjs';
@@ -59,8 +59,7 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
 
   const body = async () => {
     services.setLocale(locale);
-    await freshBackend({ log });
-    const seed = await new Seed({ su: await Api.superuser(), locale, log }).base();
+    const seed = await prepareDataset({ dataset: video.dataset, locale, log });
     const data = (await video.setup?.({ seed, locale })) ?? {};
     const person = seed.people[video.signInAs];
     if (!person) throw new DemoError(`signInAs "${video.signInAs}" is not a seeded person`);
