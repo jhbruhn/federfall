@@ -1,0 +1,85 @@
+# Demo-video stack. Compose spec only — the same file for `docker compose` and
+# `podman compose`. Run from anywhere:
+#
+#   <engine> compose -f tools/demo-videos/compose.yaml run --rm record A3 --locale de
+#   <engine> compose -f tools/demo-videos/compose.yaml run --rm record all
+#   <engine> compose -f tools/demo-videos/compose.yaml down -v      # afterwards
+#
+# Clips land in tools/demo-videos/out/. The verdict is the exit status AND
+# out/last-run.json: some compose wrappers (podman-compose 1.5.0) exit 0 when
+# the container failed, so check the file, not just the status.
+#
+# Nothing here relies on compose for ordering: the recorder waits for the
+# backend itself and asks it for a fresh data dir before every video
+# (backend/serve.sh). No ports are published; the recorder joins the backend's
+# network namespace, which is also what makes the page a secure context
+# (localhost) so skwasm's cross-origin isolation works.
+#
+# Without any compose provider: tools/demo-videos/nocompose.sh (same images,
+# same mounts, plain podman/docker).
+name: ffdemo
+
+x-superuser: &superuser
+  FFDEMO_SUPERUSER_EMAIL: superuser@ffdemo.example
+  FFDEMO_SUPERUSER_PASSWORD: ffdemo-superuser
+
+services:
+  backend:
+    # The production image (backend + the web build baked into /pb/pb_public),
+    # built from the repo's own Dockerfile. Only the data dir is throwaway.
+    image: localhost/ffdemo-federfall:local
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    entrypoint: ["/bin/sh", "/ffdemo/serve.sh"]
+    environment:
+      <<: *superuser
+      TZ: Europe/Berlin
+      # Bootstrapped by the backend's own hook (bootstrap_supervisor.pb.js).
+      # Must match PEOPLE.supervisor in harness/data/base.mjs.
+      FEDERFALL_SUPERVISOR_EMAIL: leitung@wildvogelhilfe.example
+      FEDERFALL_SUPERVISOR_PASSWORD: demo-video-1
+      FEDERFALL_SUPERVISOR_NAME: Johanna Brandt
+      # Both stand-ins are served by the recorder on the shared loopback
+      # (harness/lib/services.mjs): a fixed-answer geocoder and a tile cache.
+      FEDERFALL_NOMINATIM_URL: http://127.0.0.1:8091
+      FEDERFALL_USER_AGENT: federfall-demo-videos
+      FEDERFALL_MAP_MODE: raster
+      FEDERFALL_MAP_TILE_URL: "http://127.0.0.1:8092/{z}/{x}/{y}.png"
+      FEDERFALL_MAP_ATTRIBUTION: "© OpenStreetMap contributors"
+      FEDERFALL_MAP_ATTRIBUTION_URL: https://www.openstreetmap.org/copyright
+    volumes:
+      - ./backend/serve.sh:/ffdemo/serve.sh:ro,z
+      - ctl:/ffdemo/ctl
+      # To record a web build newer than the image's, mount it over pb_public
+      # (never over pb_hooks or typst — CLAUDE.md, rule 1):
+      # - ../../apps/federfall/build/web:/pb/pb_public:ro,z
+
+  record:
+    image: localhost/ffdemo-studio:local
+    build:
+      context: ./runner
+      dockerfile: Containerfile
+      target: studio
+    # OpenScreen ships amd64 only; on an arm64 host this runs emulated.
+    platform: linux/amd64
+    network_mode: service:backend
+    depends_on: [backend]
+    shm_size: 1gb
+    environment:
+      <<: *superuser
+      TZ: Europe/Berlin
+      DO_NOT_TRACK: "1"
+      # offline: never fetch a tile; a cache miss renders as a plain tile.
+      FFDEMO_TILES: ${FFDEMO_TILES:-}
+      # Set to 1 to force Chromium/OpenScreen's sandbox off (the entrypoint
+      # does this by itself where user namespaces are unavailable).
+      FFDEMO_NO_SANDBOX: ${FFDEMO_NO_SANDBOX:-}
+    volumes:
+      - ./:/demo:ro,z
+      - ../../apps/federfall/lib/l10n/arb:/arb:ro,z
+      - ./out:/out:z
+      - ctl:/ffdemo/ctl
+
+volumes:
+  ctl: {}

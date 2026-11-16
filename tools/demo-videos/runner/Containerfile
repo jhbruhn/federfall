@@ -1,0 +1,66 @@
+# The demo-video runner: everything between "a running backend" and "a
+# finished clip", in one image.
+#
+#   runner  Xvfb + headed Chromium + Playwright (playwright-core, driving the
+#           distro Chromium) + xdotool (the real X pointer) + ffmpeg (x11grab
+#           capture). Multi-arch.
+#   studio  runner + OpenScreen (export only). linux/amd64 ONLY: OpenScreen
+#           v2.2.2 ships no arm64 Linux build. This is the target compose uses,
+#           because capture and export run back to back in one container — the
+#           runner cannot start a second container without a docker.sock mount.
+#
+# The harness code and the video scripts are NOT baked in: compose mounts
+# tools/demo-videos at /demo, so editing a script needs no rebuild. The image
+# holds the toolchain only.
+FROM docker.io/library/debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392 AS runner
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    TZ=Europe/Berlin
+
+# fonts-roboto: the face OpenScreen draws the narration and captions in. The
+# app itself never reads a system font — the web build bundles its own (see the
+# fonts rule in CLAUDE.md) — so this is only for the overlay, and it comes from
+# the image, not the host. fonts-dejavu-core is fontconfig's last resort.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates tzdata procps util-linux \
+      xvfb xauth x11-utils xdotool \
+      chromium ffmpeg nodejs npm \
+      fonts-roboto-unhinted fonts-dejavu-core \
+    && ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime \
+    && echo Europe/Berlin > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+# playwright-core has no dependencies of its own and downloads no browser; it
+# drives /usr/bin/chromium. Exact version, installed from a committed manifest.
+COPY package.json /opt/ffdemo/package.json
+RUN cd /opt/ffdemo && npm install --omit=dev --ignore-scripts --no-audit --no-fund \
+    && chmod -R a+rX /opt/ffdemo
+
+# The work runs as this unprivileged user (Chromium's and Electron's sandboxes
+# want a non-root uid); the entrypoint starts as root only to hand results back
+# to the mounted output directory with the host user's ownership.
+RUN useradd -m -u 1000 rec
+COPY entry.sh /opt/ffdemo/entry.sh
+RUN chmod 0755 /opt/ffdemo/entry.sh
+ENV FFDEMO_NODE_MODULES=/opt/ffdemo/node_modules \
+    CHROMIUM=/usr/bin/chromium
+ENTRYPOINT ["/opt/ffdemo/entry.sh"]
+
+FROM runner AS studio
+ARG OPENSCREEN_VERSION=2.2.2
+ARG OPENSCREEN_SHA256=991ebcdb38ed1999e3156086e6e414722c048e0c21e5d115b55b25a9a8f44fc8
+ENV VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
+    ELECTRON_DISABLE_SECURITY_WARNINGS=1 \
+    DO_NOT_TRACK=1
+# Mesa's software Vulkan (lavapipe): `openscreen export` needs a Vulkan driver
+# and the image has no GPU. The .deb is upstream's, verified by checksum and
+# only ever run inside this image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl mesa-vulkan-drivers libvulkan1 dbus \
+    && curl -fsSL -o /tmp/openscreen.deb \
+      "https://github.com/getopenscreen/openscreen/releases/download/v${OPENSCREEN_VERSION}/Openscreen-Linux-${OPENSCREEN_VERSION}.deb" \
+    && echo "${OPENSCREEN_SHA256}  /tmp/openscreen.deb" | sha256sum -c - \
+    && apt-get install -y --no-install-recommends /tmp/openscreen.deb \
+    && apt-get purge -y curl && apt-get autoremove -y \
+    && rm -rf /tmp/openscreen.deb /var/lib/apt/lists/*

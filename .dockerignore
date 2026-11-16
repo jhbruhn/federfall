@@ -24,6 +24,11 @@ apps/federfall/ios
 *.iml
 docker-compose*.yml
 
+# Tooling that builds its own images. The demo-video output directory changes
+# on every recording, and inside this context it would invalidate the Flutter
+# build layer each time.
+tools/
+
 # Backend: bake migrations + hooks ONLY. Never ship runtime state or non-image
 # files (the migrations + hooks dirs are intentionally NOT ignored).
 backend/pocketbase/pb_data/

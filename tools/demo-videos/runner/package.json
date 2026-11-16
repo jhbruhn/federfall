@@ -1,0 +1,8 @@
+{
+  "name": "federfall-demo-videos-runner",
+  "private": true,
+  "description": "Toolchain for tools/demo-videos; the harness itself is mounted at /demo.",
+  "dependencies": {
+    "playwright-core": "1.64.1"
+  }
+}

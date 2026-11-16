@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900">
+  <!-- A wood pigeon on a branch: an illustration drawn for the demo videos
+       (an intake photo has to be ours to publish). Rendered to JPEG by the
+       harness at run time. -->
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="30%" r="90%">
+      <stop offset="0" stop-color="#cfe3c4"/>
+      <stop offset="0.55" stop-color="#8fb98a"/>
+      <stop offset="1" stop-color="#4d7a52"/>
+    </radialGradient>
+    <radialGradient id="body" cx="40%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#a7b1c2"/>
+      <stop offset="1" stop-color="#6d7889"/>
+    </radialGradient>
+    <linearGradient id="breast" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c79aa0"/>
+      <stop offset="1" stop-color="#9e8a94"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8a95a6"/>
+      <stop offset="1" stop-color="#5b6576"/>
+    </linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  <rect width="1200" height="900" fill="url(#bg)"/>
+  <g filter="url(#soft)" opacity="0.55">
+    <circle cx="160" cy="140" r="90" fill="#e8f2df"/>
+    <circle cx="1040" cy="210" r="120" fill="#b5d3a8"/>
+    <circle cx="960" cy="760" r="140" fill="#3f6b45"/>
+    <circle cx="260" cy="760" r="110" fill="#6e9c69"/>
+  </g>
+  <!-- branch -->
+  <path d="M40 720 C 300 690, 620 700, 1180 640" stroke="#5a4130" stroke-width="34" fill="none" stroke-linecap="round"/>
+  <path d="M760 690 C 820 640, 880 620, 960 610" stroke="#5a4130" stroke-width="16" fill="none" stroke-linecap="round"/>
+  <!-- tail -->
+  <path d="M330 560 L 150 650 L 170 690 L 360 620 Z" fill="#4f5869"/>
+  <path d="M160 655 L 175 688" stroke="#2f3540" stroke-width="10"/>
+  <!-- body -->
+  <ellipse cx="560" cy="520" rx="270" ry="170" fill="url(#body)"/>
+  <ellipse cx="690" cy="520" rx="150" ry="140" fill="url(#breast)"/>
+  <!-- wing -->
+  <path d="M360 470 C 470 400, 640 410, 700 480 C 640 600, 470 640, 340 590 Z" fill="url(#wing)"/>
+  <path d="M520 500 C 560 495, 610 500, 650 515" stroke="#f4f4f4" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.9"/>
+  <path d="M420 560 C 480 575, 540 575, 600 560" stroke="#4a5262" stroke-width="6" fill="none" opacity="0.6"/>
+  <!-- neck + head -->
+  <path d="M700 420 C 720 330, 760 280, 810 270 C 870 262, 900 310, 890 360 C 880 410, 830 440, 790 470 Z" fill="#8e9aab"/>
+  <path d="M745 380 C 760 365, 790 362, 810 372" stroke="#7fa88a" stroke-width="16" fill="none" stroke-linecap="round" opacity="0.8"/>
+  <ellipse cx="770" cy="402" rx="30" ry="18" fill="#fbfbfb" transform="rotate(-25 770 402)"/>
+  <circle cx="830" cy="300" r="62" fill="#9aa6b6"/>
+  <!-- eye + beak -->
+  <circle cx="850" cy="292" r="13" fill="#f2d25a"/>
+  <circle cx="852" cy="292" r="7" fill="#1d1d1d"/>
+  <path d="M885 298 L 935 312 L 886 322 Z" fill="#e3a23a"/>
+  <path d="M884 300 C 893 296, 902 298, 906 304" stroke="#f6f0e6" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <!-- feet -->
+  <path d="M600 680 L 590 715 M640 680 L 650 712" stroke="#c46a6a" stroke-width="12" stroke-linecap="round"/>
+</svg>
