@@ -42,10 +42,52 @@ export async function startDisplay(vp, { log }) {
 }
 
 /**
- * Launches Chromium headed on [display], in app mode (no tabs, no address bar)
- * at 0,0 with no window manager, so the X screen IS the viewport.
+ * The app's clock (see data/demo/clock.mjs). Runs in the page before any of
+ * its scripts and shifts `Date` — `Date.now()` and an argument-less
+ * `new Date()` / `Date()` — by a constant, so the app's DateTime.now() reads
+ * the run's instant and then runs forward at normal speed. Nothing else is
+ * touched: `performance.now()`, requestAnimationFrame and the timers stay
+ * real, because they pace Flutter's frames, animations, debounces and the
+ * caret blink (a fake rAF/performance clock — Playwright's page.clock — is
+ * what would stutter). The dart2wasm glue binds `Date.now` when the module is
+ * instantiated, which is why this must be in place before the first script.
+ *
+ * `window.__ffdemoClock.set(ms)` re-anchors it (the runner does that at the
+ * capture's first frame, so every video starts at the same app moment).
  */
-export async function launchBrowser({ display, vp, locale, url, log }) {
+function appClockScript({ target }) {
+  const RealDate = Date;
+  const realNow = RealDate.now.bind(RealDate);
+  let offset = target - realNow();
+  function FakeDate(...args) {
+    if (!new.target) return new RealDate(realNow() + offset).toString();
+    return args.length === 0 ? new RealDate(realNow() + offset) : new RealDate(...args);
+  }
+  Object.setPrototypeOf(FakeDate, RealDate);
+  FakeDate.prototype = RealDate.prototype;
+  FakeDate.now = () => realNow() + offset;
+  globalThis.Date = FakeDate;
+  Object.defineProperty(globalThis, '__ffdemoClock', {
+    value: Object.freeze({ set: (ms) => { offset = ms - realNow(); }, offset: () => offset }),
+  });
+}
+
+/** Re-anchors the app's clock so that it reads [ms] now; returns what the page's Date then says. */
+export async function setAppClock(page, ms) {
+  return page.evaluate((t) => {
+    globalThis.__ffdemoClock.set(t);
+    return { now: Date.now(), text: new Date().toString() };
+  }, ms);
+}
+
+/**
+ * Launches Chromium headed on [display], in app mode (no tabs, no address bar)
+ * at 0,0 with no window manager, so the X screen IS the viewport. With
+ * [nowMs], the app's clock is moved to that instant (appClockScript) and the
+ * page reloaded under it: app mode opens [url] before Playwright can add the
+ * script, so the first load always runs on the real clock.
+ */
+export async function launchBrowser({ display, vp, locale, url, log, nowMs }) {
   const { chromium } = requireTool('playwright-core');
   const lang = locale === 'de' ? 'de-DE' : 'en-US';
   const args = [
@@ -84,6 +126,12 @@ export async function launchBrowser({ display, vp, locale, url, log }) {
   page.on('console', (m) => {
     if (m.type() === 'error') log(`console.error: ${m.text().slice(0, 300)}`);
   });
+  if (nowMs !== undefined) {
+    await context.addInitScript(appClockScript, { target: nowMs });
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    const seen = await page.evaluate(() => typeof globalThis.__ffdemoClock === 'object');
+    if (!seen) throw new DemoError('the app clock script did not run in the page');
+  }
   return { context, page };
 }
 

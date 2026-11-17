@@ -13,9 +13,10 @@
 // own setup() then runs on top of the copy, so what one video adds is never
 // seen by the next.
 //
-// "Relative to the run day" survives the cache: a template remembers the day
-// it was seeded for, and is seeded again when the run day has moved on (a run
-// across midnight).
+// "Relative to the run day" survives the cache: the run's clock is fixed for
+// the whole process (data/demo/clock.mjs), so a run that crosses midnight
+// keeps recording against the day it started on — template and app clock
+// agree. A template still remembers its day and is re-seeded for another one.
 import { Api, freshBackend, snapshotBackend } from './backend.mjs';
 import { Seed } from './seed.mjs';
 import { DemoError } from './util.mjs';

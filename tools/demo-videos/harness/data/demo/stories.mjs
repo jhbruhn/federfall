@@ -311,9 +311,11 @@ export function scheduleStories(ctx) {
     notes: { de: 'Wehrt sich kräftig, sonst unauffällig.', en: 'Struggles vigorously, otherwise unremarkable.' },
   }, [['wings', 'abnormal', { de: 'Linker Flügel hängt, Knochenreiben tastbar', en: 'Left wing droops, crepitus palpable' }],
     ['eyes', 'normal'], ['legs_feet', 'normal'], ['keel', 'normal'], ['respiratory', 'normal']]));
-  step(d(-13, '08:50'), 'hedwig: pain relief', () => ctx.prescribe(LENA, 'hedwig', 'hedwigPain', 'painRelief', {
-    start: d(-13, '09:00'), end: d(1, '09:00'), prescribedBy: VETS.deich }));
-  doses('hedwigPain', LENA, Array.from({ length: 13 }, (_, i) => [-13 + i, '09:00']));
+  // Given at 10:00 every day, so at the run's 09:40 the next one is "due in
+  // 1 h" — Today's something-due-soon (README, "Time of day").
+  step(d(-13, '09:50'), 'hedwig: pain relief', () => ctx.prescribe(LENA, 'hedwig', 'hedwigPain', 'painRelief', {
+    start: d(-13, '10:00'), end: d(1, '10:00'), prescribedBy: VETS.deich }));
+  doses('hedwigPain', LENA, Array.from({ length: 13 }, (_, i) => [-13 + i, '10:00']));
   step(d(-13, '11:00'), 'hedwig: X-ray', () => ctx.vet(LENA, 'hedwig', d(-13, '11:00'), {
     vet: VETS.deich, attendedMs: d(-13, '11:05'),
     reason: { de: 'Röntgen linker Flügel', en: 'X-ray, left wing' },

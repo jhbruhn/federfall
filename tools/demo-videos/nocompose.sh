@@ -62,6 +62,8 @@ set +e
   -e FFDEMO_SUPERUSER_PASSWORD=ffdemo-superuser \
   ${FFDEMO_TILES:+-e FFDEMO_TILES="$FFDEMO_TILES"} \
   ${FFDEMO_RUN_DAY:+-e FFDEMO_RUN_DAY="$FFDEMO_RUN_DAY"} \
+  ${FFDEMO_TIME:+-e FFDEMO_TIME="$FFDEMO_TIME"} \
+  ${FFDEMO_APP_CLOCK:+-e FFDEMO_APP_CLOCK="$FFDEMO_APP_CLOCK"} \
   ${FFDEMO_NO_SANDBOX:+-e FFDEMO_NO_SANDBOX="$FFDEMO_NO_SANDBOX"} \
   -v "$HERE:/demo:ro,z" \
   -v "$ROOT/apps/federfall/lib/l10n/arb:/arb:ro,z" \

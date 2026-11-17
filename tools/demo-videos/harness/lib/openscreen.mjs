@@ -13,31 +13,144 @@
 // samples, which OpenScreen draws with its click animation.
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { DemoError, probeVideo, runBounded } from './util.mjs';
+import { DemoError, probeVideo, requireTool, runBounded } from './util.mjs';
 
 // The look (see README, "Look"). Colours are the app's own green family.
+//
+// `mask` is the footage's frame (see frameArt): the wallpaper with a hole
+// where the footage sits at rest, its rounded corners and its shadow, drawn
+// OVER the footage for the whole clip. OpenScreen 2.2.2 clips a zoomed screen
+// to its slot only in a camera block layout or in "format fill" (no bands at
+// all); in this layout the zoomed footage grows past its box — at depth 3 it
+// is 1.8× the box, taller than the frame — and ran under the title and the
+// captions. Annotations are painted after the screen and the cursor, by
+// zIndex, captions last (100000+), so the mask (zIndex 0) sits between the
+// footage and the title/captions and a zoom stays inside the box. The same
+// PNG is the wallpaper, so the bands match it to the pixel; OpenScreen's own
+// rounding and shadow would be hidden by the mask, so the mask draws both.
 export const LOOK = {
   phone: {
     aspectRatio: '9:16',
+    out: { width: 1080, height: 1920 },
     padding: 70,
     wallpaper: 'linear-gradient(160deg, #1f4d3a 0%, #2f6b4f 55%, #3d7d5f 100%)',
     borderRadius: 28,
-    shadowIntensity: 0.6,
+    shadowIntensity: 0,
+    // OpenScreen draws the corners at ~20 px here (measured); the hole's are a
+    // little rounder and 1.5 px inside, so no sliver of footage edge shows.
+    mask: { radius: 24, inset: 1.5, shadow: { color: 'rgba(0,0,0,0.62)', blur: 64, y: 22 } },
     title: { y: 4, height: 6, width: 64, fontSize: 34 },
     captions: { fontSize: 28, insetY: 3, insetX: 6 },
   },
   desktop: {
     aspectRatio: '16:9',
+    out: { width: 1920, height: 1080 },
     padding: 8,
     wallpaper: 'linear-gradient(160deg, #1f4d3a 0%, #2f6b4f 55%, #3d7d5f 100%)',
     borderRadius: 16,
-    shadowIntensity: 0.6,
+    shadowIntensity: 0,
+    mask: { radius: 14, inset: 1.5, shadow: { color: 'rgba(0,0,0,0.62)', blur: 48, y: 14 } },
     title: { y: 1.5, height: 7, width: 40, fontSize: 36 },
     captions: { fontSize: 36, insetY: 1.5, insetX: 10 },
   },
 };
 
+/**
+ * Where OpenScreen puts the footage at rest, in output px: the frame scaled by
+ * `1 − padding × 0.4` (the compositor's padding_scale), the source fitted
+ * inside it and centred. Checked against an export: 184–896 × 269–1651 for
+ * the phone look (824×1600 source).
+ */
+export function footageRect(look, vp) {
+  const { width: W, height: H } = look.out;
+  const scale = 1 - (look.padding / 100) * 0.4;
+  const srcAspect = vp.width / vp.height;
+  let w = W * scale;
+  let h = w / srcAspect;
+  if (h > H * scale) {
+    h = H * scale;
+    w = h * srcAspect;
+  }
+  return { x: (W - w) / 2, y: (H - h) / 2, width: w, height: h };
+}
+
+/**
+ * The wallpaper as a PNG (Chromium's rendering of the CSS gradient) and the
+ * mask over it (see LOOK): both at the output size, as data URLs, and as files
+ * in [dir] for inspection.
+ */
+export async function frameArt({ dir, look, vp }) {
+  const { chromium } = requireTool('playwright-core');
+  const args = process.env.FFDEMO_NO_SANDBOX === '1' ? ['--no-sandbox'] : [];
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/usr/bin/chromium', args });
+  const { width, height } = look.out;
+  const hole = footageRect(look, vp);
+  try {
+    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+    await page.setContent(`<body style="margin:0"><div style="width:${width}px;height:${height}px;background:${look.wallpaper}"></div></body>`);
+    const wallpaper = `data:image/png;base64,${(await page.screenshot({ type: 'png' })).toString('base64')}`;
+    const mask = await page.evaluate(async ({ wallpaper, width, height, hole, m }) => {
+      const img = new Image();
+      img.src = wallpaper;
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = width;
+      c.height = height;
+      const g = c.getContext('2d');
+      g.drawImage(img, 0, 0);
+      const r = [hole.x + m.inset, hole.y + m.inset, hole.width - 2 * m.inset, hole.height - 2 * m.inset];
+      // The shadow of an opaque card, then the card cut out: what is left is
+      // the shadow on the wallpaper around a transparent, rounded hole.
+      g.save();
+      g.shadowColor = m.shadow.color;
+      g.shadowBlur = m.shadow.blur;
+      g.shadowOffsetY = m.shadow.y;
+      g.fillStyle = '#000';
+      g.beginPath();
+      g.roundRect(...r, m.radius);
+      g.fill();
+      g.restore();
+      g.globalCompositeOperation = 'destination-out';
+      g.beginPath();
+      g.roundRect(...r, m.radius);
+      g.fill();
+      return c.toDataURL('image/png');
+    }, { wallpaper, width, height, hole, m: look.mask });
+    for (const [name, url] of [['frame-wallpaper.png', wallpaper], ['frame-mask.png', mask]]) {
+      writeFileSync(path.join(dir, name), Buffer.from(url.split(',')[1], 'base64'));
+    }
+    return { wallpaper, mask };
+  } finally {
+    await browser.close();
+  }
+}
+
 const FONT = 'Roboto';
+
+/** OpenScreen's depth → magnification table (src/lib/ai-edition/timeline/zoom-scale.ts, v2.2.2). */
+export const ZOOM_DEPTH_SCALES = { 1: 1.25, 2: 1.5, 3: 1.8, 4: 2.2, 5: 3.5, 6: 5.0 };
+
+/**
+ * Where a zoom aims, as OpenScreen's focus (0..1 of the source). Zoomed, the
+ * box shows a window of 1/scale of the source around the focus (clamped to
+ * the source, frame_geometry.rs screen_source_rect), and with the frame mask
+ * nothing outside that window is seen. A target that fits is centred; one
+ * wider or taller than the window (a full-width text field) is shown from its
+ * start — its label, icon and the first letters — rather than its middle.
+ */
+export function zoomFocus(target, vp, scale) {
+  const PAD = 12; // CSS px kept clear around the target's leading edge
+  const axis = (start, size, extent) => {
+    const win = extent / scale;
+    let centre = start + size / 2;
+    if (size > win - 2 * PAD) centre = start - PAD + win / 2;
+    return Math.min(Math.max(centre, win / 2), extent - win / 2) / extent;
+  };
+  return {
+    cx: +axis(target.x, target.width, vp.width).toFixed(4),
+    cy: +axis(target.y, target.height, vp.height).toFixed(4),
+  };
+}
 
 /** Splits narration into caption cues of at most ~[max] characters, at sentence breaks first. */
 export function cueTexts(text, max = 84) {
@@ -98,7 +211,7 @@ function transcriptFor(steps, locale, assetId) {
   return { assetId, language: locale, segments, words };
 }
 
-export function writeDocument({ dir, video, locale, vpName, vp, steps, intro, captureFile, meta, cursor }) {
+export function writeDocument({ dir, video, locale, vpName, vp, steps, intro, captureFile, meta, cursor, art }) {
   const look = LOOK[vpName];
   const assetId = 'asset_main';
   const clipId = 'clip_main';
@@ -137,6 +250,14 @@ export function writeDocument({ dir, video, locale, vpName, vp, steps, intro, ca
     }, t.startMs, t.endMs));
   });
 
+  // The footage's frame, over the footage for the whole clip (see LOOK):
+  // what keeps a zoom inside the box. Below the titles, below the captions.
+  const frame = anchored({
+    id: 'frame_mask', type: 'image', content: '', imageContent: art.mask, space: 'frame',
+    position: { x: 0, y: 0 }, size: { width: 100, height: 100 },
+    style: textStyle(look.title.fontSize, { textAnimation: 'none' }), zIndex: 0,
+  }, 0, meta.durationMs);
+
   // Zooms: from the step's start to its end, aimed at the step's focus (an
   // explicit s.focus(), else the last thing the step clicked or typed into).
   const zooms = [];
@@ -144,9 +265,9 @@ export function writeDocument({ dir, video, locale, vpName, vp, steps, intro, ca
     if (!st.zoom) continue;
     const target = st.focus?.box ?? st.events.at(-1)?.box;
     if (!target) throw new DemoError(`step ${st.index + 1} asks for a zoom but touched nothing to aim at`);
-    const cx = (target.x + target.width / 2) / vp.width;
-    const cy = (target.y + target.height / 2) / vp.height;
-    zooms.push(anchored({ id: `zoom_${zooms.length + 1}`, depth: st.zoom.depth ?? 3,
+    const depth = st.zoom.depth ?? 3;
+    const { cx, cy } = zoomFocus(target, vp, ZOOM_DEPTH_SCALES[depth]);
+    zooms.push(anchored({ id: `zoom_${zooms.length + 1}`, depth,
       focus: { cx: +cx.toFixed(4), cy: +cy.toFixed(4) }, focusMode: 'manual', source: 'manual' },
     st.startMs, st.endMs));
   }
@@ -165,11 +286,11 @@ export function writeDocument({ dir, video, locale, vpName, vp, steps, intro, ca
         sourceEndSec: durationSec, wordRefs: [], origin: 'system', reason: 'ffdemo' }],
       gaps: [], trimRanges: [], muteRanges: [], speedRanges: [], captionRanges: [],
     },
-    annotations: titles,
+    annotations: [frame, ...titles],
     zoomRanges: zooms,
     audioTracks: [],
     legacyEditor: {
-      aspectRatio: look.aspectRatio, padding: look.padding, wallpaper: look.wallpaper,
+      aspectRatio: look.aspectRatio, padding: look.padding, wallpaper: art.wallpaper,
       borderRadius: look.borderRadius, shadowIntensity: look.shadowIntensity,
       captions: { enabled: true, language: null, captionLane: 'recording', fontSize: look.captions.fontSize,
         fontFamily: FONT, fontWeight: 'bold', color: '#ffffff', backgroundEnabled: true,

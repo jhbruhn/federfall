@@ -3,6 +3,7 @@
 //   record <ID…|all> [--locale de,en] [--no-export]
 //   export <ID…|all> [--locale de,en]   re-render the last capture (look tuning)
 //   check [--locale de,en] [--times N]  seed the demo dataset, assert its derived state
+//   look [--locale de,en]               screenshots of the demo dataset under the run's clock
 //   list
 //
 // Writes, under /work/out (handed to the mounted output directory by
@@ -14,10 +15,12 @@ import { readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { prepareDataset, seedTimings } from './lib/dataset.mjs';
-import { recordOne, reexportOne } from './lib/run.mjs';
+import { lookDemo } from './lib/look.mjs';
+import { recordOne, reexportOne, requireServerAgrees } from './lib/run.mjs';
 import { startServices } from './lib/services.mjs';
 import { verifyDemo } from './lib/verify.mjs';
 import { Clock } from './data/demo/clock.mjs';
+import { DemoError } from './lib/util.mjs';
 
 const DEMO = process.env.FFDEMO_ROOT ?? '/demo';
 const WORK = process.env.FFDEMO_WORK ?? '/work';
@@ -36,14 +39,14 @@ async function loadVideos() {
 
 function usage(msg) {
   if (msg) console.error(`error: ${msg}`);
-  console.error('usage: record <ID…|all> [--locale de,en] [--no-export]\n       export <ID…|all> [--locale de,en]\n       check [--locale de,en] [--times N]\n       list');
+  console.error('usage: record <ID…|all> [--locale de,en] [--no-export]\n       export <ID…|all> [--locale de,en]\n       check [--locale de,en] [--times N]\n       look [--locale de,en]\n       list');
   process.exit(2);
 }
 
 const argv = process.argv.slice(2);
 // `compose run --rm record A3` hands the container just "A3": a first argument
 // that is not a command means `record`.
-const cmd = ['record', 'export', 'list', 'check'].includes(argv[0]) ? argv.shift() : 'record';
+const cmd = ['record', 'export', 'list', 'check', 'look'].includes(argv[0]) ? argv.shift() : 'record';
 const videos = await loadVideos();
 
 if (cmd === 'list') {
@@ -66,12 +69,21 @@ for (let i = 0; i < argv.length; i++) {
 }
 for (const l of locales) if (!['de', 'en'].includes(l)) usage(`unknown locale "${l}"`);
 
+// The run's one "now" (data/demo/clock.mjs): seeder, app clock and checks all
+// read this object, fixed for the whole process.
+let clock;
+try {
+  clock = new Clock();
+} catch (e) {
+  usage(e.message);
+}
+console.log(`run instant: ${clock.nowLabel}, ${clock.skewHours()} h from the real clock`);
+
 // `check`: seed the demo dataset from scratch [times] times per language and
 // assert what it derives (lib/verify.mjs). Every round must give the same
 // fingerprint — that is the determinism check.
 if (cmd === 'check') {
   if (!(times >= 1)) usage('--times needs a number');
-  const clock = new Clock();
   const prints = {};
   let failures = 0;
   for (let round = 1; round <= times; round++) {
@@ -98,6 +110,26 @@ if (cmd === 'check') {
   process.exit(failures ? 1 : 0);
 }
 
+// `look`: the demo dataset as Lena sees it at the run instant — Today and a
+// few case screens, as screenshots and semantics dumps. No capture, no video.
+if (cmd === 'look') {
+  let failures = 0;
+  const services = await startServices({ cacheDir: path.join(WORK, '.cache'), log: console.log });
+  try {
+    requireServerAgrees(clock);
+    for (const locale of locales) {
+      const r = await lookDemo({ locale, clock, workRoot: path.join(OUT, 'work'), services });
+      if (!r.ok) failures++;
+    }
+  } catch (e) {
+    console.error(e instanceof DemoError ? e.message : e);
+    failures++;
+  } finally {
+    await services.close();
+  }
+  process.exit(failures ? 1 : 0);
+}
+
 if (ids.length === 0) usage('name at least one video, or "all"');
 const chosen = ids.includes('all') ? videos : ids.map((id) => {
   const v = videos.find((x) => x.id.toLowerCase() === id.toLowerCase());
@@ -111,7 +143,7 @@ const results = [];
 const started = new Date();
 for (const video of chosen) {
   for (const locale of locales) {
-    const args = { video, locale, workRoot: path.join(OUT, 'work'), outRoot: OUT, services, noExport };
+    const args = { video, locale, workRoot: path.join(OUT, 'work'), outRoot: OUT, services, noExport, clock };
     results.push(cmd === 'export' ? await reexportOne(args).catch((e) => ({ video: video.id, locale,
       clip: '', status: 'failed', error: e.message, timings: {} })) : await recordOne(args));
   }
@@ -120,7 +152,8 @@ const tiles = services.tileStats();
 await services.close();
 
 const ok = results.every((r) => r.status === 'passed' || (noExport && r.status === 'captured'));
-const summary = { startedAt: started.toISOString(), finishedAt: new Date().toISOString(), ok, tiles, datasets: seedTimings, results };
+const summary = { startedAt: started.toISOString(), finishedAt: new Date().toISOString(), ok,
+  runInstant: new Date(clock.nowMs).toISOString(), tiles, datasets: seedTimings, results };
 writeFileSync(path.join(OUT, 'last-run.json'), JSON.stringify(summary, null, 2));
 console.log('\n── result ──');
 for (const r of results) {

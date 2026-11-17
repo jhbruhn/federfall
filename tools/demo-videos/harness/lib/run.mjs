@@ -10,8 +10,8 @@ import { labels } from './arb.mjs';
 import { BASE_URL } from './backend.mjs';
 import { prepareDataset } from './dataset.mjs';
 import { Session } from './session.mjs';
-import { launchBrowser, logStream, Pointer, startCapture, startDisplay, VIEWPORTS } from './stage.mjs';
-import { cursorTrack, exportClip, writeDocument } from './openscreen.mjs';
+import { launchBrowser, logStream, Pointer, setAppClock, startCapture, startDisplay, VIEWPORTS } from './stage.mjs';
+import { cursorTrack, exportClip, frameArt, LOOK, writeDocument } from './openscreen.mjs';
 import { DemoError, probeVideo, sleep, withTimeout } from './util.mjs';
 
 const ARB_DIR = process.env.FFDEMO_ARB_DIR ?? '/arb';
@@ -25,7 +25,25 @@ export function readingMs(text) {
   return text ? Math.max(1800, 700 + text.length * 62) : 0;
 }
 
-export async function recordOne({ video, locale, workRoot, outRoot, services, noExport }) {
+/**
+ * Whether the app runs on the run's clock (the default) or on the real one:
+ * FFDEMO_APP_CLOCK=real, a diagnostic for comparing the two.
+ */
+export function appClockMode(env = process.env) {
+  const v = (env.FFDEMO_APP_CLOCK ?? '').trim();
+  if (v && v !== 'real' && v !== 'run') throw new DemoError(`FFDEMO_APP_CLOCK must be "run" or "real", got "${v}"`);
+  return v || 'run';
+}
+
+/** Refuses a run instant the backend's real clock would contradict (data/demo/clock.mjs). */
+export function requireServerAgrees(clock) {
+  if (clock.serverAgrees()) return;
+  throw new DemoError(`the run instant ${clock.nowLabel} is ${clock.skewHours()} h from the real clock; ` +
+    'the backend keeps the real clock, so a recording needs the run day within a day of today ' +
+    '(FFDEMO_RUN_DAY is for comparing seedings with `check`)');
+}
+
+export async function recordOne({ video, locale, workRoot, outRoot, services, noExport, clock: runClock }) {
   const name = clipName(video, locale);
   const dir = path.join(workRoot, `${video.id}.${locale}`);
   rmSync(dir, { recursive: true, force: true });
@@ -37,7 +55,7 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
     console.log(line);
     logFile.write(`${line}\n`);
   };
-  const result = { video: video.id, locale, clip: name, status: 'failed', error: null, timings: {} };
+  const result = { video: video.id, locale, clip: name, status: 'failed', error: null, timings: {}, appClock: null };
   const mark = (k) => { result.timings[k] = Math.round((Date.now() - started) / 100) / 10; };
 
   const vpName = video.viewport ?? 'phone';
@@ -59,14 +77,18 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
 
   const body = async () => {
     services.setLocale(locale);
-    const seed = await prepareDataset({ dataset: video.dataset, locale, log });
+    const realClock = appClockMode() === 'real';
+    if (!realClock) requireServerAgrees(runClock);
+    log(`app clock: ${realClock ? 'REAL (FFDEMO_APP_CLOCK=real)' : `${runClock.nowLabel} at the first frame, ${runClock.skewHours()} h from the real clock`}`);
+    const seed = await prepareDataset({ dataset: video.dataset, locale, log, clock: runClock });
     const data = (await video.setup?.({ seed, locale })) ?? {};
     const person = seed.people[video.signInAs];
     if (!person) throw new DemoError(`signInAs "${video.signInAs}" is not a seeded person`);
     mark('seeded');
 
     display = await startDisplay(vp, { log: logStream(dir, 'xvfb.log') });
-    browser = await launchBrowser({ display: display.display, vp, locale, url: `${BASE_URL}/`, log });
+    browser = await launchBrowser({ display: display.display, vp, locale, url: `${BASE_URL}/`, log,
+      nowMs: realClock ? undefined : runClock.nowMs });
     page = browser.page;
     page.setDefaultTimeout(10_000);
     // Flutter web paints to a canvas; the semantics tree that Playwright reads
@@ -94,6 +116,13 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
     const captureFile = path.join(dir, 'capture.mp4');
     capture = startCapture({ ...display, file: captureFile, log: logStream(dir, 'ffmpeg.log') });
     const firstFrameMs = await capture.firstFrame();
+    // Every video starts at the same app moment, however long the run (and
+    // this video's setup) has taken so far.
+    if (!realClock) {
+      const seen = await setAppClock(page, runClock.nowMs);
+      result.appClock = new Date(seen.now).toISOString();
+      log(`app clock set: the page reads ${seen.text}`);
+    }
     const t0 = Date.now();
     const clock = () => Date.now() - t0;
     pointer.clock = clock;
@@ -154,7 +183,7 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
 
     const docFile = writeDocument({
       dir, video, locale, vpName, vp, steps, captureFile, meta, intro,
-      cursor: cursorTrack(pointer.samples, vp),
+      cursor: cursorTrack(pointer.samples, vp), art: await frameArt({ dir, look: LOOK[vpName], vp }),
     });
     await browser.context.close();
     browser = null;
@@ -222,7 +251,8 @@ export async function reexportOne({ video, locale, workRoot, outRoot }) {
   const { intro, steps } = JSON.parse(readFileSync(path.join(dir, 'timeline.json'), 'utf8'));
   const cursor = JSON.parse(readFileSync(`${captureFile}.cursor.json`, 'utf8'));
   const meta = await probeVideo(captureFile);
-  const docFile = writeDocument({ dir, video, locale, vpName, vp, steps, captureFile, meta, intro, cursor });
+  const art = await frameArt({ dir, look: LOOK[vpName], vp });
+  const docFile = writeDocument({ dir, video, locale, vpName, vp, steps, captureFile, meta, intro, cursor, art });
   const display = await startDisplay({ width: 640, height: 480, dpr: 1 }, { log: logStream(dir, 'xvfb-export.log') });
   try {
     const exported = path.join(dir, 'export.mp4');

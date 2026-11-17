@@ -46,6 +46,12 @@ export class Ctx {
 
   async run() {
     const order = [...this.steps].sort((a, b) => a.ms - b.ms || a.seq - b.seq);
+    // Nothing happens after the run instant: the app's clock starts there, so
+    // a later record would be something somebody did in the future.
+    const late = order.filter((st) => st.ms > this.clock.nowMs);
+    if (late.length) {
+      throw new DemoError(`seed: ${late.length} step(s) after the run instant ${this.clock.nowLabel}, e.g. "${late[0].label}" at ${new Date(late[0].ms).toISOString()}`);
+    }
     for (const st of order) {
       try {
         await st.fn();
@@ -447,6 +453,7 @@ export class Ctx {
   export() {
     return {
       runDay: this.clock.label,
+      now: new Date(this.clock.nowMs).toISOString(),
       aviaries: this.ids.aviaries,
       animals: this.ids.animals,
       cases: this.ids.cases,

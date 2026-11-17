@@ -41,7 +41,8 @@ so `run --rm record A3` and `run --rm record record A3` are the same:
 | `record <ID…\|all> [--locale de,en]` | Records and exports. Default: both languages. |
 | `record … --no-export` | Records only (capture, cursor track, OpenScreen document in `out/work/`). |
 | `export <ID…\|all> [--locale …]` | Re-renders the last capture with the current look/document code, without driving the app again. For tuning the look. |
-| `check [--locale de,en] [--times N]` | Seeds the demo dataset from scratch N times per language, asserts its derived state (`harness/lib/verify.mjs`) and compares fingerprints. No recording. |
+| `check [--locale de,en] [--times N]` | Seeds the demo dataset from scratch N times per language, asserts its derived state (`harness/lib/verify.mjs`) — including every relative time a video can narrate at the run instant — and compares fingerprints. No recording. |
+| `look [--locale de,en]` | Signs in as Lena on the demo dataset under the run's clock and saves screenshots plus semantics dumps of Today, Fiete's case and Hedwig's case (overview and History), then logs one dose from Today and dumps again, in `out/work/look.<locale>/`. Not a video, not in `list`. For looking at the dataset while writing videos, and for diffing two runs. |
 | `list` | Lists the videos. |
 
 Environment (compose passes these through):
@@ -50,7 +51,9 @@ Environment (compose passes these through):
 |---|---|
 | `FFDEMO_TILES=offline` | Never fetch a map tile; a tile missing from the cache is drawn plain. |
 | `FFDEMO_NO_SANDBOX=1` | Force Chromium's/OpenScreen's sandbox off. Normally decided automatically (see "Docker"). |
-| `FFDEMO_RUN_DAY=YYYY-MM-DD` | The day the demo dataset is relative to (default: today, Europe/Berlin). Only a day in the past works (a disposition may not be dated in the future), and the app's own clock does not move — use it to compare seedings, not to record. |
+| `FFDEMO_RUN_DAY=YYYY-MM-DD` | The run day (default: today, Europe/Berlin, read once when the run starts). Part of the run instant — see "Time". Recording needs it within a day of today; any day works for `check`. |
+| `FFDEMO_TIME=HH:MM` | The time of day of the run instant (default `09:40`). The dataset and its pinned checks are written for the default; another value fails those checks on purpose. |
+| `FFDEMO_APP_CLOCK=real` | Diagnostic: leave the app on the real clock (to compare a capture with and without the override). |
 
 ## Output
 
@@ -67,6 +70,9 @@ out/
     export.mp4                OpenScreen's render (copied to out/ on success)
     failure.png               on failure: the screen at that moment
     failure-semantics.txt     on failure: every node Playwright could see
+    frame-wallpaper.png       the wallpaper and the footage frame/mask (see "Look")
+    frame-mask.png
+  work/look.de/               the `look` command: dump-<screen>.png/.txt per screen
   .cache/tiles/               map tile cache (see "Map tiles")
 backend.log                   nocompose.sh only, on failure: the backend's log
 ```
@@ -170,9 +176,13 @@ Each step has a timeout (`timeoutMs`, default 30 s); the whole run has one too
   exactly: `(t) => `„${t('caseCreateAction')}“ speichert alles.``.
 - `zoom` — `{ depth }` (OpenScreen's 1–6 = 1.25×–5×; 3 = 1.8× is the
   sensible maximum for the phone source, see "Look"). The zoom lasts the whole
-  step and aims at `s.focus(…)` if the step called it, else at the last thing
-  the step clicked or typed into. So keep a zoomed step on one screen: put the
-  "Next" click that leaves it into the following step.
+  step (plus ~0.9 s of easing on either side) and aims at `s.focus(…)` if the
+  step called it, else at the last thing the step clicked or typed into. A
+  zoom stays inside the footage's box, so what is seen is a window of 1/1.8 of
+  the screen: a target that fits it is centred, a wider one (a full-width
+  field) is shown from its leading edge — its label and first letters. Focus
+  the thing the narration is about, not its whole row. Keep a zoomed step on
+  one screen: put the "Next" click that leaves it into the following step.
 
 ### Finding things: labels by ARB key
 
@@ -271,6 +281,64 @@ Rules for anything that seeds:
 - Select rows by the names in `harness/data/demo/cast.mjs` (import them), not
   by spelling a name again.
 
+## Time
+
+A run has ONE "now", the **run instant**: the run day (today in Europe/Berlin
+when the run starts, or `FFDEMO_RUN_DAY`) at a fixed time of day
+(`FFDEMO_TIME`, default **09:40**). It is fixed for the whole process
+(`harness/data/demo/clock.mjs`) and used by all three parties:
+
+- **the seeder** — every date in the demo dataset is relative to the run day,
+  and no step is scheduled after the run instant (the seeding refuses one);
+- **the app** — the browser's clock reads the run instant at the first frame
+  of every video and runs forward at normal speed from there. So each video
+  starts at the same app moment, however long the run has taken, and a run
+  that crosses midnight keeps recording against the day it started on;
+- **the checks** — `check` asserts what the screens say at the run instant.
+
+**How the app's clock is moved.** An init script shifts `Date` only
+(`Date.now()`, an argument-less `new Date()`), before the app's own scripts
+run (`stage.mjs`, `appClockScript`); the dart2wasm build reads
+`DateTime.now()` from `Date.now`. `performance.now()`, `requestAnimationFrame`
+and the timers stay real, because they pace Flutter's frames, animations,
+debounces and the caret — a fake rAF clock (Playwright's `page.clock`) is
+what would stutter. `run.log` says what the page's clock read at the first
+frame.
+
+**The backend keeps the real clock.** What it decides against its own now:
+which medication plans are still listed (`ended_at > now` in the
+`medication_due` view), a disposition dated at most a day ahead, the
+patronage totals' "still running", the server-stamped `created` (History's
+"Case created" milestone, the audit log, a record's position where the app
+sorts by `created`). So a recording requires the run instant within 20 h of
+the real time — true for every time of day with the run day = today — and
+refuses otherwise; `check` skips the server-dependent checks for a far
+`FFDEMO_RUN_DAY`. Everything Today, the treatment card, quarantine and
+appointment tiles show is computed by the app from stored timestamps against
+its own (moved) clock.
+
+**What a video can rely on** at the default time of day, for at least the
+first 15 minutes of app time (pinned by `check`; the app rounds "in / overdue
+by n h" up to the hour, and every due sits on the hour or the half hour):
+
+| Lena's Today at 09:40 | shows |
+|---|---|
+| Fiete — Nemakur (deworming), due 08:00 | overdue by 2 h |
+| Fiete — recheck "collect droppings", due 09:00 | overdue by 1 h |
+| Hedwig — Plumadol (pain relief), due 10:00 | due in 1 h |
+| Gustav — recheck "bite wound", due 12:00 | due in 3 h |
+| Hedwig — X-ray check at the practice, 15:30 | due in 6 h |
+| Bruno, Lotte, Mats — Faucalin round, 19:00 | due in 10 h (one group, "give all") |
+| Gustav — Peravin, 20:00 | due in 11 h |
+| Bruno — recheck tomorrow 09:00 | due in 24 h |
+| Fiete — final check in three days | due in 3 days |
+| Hedwig — quarantine | ends today (at 10:00) |
+| Tarek's Hinkebein — antifungal, 18:00 | due in 9 h |
+
+Exactly two items are overdue. A record a video writes carries the app's
+clock (`administered_at` = 09:40-and-a-bit), so it lands in today's timeline
+among the seeded ones and moves the next due accordingly.
+
 ## Demo dataset
 
 `harness/data/demo/`: `cast.mjs` (names — the interface videos use),
@@ -285,14 +353,14 @@ Fiete at 07:20 three days ago"), and the engine runs all ~1,500 steps in that
 order — ~1,600 API writes, **~9 s** (measured, rootless podman). Running in
 story order is what keeps case numbers chronological (they are assigned at
 creation per year of admission) and the audit log in a plausible order.
-Everything is relative to the run day; randomness is seeded, so the same run
+Everything is relative to the run day (see "Time"); randomness is seeded, so the same run
 day gives the same data (`check` prints a fingerprint to prove it, plus a
 "structure" hash that must match between de and en).
 
 **Paid once per run and language**, not per video: the first `demo` video of
 a language seeds and `serve.sh` saves the data dir as template `demo-<locale>`;
-every later video gets a copy (a reset costs ~0.5 s). A template remembers its
-run day and is re-seeded if a run crosses midnight.
+every later video gets a copy (a reset costs ~0.5 s). The run day is fixed for
+the whole run, so template and app clock agree even across midnight.
 
 **The people.** As in base, plus **Sven Kröger**, a guest who signed up and is
 waiting for a role (A2, C8). Lena is a carer *and* keeps the pigeon loft;
@@ -302,9 +370,9 @@ Malte keeps the outdoor aviary.
 
 | Bird | Held by | What it is for | Videos |
 |---|---|---|---|
-| **Fiete** (feral pigeon) | Lena | The full timeline: 13 weights (238 → 292 g), two exams with findings, trichomonosis (resolved) and worms (contagious), three microscopy samples with photos, canker course with Faucalin (done), **the running deworming course (Nemakur) 5 days on / 2 off ×3 with a dose due today**, journal with a photo and a PDF, colour clip applied and removed, an attended vet visit (PDF) and **an upcoming one with an attachment**, a follow-up due today, intake photo + finder, edit share with Tarek | A1, A4, B1–B4, B6, B7, B11, C1 |
+| **Fiete** (feral pigeon) | Lena | The full timeline: 13 weights (238 → 292 g), two exams with findings, trichomonosis (resolved) and worms (contagious), three microscopy samples with photos, canker course with Faucalin (done), **the running deworming course (Nemakur) 5 days on / 2 off ×3 with today's dose overdue since 08:00**, journal with a photo and a PDF, colour clip applied and removed, an attended vet visit (PDF) and **an upcoming one with an attachment**, a follow-up due today, intake photo + finder, edit share with Tarek | A1, A4, B1–B4, B6, B7, B11, C1 |
 | **Kora** (wood pigeon) | Lena | Admitted this morning: fresh intake, quarantine just started | A5, B5 |
-| **Hedwig** (carrion crow) | Lena | **Quarantine ends today**, **vet appointment this afternoon**, pain-relief dose (Plumadol) due, X-ray (image + PDF) on an attended visit, fracture | A5, B5, B6 |
+| **Hedwig** (carrion crow) | Lena | **Quarantine ends today** (10:00), **vet appointment this afternoon** (15:30), pain-relief dose (Plumadol, daily at 10:00) **due in 1 h**, X-ray (image + PDF) on an attended visit, fracture | A5, B5, B6 |
 | **Gustav** (feral pigeon) | Lena | Released in spring wearing our ring **EM 0412**, back after a cat attack and recognised by it: reads *in care* again; antibiotic (Peravin) due tonight; follow-up today | B4, C3 |
 | **Bruno, Lotte, Mats** (young feral pigeons) | Lena | One find, **one group course** (prescribe-batch), seven **dose rounds** logged, the next one due today | A5, C1 |
 | **Mika** (blackbird) | Lena, from Tarek | **Handed over** (holiday cover): Tarek kept read access, sees the read-only badge | C2 |
@@ -361,10 +429,10 @@ every month — C7, A6, the case browser and the registry.
   note (it reads `updated`). The **audit log** is all today, within the minute
   the dataset was seeded (its rows read sensibly otherwise — real actors,
   real actions, in story order).
-- **Time of day.** Dues are fixed times (doses at 07:00–09:00, Hedwig's
-  appointment at 15:30). Recorded in the afternoon, Today shows those as
-  "overdue by n h"; recorded early in the morning, some of "this morning's"
-  entries lie in the future.
+- **The real clock behind the app's** (see "Time"): `created`, and with it
+  the "Case created" milestone and the audit log, is the moment of seeding,
+  not the story's — earlier or later than the app's 09:40 depending on when
+  the run happens.
 - `aviary_stays` is written by a hook with the server clock and has no client
   API; the seeder re-dates those rows as the superuser (unaudited by design) so
   residencies start when the story placed the bird.
@@ -405,8 +473,22 @@ Decided by looking at exported frames (`out/work/*/` + `ffmpeg -ss … -frames:v
   the frame height). The title sits in the top band, the captions in the
   bottom band, so neither covers the app's own app bar or bottom buttons —
   with captions over the footage they hid the wizard's
-  "Next" button. Titles carry a dark plate because a zoom enlarges the footage
-  into the band.
+  "Next" button. Titles keep their dark plate.
+- **Zooms stay inside the footage's box.** OpenScreen 2.2.2 grows the whole
+  box when it zooms (at 1.8× it is taller than the frame) and clips it to its
+  slot only in a camera block layout or in "format fill", which drops the
+  bands — neither fits. So the harness draws the box itself: a full-frame
+  image annotation (`frame-mask.png`) that is the wallpaper with a
+  transparent rounded hole where the footage sits at rest, plus the
+  footage's shadow, shown for the whole clip. Annotations are painted after
+  the screen and the cursor in zIndex order, and the captions come last
+  (zIndex 100000+), so the stack is: footage → mask (0) → title (1) →
+  captions. The wallpaper is the same PNG (Chromium's rendering of the CSS
+  gradient), so the bands match to the pixel; OpenScreen's own shadow is off
+  (the mask would hide it) and the mask paints it. The hole follows
+  OpenScreen's layout (`footageRect`: the frame × (1 − padding × 0.4), source
+  fitted and centred — checked against an export). Change `padding` or the
+  viewport and the hole follows; change OpenScreen and re-check it.
 - **412×800 at DPR 2.** 412 CSS px is a common Android width and gets the
   phone layout. 800 rather than 915 high because the footage is height-bound
   in the frame: a shorter source is drawn larger. At this size the footage is
@@ -456,7 +538,10 @@ tiles.
 
 - OpenScreen's document format is upstream-unstable; it is pinned to v2.2.2.
   Bumping means re-checking `openscreen.mjs` against a document that version
-  writes itself.
+  writes itself — and the frame mask against its layout (see "Look").
+- The cursor is painted under the mask: when a zoom carries the pointer's
+  position outside the box, the cursor is not seen (correctly — that part of
+  the screen is not shown either).
 - Captions are laid out by OpenScreen: a line breaks where the harness leaves a
   pause, and OpenScreen wraps inside the caption box.
 - The app's intake wizard pre-fills the species with the German default

@@ -13,18 +13,21 @@ import { PASSWORD } from './seed.mjs';
 import { CODE_LISTS } from '../data/base.mjs';
 import { AVIARIES, BIRDS, DEMO_PEOPLE, RINGS, SPONSORS } from '../data/demo/cast.mjs';
 import { PRODUCTS } from '../data/demo/vocab.mjs';
-import { Clock, runDayFromEnv } from '../data/demo/clock.mjs';
+import { DEFAULT_TIME_OF_DAY, relativeDue } from '../data/demo/clock.mjs';
 
 const enc = encodeURIComponent;
 const f = (s) => `filter=${enc(s)}`;
 
 export async function verifyDemo(seed, { clock, log = console.log }) {
   const results = [];
-  // Checks that compare with the real clock (what is due, what is running)
-  // only hold when the run day IS today; an injected FFDEMO_RUN_DAY is for
-  // comparing seedings, and those checks are skipped, not failed.
-  const live = clock.label === new Clock(runDayFromEnv({})).label;
-  if (!live) log(`run day ${clock.label} is not today: checks against the real clock are skipped`);
+  // Every check reads the dataset at the RUN INSTANT (clock.nowMs), the moment
+  // the app's clock starts at in a video — never at the real time. A few
+  // things are decided by the backend against its own, real clock (which plans
+  // are still listed, which patronages still run); those checks only hold
+  // while the run instant is near the real time (clock.serverAgrees(), as for
+  // a recording) and are skipped, not failed, for a far FFDEMO_RUN_DAY.
+  const live = clock.serverAgrees();
+  if (!live) log(`run instant ${clock.nowLabel} is ${clock.skewHours()} h from the real clock: checks that depend on the backend's clock are skipped`);
   const check = (name, ok, detail = '') => {
     results.push({ name, ok: !!ok, detail });
     log(`${ok ? 'ok  ' : 'FAIL'}  ${name}${!ok && detail ? `  — ${detail}` : ''}`);
@@ -37,7 +40,8 @@ export async function verifyDemo(seed, { clock, log = console.log }) {
   const malte = await seed.as('coordinator');
   const johanna = await seed.as('supervisor');
   const people = seed.people;
-  const now = Date.now();
+  const now = clock.nowMs;
+  const ms = (s) => Date.parse(s.replace(' ', 'T'));
   const berlinDay = (iso) => clock.dayOffsetOf(Date.parse(iso.replace(' ', 'T')));
 
   // ── Showcase birds: lifetime state, enclosure, case status, carer ───────
@@ -161,6 +165,57 @@ export async function verifyDemo(seed, { clock, log = console.log }) {
   if (live) {
     const due = await tarek.list('medication_due');
     check('Today (Tarek): his own dose due', due.some((r) => r.id === ids.medications.hinkebeinAntifungal && r.next_due));
+  }
+
+  // ── What the screens say at the run instant ─────────────────────────────
+  // The relative times a video can narrate, in the app's own rounding
+  // (relativeDue = relativeDueLabel). Pinned for the default time of day; each
+  // must also hold for the first STABLE_MS of app time, which is the margin a
+  // video has before a label ticks over. Another FFDEMO_TIME fails these on
+  // purpose: the narration was written for these numbers.
+  if (live) {
+    const STABLE_MS = 15 * 60_000;
+    const atDefault = clock.timeOfDay === DEFAULT_TIME_OF_DAY;
+    if (!atDefault) log(`FFDEMO_TIME=${clock.timeOfDay}: the pinned relative times below are written for ${DEFAULT_TIME_OF_DAY} and will fail`);
+    const shows = (name, dueIso, want) => {
+      if (!dueIso) return check(`at ${clock.timeOfDay}: ${name} shows "${want}"`, false, 'nothing due');
+      const at0 = relativeDue(ms(dueIso), now);
+      const later = relativeDue(ms(dueIso), now + STABLE_MS);
+      check(`at ${clock.timeOfDay}: ${name} shows "${want}" (and still does 15 min later)`, at0 === want && later === want,
+        `${at0} at the run instant, ${later} 15 min later (due ${dueIso})`);
+    };
+    const lenaRows = await lena.list('medication_due');
+    const lenaDue = Object.fromEntries(lenaRows.map((r) => [r.id, r.next_due]));
+    const m = ids.medications;
+    shows('Fiete: Nemakur (deworming) — overdue', lenaDue[m.fieteDeworm], 'overdue 2 h');
+    shows('Hedwig: Plumadol (pain relief) — due soon', lenaDue[m.hedwigPain], 'in 1 h');
+    for (const k of ['bruno', 'lotte', 'mats']) shows(`${k}: Faucalin round tonight`, lenaDue[m[`${k}Canker`]], 'in 10 h');
+    shows('Gustav: Peravin (antibiotic) tonight', lenaDue[m.gustavAntibiotic], 'in 11 h');
+    const fu = await lena.list('follow_ups', f('done_at=""'));
+    const fuOf = (key) => fu.find((x) => x.case === ids.cases[key])?.due_at;
+    shows('Fiete: recheck (collect droppings) — overdue', fuOf('fiete'), 'overdue 1 h');
+    shows('Gustav: recheck (bite wound) at noon', fuOf('gustav'), 'in 3 h');
+    shows('Bruno: recheck tomorrow morning', fuOf('bruno'), 'in 24 h');
+    const vets = await lena.list('vet_appointments', f('attended_at="" && cancelled_at=""'));
+    const vetOf = (key) => vets.find((v) => v.case === ids.cases[key])?.starts_at;
+    shows('Hedwig: X-ray check this afternoon', vetOf('hedwig'), 'in 6 h');
+    shows('Fiete: final check', vetOf('fiete'), 'in 3 d');
+    const tarekDue = Object.fromEntries((await tarek.list('medication_due')).map((r) => [r.id, r.next_due]));
+    shows('Hinkebein (Tarek): antifungal this evening', tarekDue[m.hinkebeinAntifungal], 'in 9 h');
+    const q = Object.fromEntries((await lena.list('case_quarantine')).map((r) => [r.id, r]));
+    check(`at ${clock.timeOfDay}: Hedwig's quarantine ends today, still running for 15 min`,
+      berlinDay(q[ids.cases.hedwig].quarantine_until) === 0 && ms(q[ids.cases.hedwig].quarantine_until) > now + STABLE_MS,
+      q[ids.cases.hedwig].quarantine_until);
+    // Today is not all red: exactly these two of Lena's items are overdue.
+    const myCases = new Set((await lena.list('cases', f(`active_carer="${people.carer.id}" && status!="disposed"`))).map((c) => c.id));
+    const overdue = [
+      ...lenaRows.filter((r) => myCases.has(r.case_id) && r.next_due && ms(r.next_due) <= now).map((r) => `dose ${r.id}`),
+      ...fu.filter((x) => myCases.has(x.case) && ms(x.due_at) <= now).map((x) => `recheck ${x.case}`),
+      ...vets.filter((v) => myCases.has(v.case) && ms(v.starts_at) <= now).map((v) => `appointment ${v.case}`),
+    ].sort();
+    const wantOverdue = [`dose ${m.fieteDeworm}`, `recheck ${ids.cases.fiete}`].sort();
+    check(`at ${clock.timeOfDay}: Today (Lena) shows exactly two overdue items (Fiete's dose and recheck)`,
+      JSON.stringify(overdue) === JSON.stringify(wantOverdue), overdue.join(', '));
   }
 
   // ── Statistics: current year AND the same period a year earlier ─────────
