@@ -38,10 +38,25 @@ export class Session {
   }
 
   // ── Locators (Flutter's semantics tree, as the browser exposes it) ──────
-  /** By role and accessible name; `startsWith` for a node whose name carries more (a list row). */
+  /**
+   * By role and accessible name; `startsWith` for a node whose name carries
+   * more (a list row). A RegExp name matches as is — for a row whose name is
+   * data plus data, e.g. `s.role('button', s.rowOf(name, drug))`.
+   */
   role(role, name, { startsWith = false } = {}) {
+    if (name instanceof RegExp) return this.page.getByRole(role, { name });
     if (startsWith) return this.page.getByRole(role, { name: new RegExp(`^${escapeRe(name)}`) });
     return this.page.getByRole(role, { name, exact: true });
+  }
+
+  /**
+   * A name pattern that contains every one of [parts], in order, anywhere
+   * (each escaped). For list rows whose name is "<case no.> · <bird>\n<drug> ·
+   * <when>": `s.rowOf("· Fiete", "Nemakur")` picks the bird's dose row and
+   * not its appointment row, without knowing the case number.
+   */
+  rowOf(...parts) {
+    return new RegExp(parts.map(escapeRe).join('[\\s\\S]*'));
   }
 
   /** A text field by the ARB key of its label. */
@@ -89,9 +104,14 @@ export class Session {
     }
   }
 
-  /** Fails unless some node on screen shows [text] (data the run created, e.g. a name). */
+  /**
+   * Fails unless some node on screen shows [text] (data the run created, e.g.
+   * a name, or a number a caption quotes). Text that Flutter merged into a
+   * card's or a row's label counts: that label is what the card shows.
+   */
   async expectText(text, { timeout = this.timeoutMs } = {}) {
-    await this.waitFor(this.page.locator('flt-semantics').filter({ hasText: text }).first(),
+    const inLabel = this.page.locator(`flt-semantics[aria-label*=${JSON.stringify(text)}]`);
+    await this.waitFor(this.page.locator('flt-semantics').filter({ hasText: text }).or(inLabel).first(),
       { timeout, what: `text "${text}" on screen` });
   }
 
@@ -111,8 +131,9 @@ export class Session {
     return b;
   }
 
-  inView(b, margin = 2) {
-    return b.y >= margin && b.y + b.height <= this.vp.height - margin;
+  /** Fully on screen. Exact edges count: a bottom navigation bar ends on the viewport's last pixel. */
+  inView(b) {
+    return b.y >= -0.5 && b.y + b.height <= this.vp.height + 0.5;
   }
 
   /**
@@ -150,10 +171,19 @@ export class Session {
     return ev;
   }
 
-  /** Marks [locator] as what this step's zoom should aim at, without touching it. */
-  async focus(locator, { what } = {}) {
+  /**
+   * Marks [locator] as what this step's zoom should aim at, without touching
+   * it. [box] aims next to it instead: `(b) => ({ x, y, width, height })`
+   * gets the node's box and returns the one to aim at — for text the
+   * semantics tree merges into its card and so has no node of its own (a
+   * dose derivation, one row of a card). Anchor such a box on the nearest
+   * node that has a label, and check the zoom in the stills: unlike a
+   * locator, a box that drifts after a layout change does not fail the run.
+   */
+  async focus(locator, { what, box } = {}) {
     await this.waitFor(locator, { what });
-    const b = await this.reveal(locator, { what });
+    let b = await this.reveal(locator, { what });
+    if (box) b = box(b);
     if (this.step) this.step.focus = { box: b, timeMs: this.clock() };
     return b;
   }

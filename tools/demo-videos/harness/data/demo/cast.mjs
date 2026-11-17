@@ -59,6 +59,18 @@ export const BIRDS = {
   ringoDuplicate: { name: '', species: 'racingPigeon', sex: 'unknown' },
 };
 
+/**
+ * Weights (g) a video narrates, e.g. the dose a per-kg plan works out to.
+ * stories.mjs records exactly these, so a caption quoting one cannot drift
+ * from the screen. `latest` is the newest weighing before the run instant.
+ */
+export const WEIGHTS = {
+  fiete: { intake: 238, latest: 292 },
+  bruno: { intake: 214, latest: 226 },
+  lotte: { intake: 236, latest: 243 },
+  mats: { intake: 225, latest: 229 },
+};
+
 /** Codes on rings the videos search for. */
 export const RINGS = {
   // Our release ring on Gustav: how he was recognised on his second admission.

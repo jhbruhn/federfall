@@ -168,8 +168,15 @@ Each step has a timeout (`timeoutMs`, default 30 s); the whole run has one too
 
 - `title` — on-screen text in the band above the app. It stays until the next
   step with a title, so give the first step on a new screen one.
-- `say` — the narration, burned in as captions below the app. Long text is
-  split into lines at sentence breaks. Write it like a calm product
+- `say` — the narration, burned in as captions below the app. It is cut into
+  caption pages by the harness (`cueTexts`, `harness/lib/openscreen.mjs`):
+  each sentence starts a page, a one- or two-word sentence ("Saved.") joins
+  the next, and a sentence too long for one page (12 words, ~70 characters:
+  two lines) is cut into balanced pieces at a comma, colon or dash — never
+  between a number and its unit, never inside "a × b = c", never leaving a
+  page of one or two words. (OpenScreen itself pages by word count only and
+  shows at most 12 words at once, whatever the document asks for; that is how
+  an A3 page once read just "class.".) Write it like a calm product
   walkthrough: short sentences, present tense, `du` in German. German is the
   primary language — write it first and make it idiomatic; do not translate
   English word for word. A value may be a function of `t` to quote a UI label
@@ -201,6 +208,7 @@ a removed key fails the run at lookup.
 | `s.buttonStartingWith('caseFieldAgeClass')` | a node whose name carries more, e.g. a dropdown (`"Altersklasse\nAltvogel"`) |
 | `s.role('menuitem', s.t('ageClassAdult'))` | any role, exact name |
 | `s.role('button', 'Rathausmarkt 1,', { startsWith: true })` | a row whose text is DATA the video seeded |
+| `s.role('button', s.rowOf('· Fiete', 'Nemakur'))` | a row whose name is data plus data (case number unknown): every part, in order. Names are whitespace-normalised, so match across a line break with separate parts, not `\n` |
 | `s.id('case-detail-…')` | a `Semantics(identifier:)` — see the rule below |
 | `s.pick({ de: …, en: … })` | this run's value of per-language data |
 
@@ -220,7 +228,9 @@ e.g. `case-detail-photo`) only where a label cannot do the job:
 Do not tag a widget a label already reaches. Wrap at the federfall call site:
 the shared widgets live in `zugvogel_ui` and are pinned by commit. App edits
 put the repo's gates in force (`dart format`, `flutter analyze`,
-`flutter test`). A3 needed no identifier.
+`flutter test`). Neither A3 nor C1 needed one: C1 aims at merged card text
+with `s.focus(anchor, { box })` instead (see "Actions"). The first video
+that does need one documents it here.
 
 ### Actions
 
@@ -232,8 +242,9 @@ put the repo's gates in force (`dart format`, `flutter analyze`,
 | `await s.chooseFile(loc, await s.asset('pigeon.svg'))` | clicks, answers the native file chooser (an `.svg` asset is rendered to JPEG first) |
 | `await s.waitFor(loc)` / `s.gone(loc)` | the next screen is there / the old one is gone |
 | `await s.waitForUrl(/re/)` | the app navigated |
-| `await s.expectText('Paula')` | something on screen shows this text |
+| `await s.expectText('Paula')` | something on screen shows this text — a node's text or part of a merged label (a card, a row). Use it to prove every number a caption quotes |
 | `await s.focus(loc)` | the step's zoom aims here (no click) |
+| `await s.focus(loc, { box: (b) => ({ x, y, width, height }) })` | aims NEXT to a node: for text Flutter merged into its card's label and so has no node (a dose derivation left of its button, one course on a treatment card). Anchor on the nearest labelled node and check the stills — a drifted box does not fail the run |
 | `await s.rest({ x, y })` | move the pointer out of the way |
 | `await s.hold(ms)` | wait on camera |
 | `await s.dump('tag')` | authoring aid: `dump-tag.png` + every semantics node with its role/name/box in `out/work/<id>.<locale>/`. Remove when done — it costs time on camera. |
@@ -279,7 +290,70 @@ Rules for anything that seeds:
 - Free text a viewer reads (species, notes, names of organisations) needs a
   `de` and an `en` value. German first, idiomatic; then English.
 - Select rows by the names in `harness/data/demo/cast.mjs` (import them), not
-  by spelling a name again.
+  by spelling a name again. Numbers a caption quotes come from there too
+  (`WEIGHTS`, plus `PRODUCTS` in `vocab.mjs` for rates and strengths), and the
+  step proves them on screen with `expectText`.
+
+### Writing a deep-explanation video
+
+The C tier (2–4 minutes, narrated, for people who already use the app) was
+first done in `videos/c1-medications.mjs`; copy its shape.
+
+**Storyboard.** One person's morning, not a feature list. Open on something
+concrete the viewer recognises (C1: Today at 09:40, a dose overdue), go to
+one bird, and let each chapter answer the question the last one raised
+("why a rate?" comes after the weight curve, "how did three birds get one
+course?" after the dose round). Use the dataset for what already happened (a
+running course, a weight curve, a round that is due) and the camera for what
+the viewer must see being done (writing a prescription). End on a one-line
+recap. Chapters are step `title`s of at most 20 characters
+(`TITLE_MAX`, checked before seeding).
+
+**Two kinds of step.** An *action* step does the clicking and navigating and
+usually has no `say` and no zoom (the caption band is simply empty for a
+second or two, like a pause in speech). An *explain* step has the narration,
+the zoom, and does nothing but `focus` — or one small action the caption
+names as it happens. Splitting them is what keeps captions in sync: a
+caption that starts with the click describes a screen that is not there yet,
+and a zoom eases in ~0.9 s BEFORE its step starts, so a zoomed step must not
+begin by changing the screen. End every action step on proof
+(`waitFor`/`gone`/`expectText`).
+
+**Narration.** Say what the app does and *why it matters* to the bird or the
+carer — the reasons are in the feature's commit messages (`git log --grep`).
+Calm, concrete, present tense, `du`; German written first. Quote labels by
+ARB key and numbers from the dataset constants, and prove each number on
+screen with `expectText` in the same step, so a caption cannot quote a value
+the screen does not show. Never write real drug names and never phrase a
+dose as advice; the dataset's products are invented. Write sentences of
+under 12 words where you can and put a comma or dash where a page may break:
+the harness pages at those (see `say` above). Check every page in the
+stills.
+
+**Pacing.** The step length comes from the text (`readingMs`: 0.7 s +
+62 ms per character, at least 1.8 s), so do not pad with `minMs`; add a
+`s.hold()` only where something on screen needs watching (C1 runs the
+pointer along the weight chart for ~5 s). In C1 that gave 31 steps, ~2,600
+characters of German narration and a 3:28 clip; aim for 2:30–3:30 and split
+the story into two videos rather than cram past 4 minutes.
+
+**Zooms.** Depth 2 (1.5×) for a card row or a list section, 3 (1.8×) for a
+single number or field, 1 for a heading plus its rows; none for dialogs and
+anything wider than ~330 CSS px that must be read whole (C1's cycle strip):
+there, rest the pointer next to it instead. Text Flutter merges into a card
+has no node: aim with `s.focus(anchor, { box })` next to the nearest
+labelled node.
+
+**Pitfalls met in C1.** A case opened from Today is reached with `go`, so
+Back leads to the case list, not to Today. After Back, wait for the old
+screen to be `gone` before clicking a label both screens carry ("Übersicht"
+is a case tab and a navigation tab). A card that loses its last button stops
+being a node of its own (its text merges into the tab's label), so prove it
+with `expectText`. Today rounds every past due UP to the hour: a course
+written on camera reads "1 h overdue" a minute later — film its round only
+when it is honestly due, or leave Today out after writing one. Never let a
+video give a dose hours before it is due; change the state in `setup()`
+instead (C1 undoes the morning round).
 
 ## Time
 
@@ -542,8 +616,17 @@ tiles.
 - The cursor is painted under the mask: when a zoom carries the pointer's
   position outside the box, the cursor is not seen (correctly — that part of
   the screen is not shown either).
-- Captions are laid out by OpenScreen: a line breaks where the harness leaves a
-  pause, and OpenScreen wraps inside the caption box.
+- Captions are laid out by OpenScreen: each cue the harness writes is one page,
+  and OpenScreen wraps it inside the caption box (~37 characters a line).
+- The app can freeze: in one C1 run the page stopped mid-transition (renderer
+  at 100 % CPU, no page error) while opening a case from Today, the same
+  family as the reload hang in federfall-1h9z.38. The step then times out;
+  the failure path is bounded, says "frozen renderer" in the verdict and
+  leaves no clip. Not reproduced in later runs.
+- Text can be drawn garbled: a word's glyphs overlapping or laid out one
+  character per line (seen on a case header and a case-list subtitle in C1's
+  runs). The semantics tree is correct, so no check catches it — only the
+  stills do.
 - The app's intake wizard pre-fills the species with the German default
   „Stadttaube" in every language; the English A3 clears it on camera, but it is
   visible for about a second.

@@ -152,27 +152,97 @@ export function zoomFocus(target, vp, scale) {
   };
 }
 
-/** Splits narration into caption cues of at most ~[max] characters, at sentence breaks first. */
-export function cueTexts(text, max = 84) {
-  const sentences = text.match(/[^.!?…]+[.!?…]*["“”„«»]?\s*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
-  const cues = [];
+/**
+ * What one caption page holds. OpenScreen 2.2.2 shows at most 12 words of a
+ * cue at once (`maxWordsPerLine` is clamped to 1..12, whatever the document
+ * says) and pages the rest by word COUNT alone — which is how a 13-word A3
+ * sentence ended on a page reading just "class." (federfall-1h9z.39). Its box
+ * wraps at ~37 characters a line at this font size. So the harness never hands
+ * it a cue it would page: each cue is one page of at most two lines.
+ */
+export const CUE = { maxWords: 12, maxChars: 70 };
+
+/**
+ * Splits narration into caption cues, each one page (see CUE). Sentences
+ * start a new cue; a one- or two-word sentence ("Saved.") joins the next one;
+ * a sentence too long for a page is cut into balanced pieces, at a comma,
+ * colon or dash where there is one, never leaving a piece of one or two words.
+ */
+export function cueTexts(text, { maxWords = CUE.maxWords, maxChars = CUE.maxChars } = {}) {
+  const wordsOf = (s) => s.split(/\s+/).filter(Boolean);
+  const fits = (ws) => ws.length <= maxWords && ws.join(' ').length <= maxChars;
+  // A sentence ends at . ! ? … (plus a closing quote) followed by a space, so
+  // "0.292 ml" stays whole.
+  const sentences = text.trim().split(/(?<=[.!?…]["“”„«»)]?)\s+/).filter(Boolean);
+  const merged = [];
   for (const s of sentences) {
-    if (s.length <= max) {
-      cues.push(s);
-      continue;
-    }
-    // A long sentence: break at the last comma/space before the limit.
-    let rest = s;
-    while (rest.length > max) {
-      let cut = rest.lastIndexOf(', ', max);
-      cut = cut > max * 0.4 ? cut + 1 : rest.lastIndexOf(' ', max);
-      if (cut <= 0) cut = max;
-      cues.push(rest.slice(0, cut).trim());
-      rest = rest.slice(cut).trim();
-    }
-    if (rest) cues.push(rest);
+    const prev = merged.at(-1);
+    if (prev && wordsOf(prev).length <= 2) merged[merged.length - 1] = `${prev} ${s}`;
+    else merged.push(s);
   }
-  return cues;
+  return merged.flatMap((s) => {
+    const ws = wordsOf(s);
+    if (fits(ws)) return [s];
+    // Strictly first (no stray words, no number cut from its unit), then
+    // leniently, rather than not at all. One page more is worth it when it
+    // puts every cut at a pause: "…, Pausen im / Rhythmus, …" reads worse
+    // than three pages cut at the commas.
+    const atPauses = (parts) => parts.slice(0, -1).every((p) => /[,;:]$/.test(p.at(-1)) || /^[–—]$/.test(p.at(-1)));
+    for (const strict of [true, false]) {
+      for (let k = 2; k <= ws.length; k++) {
+        const parts = balancedSplit(ws, k, fits, strict);
+        if (!parts) continue;
+        if (!atPauses(parts)) {
+          const more = balancedSplit(ws, k + 1, fits, strict);
+          if (more && atPauses(more)) return more.map((p) => p.join(' '));
+        }
+        return parts.map((p) => p.join(' '));
+      }
+    }
+    return [s];
+  });
+}
+
+/**
+ * [ws] in [k] consecutive pieces that each [fit], as even in length as
+ * possible, preferring to end a piece after , ; : or a dash. A piece of one or
+ * two words, or a cut between a number and its unit or inside "a × b = c", is
+ * refused when [strict] and merely expensive otherwise. Null when no split
+ * into [k] fits.
+ */
+function balancedSplit(ws, k, fits, strict) {
+  const n = ws.length;
+  const target = ws.join(' ').length / k;
+  const pause = (w) => /[,;:]$/.test(w) || w === '–' || w === '—';
+  // Never between a number and its unit, nor inside "a × b = c".
+  const glued = (a, b) => /^[\d.,]+$/.test(a) || /^[×=]$/.test(a) || /^[×=]$/.test(b);
+  const cost = (i, j) => {
+    const piece = ws.slice(i, j);
+    if (!fits(piece)) return Infinity;
+    let c = (piece.join(' ').length - target) ** 2;
+    if (j < n && !pause(ws[j - 1])) c += (target * 0.9) ** 2;
+    const bad = (j < n && glued(ws[j - 1], ws[j])) || piece.length < 3;
+    if (bad && strict) return Infinity;
+    if (bad) c += target ** 2 * 4;
+    return c;
+  };
+  // best[p][j]: the cheapest split of ws[0..j) into p pieces.
+  const best = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(null));
+  best[0][0] = { c: 0, cuts: [] };
+  for (let p = 1; p <= k; p++) {
+    for (let j = p; j <= n; j++) {
+      for (let i = p - 1; i < j; i++) {
+        const prev = best[p - 1][i];
+        if (!prev) continue;
+        const c = prev.c + cost(i, j);
+        if (c < Infinity && (!best[p][j] || c < best[p][j].c)) best[p][j] = { c, cuts: [...prev.cuts, j] };
+      }
+    }
+  }
+  const end = best[k][n];
+  if (!end) return null;
+  let from = 0;
+  return end.cuts.map((to) => { const piece = ws.slice(from, to); from = to; return piece; });
 }
 
 /** Captions as a transcript: one run of words per cue, cues separated by a pause. */
@@ -295,7 +365,9 @@ export function writeDocument({ dir, video, locale, vpName, vp, steps, intro, ca
       captions: { enabled: true, language: null, captionLane: 'recording', fontSize: look.captions.fontSize,
         fontFamily: FONT, fontWeight: 'bold', color: '#ffffff', backgroundEnabled: true,
         backgroundColor: '#10261c', backgroundOpacity: 0.82, anchorV: 'bottom', insetY: look.captions.insetY,
-        anchorH: 'center', insetX: look.captions.insetX, minWordsPerLine: 1, maxWordsPerLine: 40 },
+        // 12 is OpenScreen's own ceiling (see CUE): cueTexts never hands it
+        // more, and 3 keeps it from paging a stray word if it ever does.
+        anchorH: 'center', insetX: look.captions.insetX, minWordsPerLine: 3, maxWordsPerLine: CUE.maxWords },
     },
     shaderEffectRanges: [],
   };

@@ -5,7 +5,7 @@
 //
 //   carer = Lena Vogt (also keeps the pigeon loft)    carer2 = Tarek Aydin
 //   coordinator = Malte Riedel (keeps the outdoor aviary)    supervisor = Johanna Brandt
-import { FINDERS, RINGS, SPONSORS, BIRDS } from './cast.mjs';
+import { FINDERS, RINGS, SPONSORS, BIRDS, WEIGHTS } from './cast.mjs';
 import { Rng } from './rng.mjs';
 import { DESTINATIONS, place, PRODUCTS, RELEASE_TYPES, TRANSFER_TYPES, VETS } from './vocab.mjs';
 
@@ -214,7 +214,7 @@ export function scheduleStories(ctx) {
   // ── Fiete: the full timeline (A4, B1–B7, B11, C1) ───────────────────────
   step(d(-12, '18:40'), 'fiete: intake', () => ctx.intake(LENA, 'fiete', {
     ...bird('fiete'), ms: d(-12, '18:40'), foundMs: d(-12, '17:30'), reasons: ['Geschwächt/abgemagert', 'Krankheit'], age: 'adult',
-    place: place('Hauptbahnhof'), weight: 238, finder: FINDERS.fiete, photos: ['photo-feral-pigeon'],
+    place: place('Hauptbahnhof'), weight: WEIGHTS.fiete.intake, finder: FINDERS.fiete, photos: ['photo-feral-pigeon'],
     notes: { de: 'Saß teilnahmslos auf dem Bahnsteig, würgt, stark abgemagert.', en: 'Sitting listlessly on the platform, gagging, badly emaciated.' },
   }));
   step(d(-12, '19:00'), 'fiete: intake exam', () => ctx.exam(LENA, 'fiete', d(-12, '19:00'), {
@@ -244,7 +244,7 @@ export function scheduleStories(ctx) {
     de: 'Kropfabstrich: massenhaft Trichomonaden. Vorerst Päppelfutter per Kropfsonde, Behandlung mit Faucalin begonnen.',
     en: 'Crop swab: masses of trichomonads. Crop-feeding with rearing formula for now; started on Faucalin.' }));
   weighings(LENA, 'fiete', [[-11, '07:20', 236], [-10, '07:20', 241], [-9, '07:20', 248], [-8, '07:20', 255], [-7, '07:20', 259],
-    [-6, '07:20', 266], [-5, '07:20', 271], [-4, '07:20', 277], [-3, '07:20', 280], [-2, '07:20', 286], [-1, '07:20', 289], [0, '07:20', 292]]);
+    [-6, '07:20', 266], [-5, '07:20', 271], [-4, '07:20', 277], [-3, '07:20', 280], [-2, '07:20', 286], [-1, '07:20', 289], [0, '07:20', WEIGHTS.fiete.latest]]);
   step(d(-10, '09:10'), 'fiete: journal', () => ctx.journal(LENA, { case: 'fiete' }, d(-10, '09:10'), {
     de: 'Pickt die ersten Körner selbst, Sonde nur noch abends. Kot noch grünlich.',
     en: 'Picking up his first seeds himself; crop-feeding only in the evening now. Droppings still greenish.' }));
@@ -351,7 +351,7 @@ export function scheduleStories(ctx) {
 
   // ── Bruno, Lotte, Mats: one find, one group course, one dose round ──────
   const group = ['bruno', 'lotte', 'mats'];
-  const groupWeights = { bruno: [214, 219, 226], lotte: [236, 238, 243], mats: [225, 224, 229] };
+  const groupWeights = Object.fromEntries(group.map((k) => [k, [WEIGHTS[k].intake, { bruno: 219, lotte: 238, mats: 224 }[k], WEIGHTS[k].latest]]));
   group.forEach((key, i) => {
     step(d(-4, '14:00') + i * 300_000, `${key}: intake`, () => ctx.intake(LENA, key, {
       ...bird(key), ms: d(-4, '14:00') + i * 300_000, foundMs: d(-4, '12:00'), reasons: ['Krankheit', 'Verwaist (Jungtier)'],

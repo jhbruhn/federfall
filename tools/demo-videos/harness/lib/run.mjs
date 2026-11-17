@@ -16,6 +16,13 @@ import { DemoError, probeVideo, sleep, withTimeout } from './util.mjs';
 
 const ARB_DIR = process.env.FFDEMO_ARB_DIR ?? '/arb';
 
+/**
+ * The most characters a step title fits on one line of the title band (phone
+ * look): "Fiete: Dosis nach Gewicht" (25) wrapped and was clipped, "Hedwig: Kur
+ * beenden" (19) fit. Checked before anything is recorded.
+ */
+export const TITLE_MAX = 20;
+
 export function clipName(video, locale) {
   return `${video.id}-${video.slug}.${locale}.mp4`;
 }
@@ -69,8 +76,13 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
   let aborted = false;
 
   const cleanup = async () => {
-    capture?.kill();
-    await browser?.context.close().catch(() => {});
+    // A failed run keeps a playable capture (ffmpeg finishes the file on
+    // "q"; a kill leaves it without its index): it is what shows how a frozen
+    // page got there. stop() is bounded and kills on its own timeout.
+    await capture?.stop().catch(() => capture?.kill());
+    // Bounded: a page whose renderer is stuck (federfall-1h9z.38) can leave
+    // close() waiting forever.
+    await withTimeout(browser?.context.close() ?? Promise.resolve(), 15_000, 'closing the browser').catch(() => {});
     display?.stop();
     exportDisplay?.stop();
   };
@@ -80,6 +92,13 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
     const realClock = appClockMode() === 'real';
     if (!realClock) requireServerAgrees(runClock);
     log(`app clock: ${realClock ? 'REAL (FFDEMO_APP_CLOCK=real)' : `${runClock.nowLabel} at the first frame, ${runClock.skewHours()} h from the real clock`}`);
+    // Titles are checked before anything is seeded or recorded.
+    video.steps.forEach((def, i) => {
+      const title = typeof def.title?.[locale] === 'function' ? def.title[locale](t) : def.title?.[locale];
+      if (title && title.length > TITLE_MAX) {
+        throw new DemoError(`step ${i + 1} "${def.name ?? ''}": title "${title}" is ${title.length} characters; the band holds ${TITLE_MAX} on one line`);
+      }
+    });
     const seed = await prepareDataset({ dataset: video.dataset, locale, log, clock: runClock });
     const data = (await video.setup?.({ seed, locale })) ?? {};
     const person = seed.people[video.signInAs];
@@ -215,14 +234,23 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
     log(`FAILED: ${result.error}`);
     if (page) {
       await page.screenshot({ path: path.join(dir, 'failure.png'), timeout: 5000 }).catch(() => {});
-      const dump = await page.evaluate(() => [...document.querySelectorAll('flt-semantics, flt-semantics-host input, flt-semantics-host textarea')]
+      // Bounded like everything else: page.evaluate has no timeout of its
+      // own, and on a frozen page (a renderer stuck at 100 % CPU, seen in C1)
+      // it never returns — that kept a recorder alive for half an hour.
+      const dump = await withTimeout(page.evaluate(() => [...document.querySelectorAll('flt-semantics, flt-semantics-host input, flt-semantics-host textarea')]
         .filter((e) => e.getAttribute('role') || e.getAttribute('aria-label') || e.childElementCount === 0)
         .map((e) => {
           const r = e.getBoundingClientRect();
           const name = e.getAttribute('aria-label') ?? (e.textContent ?? '').trim().slice(0, 60);
           const id = e.getAttribute('flt-semantics-identifier');
           return `${e.getAttribute('role') ?? '-'} "${name}"${id ? ` #${id}` : ''} @${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`;
-        }).join('\n')).catch(() => '');
+        }).join('\n')), 10_000, 'the failure dump').catch(() => {
+        // Say so in the verdict: a frozen app is a different bug from a
+        // missing label, and the screenshot alone looks like a wrong screen.
+        result.error += ' — and the page then stopped answering (frozen renderer, see federfall-1h9z.38)';
+        log('the page did not answer the failure dump within 10 s: frozen');
+        return '(no dump: the page did not answer within 10 s)';
+      });
       writeFileSync(path.join(dir, 'failure-semantics.txt'), `${page.url()}\n${dump}\n`);
     }
     mkdirSync(outRoot, { recursive: true });
