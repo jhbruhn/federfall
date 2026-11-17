@@ -382,6 +382,23 @@ void main() {
     expect(asked.last.condition, isNull);
   });
 
+  testWidgets('the unlabelled filter pickers carry semantics identifiers', (
+    tester,
+  ) async {
+    await _pump(tester, cases: const [_mine]);
+
+    await tester.tap(find.byTooltip('Filters'));
+    await tester.pumpAndSettle();
+
+    for (final id in const [
+      'cases-filter-caseload',
+      'cases-filter-outcome',
+      'cases-filter-diagnosis',
+    ]) {
+      expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+    }
+  });
+
   testWidgets('the filter sheet can pick an outcome and a diagnosis', (
     tester,
   ) async {

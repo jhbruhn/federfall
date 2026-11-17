@@ -500,7 +500,13 @@ class _OverviewTab extends StatelessWidget {
           // there is none of it. The weight trend is reference, not action,
           // so it follows (federfall-78k6.2).
           CurrentTreatmentCard(caseId: medicalCase.id),
-          WeightTrendChart.forCase(medicalCase.id),
+          // The plot itself has no semantics node (fl_chart paints it), so
+          // the demo videos aim at the card by this id (federfall-1h9z.41).
+          Semantics(
+            container: true,
+            identifier: 'case-detail-weight-chart',
+            child: WeightTrendChart.forCase(medicalCase.id),
+          ),
           _IntakeSection(medicalCase: medicalCase, animal: animal),
           _CasePhotoGallery(caseId: medicalCase.id),
           _PriorCasesSection(medicalCase: medicalCase),

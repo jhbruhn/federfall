@@ -657,6 +657,34 @@ void main() {
     expect(find.text('Photos'), findsNothing);
   });
 
+  testWidgets('the weight chart carries its semantics identifier', (
+    tester,
+  ) async {
+    when(() => weights.forCase(any())).thenAnswer(
+      (_) async => [
+        Weight(
+          id: 'w1',
+          animal: 'a1',
+          weightG: 240,
+          measuredAt: DateTime.utc(2026, 6, 21, 9),
+        ),
+        Weight(
+          id: 'w2',
+          animal: 'a1',
+          weightG: 260,
+          measuredAt: DateTime.utc(2026, 6, 23, 9),
+        ),
+      ],
+    );
+    await pump(tester);
+
+    expect(find.text('Weight trend'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('case-detail-weight-chart'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('printing with no printer configured shows a snackbar', (
     tester,
   ) async {

@@ -547,30 +547,37 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
             ),
             const SizedBox(height: AppSpacing.md),
             _FilterLabel(l10n.casesCaseloadLabel),
-            DropdownMenu<_Caseload>(
-              initialSelection: _caseload,
-              expandedInsets: EdgeInsets.zero,
-              requestFocusOnTap: false,
-              dropdownMenuEntries: [
-                // The same words the app bar then shows, so the entry and the
-                // title agree about which list this is.
-                DropdownMenuEntry(
-                  value: const _Caseload.mine(),
-                  label: l10n.casesTitle,
-                ),
-                DropdownMenuEntry(
-                  value: const _Caseload.all(),
-                  label: l10n.casesAllTitle,
-                ),
-                for (final m in carers)
+            // The pickers' labels are separate Text widgets, so a picker's own
+            // node carries no name; the demo videos reach the three they use
+            // by these ids (federfall-1h9z.13).
+            Semantics(
+              container: true,
+              identifier: 'cases-filter-caseload',
+              child: DropdownMenu<_Caseload>(
+                initialSelection: _caseload,
+                expandedInsets: EdgeInsets.zero,
+                requestFocusOnTap: false,
+                dropdownMenuEntries: [
+                  // The same words the app bar then shows, so the entry and the
+                  // title agree about which list this is.
                   DropdownMenuEntry(
-                    value: _Caseload.of(m.id),
-                    label: memberLabel(m),
+                    value: const _Caseload.mine(),
+                    label: l10n.casesTitle,
                   ),
-              ],
-              onSelected: (choice) {
-                if (choice != null) _apply(choice.applyTo(_query));
-              },
+                  DropdownMenuEntry(
+                    value: const _Caseload.all(),
+                    label: l10n.casesAllTitle,
+                  ),
+                  for (final m in carers)
+                    DropdownMenuEntry(
+                      value: _Caseload.of(m.id),
+                      label: memberLabel(m),
+                    ),
+                ],
+                onSelected: (choice) {
+                  if (choice != null) _apply(choice.applyTo(_query));
+                },
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             _FilterLabel(l10n.casesActivityLabel),
@@ -617,45 +624,53 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
             ],
             const SizedBox(height: AppSpacing.md),
             _FilterLabel(l10n.dispositionFieldType),
-            DropdownMenu<DispositionType?>(
-              initialSelection: _query.outcome,
-              expandedInsets: EdgeInsets.zero,
-              requestFocusOnTap: false,
-              dropdownMenuEntries: [
-                DropdownMenuEntry(
-                  value: null,
-                  label: l10n.casesFilterOutcomeAny,
-                ),
-                for (final t in DispositionType.values)
+            Semantics(
+              container: true,
+              identifier: 'cases-filter-outcome',
+              child: DropdownMenu<DispositionType?>(
+                initialSelection: _query.outcome,
+                expandedInsets: EdgeInsets.zero,
+                requestFocusOnTap: false,
+                dropdownMenuEntries: [
                   DropdownMenuEntry(
-                    value: t,
-                    label: dispositionTypeLabel(l10n, t),
+                    value: null,
+                    label: l10n.casesFilterOutcomeAny,
                   ),
-              ],
-              onSelected: (t) => _apply(
-                t == null
-                    ? _query.copyWith(clearOutcome: true)
-                    : _query.copyWith(outcome: t),
+                  for (final t in DispositionType.values)
+                    DropdownMenuEntry(
+                      value: t,
+                      label: dispositionTypeLabel(l10n, t),
+                    ),
+                ],
+                onSelected: (t) => _apply(
+                  t == null
+                      ? _query.copyWith(clearOutcome: true)
+                      : _query.copyWith(outcome: t),
+                ),
               ),
             ),
             const SizedBox(height: AppSpacing.md),
             _FilterLabel(l10n.conditionFieldName),
-            DropdownMenu<String?>(
-              initialSelection: _query.condition,
-              expandedInsets: EdgeInsets.zero,
-              requestFocusOnTap: false,
-              dropdownMenuEntries: [
-                DropdownMenuEntry(
-                  value: null,
-                  label: l10n.casesFilterConditionAny,
+            Semantics(
+              container: true,
+              identifier: 'cases-filter-diagnosis',
+              child: DropdownMenu<String?>(
+                initialSelection: _query.condition,
+                expandedInsets: EdgeInsets.zero,
+                requestFocusOnTap: false,
+                dropdownMenuEntries: [
+                  DropdownMenuEntry(
+                    value: null,
+                    label: l10n.casesFilterConditionAny,
+                  ),
+                  for (final label in _conditionOptions)
+                    DropdownMenuEntry(value: label, label: label),
+                ],
+                onSelected: (c) => _apply(
+                  c == null
+                      ? _query.copyWith(clearCondition: true)
+                      : _query.copyWith(condition: c),
                 ),
-                for (final label in _conditionOptions)
-                  DropdownMenuEntry(value: label, label: label),
-              ],
-              onSelected: (c) => _apply(
-                c == null
-                    ? _query.copyWith(clearCondition: true)
-                    : _query.copyWith(condition: c),
               ),
             ),
             const SizedBox(height: AppSpacing.md),

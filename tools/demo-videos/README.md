@@ -229,8 +229,16 @@ Do not tag a widget a label already reaches. Wrap at the federfall call site:
 the shared widgets live in `zugvogel_ui` and are pinned by commit. App edits
 put the repo's gates in force (`dart format`, `flutter analyze`,
 `flutter test`). Neither A3 nor C1 needed one: C1 aims at merged card text
-with `s.focus(anchor, { box })` instead (see "Actions"). The first video
-that does need one documents it here.
+with `s.focus(anchor, { box })` instead (see "Actions"). The ones that exist,
+each with a widget test that pins it:
+
+| Identifier | Where | Why |
+|---|---|---|
+| `case-detail-weight-chart` | the case Overview's weight card (`case_detail_screen.dart`) | no label: fl_chart paints the plot, so the card had no node of its own (A4) |
+| `cases-filter-caseload`, `cases-filter-outcome`, `cases-filter-diagnosis` | the case browser's filter sheet (`cases_screen.dart`) | no label: each picker's caption is a separate `Text`, so its node's name is empty (A6; federfall-1h9z.42) |
+
+A `DropdownMenu`'s entries are `button`s, not `menuitem`s, in the semantics
+tree.
 
 ### Actions
 
@@ -354,6 +362,14 @@ written on camera reads "1 h overdue" a minute later — film its round only
 when it is honestly due, or leave Today out after writing one. Never let a
 video give a dose hours before it is due; change the state in `setup()`
 instead (C1 undoes the morning round).
+
+**Met in A4–A6.** With semantics on, a snackbar that has an action ("Undo")
+stays until another replaces it, and a click on a row beneath it does not
+reach the row (A5 finishes the bottom row first and scrolls the next one
+clear). Escape closes neither a bottom sheet nor the image viewer: tap the
+scrim above the sheet, and the viewer's leading close button (its tooltip is
+Flutter's, not an ARB string). Lists build lazily, so a target below the fold
+is brought in with `s.reveal()` before `s.focus()`, which waits for it first.
 
 ## Time
 
