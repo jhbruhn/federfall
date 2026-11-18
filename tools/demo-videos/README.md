@@ -363,6 +363,21 @@ when it is honestly due, or leave Today out after writing one. Never let a
 video give a dose hours before it is due; change the state in `setup()`
 instead (C1 undoes the morning round).
 
+**Two people in one video** (C2). `signOut()` is one step that leaves the
+way a person does — the account menu, the profile, "Sign out", the
+confirmation — and ends on the sign-in screen; `signIn({ as: 'carer2' })`
+then signs in another seeded person (any key `signInAs` takes). Start the
+sign-out on a top-level screen: a case or an animal opened over a tab has no
+account menu. Signing in returns to where the app was, i.e. the PROFILE of the
+new person — which names them, a good proof of the switch — so the next step
+leaves it with `actionBack`. A session token the video's `setup()` used is
+not affected: the two sign-ins on camera are the app's own.
+
+```js
+...signOut({ title: …, say: … }),
+...signIn({ as: 'carer2' }),
+```
+
 **Met in A4–A6.** With semantics on, a snackbar that has an action ("Undo")
 stays until another replaces it, and a click on a row beneath it does not
 reach the row (A5 finishes the bottom row first and scrolls the next one
@@ -370,6 +385,16 @@ clear). Escape closes neither a bottom sheet nor the image viewer: tap the
 scrim above the sheet, and the viewer's leading close button (its tooltip is
 Flutter's, not an ARB string). Lists build lazily, so a target below the fold
 is brought in with `s.reveal()` before `s.focus()`, which waits for it first.
+
+**Met in C2–C4.** A list whose rows lose their controls (a case the viewer
+may only read, an animal's cases they cannot open) merges into its tab's or
+card's label: aim with `s.focus(anchor, { box })`, prove with `expectText`,
+and scroll with `s.pointer.wheel()`. `s.reveal()` stops as soon as a node's
+box touches the screen, which on a long History can still be under the
+"Eintrag" button: wheel a few clicks further. A text field's value is in
+neither the semantics tree nor the DOM, so what a picker filled in is checked
+in the stills. A search field's name is its hint only while it is empty;
+afterwards find it as the visible textbox (C3, `search()`).
 
 ## Time
 

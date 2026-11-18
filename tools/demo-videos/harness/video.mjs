@@ -27,19 +27,52 @@ export function defineVideo(v) {
 /**
  * The sign-in, as steps: the person the video signs in as types their e-mail
  * and password and signs in. Narration and title are the caller's.
+ *
+ * [as] signs in somebody else — a key of the seeded people, as `signInAs`
+ * takes it — for a video that shows one bird from two sides: `signOut()`, then
+ * `signIn({ as: 'carer2' })`.
  */
-export function signIn({ title, say } = {}) {
+export function signIn({ title, say, as } = {}) {
   return [
     {
-      name: 'sign in',
+      name: as ? `sign in as ${as}` : 'sign in',
       title,
       say,
       run: async (s) => {
-        const { person } = s.data;
-        await s.type(s.textbox('authEmailLabel'), person.email);
-        await s.type(s.textbox('authPasswordLabel'), person.password);
+        const person = as ? s.data.seed.people[as] : s.data.person;
+        if (!person) throw new Error(`signIn: "${as}" is not a seeded person`);
+        // After a sign-out the form may still hold the last address.
+        await s.type(s.textbox('authEmailLabel'), person.email, { clear: Boolean(as) });
+        await s.type(s.textbox('authPasswordLabel'), person.password, { clear: Boolean(as) });
         await s.click(s.button('authSignInAction'));
         await s.gone(s.button('authSignInAction'), { timeout: 20_000, what: 'the sign-in screen' });
+      },
+    },
+  ];
+}
+
+/**
+ * Signing out the way a person does, as one step: the account menu, the
+ * profile, "Sign out", the confirmation. Ends on the sign-in screen, ready for
+ * `signIn({ as })`. Start it from a top-level screen (one that shows the
+ * account menu — not a case or animal opened over it).
+ */
+export function signOut({ title, say } = {}) {
+  return [
+    {
+      name: 'sign out',
+      title,
+      say,
+      run: async (s) => {
+        await s.click(s.button('accountTooltip'));
+        await s.click(s.role('menuitem', s.t('profileTitle')));
+        await s.click(s.button('authSignOutAction'));
+        // The dialog's confirm button carries the same label; the profile's
+        // own button is behind the dialog's barrier, out of the tree.
+        await s.expectText(s.t('authSignOutConfirm'));
+        await s.click(s.button('authSignOutAction'));
+        await s.waitFor(s.textbox('authEmailLabel'), { timeout: 20_000, what: 'the sign-in screen' });
+        await s.rest();
       },
     },
   ];
