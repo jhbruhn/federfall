@@ -208,13 +208,20 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
     browser = null;
     display.stop();
     display = null;
-    if (noExport) {
-      result.status = 'captured';
-      return;
-    }
+    if (noExport) result.status = 'captured';
+    else exportArgs = { docFile, durationMs: meta.durationMs };
+  };
+
+  // The export runs outside the whole-run budget: that budget is for a hung
+  // app, and exportClip has its own hang guard, scaled to the clip's length.
+  // On a slow host (a hosted CI runner) the export alone outlasted 8 min.
+  let exportArgs = null;
+  const exportAndPublish = async () => {
+    if (!exportArgs) return;
+    const { docFile, durationMs } = exportArgs;
     exportDisplay = await startDisplay({ width: 640, height: 480, dpr: 1 }, { log: logStream(dir, 'xvfb-export.log') });
     const exported = path.join(dir, 'export.mp4');
-    const out = await exportClip({ docFile, outFile: exported, durationMs: meta.durationMs,
+    const out = await exportClip({ docFile, outFile: exported, durationMs,
       display: exportDisplay.display, log: logStream(dir, 'openscreen.log') });
     mark('exported');
     log(`exported ${out.width}x${out.height}, ${out.durationMs} ms`);
@@ -228,6 +235,7 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
   const budgetMs = video.maxMs ?? 8 * 60_000;
   try {
     await withTimeout(body(), budgetMs, `the whole run (${budgetMs / 1000} s)`);
+    await exportAndPublish();
   } catch (e) {
     aborted = true;
     result.error = e instanceof DemoError ? e.message : String(e?.stack ?? e);

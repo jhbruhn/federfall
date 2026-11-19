@@ -96,7 +96,9 @@ jobs:
     needs: [plan, images]
     # OpenScreen ships amd64 only (runner/Containerfile).
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # Two attempts, each a capture plus an export that runs several times
+    # slower here than on a desktop (lavapipe on 4 vCPUs).
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:

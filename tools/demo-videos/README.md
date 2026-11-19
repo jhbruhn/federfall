@@ -163,8 +163,10 @@ export default defineVideo({
 A step does something, then **holds** so a viewer can follow. Its duration is
 the longest of: what `run` takes; `run` plus `hold` (default 700 ms); the
 caption's reading time (about 62 ms per character, at least 1.8 s); `minMs`.
-Each step has a timeout (`timeoutMs`, default 30 s); the whole run has one too
-(`maxMs`, default 8 min).
+Each step has a timeout (`timeoutMs`, default 30 s); the whole run up to the
+finished capture has one too (`maxMs`, default 8 min). The export is not part
+of it: it has its own hang guard, scaled to the clip's length, because on a
+slow host (a hosted CI runner) the export alone can take longer than 8 min.
 
 - `title` — on-screen text in the band above the app. It stays until the next
   step with a title, so give the first step on a new screen one.
