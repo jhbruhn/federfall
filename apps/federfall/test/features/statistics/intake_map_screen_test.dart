@@ -110,6 +110,8 @@ void main() {
     await pump(tester);
 
     expect(find.byIcon(Icons.location_on), findsOneWidget);
+    // An icon with no label: the demo videos find a pin by this id.
+    expect(find.bySemanticsIdentifier('intake-map-pin'), findsOneWidget);
   });
 
   testWidgets(

@@ -241,7 +241,15 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         ),
       ]);
 
-  Widget _chartCard(AppLocalizations l10n, OrgStatistics s) => Card(
+  // The plot has no semantics node of its own (fl_chart paints it), so the
+  // demo videos aim at the card by this id (federfall-1h9z.31).
+  Widget _chartCard(AppLocalizations l10n, OrgStatistics s) => Semantics(
+    container: true,
+    identifier: 'statistics-intake-chart',
+    child: _chartCardBody(l10n, s),
+  );
+
+  Widget _chartCardBody(AppLocalizations l10n, OrgStatistics s) => Card(
     child: Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Builder(

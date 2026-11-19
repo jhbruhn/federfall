@@ -42,16 +42,20 @@ export const LOOK = {
     title: { y: 4, height: 6, width: 64, fontSize: 34 },
     captions: { fontSize: 28, insetY: 3, insetX: 6 },
   },
+  // A 16:9 source in a 16:9 frame has no bands of its own: `padding` makes
+  // them. 45 puts the footage at 82 % (1574×886, ~1.23 output px per CSS
+  // px) with a 97 px band above for the title and below for a one-line
+  // caption — at this width a whole cue (CUE.maxChars) fits on one line.
   desktop: {
     aspectRatio: '16:9',
     out: { width: 1920, height: 1080 },
-    padding: 8,
+    padding: 45,
     wallpaper: 'linear-gradient(160deg, #1f4d3a 0%, #2f6b4f 55%, #3d7d5f 100%)',
     borderRadius: 16,
     shadowIntensity: 0,
-    mask: { radius: 14, inset: 1.5, shadow: { color: 'rgba(0,0,0,0.62)', blur: 48, y: 14 } },
-    title: { y: 1.5, height: 7, width: 40, fontSize: 36 },
-    captions: { fontSize: 36, insetY: 1.5, insetX: 10 },
+    mask: { radius: 14, inset: 1.5, shadow: { color: 'rgba(0,0,0,0.62)', blur: 40, y: 12 } },
+    title: { y: 1.4, height: 6.4, width: 36, fontSize: 34 },
+    captions: { fontSize: 32, insetY: 1.2, insetX: 10 },
   },
 };
 

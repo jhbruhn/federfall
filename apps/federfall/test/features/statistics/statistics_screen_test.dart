@@ -179,6 +179,11 @@ void main() {
 
     expect(find.text('Intakes over time'), findsOneWidget);
     expect(find.byType(IntakeSeriesChart), findsOneWidget);
+    // The plot has no node of its own; the demo videos aim at the card by id.
+    expect(
+      find.bySemanticsIdentifier('statistics-intake-chart'),
+      findsOneWidget,
+    );
     // The legend names both years, so a bar's colour is readable as a period.
     expect(find.text('2026'), findsWidgets);
     expect(find.text('2025'), findsWidgets);

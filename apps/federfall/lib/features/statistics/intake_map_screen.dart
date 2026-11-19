@@ -209,12 +209,17 @@ class _IntakeMapScreenState extends ConsumerState<IntakeMapScreen> {
                       width: 40,
                       height: 40,
                       alignment: Alignment.topCenter,
-                      child: GestureDetector(
-                        onTap: () => _showLocationSheet(context, location),
-                        child: Icon(
-                          Icons.location_on,
-                          size: 40,
-                          color: Theme.of(context).colorScheme.error,
+                      // A pin is an icon with no label, so the demo videos
+                      // find one by this id (federfall-1h9z.31).
+                      child: Semantics(
+                        identifier: 'intake-map-pin',
+                        child: GestureDetector(
+                          onTap: () => _showLocationSheet(context, location),
+                          child: Icon(
+                            Icons.location_on,
+                            size: 40,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                         ),
                       ),
                     ),

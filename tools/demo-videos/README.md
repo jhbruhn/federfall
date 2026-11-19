@@ -236,6 +236,8 @@ each with a widget test that pins it:
 |---|---|---|
 | `case-detail-weight-chart` | the case Overview's weight card (`case_detail_screen.dart`) | no label: fl_chart paints the plot, so the card had no node of its own (A4) |
 | `cases-filter-caseload`, `cases-filter-outcome`, `cases-filter-diagnosis` | the case browser's filter sheet (`cases_screen.dart`) | no label: each picker's caption is a separate `Text`, so its node's name is empty (A6; federfall-1h9z.42) |
+| `statistics-intake-chart` | the statistics screen's "Intakes over time" card (`statistics_screen.dart`) | no label: fl_chart paints the plot (C7) |
+| `intake-map-pin` | every pin on the intake map (`intake_map_screen.dart`) | no label: an icon with a tap handler; one id for all pins, the script picks one by position (C7) |
 
 A `DropdownMenu`'s entries are `button`s, not `menuitem`s, in the semantics
 tree.
@@ -385,6 +387,20 @@ clear). Escape closes neither a bottom sheet nor the image viewer: tap the
 scrim above the sheet, and the viewer's leading close button (its tooltip is
 Flutter's, not an ARB string). Lists build lazily, so a target below the fold
 is brought in with `s.reveal()` before `s.focus()`, which waits for it first.
+
+**Met in C5 and C7.** A pointer left on a case's tab bar (where the case row
+was clicked) makes `reveal()` wheel the tab bar, which does not scroll: rest
+it over the content first. Escape does close the sponsorship and outcome
+sheets and the intake-map pin sheet. A KPI tile on the statistics screen is a
+node of its own whose text is a child span, so `s.text()` also matches every
+ancestor: aim at the innermost one
+(`flt-semantics:not(:has(flt-semantics))` filtered by text). A zoom only helps
+what fits its window: a banner or chart wider than the window is cut at its
+trailing edge, so read those unzoomed. A file the video shows (C7's report)
+is opened in the same app window with `s.page.goto('file://…')` — Chromium's
+PDF viewer, no browser chrome — and is then scrolled with the wheel (its
+`#page=` fragment does not move the viewer after loading). Nothing in it is
+in the semantics tree, so it can only be proven in the stills.
 
 **Met in C2–C4.** A list whose rows lose their controls (a case the viewer
 may only read, an animal's cases they cannot open) merges into its tab's or
@@ -564,7 +580,9 @@ which name per language; `generate.mjs` regenerates them). Replace a file to
 use a real photo — no code change.
 
 **Per-video additions** belong in that video's `setup()`, not in the base
-dataset.
+dataset. C5 adds Tarek's *Gartenvoliere / Garden aviary* (set up by Malte,
+kept by Tarek) to move Hinkebein into; C7 fetches the annual report from the
+server route the PDF button calls.
 
 
 ## Viewports
@@ -574,7 +592,14 @@ dataset.
 | | CSS px | DPR | Capture | Export |
 |---|---|---|---|---|
 | `phone` | 412×800 | 2 | 824×1600 | 1080×1920, 9:16 |
-| `desktop` | 1280×720 | 1.5 | 1920×1080 | 1920×1080, 16:9 — **not yet recorded** |
+| `desktop` | 1280×720 | 1.5 | 1920×1080 | 1920×1080, 16:9 (C7) |
+
+At 1280 CSS px the app uses its expanded layout: a navigation rail with the
+account items (Profil, Statistik) at its foot instead of the account menu, and
+the case list as a two-pane list/detail. `signIn()`/`signOut()` are not tried
+on desktop yet (`signOut()` uses the account menu, which the rail replaces).
+The case list's narrow pane is where the garbled-text glitch (see "Known
+limits") shows most often.
 
 ## Look
 
@@ -611,6 +636,16 @@ Decided by looking at exported frames (`out/work/*/` + `ffmpeg -ss … -frames:v
   cap allows ~2.3×; depth 3 (1.8×) zooms stay sharp. DPR 3 would allow deeper
   zooms at 2.25× the pixels for SwiftShader to render and x11grab to encode;
   not needed for depth 3.
+- **Desktop: 16:9 at 1920×1080** (`LOOK.desktop`). A 16:9 source in a 16:9
+  frame has no bands of its own, so `padding: 45` makes them: the footage at
+  82 % (1574×886, ~1.23 output px per CSS px) with a 97 px band above for the
+  title and one below for the caption. At this width a whole cue fits on one
+  line, so the bottom band needs only one line. The same mask/hole mechanism
+  as the phone; checked against an export (hole edges, rounded corners, a
+  depth-2 zoom staying inside the box). Zooms up to depth 3 stay under
+  OpenScreen's 2× cap (1.8 × 1.23 ≈ 2.2 output px per CSS px from a 1.5 DPR
+  source). The cursor is drawn at the same output size as on the phone, so
+  it looks larger relative to the app.
 - **Text**: Roboto (the app's own face), from the image, so every host renders
   the same.
 
@@ -674,5 +709,10 @@ tiles.
 - The intake photo is an illustration (`assets/pigeon.svg`), not a photograph.
 - Not shown on the web: anything native (camera, notifications, the device
   calendar, printing).
+- The report export's share step fails on the stage's Chromium (no Web Share
+  on Linux; federfall-1h9z.46), so C7 does not tap "PDF report": it opens the
+  same report, fetched from the same route for the same period and person.
+- A PDF the server builds carries the server's real time ("created at"), not
+  the app's 09:40 — the same limit as `created` (see "Time").
 - Apt packages in the runner image float with the base image's Debian release
   (the base itself is pinned by digest).
