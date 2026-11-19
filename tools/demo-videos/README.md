@@ -534,7 +534,8 @@ records arrived wearing, recorded as found with it.
 Kalle — Henrik Jansen 120 €/year; Tjark — a school class 5 €/month; Frieda —
 Anke Lorenz 10 €/month, **ended**; Ole — Jonas Albers 20 €/month, still running
 although **Ole was released** (no keeper can reach it). Totals: 6 running,
-60,00 € a month, 50,00 € one-off — C5, C6.
+60,00 € a month, 50,00 € one-off — C5 (which also covers the patronage
+overview, formerly C6).
 
 **Vocabulary.** Every code list in both languages; the drug catalogue
 with INVENTED product names, each with what it is for as its note:
@@ -581,7 +582,8 @@ use a real photo — no code change.
 
 **Per-video additions** belong in that video's `setup()`, not in the base
 dataset. C5 adds Tarek's *Gartenvoliere / Garden aviary* (set up by Malte,
-kept by Tarek) to move Hinkebein into; C7 fetches the annual report from the
+kept by Tarek) to move Hinkebein into, and Tarek's handback of Hinkebein's
+case to Lena that morning (so she may record the move); C7 fetches the annual report from the
 server route the PDF button calls.
 
 
