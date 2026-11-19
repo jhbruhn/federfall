@@ -15,7 +15,13 @@ part 'pending_case_query.g.dart';
 /// mount, or via a listener if it was already alive — and [clear]s it. This
 /// makes a KPI tap *jump to the Cases tab* (keeping the bottom nav) rather than
 /// push a full-screen browser over the shell. Null when nothing is pending.
-@riverpod
+///
+/// Kept alive: between the tap that queues a filter and the Cases tab that
+/// consumes it, nothing may be listening. The statistics screen lives outside
+/// the shell, so leaving it rebuilds the tab a frame later — an auto-disposed
+/// query was gone by then, and every breakdown row opened the unfiltered list.
+/// It holds one small value and is cleared on consumption.
+@Riverpod(keepAlive: true)
 class PendingCaseQuery extends _$PendingCaseQuery {
   @override
   CaseQuery? build() => null;

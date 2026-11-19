@@ -286,10 +286,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The pending query is auto-disposed once nothing listens to it, which in
-    // production is the Cases tab consuming it on mount. The stub route here
-    // doesn't, so hold a subscription open for the assertion below.
-    container.listen(pendingCaseQueryProvider, (_, _) {});
+    // Deliberately NO subscription held open here: in production the Cases
+    // tab mounts a frame AFTER the tap (statistics lives outside the shell, so
+    // the tab was disposed), and a query nothing listens to in between must
+    // survive that gap (federfall-1h9z.31 found it lost on camera).
 
     // The chart names it too; the tappable one is the row beneath it.
     await tester.tap(find.text('Katzenbiss').last);
@@ -390,7 +390,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    container.listen(pendingCaseQueryProvider, (_, _) {});
 
     await tester.tap(find.text('Stadttaube').first);
     await tester.pumpAndSettle();
