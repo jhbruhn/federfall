@@ -1567,5 +1567,20 @@
         }
     },
     "auditFactCaseNow": "Fall jetzt",
-    "auditFactAnimalNow": "Vogel jetzt"
+    "auditFactAnimalNow": "Vogel jetzt",
+    "careAreasTitle": "Bereiche",
+    "careAreasManage": "Bereiche verwalten",
+    "careAreasIntro": "Bereiche sind die Orte, an denen deine Vögel bei dir untergebracht sind – etwa „Quarantänezimmer“ oder „Garage“. Deine Fallliste wird danach geordnet; ziehe sie in die Reihenfolge, in der du sie durchgehst.",
+    "careAreasEmpty": "Du hast noch keine Bereiche angelegt.",
+    "careAreaAdd": "Bereich hinzufügen",
+    "careAreaFieldName": "Name des Bereichs",
+    "careAreaRename": "Umbenennen",
+    "careAreaDelete": "Löschen",
+    "careAreaDeleteTitle": "Bereich löschen?",
+    "careAreaDeleteBody": "Die Fälle in „{name}“ bleiben erhalten und stehen danach ohne Bereich da.",
+    "caseAreaLabel": "Bereich",
+    "caseAreaNone": "Ohne Bereich",
+    "caseAreaAssign": "Bereich zuweisen",
+    "caseAreaPickerTitle": "Wo ist der Vogel untergebracht?",
+    "caseAreaPickerOtherCarer": "Es stehen die Bereiche von {name} zur Auswahl, denn der Fall liegt bei dieser Person."
 }

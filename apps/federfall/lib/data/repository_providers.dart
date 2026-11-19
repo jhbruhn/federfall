@@ -71,6 +71,10 @@ Future<PbAviaryStaysRepository> aviaryStaysRepository(Ref ref) async =>
     PbAviaryStaysRepository(await _client(ref));
 
 @Riverpod(keepAlive: true)
+Future<PbCareAreasRepository> careAreasRepository(Ref ref) async =>
+    PbCareAreasRepository(await _client(ref));
+
+@Riverpod(keepAlive: true)
 Future<PbConditionsRepository> conditionsRepository(Ref ref) async =>
     PbConditionsRepository(await _client(ref));
 

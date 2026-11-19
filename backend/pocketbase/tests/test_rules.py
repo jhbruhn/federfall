@@ -5444,6 +5444,66 @@ def main():
     )
 
 
+    # ── federfall-r67n: care areas — a carer's own rooms ────────────────────
+    print("\n[care areas]")
+    s, ar_a = req("POST", "/api/collections/care_areas/records", toks["a"],
+                  {"name": "Quarantänezimmer", "position": 0, "owner": A,
+                   "org": ORG})
+    check("a carer creates an area of their own", s == 200, f"{s} {ar_a}")
+    ar_a = (ar_a or {}).get("id", "")
+    s, _ = req("POST", "/api/collections/care_areas/records", toks["a"],
+               {"name": "Fremde Garage", "owner": B, "org": ORG})
+    check("...but not one owned by somebody else", s >= 400, f"status {s}")
+    ar_b = mk(T, "care_areas", {"name": "Garage", "owner": B,
+                                "org": ORG})["id"]
+    check("areas are readable org-wide",
+          {ar_a, ar_b} <= {r["id"] for r in listf(toks["b"], "care_areas",
+                                                   "id != ''")}, "not listed")
+    s, _ = req("PATCH", f"/api/collections/care_areas/records/{ar_b}",
+               toks["a"], {"name": "Meine Garage"})
+    check("only the owner renames an area", s == 404, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/care_areas/records/{ar_a}",
+               toks["a"], {"owner": B})
+    check("an area cannot be given away", s == 404, f"status {s}")
+    s, _ = req("PATCH", f"/api/collections/care_areas/records/{ar_a}",
+               toks["a"], {"name": "Quarantäne", "position": 1})
+    check("the owner renames and reorders", s == 200, f"status {s}")
+
+    ar_case = mk(T, "cases", {"animal": animal, "active_carer": A,
+                              "org": ORG})["id"]
+    ar_path = f"/api/collections/cases/records/{ar_case}"
+    s, _ = req("PATCH", ar_path, toks["a"], {"area": ar_b})
+    check("a case cannot be put in another carer's area", s == 400,
+          f"status {s}")
+    s, d = req("PATCH", ar_path, toks["a"], {"area": ar_a})
+    check("the carer puts their case in their own area",
+          s == 200 and d.get("area") == ar_a, f"{s} {d}")
+    # The move is audited as the case.updated it is, and names the room — the
+    # entry sits in RELATION_FIELDS rather than RELATION_TARGETS because
+    # `placements.area` is free text.
+    _, d = req("GET", "/api/collections/audit_events/records?sort=-created"
+               "&perPage=5&filter=" + urllib.parse.quote(
+                   f'subject_id = "{ar_case}" && action = "case.updated"'),
+               toks["sup"])
+    ar_ch = [c for r in (d or {}).get("items", [])[:1]
+             for c in (r.get("changes") or []) if c.get("field") == "area"]
+    check("an area move is audited by the room's name",
+          bool(ar_ch) and ar_ch[0].get("to_label") == "Quarantäne", ar_ch)
+    s, _ = req("POST", "/api/collections/placements/records", toks["a"],
+               {"case": ar_case, "to_user": B, "org": ORG})
+    _, d = req("GET", ar_path, T)
+    check("a handoff empties the previous carer's area",
+          s == 200 and d.get("active_carer") == B and d.get("area") == "",
+          f"{s} {d.get('active_carer')} {d.get('area')!r}")
+    s, d = req("PATCH", ar_path, toks["b"], {"area": ar_b})
+    check("...and the new carer places it in theirs",
+          s == 200 and d.get("area") == ar_b, f"{s} {d}")
+    s, _ = req("DELETE", f"/api/collections/care_areas/records/{ar_b}",
+               toks["b"])
+    _, d = req("GET", ar_path, T)
+    check("deleting an area frees its cases rather than refusing",
+          s == 204 and d.get("area") == "", f"{s} {d.get('area')!r}")
+
     # ── federfall-h5m: handoff derived from the placement record ────────────
     print("\n[atomic handoff via placement]")
     hc = mk(T, "cases", {"animal": animal, "active_carer": A, "org": ORG})["id"]
@@ -7124,6 +7184,11 @@ def main():
         "aviary_stays": "derived from animals.current_aviary by its own hook; "
                         "the move is audited as that animal.updated, and a "
                         "dashboard write is deliberately not a second event",
+        # federfall-r67n. A carer naming the rooms of their own home is
+        # housekeeping, not a record about a bird; putting a bird INTO one is
+        # what matters, and that is audited as the case.updated it is.
+        "care_areas": "a carer's own room names; moving a case into one is "
+                      "audited as case.updated (RELATION_TARGETS `area`)",
     }
 
     lib = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -7412,7 +7477,12 @@ def main():
             "org": "frozen",
             "admission_reasons": "hook:org_scope.pb.js — mutable: correcting "
                                  "intake reasons, onto the org code list",
+            "area": "hook:org_scope.pb.js + hook:care_areas.pb.js — mutable: "
+                    "the room the bird is in; only the active carer's own",
         },
+        # 1700000097: an area is its owner's for good — renaming is the only
+        # edit, so neither relation ever moves.
+        "care_areas": {"owner": "frozen", "org": "frozen"},
         "conditions": {"org": "frozen"},
         "dispositions": {
             "case": "frozen",

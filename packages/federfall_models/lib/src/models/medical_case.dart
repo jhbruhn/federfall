@@ -44,6 +44,11 @@ abstract class Case with _$Case {
     @Default(false) bool isReleasable,
     String? activeCarer,
 
+    /// The `care_areas` room the bird is housed in right now — one of the
+    /// active carer's own (federfall-r67n). Null when unassigned; the server
+    /// empties it on a handoff and when the case closes.
+    String? area,
+
     String? org,
     DateTime? created,
     DateTime? updated,
@@ -75,6 +80,7 @@ abstract class Case with _$Case {
       status: CaseStatus.fromWire(d['status']),
       isReleasable: pbBool(d['is_releasable']),
       activeCarer: pbString(d['active_carer']),
+      area: pbString(d['area']),
       org: pbString(d['org']),
       created: pbDate(d['created']),
       updated: pbDate(d['updated']),

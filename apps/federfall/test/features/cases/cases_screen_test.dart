@@ -4,6 +4,7 @@ import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/features/admin/admin_providers.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/animal_species_providers.dart';
+import 'package:federfall/features/cases/areas/care_areas_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_screen.dart';
 import 'package:federfall/features/cases/conditions/conditions_providers.dart';
@@ -54,6 +55,8 @@ Future<List<CaseQuery>> _pump(
   bool hasMore = false,
   void Function()? onLoadMore,
   bool settle = true,
+  List<String> areaSections = const [],
+  List<CareArea> areas = const [],
 }) async {
   // Compact width so the account menu sits in the app bar (on wider widths it
   // moves to the navigation rail, which this standalone screen has no shell to
@@ -77,8 +80,10 @@ Future<List<CaseQuery>> _pump(
             onQuery: asked.add,
             hasMore: hasMore,
             onLoadMore: onLoadMore,
+            areaSections: areaSections,
           ),
         ),
+        careAreasProvider.overrideWith((ref) async => areas),
         currentUserProvider.overrideWith((ref) async => user),
         pendingCaseQueryProvider.overrideWith(() => _SeededPending(pending)),
         recordedConditionsProvider.overrideWith((ref) async => recorded),
@@ -164,6 +169,64 @@ const _theirs = Case(
 );
 
 void main() {
+  group('care areas (federfall-r67n)', () {
+    testWidgets('a grouped list heads each room, "no area" last', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        areaSections: const ['quar', 'garage', ''],
+        areas: const [
+          CareArea(id: 'quar', name: 'Quarantine room', owner: 'me'),
+          CareArea(id: 'garage', name: 'Garage', owner: 'me', position: 1),
+        ],
+        cases: const [
+          Case(id: 'c1', animal: 'a1', caseNumber: '2026-001', area: 'quar'),
+          Case(id: 'c2', animal: 'a2', caseNumber: '2026-002', area: 'quar'),
+          // A room the device does not know yet reads as "no area" rather
+          // than heading a section of its own with a raw id.
+          Case(id: 'c3', animal: 'a3', caseNumber: '2026-003', area: 'new'),
+        ],
+      );
+
+      final quar = tester.getTopLeft(find.text('Quarantine room')).dy;
+      final first = tester.getTopLeft(find.text('2026-001')).dy;
+      final none = tester.getTopLeft(find.text('No area')).dy;
+      final last = tester.getTopLeft(find.text('2026-003')).dy;
+      expect(quar, lessThan(first));
+      expect(first, lessThan(none));
+      expect(none, lessThan(last));
+      // An empty room draws no heading.
+      expect(find.text('Garage'), findsNothing);
+      // One heading per room, not per row.
+      expect(find.text('Quarantine room'), findsOneWidget);
+    });
+
+    testWidgets('an ungrouped list draws no headings', (tester) async {
+      await _pump(
+        tester,
+        cases: const [Case(id: 'c1', animal: 'a1', caseNumber: '2026-001')],
+      );
+
+      expect(find.text('No area'), findsNothing);
+    });
+
+    testWidgets('the app bar opens the area management', (tester) async {
+      await _pump(
+        tester,
+        user: const AppUser(id: 'me', email: 'me@f.local'),
+        areas: const [CareArea(id: 'quar', name: 'Quarantine', owner: 'me')],
+      );
+
+      await tester.tap(find.byTooltip('Manage areas'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Areas'), findsOneWidget);
+      expect(find.text('Quarantine'), findsOneWidget);
+      expect(find.text('Add area'), findsOneWidget);
+    });
+  });
+
   testWidgets('shows the empty state when there are no cases', (tester) async {
     await _pump(tester);
     expect(find.text('No cases yet'), findsOneWidget);

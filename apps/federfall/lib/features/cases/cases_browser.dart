@@ -1,6 +1,7 @@
 import 'package:federfall/core/async/parallel_wait.dart';
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/areas/care_areas_providers.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
 import 'package:material_ui/material_ui.dart';
@@ -286,6 +287,8 @@ class CaseBrowseState {
     this.animalsById = const {},
     this.diagnosesByCase = const {},
     this.lastActivityByCase = const {},
+    this.areaSections = const [],
+    this.section = 0,
     this.cursor,
     this.hasMore = false,
     this.loadingMore = false,
@@ -309,8 +312,21 @@ class CaseBrowseState {
   /// the row's quiet-for-N-days marker (federfall-78k6.4).
   final Map<String, DateTime> lastActivityByCase;
 
+  /// The rooms this list is grouped by, in their owner's order, with `''`
+  /// ("in no area") last — or empty when the list is not grouped at all
+  /// (federfall-r67n). See [CaseBrowseFeed] for when it is.
+  final List<String> areaSections;
+
+  /// The index into [areaSections] that [cursor] belongs to. Meaningless while
+  /// [areaSections] is empty.
+  final int section;
+
+  /// Whether rows come in area sections — the list draws a header above the
+  /// first row of each.
+  bool get grouped => areaSections.isNotEmpty;
+
   /// Where the next page resumes from — see [PbReadOnlyRepository.page] on why
-  /// this is a cursor and not a page number.
+  /// this is a cursor and not a page number. Within [section] when grouped.
   final PbCursor? cursor;
   final bool hasMore;
 
@@ -332,6 +348,7 @@ typedef _CasePage = ({
   Map<String, Animal> animalsById,
   Map<String, List<CaseCondition>> diagnosesByCase,
   Map<String, DateTime> lastActivityByCase,
+  int section,
   PbCursor? cursor,
   bool hasMore,
 });
@@ -342,6 +359,16 @@ typedef _CasePage = ({
 /// Every facet is resolved by the server; the device receives the rows it is
 /// about to draw. Keyed on the query, so changing a filter builds a new list
 /// from the top rather than mixing pages that answered different questions.
+///
+/// **Grouped by room** (federfall-r67n) whenever the list is one person's
+/// caseload — "mine" or a named carer — and that person keeps any areas: the
+/// rows then come area by area in the owner's order, "in no area" last. A
+/// keyset page has exactly one sort key, so the order cannot be asked of the
+/// server in one query; instead each area is its own filtered query, paged by
+/// the usual key, and the feed walks them in turn — [CaseBrowseState.section]
+/// is the second half of the cursor. An empty room costs one short request.
+/// The "all cases" scope stays ungrouped: it spans every carer's rooms, and a
+/// list of forty sections, most of them somebody else's, groups nothing.
 @riverpod
 class CaseBrowseFeed extends _$CaseBrowseFeed {
   /// Rows per request. Comfortably more than one screenful, so the common case
@@ -364,6 +391,7 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
     final browse = query.toBrowseQuery(myUserId ?? '');
 
     if (query.matchesNothing) return CaseBrowseState(browse: browse);
+    final sections = await _areaSectionsFor(browse.activeCarer);
 
     final (casesRepo, animalsRepo, conditionsRepo, activityRepo) = await (
       ref.watch(casesRepositoryProvider.future),
@@ -377,6 +405,8 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
       conditionsRepo,
       activityRepo,
       browse,
+      sections: sections,
+      section: 0,
       after: null,
     );
     return CaseBrowseState(
@@ -385,9 +415,30 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
       animalsById: loaded.animalsById,
       diagnosesByCase: loaded.diagnosesByCase,
       lastActivityByCase: loaded.lastActivityByCase,
+      areaSections: sections,
+      section: loaded.section,
       cursor: loaded.cursor,
       hasMore: loaded.hasMore,
     );
+  }
+
+  /// The sections [owner]'s caseload is grouped into: their areas in their
+  /// order, then `''` for the cases in none — or nothing at all, for a list
+  /// that is not one person's or a person with no areas.
+  ///
+  /// A failure to read the areas degrades to an ungrouped list rather than
+  /// failing it: the rooms are an ordering, the cases are the content.
+  Future<List<String>> _areaSectionsFor(String? owner) async {
+    if (owner == null || owner.isEmpty) return const [];
+    try {
+      final areas = areasOwnedBy(
+        await ref.watch(careAreasProvider.future),
+        owner,
+      );
+      return areas.isEmpty ? const [] : [for (final a in areas) a.id, ''];
+    } on Object {
+      return const [];
+    }
   }
 
   /// Appends the next page. Safe to call repeatedly — it is a no-op while a
@@ -419,6 +470,8 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
         animalsById: current.animalsById,
         diagnosesByCase: current.diagnosesByCase,
         lastActivityByCase: current.lastActivityByCase,
+        areaSections: current.areaSections,
+        section: current.section,
         cursor: current.cursor,
         hasMore: current.hasMore,
         loadingMore: true,
@@ -437,6 +490,8 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
         conditionsRepo,
         activityRepo,
         current.browse,
+        sections: current.areaSections,
+        section: current.section,
         after: current.cursor,
       );
       state = AsyncData(
@@ -452,6 +507,8 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
             ...current.lastActivityByCase,
             ...next.lastActivityByCase,
           },
+          areaSections: current.areaSections,
+          section: next.section,
           cursor: next.cursor,
           hasMore: next.hasMore,
         ),
@@ -467,6 +524,8 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
           animalsById: current.animalsById,
           diagnosesByCase: current.diagnosesByCase,
           lastActivityByCase: current.lastActivityByCase,
+          areaSections: current.areaSections,
+          section: current.section,
           cursor: current.cursor,
           hasMore: current.hasMore,
           pageError: error,
@@ -496,35 +555,56 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
   /// the result set is exhausted, bounded by [_maxPagesPerLoad] so one
   /// `loadMore` cannot turn into an unbounded scan. Hitting that bound is not
   /// an end state: the cursor still advances, so the next call resumes.
+  ///
+  /// Grouped by area, an exhausted section is not the end either: the next
+  /// one starts from no cursor, and the loop carries on into it until a page's
+  /// worth of rows is in hand — otherwise a handful of rooms holding two birds
+  /// each would cost one scroll-triggered round trip per room.
   Future<_CasePage> _load(
     CasesRepository casesRepo,
     PbAnimalsRepository animalsRepo,
     PbCaseConditionsRepository conditionsRepo,
     PbCaseLastActivityRepository activityRepo,
     CaseBrowseQuery browse, {
+    required List<String> sections,
+    required int section,
     required PbCursor? after,
   }) async {
     final outcome = browse.outcome;
-    final maxPages = outcome == null ? 1 : _maxPagesPerLoad;
+    final maxPages = (outcome == null ? 1 : _maxPagesPerLoad) + sections.length;
     final cases = <Case>[];
+    var current = section;
     var cursor = after;
     var hasMore = false;
     var pages = 0;
     do {
       final page = await casesRepo.browse(
-        query: browse,
+        query: _sectionQuery(browse, sections, current),
         after: cursor,
         perPage: _pageSize,
       );
-      cursor = page.cursor;
-      hasMore = page.hasMore;
       pages++;
       cases.addAll(
         outcome == null
             ? page.items
             : await _refineToTerminalOutcome(page.items, outcome),
       );
-    } while (cases.isEmpty && hasMore && pages < maxPages);
+      if (page.hasMore) {
+        cursor = page.cursor;
+        hasMore = true;
+      } else if (current + 1 < sections.length) {
+        current++;
+        cursor = null;
+        hasMore = true;
+      } else {
+        cursor = null;
+        hasMore = false;
+      }
+    } while (hasMore &&
+        pages < maxPages &&
+        // Keep going while nothing survived (the outcome facet), or while a
+        // section just ended short of a page.
+        (cases.isEmpty || (cursor == null && cases.length < _pageSize)));
 
     final caseIds = [for (final c in cases) c.id];
     final (animals, diagnoses, activity) = await (
@@ -546,9 +626,27 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
       lastActivityByCase: {
         for (final a in activity) a.id: ?a.lastActivity,
       },
+      section: current,
       cursor: cursor,
       hasMore: hasMore,
     );
+  }
+
+  /// What [section] of [sections] asks the server: that one area, or — for
+  /// the trailing `''` — every case in none of the others.
+  static CaseBrowseQuery _sectionQuery(
+    CaseBrowseQuery browse,
+    List<String> sections,
+    int section,
+  ) {
+    if (sections.isEmpty) return browse;
+    final area = sections[section];
+    return area.isNotEmpty
+        ? browse.inArea(area)
+        : browse.outside([
+            for (final a in sections)
+              if (a.isNotEmpty) a,
+          ]);
   }
 
   /// The unresolved diagnoses of [caseIds], grouped by case. One place, so
@@ -603,6 +701,8 @@ class CaseBrowseFeed extends _$CaseBrowseFeed {
           animalsById: latest.animalsById,
           diagnosesByCase: diagnoses,
           lastActivityByCase: latest.lastActivityByCase,
+          areaSections: latest.areaSections,
+          section: latest.section,
           cursor: latest.cursor,
           hasMore: latest.hasMore,
           pageError: latest.pageError,

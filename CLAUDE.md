@@ -378,6 +378,21 @@ ONE `vaccination.batch_recorded` rather than N creates. `VaccinationFormModel` /
 `VaccinationFields` are shared by the single and batch sheets so the two cannot ask
 different questions.
 
+**Care areas are a carer's own rooms** (federfall-r67n, 1700000097): `care_areas` rows
+(„Quarantänezimmer", „Garage") are OWNED by one user — org-readable, owner-writable,
+`owner`/`org` frozen — and `cases.area` points at one. `care_areas.pb.js` keeps the
+invariant the rule cannot (it compares two fields of the incoming record): a case's area
+belongs to its ACTIVE CARER. Pointing it at anyone else's is refused; a handoff or the case
+closing EMPTIES it instead, on the model event, because both writers save server-side.
+Deleting an area just un-sets it on its cases. The case browser groups the "mine" / named-carer
+caseload by that person's areas: `PbReadOnlyRepository.page()` has one keyset key, so
+`CaseBrowseFeed` asks one filtered query per area in the owner's `position` order and walks
+them (`CaseBrowseState.section` is the second half of the cursor); the trailing section is
+"in none of the KNOWN areas" (`outsideAreas`), not `area = ""`, so a room created on another
+device cannot hide its birds. The "all cases" scope stays ungrouped. In the audit vocabulary
+`area` is in `RELATION_FIELDS` (per collection), NOT `RELATION_TARGETS`: `placements.area` is
+an older free-text column of the same name.
+
 **Case timeline pattern:** every clinical record (weight, condition, medication +
 administration, journal, marking, placement, disposition) is one unified chronology. Each
 kind = a provider + a `showXSheet()` bottom sheet (create/edit) + a tile built on the shared

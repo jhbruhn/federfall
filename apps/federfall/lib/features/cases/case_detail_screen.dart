@@ -11,6 +11,7 @@ import 'package:federfall/features/animals/custody_providers.dart';
 import 'package:federfall/features/animals/delete_record_dialogs.dart';
 import 'package:federfall/features/cases/add_entry_sheet.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
+import 'package:federfall/features/cases/areas/case_area_line.dart';
 import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/case_photo_gallery.dart';
 import 'package:federfall/features/cases/case_realtime.dart';
@@ -724,7 +725,17 @@ class _Header extends StatelessWidget {
     return DetailHeader(
       title: title,
       subtitle: subtitle,
-      footer: hasCarer ? CarerLine(carerId) : null,
+      // The room sits beside the carer because it answers the same question
+      // — where is this bird, with whom — and a case header is where a
+      // carer looks for it (federfall-r67n).
+      footer: Wrap(
+        spacing: AppSpacing.md,
+        runSpacing: AppSpacing.xs,
+        children: [
+          if (hasCarer) CarerLine(carerId),
+          CaseAreaLine(medicalCase: medicalCase, editable: !readOnly),
+        ],
+      ),
       chipLabel: status == null ? null : caseStatusLabel(l10n, status),
       // The avatar only needs the animal id, which the case always carries —
       // rendering it unconditionally keeps the header left-aligned instead of

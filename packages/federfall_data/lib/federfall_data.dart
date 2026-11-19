@@ -19,6 +19,7 @@ export 'src/repositories/audit_events_repository.dart';
 export 'src/repositories/auth_repository.dart';
 export 'src/repositories/aviaries_repository.dart';
 export 'src/repositories/aviary_stays_repository.dart';
+export 'src/repositories/care_areas_repository.dart';
 export 'src/repositories/carer_load_repository.dart';
 export 'src/repositories/case_activity_repository.dart';
 export 'src/repositories/case_report_repository.dart';

@@ -22,6 +22,7 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
     this.onQuery,
     this.hasMore = false,
     this.onLoadMore,
+    this.areaSections = const [],
   });
 
   final List<Case> cases;
@@ -54,6 +55,10 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
   /// list asked for one.
   final void Function()? onLoadMore;
 
+  /// The care-area sections the rows are grouped into (federfall-r67n), or
+  /// empty for an ungrouped list.
+  final List<String> areaSections;
+
   @override
   Future<CaseBrowseState> build(CaseQuery query) async {
     onQuery?.call(query);
@@ -63,6 +68,7 @@ class FakeCaseBrowseFeed extends CaseBrowseFeed {
       animalsById: animalsById,
       diagnosesByCase: diagnosesByCase,
       lastActivityByCase: lastActivityByCase,
+      areaSections: areaSections,
       hasMore: hasMore,
     );
   }

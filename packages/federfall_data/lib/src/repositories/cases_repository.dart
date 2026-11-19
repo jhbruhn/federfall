@@ -32,6 +32,8 @@ class CaseBrowseQuery {
     this.admittedFrom,
     this.admittedTo,
     this.text = '',
+    this.area,
+    this.outsideAreas = const [],
   });
 
   /// Only cases this user is the active carer of. Null for any carer — which
@@ -81,6 +83,40 @@ class CaseBrowseQuery {
   /// codes of the animal's markings.
   final String text;
 
+  /// The `care_areas` room the case is in (federfall-r67n): an area id, the
+  /// empty string for "in no area", or null for any. The browser groups a
+  /// caseload by reading it one area at a time, which is how a list paged by a
+  /// single keyset key can still come back in room order.
+  final String? area;
+
+  /// Cases in none of these areas — which includes the ones in no area at
+  /// all. The grouped browser's last section, asked this way rather than as
+  /// `area = ""` so a case in a room the device does not know about yet (made
+  /// on another device a moment ago) still lands somewhere instead of in no
+  /// section at all.
+  final List<String> outsideAreas;
+
+  /// This query narrowed to one area — see [area] for what `''` means.
+  CaseBrowseQuery inArea(String area) => _copy(area: area);
+
+  /// This query narrowed to the cases in none of [areas].
+  CaseBrowseQuery outside(List<String> areas) => _copy(outsideAreas: areas);
+
+  CaseBrowseQuery _copy({String? area, List<String> outsideAreas = const []}) =>
+      CaseBrowseQuery(
+        activeCarer: activeCarer,
+        statuses: statuses,
+        allowUnsetStatus: allowUnsetStatus,
+        species: species,
+        outcome: outcome,
+        conditionLabel: conditionLabel,
+        admittedFrom: admittedFrom,
+        admittedTo: admittedTo,
+        text: text,
+        area: area,
+        outsideAreas: outsideAreas,
+      );
+
   bool get isEmpty =>
       (activeCarer == null || activeCarer!.isEmpty) &&
       statuses.isEmpty &&
@@ -89,6 +125,8 @@ class CaseBrowseQuery {
       conditionLabel == null &&
       admittedFrom == null &&
       admittedTo == null &&
+      area == null &&
+      outsideAreas.isEmpty &&
       text.trim().isEmpty;
 
   @override
@@ -102,12 +140,22 @@ class CaseBrowseQuery {
       other.conditionLabel == conditionLabel &&
       other.admittedFrom == admittedFrom &&
       other.admittedTo == admittedTo &&
-      other.text == text;
+      other.text == text &&
+      other.area == area &&
+      _sameAreas(other.outsideAreas);
 
   bool _sameStatuses(List<CaseStatus> other) {
     if (other.length != statuses.length) return false;
     for (var i = 0; i < statuses.length; i++) {
       if (other[i] != statuses[i]) return false;
+    }
+    return true;
+  }
+
+  bool _sameAreas(List<String> other) {
+    if (other.length != outsideAreas.length) return false;
+    for (var i = 0; i < outsideAreas.length; i++) {
+      if (other[i] != outsideAreas[i]) return false;
     }
     return true;
   }
@@ -123,6 +171,8 @@ class CaseBrowseQuery {
     admittedFrom,
     admittedTo,
     text,
+    area,
+    Object.hashAll(outsideAreas),
   );
 }
 
@@ -372,6 +422,19 @@ class PbCasesRepository extends PbRepository<Case> implements CasesRepository {
     if (query.admittedTo != null) {
       clauses.add('admitted_at < {:to}');
       params['to'] = query.admittedTo!.toUtc();
+    }
+
+    // An unset relation is stored as the empty string, so `area = ""` is
+    // exactly "in no area" — no null handling needed.
+    final area = query.area;
+    if (area != null) {
+      clauses.add('area = {:area}');
+      params['area'] = area;
+    }
+    // `!=` is true for the empty string too, so the unassigned cases are in.
+    for (final (i, other) in query.outsideAreas.indexed) {
+      clauses.add('area != {:notArea$i}');
+      params['notArea$i'] = other;
     }
 
     final text = query.text.trim();

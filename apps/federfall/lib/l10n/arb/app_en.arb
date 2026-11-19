@@ -2789,5 +2789,22 @@
         }
     },
     "auditFactCaseNow": "Case now",
-    "auditFactAnimalNow": "Bird now"
+    "auditFactAnimalNow": "Bird now",
+    "careAreasTitle": "Areas",
+    "careAreasManage": "Manage areas",
+    "careAreasIntro": "Areas are the places your birds are housed with you — say “Quarantine room” or “Garage”. Your case list is grouped by them; drag them into the order you go through them.",
+    "careAreasEmpty": "You have not created any areas yet.",
+    "careAreaAdd": "Add area",
+    "careAreaFieldName": "Area name",
+    "careAreaRename": "Rename",
+    "careAreaDelete": "Delete",
+    "careAreaDeleteTitle": "Delete area?",
+    "careAreaDeleteBody": "The cases in “{name}” are kept and will have no area afterwards.",
+    "@careAreaDeleteBody": {"placeholders": {"name": {"type": "String"}}},
+    "caseAreaLabel": "Area",
+    "caseAreaNone": "No area",
+    "caseAreaAssign": "Assign area",
+    "caseAreaPickerTitle": "Where is the bird housed?",
+    "caseAreaPickerOtherCarer": "These are {name}'s areas, because the case is with them.",
+    "@caseAreaPickerOtherCarer": {"placeholders": {"name": {"type": "String"}}}
 }

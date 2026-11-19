@@ -628,6 +628,7 @@ const LABEL_FIELDS = {
   cases: ["case_number"],
   animals: ["name", "species"],
   aviaries: ["name"],
+  care_areas: ["name"],
   users: ["name", "email"],
   markings: ["code"],
   medications: ["drug"],
@@ -732,6 +733,10 @@ const RELATION_TARGETS = {
 // marking_types on `markings` and a plain text outcome on `dispositions`.
 const RELATION_FIELDS = {
   markings: { type: "marking_types" },
+  // The room a case's bird is housed in (1700000097). Per-collection, because
+  // `area` is also a free-text column on `placements` (1700000007), which a
+  // global entry would send looking for a care area by its prose.
+  cases: { area: "care_areas" },
 };
 
 // What a CREATE wrote, and what a DELETE destroyed (federfall-by7w / 9k2g).

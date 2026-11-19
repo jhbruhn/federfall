@@ -524,6 +524,26 @@ void main() {
       );
     });
 
+    test('an area narrows to that room, and "" to no room at all', () {
+      const q = CaseBrowseQuery(activeCarer: 'user1');
+
+      expect(
+        repo.filterFor(q.inArea('area1'))!.expression,
+        "active_carer = 'user1' && area = 'area1'",
+      );
+      // An unset relation is stored as '' — the "Ohne Bereich" section.
+      expect(repo.filterFor(q.inArea(''))!.expression, contains("area = ''"));
+      expect(repo.filterFor(q)!.expression, isNot(contains('area')));
+    });
+
+    test('outside a set of areas also admits the cases in none', () {
+      final f = repo.filterFor(
+        const CaseBrowseQuery().outside(const ['a1', 'a2']),
+      );
+
+      expect(f!.expression, "area != 'a1' && area != 'a2'");
+    });
+
     test('an unset status is admitted only when asked for', () {
       final f = repo.filterFor(
         const CaseBrowseQuery(statuses: [CaseStatus.disposed]),

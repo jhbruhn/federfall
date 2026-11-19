@@ -1,5 +1,6 @@
 import 'package:federfall/core/auth/current_user.dart';
 import 'package:federfall/data/repository_providers.dart';
+import 'package:federfall/features/cases/areas/care_areas_providers.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall_data/federfall_data.dart';
 import 'package:federfall_models/federfall_models.dart';
@@ -59,7 +60,10 @@ void main() {
     ).thenAnswer((_) async => answer());
   }
 
-  ProviderContainer makeContainer() {
+  ProviderContainer makeContainer({
+    AppUser? me,
+    List<CareArea> areas = const [],
+  }) {
     final container = ProviderContainer(
       // Riverpod 3 retries a failed provider on its own, which keeps it in the
       // loading state forever and makes an error assertion time out rather than
@@ -75,7 +79,8 @@ void main() {
           (ref) async => conditions,
         ),
         caseActivityRepositoryProvider.overrideWith((ref) async => activity),
-        currentUserProvider.overrideWith((ref) async => null),
+        currentUserProvider.overrideWith((ref) async => me),
+        careAreasProvider.overrideWith((ref) async => areas),
       ],
     );
     addTearDown(container.dispose);
@@ -535,6 +540,136 @@ void main() {
           perPage: any(named: 'perPage'),
         ),
       ).called(1);
+    });
+  });
+
+  group('grouped by care area (federfall-r67n)', () {
+    const me = AppUser(id: 'me', email: 'me@f.local');
+    const areas = [
+      // Deliberately out of order: the owner's `position` decides, not the
+      // name and not the order the server listed them in.
+      CareArea(id: 'garage', name: 'Garage', owner: 'me', position: 1),
+      CareArea(id: 'quar', name: 'Quarantäne', owner: 'me'),
+      CareArea(id: 'theirs', name: 'Balkon', owner: 'someone-else'),
+    ];
+
+    /// Answers each section's query from [bySection]: an area id, or `''`
+    /// for the trailing "in none of them" query.
+    void stubSections(Map<String, List<PbPage<Case>>> bySection) {
+      final calls = <String, int>{};
+      when(
+        () => cases.browse(
+          query: any(named: 'query'),
+          after: any(named: 'after'),
+          perPage: any(named: 'perPage'),
+        ),
+      ).thenAnswer((i) async {
+        final q = i.namedArguments[#query] as CaseBrowseQuery;
+        final key = q.area ?? '';
+        final n = calls[key] = (calls[key] ?? -1) + 1;
+        final pages = bySection[key] ?? const [];
+        return n < pages.length ? pages[n] : const PbPage<Case>(items: []);
+      });
+    }
+
+    List<CaseBrowseQuery> askedQueries() => verify(
+      () => cases.browse(
+        query: captureAny(named: 'query'),
+        after: any(named: 'after'),
+        perPage: any(named: 'perPage'),
+      ),
+    ).captured.cast<CaseBrowseQuery>();
+
+    test('"my cases" come room by room, in the owner\'s order', () async {
+      stubSections({
+        'quar': [
+          PbPage(items: [_case('q1')]),
+        ],
+        'garage': [
+          PbPage(items: [_case('g1'), _case('g2')]),
+        ],
+        '': [
+          PbPage(items: [_case('n1')]),
+        ],
+      });
+
+      final state = await makeContainer(me: me, areas: areas).read(
+        caseBrowseFeedProvider(const CaseQuery()).future,
+      );
+
+      expect(state.areaSections, ['quar', 'garage', '']);
+      expect(state.cases.map((c) => c.id), ['q1', 'g1', 'g2', 'n1']);
+      expect(state.hasMore, isFalse);
+      final asked = askedQueries();
+      expect(asked.map((q) => q.area), ['quar', 'garage', null]);
+      // The last section is "in none of these", not `area = ""`: a room made
+      // on another device a moment ago must not hide its birds.
+      expect(asked.last.outsideAreas, ['quar', 'garage']);
+      expect(asked.every((q) => q.activeCarer == 'me'), isTrue);
+    });
+
+    test('a full page stops mid-room and resumes there', () async {
+      stubSections({
+        'quar': [
+          PbPage(
+            items: [_case('q1')],
+            cursor: const PbCursor(value: 'x', id: 'q1'),
+          ),
+          PbPage(items: [_case('q2')]),
+        ],
+        'garage': [
+          PbPage(items: [_case('g1')]),
+        ],
+      });
+      final container = makeContainer(me: me, areas: areas);
+      final feed = caseBrowseFeedProvider(const CaseQuery());
+
+      final first = await container.read(feed.future);
+      expect(first.cases.map((c) => c.id), ['q1']);
+      expect(first.section, 0);
+      expect(first.hasMore, isTrue);
+
+      await container.read(feed.notifier).loadMore();
+      final all = container.read(feed).requireValue;
+      expect(all.cases.map((c) => c.id), ['q1', 'q2', 'g1']);
+      expect(all.hasMore, isFalse);
+    });
+
+    test('the "all cases" scope is not grouped', () async {
+      stubBrowse(() => PbPage(items: [_case('c1')]));
+
+      final state = await makeContainer(me: me, areas: areas).read(
+        caseBrowseFeedProvider(const CaseQuery(allScope: true)).future,
+      );
+
+      expect(state.grouped, isFalse);
+      expect(askedQueries().single.area, isNull);
+    });
+
+    test('a carer with no rooms gets the plain list', () async {
+      stubBrowse(() => PbPage(items: [_case('c1')]));
+
+      final state = await makeContainer(me: me).read(
+        caseBrowseFeedProvider(const CaseQuery()).future,
+      );
+
+      expect(state.grouped, isFalse);
+      expect(state.cases.map((c) => c.id), ['c1']);
+    });
+
+    test("a named carer's caseload is grouped by THEIR rooms", () async {
+      stubSections({
+        'theirs': [
+          PbPage(items: [_case('t1')]),
+        ],
+      });
+
+      final state = await makeContainer(me: me, areas: areas).read(
+        caseBrowseFeedProvider(const CaseQuery(carer: 'someone-else')).future,
+      );
+
+      expect(state.areaSections, ['theirs', '']);
+      expect(state.cases.map((c) => c.id), ['t1']);
     });
   });
 }

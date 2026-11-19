@@ -7,6 +7,8 @@ import 'package:federfall/features/admin/admin_providers.dart' as admin;
 import 'package:federfall/features/animals/animal_avatar.dart';
 import 'package:federfall/features/cases/admission_reasons_providers.dart';
 import 'package:federfall/features/cases/animal_species_providers.dart';
+import 'package:federfall/features/cases/areas/care_areas_providers.dart';
+import 'package:federfall/features/cases/areas/care_areas_sheet.dart';
 import 'package:federfall/features/cases/carer_line.dart';
 import 'package:federfall/features/cases/cases_browser.dart';
 import 'package:federfall/features/cases/cases_labels.dart';
@@ -212,6 +214,12 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
         () => unawaited(
           ref.read(caseBrowseFeedProvider(_query).notifier).refreshDiagnoses(),
         ),
+      )
+      // A room added, renamed or reordered — here or on another device —
+      // changes the sections. The feed watches the areas, so this re-reads it.
+      ..liveRefresh(
+        const ['care_areas'],
+        () => ref.invalidate(careAreasProvider),
       );
     final feed = ref.watch(caseBrowseFeedProvider(_query));
     // The empty list offers an "admit a case" CTA of its own, so suppress the
@@ -223,7 +231,14 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_title(l10n)),
-        actions: const [AccountMenu()],
+        actions: [
+          IconButton(
+            tooltip: l10n.careAreasManage,
+            onPressed: () => showCareAreasSheet(context),
+            icon: const Icon(Icons.meeting_room_outlined),
+          ),
+          const AccountMenu(),
+        ],
       ),
       floatingActionButton: showFab
           ? FloatingActionButton(
@@ -283,15 +298,21 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
             );
     }
 
+    final rows = _rowsOf(state);
+    // Only a grouped list names its rooms, so only one reads them.
+    final areasById = state.grouped
+        ? ref.watch(careAreasByIdProvider).value ?? const <String, CareArea>{}
+        : const <String, CareArea>{};
+
     return RefreshIndicator(
       onRefresh: () => ref.refresh(caseBrowseFeedProvider(_query).future),
       child: ListView.builder(
         controller: _scroll,
         // Always scrollable, so pull-to-refresh works on a short list.
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: state.cases.length + (state.hasMore ? 1 : 0),
+        itemCount: rows.length + (state.hasMore ? 1 : 0),
         itemBuilder: (context, i) {
-          if (i >= state.cases.length) {
+          if (i >= rows.length) {
             return PagedListTail(
               error: state.pageError,
               onLoad: () => unawaited(
@@ -302,7 +323,13 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
               ),
             );
           }
-          final c = state.cases[i];
+          final row = rows[i];
+          if (row is _AreaSection) {
+            return _AreaHeader(
+              areasById[row.areaId]?.name ?? l10n.caseAreaNone,
+            );
+          }
+          final c = row as Case;
           return _CaseTile(
             c,
             state.animalsById[c.animal],
@@ -318,6 +345,74 @@ class _CasesScreenState extends ConsumerState<CasesScreen> {
             selected: c.id == selectedId,
           );
         },
+      ),
+    );
+  }
+}
+
+/// The rows to draw: the cases, with a section marker before the first case
+/// of each area when the list is grouped (federfall-r67n). The feed delivers
+/// the cases already in section order, so a marker is due wherever the area
+/// changes. A case whose area is not one of the sections — which is exactly
+/// what the trailing section fetches — counts as being in none.
+List<Object> _rowsOf(CaseBrowseState state) {
+  if (!state.grouped) return state.cases;
+  final rows = <Object>[];
+  String? previous;
+  for (final c in state.cases) {
+    final area = c.area;
+    final key = area != null && state.areaSections.contains(area) ? area : '';
+    if (key != previous) rows.add(_AreaSection(key));
+    previous = key;
+    rows.add(c);
+  }
+  return rows;
+}
+
+/// A section marker in [_rowsOf]: the area id, or `''` for "in no area".
+@immutable
+class _AreaSection {
+  const _AreaSection(this.areaId);
+
+  final String areaId;
+}
+
+/// The heading above one area's cases.
+class _AreaHeader extends StatelessWidget {
+  const _AreaHeader(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      child: Semantics(
+        header: true,
+        child: Row(
+          children: [
+            Icon(
+              Icons.meeting_room_outlined,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
