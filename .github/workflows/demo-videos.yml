@@ -1,0 +1,208 @@
+name: Demo videos
+
+# Records every demo video (tools/demo-videos) in both languages and publishes
+# them as a small GitHub Pages site (federfall-1h9z.6).
+#
+# One recording takes 3–8 minutes (capture, then an OpenScreen export on a
+# software Vulkan driver), so the videos are recorded IN PARALLEL: the two
+# images are built once, handed to one job per video × language as an
+# artifact, and the site is assembled from the clips those jobs upload. Each
+# job runs the stack exactly as a person would — `docker compose run` against
+# tools/demo-videos/compose.yaml — so this is also the stack's docker + compose
+# test, which no local run had been.
+#
+# A walkthrough that fails is a UI regression signal as much as a missing
+# clip: a failed leg fails the run and nothing is deployed, so the published
+# site never mixes clips of two releases or loses one silently.
+on:
+  # First iteration: every push to main, to prove the pipeline end to end.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    outputs:
+      videos: ${{ steps.plan.outputs.videos }}
+      run-day: ${{ steps.plan.outputs.run-day }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The run day is pinned ONCE for every leg (README, "Time"): legs that
+      # start either side of midnight must still record the same day.
+      - id: plan
+        run: |
+          echo "videos=$(node tools/demo-videos/site/build.mjs matrix)" >> "$GITHUB_OUTPUT"
+          echo "run-day=$(TZ=Europe/Berlin date +%F)" >> "$GITHUB_OUTPUT"
+
+  images:
+    name: build images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # The repo's own full image (backend + web build). Reads the cache CI's
+      # docker-build job writes (default scope), so an unchanged app costs
+      # little; it does not write it back, so the two never fight over it.
+      - name: Build backend image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          tags: localhost/ffdemo-federfall:local
+          outputs: type=docker,dest=${{ runner.temp }}/images/backend.tar
+          cache-from: type=gha
+
+      - name: Build studio image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: tools/demo-videos/runner
+          file: tools/demo-videos/runner/Containerfile
+          target: studio
+          platforms: linux/amd64
+          tags: localhost/ffdemo-studio:local
+          outputs: type=docker,dest=${{ runner.temp }}/images/studio.tar
+          cache-from: type=gha,scope=ffdemo-studio
+          cache-to: type=gha,mode=max,scope=ffdemo-studio
+
+      # zstd is several times faster than the artifact's own zip at this size
+      # (the studio image is ~2.4 GB), so the upload stores it as is.
+      - name: Compress images
+        working-directory: ${{ runner.temp }}/images
+        run: |
+          zstd -T0 -3 --rm backend.tar studio.tar
+          ls -lh
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: demo-images
+          path: ${{ runner.temp }}/images/*.tar.zst
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+  record:
+    name: record ${{ matrix.video }} ${{ matrix.locale }}
+    needs: [plan, images]
+    # OpenScreen ships amd64 only (runner/Containerfile).
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        video: ${{ fromJSON(needs.plan.outputs.videos) }}
+        locale: [de, en]
+    env:
+      COMPOSE: docker compose -f tools/demo-videos/compose.yaml
+      FFDEMO_RUN_DAY: ${{ needs.plan.outputs.run-day }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: demo-images
+          path: ${{ runner.temp }}/images
+
+      - name: Load images
+        run: |
+          for f in "$RUNNER_TEMP"/images/*.tar.zst; do zstd -dc "$f" | docker load; done
+          rm -rf "$RUNNER_TEMP/images"
+
+      # The map tile cache (README, "Map tiles"): a miss is fetched once from
+      # tile.openstreetmap.org, so a warm cache keeps CI off OSM's servers.
+      # Per video and language, because each saves only what it fetched.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tools/demo-videos/out/.cache
+          key: demo-tiles-${{ matrix.video }}-${{ matrix.locale }}-${{ github.run_id }}
+          restore-keys: |
+            demo-tiles-${{ matrix.video }}-${{ matrix.locale }}-
+            demo-tiles-
+
+      # The verdict is last-run.json, not only the exit status (README, "Did
+      # it work?"). One retry: the app can freeze in the recorder
+      # (federfall-1h9z.38), and a rare freeze should not cost a release its
+      # videos. A second failure is real.
+      - name: Record
+        env:
+          VIDEO: ${{ matrix.video }}
+          LOCALE: ${{ matrix.locale }}
+        run: |
+          mkdir -p tools/demo-videos/out
+          for attempt in 1 2; do
+            echo "::group::attempt $attempt"
+            rm -f tools/demo-videos/out/last-run.json
+            $COMPOSE run --rm record record "$VIDEO" --locale "$LOCALE" || true
+            $COMPOSE logs --no-color backend > tools/demo-videos/out/backend.log 2>&1 || true
+            $COMPOSE down -v || true
+            echo "::endgroup::"
+            if jq -e '.ok == true' tools/demo-videos/out/last-run.json >/dev/null 2>&1; then
+              jq '.results' tools/demo-videos/out/last-run.json
+              exit 0
+            fi
+            echo "::warning::$VIDEO/$LOCALE attempt $attempt failed: $(jq -r '[.results[]?.error // empty] | join("; ")' tools/demo-videos/out/last-run.json 2>/dev/null)"
+          done
+          exit 1
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: clip-${{ matrix.video }}-${{ matrix.locale }}
+          path: tools/demo-videos/out/${{ matrix.video }}-*.${{ matrix.locale }}.mp4
+          compression-level: 0
+          if-no-files-found: error
+
+      # Everything the harness leaves for a failure: run.log, failure.png,
+      # the semantics dump, the raw capture, the backend's log.
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: failure-${{ matrix.video }}-${{ matrix.locale }}
+          path: |
+            tools/demo-videos/out/last-run.json
+            tools/demo-videos/out/backend.log
+            tools/demo-videos/out/work/
+          retention-days: 7
+
+  site:
+    name: assemble site
+    needs: record
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: clip-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/site/videos
+
+      - name: Build page
+        run: node tools/demo-videos/site/build.mjs page "$RUNNER_TEMP/site"
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    name: publish to Pages
+    needs: site
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
