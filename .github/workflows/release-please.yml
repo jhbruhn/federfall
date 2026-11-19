@@ -160,6 +160,21 @@ jobs:
         run: |
           docker buildx imagetools inspect ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
 
+  # Re-records every demo video against the released code and publishes them
+  # to GitHub Pages (federfall-1h9z.6). A failed walkthrough fails this job,
+  # not the release: the image and APKs above do not wait for it.
+  demo-videos:
+    name: Demo videos
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/demo-videos.yml
+    with:
+      version: ${{ needs.release-please.outputs.version }}
+
   android:
     name: Build & attach signed APK
     needs: release-please

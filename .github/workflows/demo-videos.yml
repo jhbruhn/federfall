@@ -14,15 +14,24 @@ name: Demo videos
 # A walkthrough that fails is a UI regression signal as much as a missing
 # clip: a failed leg fails the run and nothing is deployed, so the published
 # site never mixes clips of two releases or loses one silently.
+#
+# Runs on release: release-please.yml calls it once a release is cut (a
+# release created with GITHUB_TOKEN triggers no `on: release` workflow, so it
+# cannot listen for one itself). Manual runs re-record from the chosen ref.
 on:
-  # First iteration: every push to main, to prove the pipeline end to end.
-  push:
-    branches: [main]
+  workflow_call:
+    inputs:
+      version:
+        description: The release version, shown in the page's footer.
+        type: string
+        required: false
   workflow_dispatch:
 
+# Never cancelled: a superseded run would leave the site as it was, which is
+# fine, but a release's own run must not be cut short by a later push.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: demo-videos-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -189,6 +198,8 @@ jobs:
           path: ${{ runner.temp }}/site/videos
 
       - name: Build page
+        env:
+          FFDEMO_SITE_VERSION: ${{ inputs.version }}
         run: node tools/demo-videos/site/build.mjs page "$RUNNER_TEMP/site"
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

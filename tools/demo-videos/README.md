@@ -691,7 +691,10 @@ tiles.
 ## CI and the site
 
 `.github/workflows/demo-videos.yml` records every video in both languages and
-publishes them to GitHub Pages as one page (`site/build.mjs`). It builds the two
+publishes them to GitHub Pages (https://jhbruhn.github.io/federfall/) as one
+page (`site/build.mjs`). It runs on every release (called from
+`release-please.yml`) and by hand (`gh workflow run demo-videos.yml`), and
+takes about 25 minutes. It builds the two
 images once, then runs one job per video × language — in parallel, through
 `docker compose run` on this compose file — and assembles the page from the
 clips they upload. The run day is pinned once for all jobs. Each job retries a
