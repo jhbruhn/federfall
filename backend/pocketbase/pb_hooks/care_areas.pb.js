@@ -18,6 +18,9 @@
 //     bird has left it. Refusing there would make every handoff of a housed
 //     bird fail.
 //
+// Every move INTO a room is also written to the case timeline as a placement
+// (see the end of the update hook).
+//
 // On the MODEL events, not the *Request variants, because both writers that
 // matter most — the placement handoff and lib_derive.js's disposal — save the
 // case server-side, which fires no request hook. Org is not checked here:
@@ -49,14 +52,18 @@ onRecordCreate((e) => {
 onRecordUpdate((e) => {
   const rec = e.record;
   const area = rec.getString("area");
+  // The room the case is being MOVED into, once the checks below let it
+  // stand — written to the timeline after the case itself is saved.
+  let movedInto = null;
   if (area) {
     const moved = area !== rec.original().getString("area");
-    let owner = "";
+    let target = null;
     try {
-      owner = e.app.findRecordById("care_areas", area).getString("owner");
+      target = e.app.findRecordById("care_areas", area);
     } catch (_) {
-      owner = "";
+      target = null;
     }
+    const owner = target ? target.getString("owner") : "";
     if (rec.getString("status") === "disposed") {
       rec.set("area", "");
     } else if (owner && owner !== rec.getString("active_carer")) {
@@ -66,7 +73,28 @@ onRecordUpdate((e) => {
         );
       }
       rec.set("area", "");
+    } else if (moved && target) {
+      movedInto = target;
     }
   }
+
   e.next();
+
+  // federfall-r67n — a move between rooms is part of the bird's history, so it
+  // lands in the timeline as the placement ("Verlegt") it is. placements has
+  // carried a free-text `area` since 1700000007 and PlacementTile already
+  // prints it, so this is a snapshot of the room's NAME: renaming or deleting
+  // the room later must not rewrite what the history says. Only moves INTO a
+  // room are logged — the server's own emptying (handoff, closing) is already
+  // recorded as that handoff or outcome, and "no area" names nowhere to go.
+  // In the same transaction as the case save, like main.pb.js §3's share.
+  if (movedInto) {
+    const placement = new Record(e.app.findCollectionByNameOrId("placements"));
+    placement.set("case", rec.id);
+    placement.set("carer", rec.getString("active_carer"));
+    placement.set("area", movedInto.getString("name"));
+    placement.set("moved_in_at", new Date().toISOString().replace("T", " "));
+    placement.set("org", rec.getString("org"));
+    e.app.save(placement);
+  }
 }, "cases");

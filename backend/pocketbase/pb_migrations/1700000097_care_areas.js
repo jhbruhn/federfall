@@ -14,11 +14,11 @@
 // delete their own areas. READ is org-wide: a case shared with a colleague, or
 // opened by a coordinator, must still be able to say which room its bird is in.
 //
-// ── `cases.area` is a pointer to the present, not a history ─────────────────
-// Where the bird sat last week is not something anybody asked for, and a
-// timeline entry per room change would bury the clinical record under
-// housekeeping. It is therefore a plain field on the case, and the audit log's
-// `case.updated` diff (RELATION_TARGETS `area`) is the only trace of a move.
+// ── `cases.area` is a pointer to the present ────────────────────────────────
+// The field says where the bird is NOW. Its history is not kept here:
+// care_areas.pb.js writes each move into a room to the timeline as a
+// placement whose free-text `area` snapshots the room's name, so renaming or
+// deleting a room later does not rewrite the past.
 //
 // Because an area is somebody's room, a case may only point at an area its
 // ACTIVE CARER owns — care_areas.pb.js refuses anything else, and clears the

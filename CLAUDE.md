@@ -384,7 +384,9 @@ different questions.
 invariant the rule cannot (it compares two fields of the incoming record): a case's area
 belongs to its ACTIVE CARER. Pointing it at anyone else's is refused; a handoff or the case
 closing EMPTIES it instead, on the model event, because both writers save server-side.
-Deleting an area just un-sets it on its cases. The case browser groups the "mine" / named-carer
+Deleting an area just un-sets it on its cases. Each deliberate move INTO an area is also
+written to the timeline by that hook as a `placements` row ("Umzug") whose free-text `area`
+snapshots the room's name — the server's own emptying is not, the handoff/outcome already is. The case browser groups the "mine" / named-carer
 caseload by that person's areas: `PbReadOnlyRepository.page()` has one keyset key, so
 `CaseBrowseFeed` asks one filtered query per area in the owner's `position` order and walks
 them (`CaseBrowseState.section` is the second half of the cursor); the trailing section is

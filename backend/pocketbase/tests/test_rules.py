@@ -5489,6 +5489,13 @@ def main():
              for c in (r.get("changes") or []) if c.get("field") == "area"]
     check("an area move is audited by the room's name",
           bool(ar_ch) and ar_ch[0].get("to_label") == "Quarantäne", ar_ch)
+    ar_hist = listf(T, "placements", f'case = "{ar_case}"')
+    check("...and lands in the timeline as a placement naming the room",
+          [(p["area"], p["carer"]) for p in ar_hist] == [("Quarantäne", A)],
+          ar_hist)
+    s, _ = req("PATCH", ar_path, toks["a"], {"area": ar_a})
+    check("re-saving the same room logs no second move",
+          len(listf(T, "placements", f'case = "{ar_case}"')) == 1, s)
     s, _ = req("POST", "/api/collections/placements/records", toks["a"],
                {"case": ar_case, "to_user": B, "org": ORG})
     _, d = req("GET", ar_path, T)
@@ -5498,11 +5505,19 @@ def main():
     s, d = req("PATCH", ar_path, toks["b"], {"area": ar_b})
     check("...and the new carer places it in theirs",
           s == 200 and d.get("area") == ar_b, f"{s} {d}")
+    ar_areas = [p["area"] for p in listf(T, "placements",
+                                         f'case = "{ar_case}" && area != ""')]
+    check("the handoff's own emptying is not logged as a move",
+          sorted(ar_areas) == ["Garage", "Quarantäne"], ar_areas)
     s, _ = req("DELETE", f"/api/collections/care_areas/records/{ar_b}",
                toks["b"])
     _, d = req("GET", ar_path, T)
     check("deleting an area frees its cases rather than refusing",
           s == 204 and d.get("area") == "", f"{s} {d.get('area')!r}")
+    check("...and the history still names the room it was in",
+          "Garage" in [p["area"] for p in listf(T, "placements",
+                                                 f'case = "{ar_case}"')],
+          "snapshot lost")
 
     # ── federfall-h5m: handoff derived from the placement record ────────────
     print("\n[atomic handoff via placement]")
