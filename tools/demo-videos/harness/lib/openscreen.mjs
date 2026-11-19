@@ -392,8 +392,10 @@ export function cursorTrack(samples, vp) {
 }
 
 export async function exportClip({ docFile, outFile, durationMs, display, log }) {
+  // --no-sandbox is Electron's switch, not the CLI's: it must come BEFORE the
+  // subcommand — after it, `export` rejects it as an unknown option (exit 2).
   const args = ['export', docFile, '-o', outFile, '--json'];
-  if (process.env.FFDEMO_NO_SANDBOX === '1') args.push('--no-sandbox');
+  if (process.env.FFDEMO_NO_SANDBOX === '1') args.unshift('--no-sandbox');
   // A hang guard, not a pace: ~50 s for a 60 s clip measured, once 347 s on a busy host.
   const budget = 120_000 + durationMs * 8;
   await runBounded('openscreen', args, budget, { log, env: { ...process.env, DISPLAY: display } });

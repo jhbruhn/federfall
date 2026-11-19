@@ -244,7 +244,10 @@ export async function recordOne({ video, locale, workRoot, outRoot, services, no
           const name = e.getAttribute('aria-label') ?? (e.textContent ?? '').trim().slice(0, 60);
           const id = e.getAttribute('flt-semantics-identifier');
           return `${e.getAttribute('role') ?? '-'} "${name}"${id ? ` #${id}` : ''} @${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`;
-        }).join('\n')), 10_000, 'the failure dump').catch(() => {
+        }).join('\n')), 10_000, 'the failure dump').catch((dumpError) => {
+        // A page that is already closed (a failure in the export, after
+        // capture) rejects at once: that is not a freeze.
+        if (!(dumpError instanceof DemoError)) return `(no dump: ${dumpError?.message ?? dumpError})`;
         // Say so in the verdict: a frozen app is a different bug from a
         // missing label, and the screenshot alone looks like a wrong screen.
         result.error += ' — and the page then stopped answering (frozen renderer, see federfall-1h9z.38)';
