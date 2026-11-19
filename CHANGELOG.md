@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.9.0](https://github.com/jhbruhn/federfall/compare/v1.8.0...v1.9.0) (2026-11-19)
+
+
+### Features
+
+* **cases:** a move between care areas is a timeline entry ([5b6128a](https://github.com/jhbruhn/federfall/commit/5b6128acff9410b7a5036d03f9dcd502c9660029))
+* **cases:** care areas — group a carer's cases by the room the bird is in ([1ddf5e0](https://github.com/jhbruhn/federfall/commit/1ddf5e06e752ec208feb608b5e352fc0ef0b5a25))
+
+
+### Bug Fixes
+
+* **demo-videos:** keep the export out of the whole-run budget ([991ffc7](https://github.com/jhbruhn/federfall/commit/991ffc7a49c10c27f3a01ffd44d4e9090a42ac23))
+* **demo-videos:** pass --no-sandbox to OpenScreen before the subcommand ([9d6d1ed](https://github.com/jhbruhn/federfall/commit/9d6d1eda7a33ab0d55ced80653cb6ade6acec699))
+* **statistics:** a tapped breakdown row opens its cases, not the whole list ([fbee1e4](https://github.com/jhbruhn/federfall/commit/fbee1e4ca6deb114e810d5b01b126ce99c231c8c))
+
 ## [1.8.0](https://github.com/jhbruhn/federfall/compare/v1.7.4...v1.8.0) (2026-11-15)
 
 
