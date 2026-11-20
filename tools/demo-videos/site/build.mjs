@@ -130,8 +130,8 @@ html[data-lang="de"] [lang="en"]:not(html), html[data-lang="en"] [lang="de"]:not
 </header>
 <main>
   <p class="intro">${both({
-    de: 'Kurze Rundgänge durch die App, aufgenommen mit einem Demo-Datensatz. Jedes Video wird bei jedem Release automatisch neu erstellt.',
-    en: 'Short walkthroughs of the app, recorded against a demo dataset. Every video is re-recorded automatically on each release.',
+    de: 'So funktioniert Federfall.',
+    en: 'How Federfall works.',
   })}</p>
 ${sections}
 </main>
